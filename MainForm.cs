@@ -1,0 +1,585 @@
+using System;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.IO;
+using System.Windows.Forms;
+using MZ700Emul.Hardware;
+
+namespace MZ700Emul;
+
+public sealed class MainForm : Form
+{
+    private readonly MZ700 _machine = new();
+    private readonly System.Windows.Forms.Timer _timer = new();
+    private readonly StatusStrip _status = new();
+    private readonly ToolStripStatusLabel _statusLabel = new();
+    private readonly PictureBox _display = new();
+    private readonly string? _initialCassette;
+    private readonly bool _autoLoadBasic;
+    private readonly string? _dumpPath;
+    private readonly string _appDir;
+    private bool _started;
+    private bool _pendingLoadBasic;
+    private string? _pendingCassette;
+    private KeyMapping _keyMapping = null!;
+    private string KeyMapPath => Path.Combine(_appDir, "keymap.json");
+
+    public MainForm(string? cassettePath, bool autoLoadBasic, string? dumpPath = null)
+    {
+        _initialCassette = cassettePath;
+        _autoLoadBasic = autoLoadBasic;
+        _dumpPath = dumpPath;
+        _appDir = AppContext.BaseDirectory;
+        _keyMapping = KeyMapping.LoadOrDefault(KeyMapPath);
+        _machine.Keyboard.SetMapping(_keyMapping.ToKeysDictionary());
+
+        Text = "Sharp MZ-700 Emulator";
+        ClientSize = new Size(VideoRenderer.PixelWidth * 2, VideoRenderer.PixelHeight * 2 + 48);
+        KeyPreview = true;
+        AllowDrop = true;
+        DoubleBuffered = true;
+        StartPosition = FormStartPosition.CenterScreen;
+
+        BuildMenu();
+
+        _display.Dock = DockStyle.Fill;
+        _display.SizeMode = PictureBoxSizeMode.Zoom;
+        _display.BackColor = Color.Black;
+        _display.Paint += Display_Paint;
+        _display.AllowDrop = true;
+        _display.DragEnter += OnDragEnter;
+        _display.DragDrop += OnDragDrop;
+        // PictureBox isn't a tab-focus target; keep keyboard input on the
+        // form (which has KeyPreview = true).
+        _display.TabStop = false;
+
+        _status.Items.Add(_statusLabel);
+        _statusLabel.Text = "Ready.";
+        // Docking order matters: the Fill control must be added LAST so the
+        // menu (top) and status strip (bottom) claim their space first.
+        Controls.Add(_status);
+        Controls.Add(_display);
+
+        DragEnter += OnDragEnter;
+        DragDrop += OnDragDrop;
+        KeyDown += OnKeyDown;
+        KeyUp += OnKeyUp;
+
+        _timer.Interval = 1000 / MZ700.FramesPerSecond;
+        _timer.Tick += Timer_Tick;
+
+        Shown += (_, _) =>
+        {
+            // Drag focus to the form, including when launched from a
+            // console host (cmd.exe / PowerShell). By the time Shown
+            // fires the launching shell's foreground-rights grant has
+            // already expired, so SetForegroundWindow alone is silently
+            // ignored by Windows' focus-stealing-prevention.
+            //
+            // The keybd_event(VK_MENU) trick simulates a press+release
+            // of the Alt key, which temporarily lifts the lock. It's a
+            // hack but is the standard documented workaround.
+            keybd_event(VK_MENU, 0, 0, UIntPtr.Zero);
+            keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+            SetForegroundWindow(Handle);
+            Activate();
+            Focus();
+            Start();
+        };
+        FormClosing += (_, _) => { _timer.Stop(); _machine.Sound.Dispose(); };
+    }
+
+    private void BuildMenu()
+    {
+        var menu = new MenuStrip();
+        var file = new ToolStripMenuItem("&File");
+        file.DropDownItems.Add(new ToolStripMenuItem("&Load cassette...", null, (_, _) => BrowseAndLoad()) { ShortcutKeys = Keys.Control | Keys.O });
+        file.DropDownItems.Add(new ToolStripMenuItem("Load &BASIC", null, (_, _) => LoadBasic()) { ShortcutKeys = Keys.Control | Keys.B });
+        file.DropDownItems.Add(new ToolStripSeparator());
+        file.DropDownItems.Add(new ToolStripMenuItem("&Reset", null, (_, _) => ResetMachine()) { ShortcutKeys = Keys.Control | Keys.R });
+        file.DropDownItems.Add(new ToolStripSeparator());
+        file.DropDownItems.Add(new ToolStripMenuItem("E&xit", null, (_, _) => Close()));
+        menu.Items.Add(file);
+
+        var settings = new ToolStripMenuItem("&Settings");
+        settings.DropDownItems.Add(new ToolStripMenuItem("&Keyboard mapping...", null, (_, _) => ShowKeyMappingDialog()));
+        menu.Items.Add(settings);
+
+        var help = new ToolStripMenuItem("&Help");
+        help.DropDownItems.Add(new ToolStripMenuItem("&About", null, (_, _) =>
+            MessageBox.Show(this, "Sharp MZ-700 Emulator\n\n" +
+                "Command-line: MZ700Emul.exe [--basic] [cassette.mzf]\n" +
+                "Drag-and-drop .mzf files onto the window to load them.\n" +
+                "Ctrl+O: Load cassette | Ctrl+B: Load BASIC | Ctrl+R: Reset",
+                "About")));
+        menu.Items.Add(help);
+        MainMenuStrip = menu;
+        Controls.Add(menu);
+    }
+
+    private void Start()
+    {
+        if (_started) return;
+        _started = true;
+
+        try
+        {
+            // Locate ROMs & basic directory relative to application base OR source
+            var romDir = FindDir("roms");
+            _machine.LoadRoms(romDir);
+            _machine.Reset();
+            _machine.Cpu.PcTraceEnabled = _traceEnabled;
+            _machine.Cpu.PcHistogram = _pcHist;
+            _machine.Pit.WriteLog = _traceEnabled ? new System.Text.StringBuilder() : null;
+            _machine.Mem.BankSwitchLog = _traceEnabled ? new System.Text.StringBuilder() : null;
+            _machine.Sound.Start();
+
+            if (_autoLoadBasic)
+            {
+                // Run a few frames so the monitor boots before injecting BASIC
+                _pendingLoadBasic = true;
+            }
+            if (_initialCassette != null)
+            {
+                _pendingCassette = _initialCassette;
+            }
+            _timer.Start();
+            _statusLabel.Text = "Running.";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "Failed to start emulator:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            Close();
+        }
+    }
+
+    private string FindDir(string name)
+    {
+        // Try application base dir, then parent (source dir)
+        var candidate = Path.Combine(_appDir, name);
+        if (Directory.Exists(candidate)) return candidate;
+        var parent = Directory.GetParent(_appDir)?.FullName;
+        while (parent != null)
+        {
+            candidate = Path.Combine(parent, name);
+            if (Directory.Exists(candidate)) return candidate;
+            parent = Directory.GetParent(parent)?.FullName;
+        }
+        throw new DirectoryNotFoundException($"Could not find '{name}' directory near application.");
+    }
+
+    private int _bootFrames;
+    private int _soundDiagDownsample;
+    private bool _monitorReady;
+    private int _basicLoadedFrame = -1;
+    // PC histogram with 16-byte buckets covering the full 64K address
+    // space. Bumped on every CPU step (see Z80Cpu.PcHistogram). We dump
+    // the top-N hot buckets to pc_hist.txt once per second and reset.
+    private readonly int[] _pcHist = new int[4096];
+
+    /// <summary>
+    /// Detect "monitor finished booting" by spotting the "MONITOR 1Z*"
+    /// banner the 1Z-013A ROM writes to VRAM row 0 once init is complete
+    /// and the keyboard input loop is active. This is exactly the state
+    /// BASIC's startup at $7D79 needs — the call into monitor at $0033
+    /// works cleanly only after the monitor has set up its stack and
+    /// stopped clearing RAM around $1200.
+    /// </summary>
+    private bool MonitorReady()
+    {
+        if (_monitorReady) return true;
+        var v = _machine.Mem.Vram;
+        // MZ display codes: M=$0D O=$0F N=$0E I=$09 T=$14 1=$21 Z=$1A *=$2A
+        if (v[4] == 0x0D && v[5] == 0x0F && v[6] == 0x0E && v[7] == 0x09 &&
+            v[8] == 0x14 && v[9] == 0x0F && v[10] == 0x12 &&
+            v[12] == 0x21 && v[13] == 0x1A && v[14] == 0x2A)
+        {
+            _monitorReady = true;
+        }
+        return _monitorReady;
+    }
+    private void Timer_Tick(object? s, EventArgs e)
+    {
+        // TEMP DIAG: enable PIT WriteLog on first frame so we can capture
+        // the sequence of writes BASIC does during MUSIC.
+        if (_bootFrames == 0 && _machine.Pit.WriteLog == null)
+            _machine.Pit.WriteLog = new System.Text.StringBuilder();
+
+        _machine.RunFrame();
+        _bootFrames++;
+
+        if (++_soundDiagDownsample >= 30)
+        {
+            _soundDiagDownsample = 0;
+            var c0 = _machine.Pit.Counters[0];
+            var c1 = _machine.Pit.Counters[1];
+            var c2 = _machine.Pit.Counters[2];
+            _statusLabel.Text =
+                $"PC=${_machine.Cpu.PC:X4} " +
+                $"C0(m{c0.Mode} r=${c0.Reload:X4} v=${c0.Value:X4} o={(c0.Out ? 1 : 0)}) " +
+                $"C1(m{c1.Mode} r=${c1.Reload:X4} v=${c1.Value:X4} o={(c1.Out ? 1 : 0)}) " +
+                $"C2(m{c2.Mode} r=${c2.Reload:X4} v=${c2.Value:X4} o={(c2.Out ? 1 : 0)}) " +
+                $"SPK={(_machine.Ppi.SpeakerGate ? 1 : 0)}";
+            // Dump the PIT write log every second so the user can paste it.
+            try
+            {
+                if (_machine.Pit.WriteLog != null)
+                    System.IO.File.WriteAllText("pit_writes.txt", _machine.Pit.WriteLog.ToString());
+            }
+            catch { }
+
+            // Dump PC histogram (top hot buckets) and reset, so the file
+            // always reflects the last ~0.5 sec of execution. Format is
+            // copy/paste-friendly: one line per bucket, hottest first.
+            try
+            {
+                long total = 0;
+                for (int i = 0; i < _pcHist.Length; i++) total += _pcHist[i];
+                var indexed = new (int idx, int count)[_pcHist.Length];
+                for (int i = 0; i < _pcHist.Length; i++) indexed[i] = (i, _pcHist[i]);
+                Array.Sort(indexed, (a, b) => b.count.CompareTo(a.count));
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine($"PC histogram — total samples this window: {total:N0}");
+                sb.AppendLine($"(buckets are 16 bytes wide; column 2 = % of window; column 3 = absolute count)");
+                int shown = 0;
+                for (int i = 0; i < indexed.Length && shown < 30; i++)
+                {
+                    if (indexed[i].count == 0) break;
+                    ushort baseAddr = (ushort)(indexed[i].idx << 4);
+                    double pct = total > 0 ? indexed[i].count * 100.0 / total : 0;
+                    sb.AppendLine($"${baseAddr:X4}-${baseAddr + 0x0F:X4}  {pct,5:F1}%  {indexed[i].count}");
+                    shown++;
+                }
+                System.IO.File.WriteAllText("pc_hist.txt", sb.ToString());
+                Array.Clear(_pcHist, 0, _pcHist.Length);
+            }
+            catch { }
+        }
+
+        // Inject pending BASIC as soon as the monitor's input prompt is
+        // visible — the banner-detection signals that init is complete and
+        // the keyboard loop is running, which is what BASIC's startup at
+        // $7D79 needs (it does CALL $0033 into monitor ROM expecting a
+        // clean stack). Replaces a previous fixed 180-frame wait.
+        if (_pendingLoadBasic && MonitorReady())
+        {
+            try { _machine.AutoLoadBasic(FindDir("basic")); _statusLabel.Text = "BASIC loaded."; }
+            catch (Exception ex) { _statusLabel.Text = "BASIC load failed: " + ex.Message; }
+            _pendingLoadBasic = false;
+            _basicLoadedFrame = _bootFrames;
+        }
+        // Cassette injection: wait 60 frames after BASIC was loaded so its
+        // banner displays and READY prompt is reached before we auto-type
+        // commands. (For pure-monitor MC cassettes, fire as soon as the
+        // monitor is ready.)
+        bool readyForCassette = _autoLoadBasic
+            ? (_basicLoadedFrame >= 0 && _bootFrames - _basicLoadedFrame >= 60)
+            : MonitorReady();
+        if (readyForCassette && _pendingCassette != null)
+        {
+            try
+            {
+                if (_autoLoadBasic)
+                {
+                    // BASIC is loaded; direct-inject the program into RAM at
+                    // its load address (without jumping) and fix up program
+                    // pointers, mirroring what the menu's LoadCassetteFile
+                    // does. We can't use BASIC's LOAD command because S-BASIC
+                    // bypasses the monitor's tape routines (the ones we trap
+                    // at $0436/$04D8) — its own tape code reads PortC bit 5
+                    // directly and has no real cassette to read from here.
+                    var img = Hardware.Cassette.Parse(File.ReadAllBytes(_pendingCassette));
+                    _machine.Cassette.DirectInject(img, jumpExec: false);
+                    if (img.Type == 0x02 || img.Type == 0x05)
+                    {
+                        _machine.Cassette.FixupBasicProgramPointers(img.LoadAddr, img.Data.Length);
+                        // Auto-RUN: with the program injected and pointers
+                        // fixed, BASIC's RUN command preprocesses lengths and
+                        // starts execution. End-to-end automation from CLI.
+                        _machine.Keyboard.TypeString("RUN\r");
+                        _statusLabel.Text = $"Loaded {img.Filename}. Running.";
+                    }
+                    else
+                    {
+                        string usage = img.Type == 0x01 ? $"USR(${img.ExecAddr:X4})" : "RUN";
+                        _statusLabel.Text = $"Loaded {img.Filename} into BASIC. Type {usage}.";
+                    }
+                }
+                else
+                {
+                    // Machine-code cassette at startup: direct-inject into RAM
+                    // and jump to the game's execution address. This bypasses
+                    // the monitor's tape-LOAD flow (which would need a working
+                    // keyboard-driven command prompt).
+                    _machine.DirectInjectCassette(_pendingCassette);
+                    _statusLabel.Text = $"Loaded: {Path.GetFileName(_pendingCassette)}";
+                }
+            }
+            catch (Exception ex)
+            {
+                _statusLabel.Text = "Cassette load failed: " + ex.Message;
+            }
+            _pendingCassette = null;
+        }
+
+        _display.Invalidate();
+
+        // Trace state every 20 frames to help diagnose boot/load issues
+        if (_traceEnabled && (_bootFrames <= 10 || _bootFrames % 20 == 0) && _bootFrames <= _dumpFrame)
+        {
+            var c0 = _machine.Pit.Counters[0];
+            var c2 = _machine.Pit.Counters[2];
+            _traceLog.AppendLine($"[F{_bootFrames:D4}] PC=${_machine.Cpu.PC:X4} SP=${_machine.Cpu.SP:X4} IFF1={_machine.Cpu.IFF1} C0.rel={c0.Reload} run={c0.Running} out={c0.Out} C2.rel={c2.Reload} run={c2.Running} out={c2.Out} INTMSK={_machine.Ppi.InterruptMask} hdr={_machine.Cassette.HeaderDelivered} dat={_machine.Cassette.DataDelivered}");
+        }
+
+        if (_dumpPath != null && _bootFrames == _dumpFrame)
+        {
+            try
+            {
+                DumpState(_dumpPath);
+                if (_traceEnabled)
+                {
+                    // Append last 256 PC values (oldest first)
+                    var sb = new System.Text.StringBuilder();
+                    sb.AppendLine();
+                    sb.AppendLine("Recent PC trace (oldest first):");
+                    int start = _machine.Cpu.PcTraceIdx;
+                    for (int i = 0; i < _machine.Cpu.PcTrace.Length; i++)
+                    {
+                        sb.Append($"${_machine.Cpu.PcTrace[(start + i) & 0xFF]:X4} ");
+                        if (i % 16 == 15) sb.AppendLine();
+                    }
+                    _traceLog.Append(sb);
+                    if (_machine.Pit.WriteLog != null)
+                    {
+                        _traceLog.AppendLine();
+                        _traceLog.AppendLine("PIT write log:");
+                        _traceLog.Append(_machine.Pit.WriteLog);
+                    }
+                    if (_machine.Mem.BankSwitchLog != null)
+                    {
+                        _traceLog.AppendLine();
+                        _traceLog.AppendLine("Bank-switch log:");
+                        _traceLog.Append(_machine.Mem.BankSwitchLog);
+                    }
+                    File.WriteAllText(_dumpPath + ".trace", _traceLog.ToString());
+                }
+            }
+            catch (Exception ex) { _statusLabel.Text = "Dump failed: " + ex.Message; }
+            Close();
+        }
+    }
+
+    public int _dumpFrame = 120;
+    public bool _traceEnabled = true;
+    private readonly System.Text.StringBuilder _traceLog = new();
+
+    private void DumpState(string path)
+    {
+        using var w = new StreamWriter(path);
+        w.WriteLine($"MZ700 state after {_bootFrames} frames");
+        w.WriteLine($"CPU: PC=${_machine.Cpu.PC:X4} SP=${_machine.Cpu.SP:X4} A=${_machine.Cpu.A:X2} F=${_machine.Cpu.F:X2} HL=${_machine.Cpu.HL:X4} BC=${_machine.Cpu.BC:X4} DE=${_machine.Cpu.DE:X4}");
+        w.WriteLine($"IM={_machine.Cpu.IM} IFF1={_machine.Cpu.IFF1} Halted={_machine.Cpu.Halted} Cycles={_machine.Cpu.TotalCycles}");
+        w.WriteLine($"PPI PortA=${_machine.Ppi.PortA:X2} PortCOut=${_machine.Ppi.PortCOut:X2} PortCIn=${_machine.Ppi.PortCIn:X2}");
+        w.WriteLine($"Mem RomEnabled={_machine.Mem.RomEnabled} VramIoEnabled={_machine.Mem.VramIoEnabled}");
+        w.WriteLine($"PIT C0.Reload={_machine.Pit.Counters[0].Reload} C2.Reload={_machine.Pit.Counters[2].Reload}");
+        var sb0 = new System.Text.StringBuilder("RAM @ $1200: ");
+        for (int i = 0; i < 32; i++) sb0.Append($"{_machine.Mem.Read((ushort)(0x1200 + i)):X2} ");
+        w.WriteLine(sb0.ToString());
+        w.WriteLine($"Tape trap hits: BreakWait={_machine.Cassette.BreakWaitTrapHits} Header={_machine.Cassette.HeaderTrapHits} Data={_machine.Cassette.DataTrapHits}");
+        w.WriteLine();
+        w.WriteLine("VRAM (40x25 text codes):");
+        for (int row = 0; row < 25; row++)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"[{row:D2}] ");
+            for (int col = 0; col < 40; col++)
+            {
+                byte b = _machine.Mem.Vram[row * 40 + col];
+                sb.Append($"{b:X2} ");
+            }
+            w.WriteLine(sb.ToString());
+        }
+        w.WriteLine();
+        w.WriteLine("VRAM as ASCII (best-effort):");
+        for (int row = 0; row < 25; row++)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"[{row:D2}] ");
+            for (int col = 0; col < 40; col++)
+            {
+                byte b = _machine.Mem.Vram[row * 40 + col];
+                char c = MzDisplayToAscii(b);
+                sb.Append(c);
+            }
+            w.WriteLine(sb.ToString());
+        }
+    }
+
+    private static char MzDisplayToAscii(byte b)
+    {
+        // MZ display codes: 0x00=@, 0x01-0x1A=A-Z, 0x20-0x29=0-9 etc. mapping varies
+        // Use the standard MZ-700 display-code to ASCII best-effort
+        if (b == 0x00) return ' ';
+        if (b >= 0x01 && b <= 0x1A) return (char)('A' + (b - 0x01));
+        if (b >= 0x20 && b <= 0x29) return (char)('0' + (b - 0x20));
+        if (b == 0x2A) return ' ';
+        if (b == 0x67) return ' ';
+        if (b == 0xCE) return ' '; // MZ "space" in some sets
+        if (b >= 0x20 && b <= 0x7E) return (char)b;
+        return '.';
+    }
+
+    private void Display_Paint(object? sender, PaintEventArgs e)
+    {
+        var frame = _machine.Video.Frame;
+        e.Graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
+        e.Graphics.PixelOffsetMode = PixelOffsetMode.Half;
+        e.Graphics.SmoothingMode = SmoothingMode.None;
+
+        var cr = _display.ClientRectangle;
+        float sx = (float)cr.Width / VideoRenderer.PixelWidth;
+        float sy = (float)cr.Height / VideoRenderer.PixelHeight;
+        float scale = Math.Min(sx, sy);
+        int w = (int)(VideoRenderer.PixelWidth * scale);
+        int h = (int)(VideoRenderer.PixelHeight * scale);
+        int x = (cr.Width - w) / 2;
+        int y = (cr.Height - h) / 2;
+        e.Graphics.DrawImage(frame, new Rectangle(x, y, w, h));
+    }
+
+    private static bool IsShiftKey(Keys k) =>
+        k == Keys.ShiftKey || k == Keys.LShiftKey || k == Keys.RShiftKey;
+
+    private void OnKeyDown(object? s, KeyEventArgs e)
+    {
+        // e.Shift can momentarily lag on the very first shift keydown, so
+        // also detect via the VK code itself.
+        bool shift = e.Shift || IsShiftKey(e.KeyCode);
+        _machine.Keyboard.SetShift(shift);
+        if (_machine.Keyboard.OnKeyDown(e.KeyCode, shift)) e.Handled = true;
+    }
+
+    private void OnKeyUp(object? s, KeyEventArgs e)
+    {
+        bool shift = e.Shift && !IsShiftKey(e.KeyCode);
+        _machine.Keyboard.SetShift(shift);
+        if (_machine.Keyboard.OnKeyUp(e.KeyCode, shift)) e.Handled = true;
+    }
+
+    private void OnDragEnter(object? s, DragEventArgs e)
+    {
+        if (e.Data != null && e.Data.GetDataPresent(DataFormats.FileDrop)) e.Effect = DragDropEffects.Copy;
+    }
+
+    private void OnDragDrop(object? s, DragEventArgs e)
+    {
+        if (e.Data == null) return;
+        var files = (string[]?)e.Data.GetData(DataFormats.FileDrop);
+        if (files == null || files.Length == 0) return;
+        LoadCassetteFile(files[0]);
+    }
+
+    private void BrowseAndLoad()
+    {
+        using var dlg = new OpenFileDialog
+        {
+            Filter = "MZ cassette images (*.mzf;*.m12;*.mzt)|*.mzf;*.m12;*.mzt|All files|*.*",
+            Title = "Load cassette image"
+        };
+        if (dlg.ShowDialog(this) == DialogResult.OK) LoadCassetteFile(dlg.FileName);
+    }
+
+    private void LoadCassetteFile(string path)
+    {
+        try
+        {
+            var img = Hardware.Cassette.Parse(File.ReadAllBytes(path));
+
+            // S-BASIC has its own tape implementation (reading PortC bit 5
+            // directly at $0316/$0B42) and never calls the monitor's tape
+            // routines we trap at $0436/$04D8. So when BASIC is running we
+            // can't make its LOAD command work via cassette emulation —
+            // we direct-inject the image data into RAM at its load address
+            // and let the user invoke it (RUN for a BASIC program, or USR()
+            // / a manual JP for a machine-code image).
+            bool basicRunning = _autoLoadBasic && _bootFrames > 180;
+
+            if (img.Type == 0x01 && !basicRunning)
+            {
+                // Machine-code cassette in monitor mode: inject and run.
+                _machine.Cassette.DirectInject(img, jumpExec: true);
+                _statusLabel.Text = $"Loaded & run: {img.Filename} exec=${img.ExecAddr:X4}";
+            }
+            else if (basicRunning)
+            {
+                // BASIC running: direct-inject without jumping. Header bytes
+                // also go to $10F0 in case BASIC's runtime peeks at them.
+                _machine.Cassette.DirectInject(img, jumpExec: false);
+                // For BASIC-program images, the on-disk format stores line
+                // lengths between records — BASIC's LIST/RUN walks absolute
+                // pointers, so fix them up the way the real tape-LOAD does.
+                if (img.Type == 0x02 || img.Type == 0x05)
+                {
+                    _machine.Cassette.FixupBasicProgramPointers(img.LoadAddr, img.Data.Length);
+                }
+                string usage = img.Type == 0x01
+                    ? $"USR(${img.ExecAddr:X4})"
+                    : "RUN";
+                _statusLabel.Text = $"Loaded {img.Filename} at ${img.LoadAddr:X4}. Try {usage}.";
+            }
+            else
+            {
+                // Pre-BASIC monitor mode, non-MC image: queue for the
+                // monitor's LOAD command to consume.
+                _machine.Cassette.Queue(img);
+                _statusLabel.Text = $"Queued: {img.Filename}. Type LOAD to fetch.";
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "Failed to load cassette:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void LoadBasic()
+    {
+        try
+        {
+            _machine.AutoLoadBasic(FindDir("basic"));
+            _statusLabel.Text = "BASIC loaded.";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "BASIC load failed:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void ResetMachine()
+    {
+        _machine.Reset();
+        _bootFrames = 0;
+        _monitorReady = false;
+        _basicLoadedFrame = -1;
+        _statusLabel.Text = "Reset.";
+    }
+
+    private void ShowKeyMappingDialog()
+    {
+        using var dlg = new KeyMappingDialog(_keyMapping);
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        _keyMapping = dlg.Result;
+        _machine.Keyboard.SetMapping(_keyMapping.ToKeysDictionary());
+        try { _keyMapping.Save(KeyMapPath); _statusLabel.Text = "Keymap saved."; }
+        catch (Exception ex) { MessageBox.Show(this, "Failed to save keymap:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+
+    private const byte VK_MENU = 0x12;          // Alt key
+    private const uint KEYEVENTF_KEYUP = 0x0002;
+}

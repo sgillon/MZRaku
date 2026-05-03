@@ -1,0 +1,18 @@
+# Build output
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Diagnostic / runtime files written by the emulator
+pit_writes.txt
+pc_hist.txt
+dump.txt
+dump.txt.trace
+*.trace
+
+# User-customised keymap (regenerated from defaults if missing)
+keymap.json
