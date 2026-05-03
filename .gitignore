@@ -16,3 +16,6 @@ dump.txt.trace
 
 # User-customised keymap (regenerated from defaults if missing)
 keymap.json
+
+# Local convenience scripts
+resumeproject.bat
