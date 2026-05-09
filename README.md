@@ -52,42 +52,42 @@ regardless of host speed.
 | Load cassette… | Ctrl+O |
 | Load BASIC | Ctrl+B |
 | Reset | Ctrl+R |
-| Settings → Keyboard mapping… | (menu) |
 
 You can also drag and drop an `.mzf` file onto the window.
 
-## Keyboard mapping
+## Keyboard
 
-Open **Settings → Keyboard mapping…** to view and edit the PC-key →
-MZ-700 matrix bindings. Edits are persisted to `keymap.json` next to
-the executable.
+The emulator drives the MZ-700 matrix from the **character** your PC
+keystroke produces, after Windows has applied your keyboard layout.
+Type `;` and the MZ sees `;`; type `+` and it sees `+`; type `:` and it
+sees `:`. There is no per-key configuration — the host OS handles
+layout, AltGr, and dead keys for you, and the emulator translates the
+resulting Unicode character to the corresponding MZ-700 matrix
+position (and shift state, where needed).
 
-The MZ-700's keyboard ROM produces glyphs with non-ASCII display codes
-(e.g. PC `,` maps to MZ matrix (6, 1) producing display code `0x2F`,
-which renders as `,` in the MZ font), so the dialog shows each MZ
-position with the glyph it actually produces.
+Non-character keys are mapped directly:
 
-The dialog supports three "MZ shift modes":
+| PC key | MZ-700 |
+|---|---|
+| Enter | CR |
+| Backspace / Delete | DEL |
+| Insert | INS |
+| Esc | BREAK |
+| Cursor keys | Cursor |
+| Left/Right Ctrl | MZ Ctrl |
+| F1–F4 | F1–F4 |
 
-- **Auto** — PC shift state passes through to MZ shift. Default for
-  most bindings.
-- **Force MZ unshifted** — clear MZ shift even when PC shift is held,
-  to access unshifted MZ characters via shifted PC keys (e.g. UK
-  Shift+`;` → MZ `:` at unshifted (0,1)).
-- **Force MZ shifted** — set MZ shift even when PC shift isn't held,
-  to access shifted MZ characters via unshifted PC keys (e.g. UK `=`
-  → MZ `=` at shifted (6,5)).
-
-Some entries (like `+ (plus, shifted ;)` or `= (equals, shifted -)`)
-auto-select the right mode when bound.
+The translation table lives in `Hardware/CharMap.cs` (printables) and
+`Hardware/SpecialKeyMap.cs` (non-printables). MZ-only glyphs (graphics
+blocks, kana) aren't reachable in this scheme — that's an intentional
+trade-off for not having to configure anything.
 
 ## Project layout
 
 ```
 Z80/             Z80 CPU core (main, ED, CB, IX/IY prefixes)
-Hardware/        8255 PPI, 8253 PIT, memory map, keyboard, video,
-                 sound, cassette
-KeyMappingDialog WinForms UI for the keyboard editor
+Hardware/        8255 PPI, 8253 PIT, memory map, keyboard (CharMap +
+                 SpecialKeyMap), video, sound, cassette
 MainForm         Window, menu, timer-driven RunFrame loop, CLI auto-load
 MZ700            Top-level "machine" that wires CPU + I/O + ROMs
 docs/            Sharp service & owners' manuals (reference)
@@ -100,8 +100,8 @@ games/           Sample MZF cassette images
 
 - Reset (Ctrl+R) while BASIC is running returns to the BASIC `READY`
   prompt rather than re-running the monitor boot sequence.
-- The keyboard-mapping UI works but isn't the most intuitive — a
-  revision is on the backlog.
+- MZ-only glyphs (graphics blocks, kana) aren't reachable from a PC
+  keyboard in the current char-driven model — by design.
 
 ## Hardware notes
 

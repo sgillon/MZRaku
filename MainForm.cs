@@ -21,8 +21,6 @@ public sealed class MainForm : Form
     private bool _started;
     private bool _pendingLoadBasic;
     private string? _pendingCassette;
-    private KeyMapping _keyMapping = null!;
-    private string KeyMapPath => Path.Combine(_appDir, "keymap.json");
 
     public MainForm(string? cassettePath, bool autoLoadBasic, string? dumpPath = null)
     {
@@ -30,8 +28,6 @@ public sealed class MainForm : Form
         _autoLoadBasic = autoLoadBasic;
         _dumpPath = dumpPath;
         _appDir = AppContext.BaseDirectory;
-        _keyMapping = KeyMapping.LoadOrDefault(KeyMapPath);
-        _machine.Keyboard.SetMapping(_keyMapping.ToKeysDictionary());
 
         Text = "Sharp MZ-700 Emulator";
         ClientSize = new Size(VideoRenderer.PixelWidth * 2, VideoRenderer.PixelHeight * 2 + 48);
@@ -63,6 +59,7 @@ public sealed class MainForm : Form
         DragEnter += OnDragEnter;
         DragDrop += OnDragDrop;
         KeyDown += OnKeyDown;
+        KeyPress += OnKeyPress;
         KeyUp += OnKeyUp;
 
         _timer.Interval = 1000 / MZ700.FramesPerSecond;
@@ -100,10 +97,6 @@ public sealed class MainForm : Form
         file.DropDownItems.Add(new ToolStripSeparator());
         file.DropDownItems.Add(new ToolStripMenuItem("E&xit", null, (_, _) => Close()));
         menu.Items.Add(file);
-
-        var settings = new ToolStripMenuItem("&Settings");
-        settings.DropDownItems.Add(new ToolStripMenuItem("&Keyboard mapping...", null, (_, _) => ShowKeyMappingDialog()));
-        menu.Items.Add(settings);
 
         var help = new ToolStripMenuItem("&Help");
         help.DropDownItems.Add(new ToolStripMenuItem("&About", null, (_, _) =>
@@ -460,6 +453,11 @@ public sealed class MainForm : Form
         if (_machine.Keyboard.OnKeyDown(e.KeyCode, shift)) e.Handled = true;
     }
 
+    private void OnKeyPress(object? s, KeyPressEventArgs e)
+    {
+        _machine.Keyboard.OnKeyPress(e.KeyChar);
+    }
+
     private void OnKeyUp(object? s, KeyEventArgs e)
     {
         bool shift = e.Shift && !IsShiftKey(e.KeyCode);
@@ -562,16 +560,6 @@ public sealed class MainForm : Form
         _monitorReady = false;
         _basicLoadedFrame = -1;
         _statusLabel.Text = "Reset.";
-    }
-
-    private void ShowKeyMappingDialog()
-    {
-        using var dlg = new KeyMappingDialog(_keyMapping);
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
-        _keyMapping = dlg.Result;
-        _machine.Keyboard.SetMapping(_keyMapping.ToKeysDictionary());
-        try { _keyMapping.Save(KeyMapPath); _statusLabel.Text = "Keymap saved."; }
-        catch (Exception ex) { MessageBox.Show(this, "Failed to save keymap:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error); }
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
