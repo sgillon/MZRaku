@@ -204,15 +204,6 @@ public sealed class MainForm : Form
         if (++_soundDiagDownsample >= 30)
         {
             _soundDiagDownsample = 0;
-            var c0 = _machine.Pit.Counters[0];
-            var c1 = _machine.Pit.Counters[1];
-            var c2 = _machine.Pit.Counters[2];
-            _statusLabel.Text =
-                $"PC=${_machine.Cpu.PC:X4} " +
-                $"C0(m{c0.Mode} r=${c0.Reload:X4} v=${c0.Value:X4} o={(c0.Out ? 1 : 0)}) " +
-                $"C1(m{c1.Mode} r=${c1.Reload:X4} v=${c1.Value:X4} o={(c1.Out ? 1 : 0)}) " +
-                $"C2(m{c2.Mode} r=${c2.Reload:X4} v=${c2.Value:X4} o={(c2.Out ? 1 : 0)}) " +
-                $"SPK={(_machine.Ppi.SpeakerGate ? 1 : 0)}";
             // Dump the PIT write log every second so the user can paste it.
             try
             {

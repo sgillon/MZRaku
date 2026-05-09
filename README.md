@@ -120,3 +120,7 @@ documents inline:
   loader updates it so programs whose load address differs from the
   default `$6BCF` (e.g. `trek.mzf` at `$6BDF`) `LIST` and `RUN`
   correctly.
+- `$E008` bits 1-6 are joystick lines (active-low, via an LS367 buffer)
+  and must default to **1** ("idle / not pressed") when no joystick is
+  connected. Returning 0 there makes joystick games (e.g.
+  `panic.mzf`) auto-start and run with all directions held.
