@@ -166,7 +166,7 @@ public sealed class MZ700
     public void AutoLoadCassette(string path, bool autoRun)
     {
         if (!File.Exists(path)) throw new FileNotFoundException("Cassette image not found", path);
-        var img = Cassette.Parse(File.ReadAllBytes(path));
+        var img = Cassette.Parse(CassetteFile.ReadBytes(path));
         Cassette.Queue(img);
         if (autoRun)
         {
@@ -177,7 +177,7 @@ public sealed class MZ700
 
     public void DirectInjectCassette(string path)
     {
-        var img = Cassette.Parse(File.ReadAllBytes(path));
+        var img = Cassette.Parse(CassetteFile.ReadBytes(path));
         Cassette.DirectInject(img, jumpExec: true);
     }
 }

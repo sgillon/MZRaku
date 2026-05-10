@@ -40,7 +40,7 @@ regardless of host speed.
 | Flag | Effect |
 |---|---|
 | `--basic` (`-b`) | Auto-load S-BASIC after the monitor is ready. |
-| `<path>.mzf` | Auto-load a cassette image. With `--basic`, BASIC programs (type 0x02 / 0x05) are direct-injected into RAM, pointers fixed up, and `RUN` auto-typed. Without `--basic`, machine-code images are direct-injected and execution jumps to their entry. |
+| `<path>.mzf` | Auto-load a cassette image. With `--basic`, BASIC programs (type 0x02 / 0x05) are direct-injected into RAM, pointers fixed up, and `RUN` auto-typed. Without `--basic`, machine-code images are direct-injected and execution jumps to their entry. A `.zip` containing an `.mzf`/`.m12`/`.mzt` entry is also accepted (first cassette entry is used). |
 | `--dump=<file>` | At frame 120 (configurable), dump CPU/PIT/PPI/VRAM state to a text file and exit — useful for offline diagnostics. |
 | `--dumpframe=N` | Override the dump frame number. |
 | `--help` (`-h`) | Show usage. |
@@ -53,7 +53,8 @@ regardless of host speed.
 | Load BASIC | Ctrl+B |
 | Reset | Ctrl+R |
 
-You can also drag and drop an `.mzf` file onto the window.
+You can also drag and drop an `.mzf` (or a `.zip` containing one) onto
+the window.
 
 ## Keyboard
 
