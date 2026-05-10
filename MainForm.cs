@@ -10,6 +10,7 @@ namespace MZ700Emul;
 public sealed class MainForm : Form
 {
     private readonly MZ700 _machine = new();
+    private readonly Hardware.JoystickInput _joystickInput;
     private readonly System.Windows.Forms.Timer _timer = new();
     private readonly StatusStrip _status = new();
     private readonly ToolStripStatusLabel _statusLabel = new();
@@ -28,6 +29,7 @@ public sealed class MainForm : Form
         _initialCassette = cassettePath;
         _autoLoadBasic = autoLoadBasic;
         _dumpPath = dumpPath;
+        _joystickInput = new Hardware.JoystickInput(_machine.Joystick);
 
         Text = "Sharp MZ-700 Emulator";
         KeyPreview = true;
@@ -242,6 +244,10 @@ public sealed class MainForm : Form
         if (_bootFrames == 0 && _machine.Pit.WriteLog == null)
             _machine.Pit.WriteLog = new System.Text.StringBuilder();
 
+        // Sample real gamepad state once per frame, before the emulated
+        // CPU runs — values get latched at the VBLK falling edge inside
+        // RunFrame, so they need to be fresh by then.
+        _joystickInput.Poll();
         _machine.RunFrame();
         _bootFrames++;
 

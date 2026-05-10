@@ -12,6 +12,7 @@ public sealed class IoBus : IIoBus
     public Ppi8255 Ppi = null!;
     public Pit8253 Pit = null!;
     public MZ700Memory Memory = null!;
+    public Joystick Joystick = null!;
 
     public byte MemIn(ushort addr)
     {
@@ -21,20 +22,17 @@ public sealed class IoBus : IIoBus
         if (off == 8)
         {
             // $E008 read: "Tempo, joystick, HBLNK input" via LS367 buffer
-            // (per service manual). Bit 0 is the TEMPO signal driven by
-            // the MZ-700's 555/556 cursor oscillator, shared with the
-            // cursor-blink input on PPI PortC. S-BASIC's MUSIC polls
-            // this signal — the fact that BASIC's MUSIC was 10-20× too
-            // slow under the previous C1.OUT (1 Hz) wiring confirms the
-            // tempo source is the cursor osc, not the 8253.
-            // Bit 7 piggybacks the VBLANK signal also tracked on PortCIn.
-            // Bits 1-6 are joystick lines (active-low). With no joystick
-            // connected they read as 1 via pull-ups; if we left them as 0
-            // here, joystick games (e.g. panic.mzf) would see fire and all
-            // directions held continuously.
-            byte v = 0x7E; // bits 1-6 = 1 (joystick idle / not connected)
+            // (per service manual).
+            //   bit 0   = TEMPO (cursor-osc / 555 timer signal at ~50 Hz),
+            //             polled by S-BASIC's MUSIC for note duration.
+            //   bits 1-6 = MZ-1X03 joystick lines (active-low, multiplexed
+            //              by VBLK between axis pulses and switch states —
+            //              see Hardware/Joystick.cs).
+            //   bit 7   = VBLANK signal (also tracked on PPI PortC PC7).
+            bool vblkHigh = (Ppi.PortCIn & 0x80) != 0;
+            byte v = Joystick.GetPortBits(vblkHigh);
             if (Ppi.TempoBit) v |= 0x01;
-            if ((Ppi.PortCIn & 0x80) != 0) v |= 0x80;
+            if (vblkHigh) v |= 0x80;
             return v;
         }
         return 0xFF;

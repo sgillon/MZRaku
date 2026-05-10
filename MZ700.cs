@@ -19,6 +19,7 @@ public sealed class MZ700
     public VideoRenderer Video = new();
     public Cassette Cassette = new();
     public Sound Sound = new();
+    public Joystick Joystick = new();
 
     public const double CpuClockHz = 3546900.0;             // MZ-700 master clock ~3.5MHz
     public const double PitC0InputHz = 895000.0;            // counter 0 input clock
@@ -49,6 +50,8 @@ public sealed class MZ700
         Keyboard.Memory = Mem;
         Cassette.Memory = Mem;
         Cassette.Cpu = Cpu;
+        Io.Joystick = Joystick;
+        Joystick.Cpu = Cpu;
         Cpu.PreStep = Cassette.OnPreStep;
 
         Pit.Counter2Out += _ =>
@@ -107,6 +110,8 @@ public sealed class MZ700
     {
         // Visible portion ~192 lines + blanking -> we'll pulse VBLANK at frame end
         Ppi.SetVBlank(false);
+        // VBLK falling edge triggers the joystick 555 monostables.
+        Joystick.OnVBlankFall(Cpu.TotalCycles);
 
         int cyclesThisFrame = 0;
         int cyclesToVBlank = (int)(CyclesPerFrame * 0.85);
