@@ -1,6 +1,11 @@
 # MZ700Emul
 
-A Sharp MZ-700 emulator written in C# / .NET 8 (WinForms).
+A Sharp MZ-700 emulator written in C# / .NET 8 (WinForms). The aims of this emulator are:
+
+1. Work well enough play the MZ-700 games I remember from my childhood
+2. Be useable from a launcher such as Launchbox or Playnite, taking into account the need for a lot of games to have BASIC present before they can be loaded
+
+This means that the goal is for the emulator to work 'well enough' without necessarily worrying about accurately reproducing how the actual MZ-700 hardware works.
 
 ## Status
 
