@@ -14,6 +14,8 @@ public sealed class MainForm : Form
     private readonly StatusStrip _status = new();
     private readonly ToolStripStatusLabel _statusLabel = new();
     private readonly PictureBox _display = new();
+    private readonly Settings _settings = Settings.Load();
+    private readonly ToolStripMenuItem[] _scaleMenuItems = new ToolStripMenuItem[3];
     private readonly string? _initialCassette;
     private readonly bool _autoLoadBasic;
     private readonly string? _dumpPath;
@@ -30,11 +32,11 @@ public sealed class MainForm : Form
         _appDir = AppContext.BaseDirectory;
 
         Text = "Sharp MZ-700 Emulator";
-        ClientSize = new Size(VideoRenderer.PixelWidth * 2, VideoRenderer.PixelHeight * 2 + 48);
         KeyPreview = true;
         AllowDrop = true;
         DoubleBuffered = true;
         StartPosition = FormStartPosition.CenterScreen;
+        FormBorderStyle = FormBorderStyle.Sizable;
 
         BuildMenu();
 
@@ -61,6 +63,10 @@ public sealed class MainForm : Form
         KeyDown += OnKeyDown;
         KeyPress += OnKeyPress;
         KeyUp += OnKeyUp;
+
+        // Size last, after menu + status strip are docked so their heights
+        // are known. Sets ClientSize so the video area is exactly N× native.
+        ApplyDisplayScale(_settings.DisplayScale);
 
         _timer.Interval = 1000 / MZ700.FramesPerSecond;
         _timer.Tick += Timer_Tick;
@@ -98,6 +104,20 @@ public sealed class MainForm : Form
         file.DropDownItems.Add(new ToolStripMenuItem("E&xit", null, (_, _) => Close()));
         menu.Items.Add(file);
 
+        var view = new ToolStripMenuItem("&View");
+        for (int i = 0; i < 3; i++)
+        {
+            int scale = i + 1;
+            var item = new ToolStripMenuItem($"&{scale}× ({VideoRenderer.PixelWidth * scale}×{VideoRenderer.PixelHeight * scale})",
+                null, (_, _) => ApplyDisplayScale(scale))
+            {
+                ShortcutKeys = Keys.Control | (Keys.D0 + scale),
+            };
+            _scaleMenuItems[i] = item;
+            view.DropDownItems.Add(item);
+        }
+        menu.Items.Add(view);
+
         var help = new ToolStripMenuItem("&Help");
         help.DropDownItems.Add(new ToolStripMenuItem("&About", null, (_, _) =>
             MessageBox.Show(this, "Sharp MZ-700 Emulator\n\n" +
@@ -108,6 +128,26 @@ public sealed class MainForm : Form
         menu.Items.Add(help);
         MainMenuStrip = menu;
         Controls.Add(menu);
+    }
+
+    private void ApplyDisplayScale(int scale)
+    {
+        if (scale < 1) scale = 1;
+        if (scale > 3) scale = 3;
+        int chrome = (MainMenuStrip?.Height ?? 0) + _status.Height;
+        ClientSize = new Size(
+            VideoRenderer.PixelWidth * scale,
+            VideoRenderer.PixelHeight * scale + chrome);
+        for (int i = 0; i < _scaleMenuItems.Length; i++)
+        {
+            if (_scaleMenuItems[i] != null)
+                _scaleMenuItems[i].Checked = (i + 1 == scale);
+        }
+        if (_settings.DisplayScale != scale)
+        {
+            _settings.DisplayScale = scale;
+            _settings.Save();
+        }
     }
 
     private void Start()

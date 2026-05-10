@@ -18,5 +18,11 @@ dump.txt.trace
 # User-customised keymap (regenerated from defaults if missing)
 keymap.json
 
+# User preferences (regenerated with defaults if missing)
+settings.ini
+
 # Local convenience scripts
 resumeproject.bat
+
+# other files
+.claude/
