@@ -312,7 +312,7 @@ public sealed class MainForm : Form
                     // bypasses the monitor's tape routines (the ones we trap
                     // at $0436/$04D8) — its own tape code reads PortC bit 5
                     // directly and has no real cassette to read from here.
-                    var img = Hardware.Cassette.Parse(File.ReadAllBytes(_pendingCassette));
+                    var img = Hardware.Cassette.Parse(Hardware.CassetteFile.ReadBytes(_pendingCassette));
                     _machine.Cassette.DirectInject(img, jumpExec: false);
                     if (img.Type == 0x02 || img.Type == 0x05)
                     {
@@ -513,7 +513,7 @@ public sealed class MainForm : Form
     {
         using var dlg = new OpenFileDialog
         {
-            Filter = "MZ cassette images (*.mzf;*.m12;*.mzt)|*.mzf;*.m12;*.mzt|All files|*.*",
+            Filter = "MZ cassette images (*.mzf;*.m12;*.mzt;*.zip)|*.mzf;*.m12;*.mzt;*.zip|All files|*.*",
             Title = "Load cassette image"
         };
         if (dlg.ShowDialog(this) == DialogResult.OK) LoadCassetteFile(dlg.FileName);
@@ -523,7 +523,7 @@ public sealed class MainForm : Form
     {
         try
         {
-            var img = Hardware.Cassette.Parse(File.ReadAllBytes(path));
+            var img = Hardware.Cassette.Parse(Hardware.CassetteFile.ReadBytes(path));
 
             // S-BASIC has its own tape implementation (reading PortC bit 5
             // directly at $0316/$0B42) and never calls the monitor's tape
@@ -532,7 +532,10 @@ public sealed class MainForm : Form
             // we direct-inject the image data into RAM at its load address
             // and let the user invoke it (RUN for a BASIC program, or USR()
             // / a manual JP for a machine-code image).
-            bool basicRunning = _autoLoadBasic && _bootFrames > 180;
+            // _basicLoadedFrame is set by both the --basic auto-load path
+            // and the File > Load BASIC menu, so this works regardless of
+            // how BASIC got there.
+            bool basicRunning = _basicLoadedFrame >= 0;
 
             if (img.Type == 0x01 && !basicRunning)
             {
@@ -576,6 +579,7 @@ public sealed class MainForm : Form
         try
         {
             _machine.AutoLoadBasic(FindDir("basic"));
+            _basicLoadedFrame = _bootFrames;
             _statusLabel.Text = "BASIC loaded.";
         }
         catch (Exception ex)
