@@ -4,10 +4,14 @@ A Sharp MZ-700 emulator written in C# / .NET 8 (WinForms).
 
 ## Status
 
-Functional. Boots the 1Z-013A monitor, runs S-BASIC (1Z-013B), loads `.mzf`
-cassette images, plays sound, and types via a configurable PC-keyboard
-mapping. Tested against several commercial titles (Nightmare Park, Star
-Trek, Panic, etc.).
+Functional. Boots the 1Z-013A monitor, runs S-BASIC (1Z-013B), plays
+sound, and accepts PC keystrokes via the host keyboard layout (no
+per-key config needed). Cassette images load via menu, drag-drop, or
+the command line — the MZF type byte is inspected so BASIC programs
+auto-load BASIC and `RUN`, and machine-code programs jump to their
+entry directly. `.zip` archives containing a cassette are accepted
+transparently. Tested against several commercial titles (Nightmare
+Park, Star Trek, Panic, etc.).
 
 ## Requirements
 
@@ -52,9 +56,15 @@ regardless of host speed.
 | Load cassette… | Ctrl+O |
 | Load BASIC | Ctrl+B |
 | Reset | Ctrl+R |
+| Display 1× / 2× / 3× | Ctrl+1 / Ctrl+2 / Ctrl+3 |
 
 You can also drag and drop an `.mzf` (or a `.zip` containing one) onto
-the window.
+the window. Loading a cassette resets the emulator first, so opening
+a different program mid-execution Just Works regardless of whether the
+old or new program is BASIC or machine code.
+
+The chosen display scale is persisted in `settings.ini` next to the
+executable — a plain INI file you can edit by hand if you prefer.
 
 ## Keyboard
 
@@ -88,9 +98,10 @@ trade-off for not having to configure anything.
 ```
 Z80/             Z80 CPU core (main, ED, CB, IX/IY prefixes)
 Hardware/        8255 PPI, 8253 PIT, memory map, keyboard (CharMap +
-                 SpecialKeyMap), video, sound, cassette
+                 SpecialKeyMap), video, sound, cassette + zip loader
 MainForm         Window, menu, timer-driven RunFrame loop, CLI auto-load
 MZ700            Top-level "machine" that wires CPU + I/O + ROMs
+Settings.cs      INI-backed user preferences (settings.ini)
 docs/            Sharp service & owners' manuals (reference)
 roms/            Monitor ROM (1Z-013A) + character generator
 basic/           S-BASIC (1Z-013B) cassette image
