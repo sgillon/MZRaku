@@ -39,8 +39,8 @@ regardless of host speed.
 
 | Flag | Effect |
 |---|---|
-| `--basic` (`-b`) | Auto-load S-BASIC after the monitor is ready. |
-| `<path>.mzf` | Auto-load a cassette image. With `--basic`, BASIC programs (type 0x02 / 0x05) are direct-injected into RAM, pointers fixed up, and `RUN` auto-typed. Without `--basic`, machine-code images are direct-injected and execution jumps to their entry. A `.zip` containing an `.mzf`/`.m12`/`.mzt` entry is also accepted (first cassette entry is used). |
+| `--basic` (`-b`) | Auto-load S-BASIC after the monitor is ready. Implied automatically when the cassette is a BASIC program. |
+| `<path>.mzf` | Auto-load a cassette image. The MZF type byte is inspected: BASIC programs (type 0x02 / 0x05) auto-load BASIC, then direct-inject + `RUN`; machine-code images (type 0x01) skip BASIC and jump straight to their entry. A `.zip` containing an `.mzf`/`.m12`/`.mzt` entry is also accepted (first cassette entry is used). |
 | `--dump=<file>` | At frame 120 (configurable), dump CPU/PIT/PPI/VRAM state to a text file and exit — useful for offline diagnostics. |
 | `--dumpframe=N` | Override the dump frame number. |
 | `--help` (`-h`) | Show usage. |
@@ -99,8 +99,6 @@ games/           Sample MZF cassette images
 
 ## Known limitations
 
-- Reset (Ctrl+R) while BASIC is running returns to the BASIC `READY`
-  prompt rather than re-running the monitor boot sequence.
 - MZ-only glyphs (graphics blocks, kana) aren't reachable from a PC
   keyboard in the current char-driven model — by design.
 

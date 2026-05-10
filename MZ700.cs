@@ -82,6 +82,18 @@ public sealed class MZ700
     {
         Cpu.Reset();
         Cpu.IM = 1;
+        // Restore power-on bank state. Without this, a reset while BASIC
+        // is running leaves RomEnabled=false (BASIC banks the monitor
+        // ROM out at startup). The CPU then resumes at $0000 from RAM,
+        // where BASIC's code is sitting — so reset just re-enters BASIC
+        // instead of running the monitor's boot sequence.
+        Mem.RomEnabled = true;
+        Mem.VramIoEnabled = true;
+        // Clear pending cassette state so a stale Pending image doesn't
+        // get served to the freshly-booting monitor's tape traps.
+        Cassette.Pending = null;
+        Cassette.HeaderDelivered = false;
+        Cassette.DataDelivered = false;
         // Clear VRAM to spaces, attributes to white-on-blue (MZ-700 default)
         for (int i = 0; i < 2048; i++) { Mem.Vram[i] = 0x00; Mem.Aram[i] = 0x71; }
         // Run monitor: the ROM handles its own startup

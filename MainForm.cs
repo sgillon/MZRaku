@@ -167,14 +167,26 @@ public sealed class MainForm : Form
             _machine.Mem.BankSwitchLog = _traceEnabled ? new System.Text.StringBuilder() : null;
             _machine.Sound.Start();
 
-            if (_autoLoadBasic)
+            // Auto-load BASIC if requested explicitly (--basic) OR if the
+            // initial cassette is a BASIC program (type 0x02 / 0x05). The
+            // type peek means the user doesn't have to know whether a
+            // given .mzf is MC or BASIC — they just point the emulator at
+            // it and the right boot path runs.
+            bool loadBasic = _autoLoadBasic;
+            if (_initialCassette != null)
+            {
+                try
+                {
+                    var img = Hardware.Cassette.Parse(Hardware.CassetteFile.ReadBytes(_initialCassette));
+                    if (img.Type == 0x02 || img.Type == 0x05) loadBasic = true;
+                }
+                catch { /* let the Timer_Tick load path surface the error with a clearer status */ }
+                _pendingCassette = _initialCassette;
+            }
+            if (loadBasic)
             {
                 // Run a few frames so the monitor boots before injecting BASIC
                 _pendingLoadBasic = true;
-            }
-            if (_initialCassette != null)
-            {
-                _pendingCassette = _initialCassette;
             }
             _timer.Start();
             _statusLabel.Text = "Running.";
@@ -295,15 +307,18 @@ public sealed class MainForm : Form
         // Cassette injection: wait 60 frames after BASIC was loaded so its
         // banner displays and READY prompt is reached before we auto-type
         // commands. (For pure-monitor MC cassettes, fire as soon as the
-        // monitor is ready.)
-        bool readyForCassette = _autoLoadBasic
+        // monitor is ready.) `basicMode` is the runtime answer to "is this
+        // cassette going through BASIC?" — true whether BASIC came from
+        // --basic, the menu, or auto-load triggered by opening a BASIC .mzf.
+        bool basicMode = _pendingLoadBasic || _basicLoadedFrame >= 0;
+        bool readyForCassette = basicMode
             ? (_basicLoadedFrame >= 0 && _bootFrames - _basicLoadedFrame >= 60)
             : MonitorReady();
         if (readyForCassette && _pendingCassette != null)
         {
             try
             {
-                if (_autoLoadBasic)
+                if (basicMode)
                 {
                     // BASIC is loaded; direct-inject the program into RAM at
                     // its load address (without jumping) and fix up program
@@ -525,45 +540,39 @@ public sealed class MainForm : Form
         {
             var img = Hardware.Cassette.Parse(Hardware.CassetteFile.ReadBytes(path));
 
-            // S-BASIC has its own tape implementation (reading PortC bit 5
-            // directly at $0316/$0B42) and never calls the monitor's tape
-            // routines we trap at $0436/$04D8. So when BASIC is running we
-            // can't make its LOAD command work via cassette emulation —
-            // we direct-inject the image data into RAM at its load address
-            // and let the user invoke it (RUN for a BASIC program, or USR()
-            // / a manual JP for a machine-code image).
-            // _basicLoadedFrame is set by both the --basic auto-load path
-            // and the File > Load BASIC menu, so this works regardless of
-            // how BASIC got there.
-            bool basicRunning = _basicLoadedFrame >= 0;
+            // Loading any cassette is treated as a fresh-state operation,
+            // mirroring the CLI launch path. If the previous run was BASIC
+            // (or a BASIC program is mid-execution), we reset back to the
+            // monitor before injecting — leaving stale BASIC state lying
+            // around would mean the new program runs against the old
+            // interpreter's RAM, which doesn't work for mid-execution and
+            // also breaks "load MC cassette while at BASIC READY". The
+            // type-byte tells us whether to also auto-load BASIC; the
+            // existing pending-cassette path in Timer_Tick handles the
+            // rest (monitor banner detection, post-BASIC 60-frame wait,
+            // direct-inject + auto-RUN for BASIC, jump-to-exec for MC).
+            bool needsBasic = img.Type == 0x02 || img.Type == 0x05;
+            bool basicLoaded = _basicLoadedFrame >= 0;
 
-            if (img.Type == 0x01 && !basicRunning)
+            if (basicLoaded || needsBasic)
             {
-                // Machine-code cassette in monitor mode: inject and run.
+                ResetMachine();
+                if (needsBasic) _pendingLoadBasic = true;
+                _pendingCassette = path;
+                _statusLabel.Text = needsBasic
+                    ? $"Loading BASIC + {img.Filename}…"
+                    : $"Loading {img.Filename}…";
+            }
+            else if (img.Type == 0x01)
+            {
+                // Pure monitor + machine-code cassette: direct-inject and
+                // jump straight to its exec entry. No reset needed.
                 _machine.Cassette.DirectInject(img, jumpExec: true);
                 _statusLabel.Text = $"Loaded & run: {img.Filename} exec=${img.ExecAddr:X4}";
             }
-            else if (basicRunning)
-            {
-                // BASIC running: direct-inject without jumping. Header bytes
-                // also go to $10F0 in case BASIC's runtime peeks at them.
-                _machine.Cassette.DirectInject(img, jumpExec: false);
-                // For BASIC-program images, the on-disk format stores line
-                // lengths between records — BASIC's LIST/RUN walks absolute
-                // pointers, so fix them up the way the real tape-LOAD does.
-                if (img.Type == 0x02 || img.Type == 0x05)
-                {
-                    _machine.Cassette.FixupBasicProgramPointers(img.LoadAddr, img.Data.Length);
-                }
-                string usage = img.Type == 0x01
-                    ? $"USR(${img.ExecAddr:X4})"
-                    : "RUN";
-                _statusLabel.Text = $"Loaded {img.Filename} at ${img.LoadAddr:X4}. Try {usage}.";
-            }
             else
             {
-                // Pre-BASIC monitor mode, non-MC image: queue for the
-                // monitor's LOAD command to consume.
+                // Other type at the monitor: queue for monitor LOAD command.
                 _machine.Cassette.Queue(img);
                 _statusLabel.Text = $"Queued: {img.Filename}. Type LOAD to fetch.";
             }

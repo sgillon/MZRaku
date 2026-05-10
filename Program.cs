@@ -33,9 +33,12 @@ internal static class Program
                 MessageBox.Show(
                     "MZ-700 Emulator\n\n" +
                     "Usage: MZ700Emul.exe [--basic] [path\\to\\cassette.mzf|.zip]\n\n" +
-                    "  --basic        Automatically load BASIC interpreter at startup\n" +
+                    "  --basic        Force BASIC to be loaded at startup. Usually not\n" +
+                    "                 needed: BASIC cassettes auto-load BASIC anyway.\n" +
                     "  <cassette>     Automatically load a cassette image at startup.\n" +
-                    "                 Accepts .mzf/.m12/.mzt or a .zip containing one.\n\n" +
+                    "                 Accepts .mzf/.m12/.mzt or a .zip containing one.\n" +
+                    "                 BASIC programs trigger BASIC auto-load; machine-\n" +
+                    "                 code images run directly under the monitor.\n\n" +
                     "At runtime you may also drag-and-drop a .mzf or .zip file onto the\n" +
                     "window or use the File menu to load one.",
                     "MZ-700 Emulator");
