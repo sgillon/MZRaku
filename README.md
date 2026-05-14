@@ -20,7 +20,7 @@ the command line — the MZF type byte is inspected so BASIC programs
 auto-load BASIC and `RUN`, and machine-code programs jump to their
 entry directly. `.zip` archives containing a cassette are accepted
 transparently. Tested against several commercial titles (Nightmare
-Park, Star Trek, Panic, etc.).
+Park, Star Trek, Space Panic, etc.).
 
 
 ## Requirements
