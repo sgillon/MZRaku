@@ -11,7 +11,9 @@ IMPORTANT NOTE - The emulator code is *entirely* AI generated. Although I have s
 
 ## Status
 
-Functional. Boots the 1Z-013A monitor, runs S-BASIC (1Z-013B), plays
+The emulator is generally functional with some known imperfections (listed below). 
+
+Boots the 1Z-013A monitor, runs S-BASIC (1Z-013B), plays
 sound, and accepts PC keystrokes via the host keyboard layout (no
 per-key config needed). Cassette images load via menu, drag-drop, or
 the command line — the MZF type byte is inspected so BASIC programs
@@ -19,6 +21,7 @@ auto-load BASIC and `RUN`, and machine-code programs jump to their
 entry directly. `.zip` archives containing a cassette are accepted
 transparently. Tested against several commercial titles (Nightmare
 Park, Star Trek, Panic, etc.).
+
 
 ## Requirements
 
@@ -141,10 +144,12 @@ basic/           S-BASIC (1Z-013B) cassette image
 games/           Sample MZF cassette images
 ```
 
-## Known limitations
+## Known limitations & imperfections
 
 - MZ-only glyphs (graphics blocks, kana) aren't reachable from a PC
   keyboard in the current char-driven model — by design.
+- Sound reproduction isn't quite right. It works well enough to play most games, but some times sounds are missing and I'm not confident about the timings
+- Some issues in BASIC. For example, in the Solo Software's version of Star Trek, there seems to be an issue parsing variables for things like the long range and galactic maps
 
 ## Hardware notes
 
