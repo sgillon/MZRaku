@@ -24,6 +24,8 @@ entry directly. `.zip` archives containing a cassette are accepted
 transparently. Tested against several commercial titles (Nightmare
 Park, Star Trek, Space Panic, etc.).
 
+Need to expand to include mention of joystick support via MZ-1X03 emulation
+
 
 ## Requirements
 
@@ -172,6 +174,7 @@ games/           Sample MZF cassette images
   keyboard in the current char-driven model — by design.
 - Sound reproduction isn't quite right. It works well enough to play most games, but sometimes sounds are missing and I'm not confident about the timings
 - Some issues in BASIC. For example, in Solo Software's version of Star Trek, there seems to be an issue parsing variables for things like the long range and galactic maps
+- Saving to cassette is not currently possible
 
 ## Hardware notes
 
