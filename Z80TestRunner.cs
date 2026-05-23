@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Text;
 using System.Threading;
-using MZ700Emul.Z80;
+using Z80Core;
 
 namespace MZ700Emul;
 

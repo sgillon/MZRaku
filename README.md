@@ -144,8 +144,10 @@ Topic-by-topic guides live under [`docs/usage/`](docs/usage/):
 ## Project layout
 
 ```
-Z80/             Z80 CPU core (main, ED, CB, IX/IY prefixes) and the
-                 standalone disassembler used by the debugger window
+Z80Core/         Separate class-library project (Z80Core.dll) — Z80 CPU
+                 core (main, ED, CB, IX/IY prefixes) and a standalone
+                 disassembler. Pure net8.0, no WinForms, no MZ-700-
+                 specific code; reusable for other Z80 machines.
 Hardware/        8255 PPI, 8253 PIT, memory map, keyboard (CharMap +
                  SpecialKeyMap), video, sound, cassette + zip loader,
                  joystick (MZ-1X03 + WinMM bridge)
@@ -204,14 +206,16 @@ Items I'd like to come back to (rough priority order):
 
 ### Longer-term / infrastructure
 
-- **Extract the Z80 core into a standalone class library**
-  (`Z80Core.dll`) — the `Z80/` folder already depends only on the
-  `IMemory` and `IIoBus` interfaces defined within it, with one
-  small MZ-700-specific quirk in the disassembler. Splitting it out
-  would let it be reused for other Z80-based machines (Spectrum,
-  Amstrad CPC, MSX, CP/M, etc.). **In the meantime**, treat the
-  `Z80/` folder as a clean room: no MZ-700-specific code should
-  land there.
+- **Reduce non-standard .NET dependencies** — NAudio is the only
+  external NuGet package and brings 3 DLLs (~250 KB). It wraps
+  Windows' built-in `winmm.dll` `waveOut*` API, which we already
+  P/Invoke for the joystick. Replacing it with direct P/Invoke would
+  take the published bundle to zero third-party runtime dependencies
+  (just `MZ700Emul.exe` + `Z80Core.dll` + two JSON config files,
+  plus the user-supplied ROM/BASIC).
+- **Single-file publish** (`<PublishSingleFile>true</PublishSingleFile>`)
+  — once dependencies are minimised, fold the remaining DLLs into a
+  single self-extracting `.exe` for the smallest possible ship.
 
 ## Acknowledgements
 

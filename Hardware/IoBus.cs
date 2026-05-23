@@ -1,5 +1,5 @@
 using System;
-using MZ700Emul.Z80;
+using Z80Core;
 
 namespace MZ700Emul.Hardware;
 

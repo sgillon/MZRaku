@@ -1,6 +1,6 @@
 using System;
 
-namespace MZ700Emul.Z80;
+namespace Z80Core;
 
 /// <summary>
 /// Single-instruction Z80 disassembler. Reads bytes from any
@@ -12,10 +12,10 @@ namespace MZ700Emul.Z80;
 /// is table-driven instead of a 256-entry switch — mirrors how the CPU
 /// executor in <c>Z80Main.cs</c> is structured.
 ///
-/// $E000-$E00F is treated as zero rather than read through, because the
-/// MZ-700 maps that window to the PPI/PIT and a passing read would have
-/// real hardware side effects (latches counters, scans the keyboard).
-/// The debugger may park there transiently when the user jumps around.
+/// Callers can pass an <c>isSideEffectAddr</c> predicate to mark addresses
+/// whose reads must not be performed by the disassembler (e.g. memory-mapped
+/// I/O ports that latch counters or scan keyboards on read). Bytes at those
+/// addresses are reported as zero instead of being read through.
 /// </summary>
 public static class Z80Disassembler
 {
@@ -39,9 +39,9 @@ public static class Z80Disassembler
         "LDDR", "CPDR", "INDR", "OTDR",
     };
 
-    public static Result Disassemble(IMemory mem, ushort addr)
+    public static Result Disassemble(IMemory mem, ushort addr, Func<ushort, bool>? isSideEffectAddr = null)
     {
-        var r = new Reader(mem, addr);
+        var r = new Reader(mem, addr, isSideEffectAddr);
         int idx = 0;
         byte op = r.FetchByte();
         while (op == 0xDD || op == 0xFD)
@@ -350,12 +350,18 @@ public static class Z80Disassembler
     private sealed class Reader
     {
         private readonly IMemory _mem;
+        private readonly Func<ushort, bool>? _isSideEffectAddr;
         public ushort Cursor;
-        public Reader(IMemory mem, ushort start) { _mem = mem; Cursor = start; }
+        public Reader(IMemory mem, ushort start, Func<ushort, bool>? isSideEffectAddr)
+        {
+            _mem = mem;
+            _isSideEffectAddr = isSideEffectAddr;
+            Cursor = start;
+        }
 
         public byte FetchByte()
         {
-            byte v = SafeRead(_mem, Cursor);
+            byte v = (_isSideEffectAddr != null && _isSideEffectAddr(Cursor)) ? (byte)0 : _mem.Read(Cursor);
             Cursor = (ushort)(Cursor + 1);
             return v;
         }
@@ -368,14 +374,5 @@ public static class Z80Disassembler
         }
 
         public sbyte FetchSByte() => (sbyte)FetchByte();
-
-        private static byte SafeRead(IMemory mem, ushort addr)
-        {
-            // $E000-$E00F is the PPI/PIT I/O window — reads have side
-            // effects (PIT counter latches, keyboard scan). Disassembly
-            // must never disturb hardware state, so report zero there.
-            if (addr >= 0xE000 && addr <= 0xE00F) return 0;
-            return mem.Read(addr);
-        }
     }
 }

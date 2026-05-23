@@ -1,6 +1,6 @@
 using System;
 
-namespace MZ700Emul.Z80;
+namespace Z80Core;
 
 public sealed partial class Z80Cpu
 {

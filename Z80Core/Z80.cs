@@ -1,6 +1,6 @@
 using System;
 
-namespace MZ700Emul.Z80;
+namespace Z80Core;
 
 public interface IMemory
 {
@@ -460,7 +460,7 @@ public sealed partial class Z80Cpu
     // parked on the breakpointed instruction when one trips.
     public readonly bool[] Breakpoints = new bool[0x10000];
     // Set true by Step() when it declined to execute because PC was on
-    // a breakpoint; MZ700.RunFrame watches this to stop the frame early.
+    // a breakpoint; the host's run loop watches this to stop early.
     public bool BreakpointTripped;
     // When true, the next Step() ignores a breakpoint at PC exactly once,
     // letting the debugger resume/step off the instruction it's parked on.

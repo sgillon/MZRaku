@@ -17,11 +17,17 @@
     <PackageReference Include="NAudio" Version="2.2.1" />
   </ItemGroup>
 
-  <!-- Sibling tool projects under tools/ are built separately; exclude
-       their sources from this project to avoid double-compile errors. -->
+  <ItemGroup>
+    <ProjectReference Include="Z80Core\Z80Core.csproj" />
+  </ItemGroup>
+
+  <!-- Sibling sub-projects build separately; exclude their sources from
+       this project to avoid double-compile errors. -->
   <ItemGroup>
     <Compile Remove="tools/**/*.cs" />
     <None Remove="tools/**/*" />
+    <Compile Remove="Z80Core/**/*.cs" />
+    <None Remove="Z80Core/**/*" />
   </ItemGroup>
 
   <!-- Copyrighted ROM / BASIC images are NOT shipped with this project.

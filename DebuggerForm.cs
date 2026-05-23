@@ -5,7 +5,7 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Windows.Forms;
-using MZ700Emul.Z80;
+using Z80Core;
 
 namespace MZ700Emul;
 
@@ -26,6 +26,13 @@ namespace MZ700Emul;
 /// </summary>
 public sealed class DebuggerForm : Form
 {
+    // $E000-$E00F is the MZ-700 PPI/PIT I/O window — reads have hardware
+    // side effects (PIT counter latches, keyboard scan). Disassembly and
+    // raw byte display must never disturb hardware state, so report zero
+    // there. Passed to the (otherwise machine-agnostic) Z80 disassembler.
+    private static readonly Func<ushort, bool> IsMzIoWindow =
+        a => a >= 0xE000 && a <= 0xE00F;
+
     private readonly MZ700 _machine;
     private readonly Action _resetMachine;
 
@@ -297,7 +304,7 @@ public sealed class DebuggerForm : Form
         ushort cursor = _viewBase;
         for (int i = 0; i < n; i++)
         {
-            var res = Z80Disassembler.Disassemble(_machine.Mem, cursor);
+            var res = Z80Disassembler.Disassemble(_machine.Mem, cursor, IsMzIoWindow);
             string bytes = FormatBytes(cursor, res.Length);
             _lines.Add(new DisasmLine
             {
@@ -397,7 +404,7 @@ public sealed class DebuggerForm : Form
         {
             for (int i = 0; i < delta; i++)
             {
-                var res = Z80Disassembler.Disassemble(_machine.Mem, cursor);
+                var res = Z80Disassembler.Disassemble(_machine.Mem, cursor, IsMzIoWindow);
                 cursor = (ushort)(cursor + res.Length);
             }
         }
