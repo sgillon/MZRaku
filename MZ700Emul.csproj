@@ -13,6 +13,19 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
+  <!-- Release publish settings: bundle everything into a single .exe.
+       PDBs are embedded (no separate .pdb file) so stack traces still
+       carry line numbers if something crashes. Only Release publishes
+       are affected — Debug build and dotnet run are unchanged.
+       EnableCompressionInSingleFile is not used here: it's only valid
+       for self-contained bundles, and we ship framework-dependent
+       (assumes the .NET 8 Desktop Runtime is installed). -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="Z80Core\Z80Core.csproj" />
   </ItemGroup>
@@ -30,11 +43,15 @@
        Users must supply their own copies under roms\ and basic\ next to
        the source tree (or next to the published executable); Settings.cs
        walks up from the run directory to find them, and settings.ini
-       records the resolved paths. See the Quickstart in README.md. -->
+       records the resolved paths. See the Quickstart in README.md.
+       CopyToPublishDirectory=Never prevents 'dotnet publish' picking
+       up the developer's local copies — they go into the build output
+       (bin/) so 'dotnet run' works, but never into a release bundle. -->
   <ItemGroup>
     <None Include="roms\*.rom;roms\*.int;roms\*.txt;basic\*.mzf"
           Condition="Exists('roms\1z-013a.rom') or Exists('roms\mz700fon.int') or Exists('basic\1Z-013B.mzf')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
     </None>
   </ItemGroup>
 

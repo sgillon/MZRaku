@@ -9,4 +9,12 @@
     <RootNamespace>Z80Core</RootNamespace>
   </PropertyGroup>
 
+  <!-- Embed debug symbols in the assembly so the bundled single-file
+       release has no separate .pdb hanging around. Debug builds use
+       the default (portable .pdb) so Visual Studio's symbol loader
+       works as expected. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
 </Project>

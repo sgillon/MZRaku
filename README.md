@@ -36,10 +36,12 @@ against the supplied `tools/CPM/zexdoc.com` / `zexall.com`. The Z80
 core is also a separate class-library project (`Z80Core.dll`),
 reusable for other Z80-based machines.
 
-**Zero third-party runtime dependencies** — the published bundle is
-`MZ700Emul.exe`, `MZ700Emul.dll`, `Z80Core.dll`, and two small JSON
-config files. Sound goes through Windows' built-in `winmm.dll`
-directly (the same DLL the joystick code uses).
+**Single-file release publish** — `dotnet publish -c Release` produces
+a single self-extracting `MZ700Emul.exe` (about 300 KB) with no DLLs,
+no `.pdb`, no JSON config files alongside. Framework-dependent
+(assumes .NET 8 Desktop Runtime is installed); sound goes through
+Windows' built-in `winmm.dll` directly (the same DLL the joystick
+code uses).
 
 ## Quickstart
 
@@ -87,6 +89,17 @@ Or once built:
 The launcher waits for the monitor to display its `MONITOR 1Z*` prompt
 before injecting BASIC or a cassette, so startup is responsive
 regardless of host speed.
+
+### Producing a release build
+
+```
+dotnet publish -c Release -r win-x64 --self-contained false -o publish\MZ700Emul
+```
+
+Release publishes a single self-extracting `MZ700Emul.exe` (debug
+symbols embedded, framework-dependent). Assumes the .NET 8 Desktop
+Runtime is installed on the target machine. Drop the user-supplied
+ROMs / BASIC alongside the exe per [Quickstart](#quickstart).
 
 ## Command-line options
 
@@ -210,12 +223,6 @@ Items I'd like to come back to (rough priority order):
   tabbed UI once there are enough groups to justify it (sound, joystick
   mapping, user-editable keyboard glyphs).
 - **Hotkeys for the remaining menu items.**
-
-### Longer-term / infrastructure
-
-- **Single-file publish** (`<PublishSingleFile>true</PublishSingleFile>`)
-  — fold the remaining DLLs into a single self-extracting `.exe` for
-  the smallest possible ship.
 
 ## Acknowledgements
 
