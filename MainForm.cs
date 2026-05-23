@@ -195,7 +195,6 @@ public sealed class MainForm : Form
             _machine.LoadRoms(_settings.MonitorRomFullPath, _settings.FontFullPath);
             _machine.Reset();
             _machine.Cpu.PcTraceEnabled = _traceEnabled;
-            _machine.Cpu.PcHistogram = _pcHist;
             _machine.Pit.WriteLog = _traceEnabled ? new System.Text.StringBuilder() : null;
             _machine.Mem.BankSwitchLog = _traceEnabled ? new System.Text.StringBuilder() : null;
             _machine.Sound.Start();
@@ -245,13 +244,8 @@ public sealed class MainForm : Form
     }
 
     private int _bootFrames;
-    private int _soundDiagDownsample;
     private bool _monitorReady;
     private int _basicLoadedFrame = -1;
-    // PC histogram with 16-byte buckets covering the full 64K address
-    // space. Bumped on every CPU step (see Z80Cpu.PcHistogram). We dump
-    // the top-N hot buckets to pc_hist.txt once per second and reset.
-    private readonly int[] _pcHist = new int[4096];
 
     /// <summary>
     /// Detect "monitor finished booting" by spotting the "MONITOR 1Z*"
@@ -276,11 +270,6 @@ public sealed class MainForm : Form
     }
     private void Timer_Tick(object? s, EventArgs e)
     {
-        // TEMP DIAG: enable PIT WriteLog on first frame so we can capture
-        // the sequence of writes BASIC does during MUSIC.
-        if (_bootFrames == 0 && _machine.Pit.WriteLog == null)
-            _machine.Pit.WriteLog = new System.Text.StringBuilder();
-
         // Sample real gamepad state once per frame, before the emulated
         // CPU runs — values get latched at the VBLK falling edge inside
         // RunFrame, so they need to be fresh by then.
@@ -301,45 +290,6 @@ public sealed class MainForm : Form
                     ? $"{n}[X{s.AxisX:D3} Y{s.AxisY:D3}{(s.Sw1 ? " A" : "")}{(s.Sw2 ? " B" : "")}]"
                     : $"{n}-";
             _joyStatus.Text = $"Joy: {Fmt(s0, 1)} {Fmt(s1, 2)}";
-        }
-
-        if (++_soundDiagDownsample >= 30)
-        {
-            _soundDiagDownsample = 0;
-            // Dump the PIT write log every second so the user can paste it.
-            try
-            {
-                if (_machine.Pit.WriteLog != null)
-                    System.IO.File.WriteAllText("pit_writes.txt", _machine.Pit.WriteLog.ToString());
-            }
-            catch { }
-
-            // Dump PC histogram (top hot buckets) and reset, so the file
-            // always reflects the last ~0.5 sec of execution. Format is
-            // copy/paste-friendly: one line per bucket, hottest first.
-            try
-            {
-                long total = 0;
-                for (int i = 0; i < _pcHist.Length; i++) total += _pcHist[i];
-                var indexed = new (int idx, int count)[_pcHist.Length];
-                for (int i = 0; i < _pcHist.Length; i++) indexed[i] = (i, _pcHist[i]);
-                Array.Sort(indexed, (a, b) => b.count.CompareTo(a.count));
-                var sb = new System.Text.StringBuilder();
-                sb.AppendLine($"PC histogram — total samples this window: {total:N0}");
-                sb.AppendLine($"(buckets are 16 bytes wide; column 2 = % of window; column 3 = absolute count)");
-                int shown = 0;
-                for (int i = 0; i < indexed.Length && shown < 30; i++)
-                {
-                    if (indexed[i].count == 0) break;
-                    ushort baseAddr = (ushort)(indexed[i].idx << 4);
-                    double pct = total > 0 ? indexed[i].count * 100.0 / total : 0;
-                    sb.AppendLine($"${baseAddr:X4}-${baseAddr + 0x0F:X4}  {pct,5:F1}%  {indexed[i].count}");
-                    shown++;
-                }
-                System.IO.File.WriteAllText("pc_hist.txt", sb.ToString());
-                Array.Clear(_pcHist, 0, _pcHist.Length);
-            }
-            catch { }
         }
 
         // Inject pending BASIC as soon as the monitor's input prompt is

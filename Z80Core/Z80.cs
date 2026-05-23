@@ -449,11 +449,6 @@ public sealed partial class Z80Cpu
     public bool PcTraceEnabled;
     public bool PcTraceFrozen;
 
-    // Optional PC histogram, indexed by PC>>4 (16-byte buckets). When
-    // non-null, every executed instruction bumps its bucket — used to
-    // see hot PC ranges during BASIC MUSIC playback.
-    public int[]? PcHistogram;
-
     // --- Debugger support ---
     // One slot per 64K address; true = breakpoint armed. Checked once
     // per Step() before the instruction at PC executes, leaving PC
@@ -500,7 +495,6 @@ public sealed partial class Z80Cpu
             PcTrace[PcTraceIdx] = PC;
             PcTraceIdx = (PcTraceIdx + 1) & 0xFF;
         }
-        if (PcHistogram != null) PcHistogram[PC >> 4]++;
 
         byte op = Fetch();
         IncR();

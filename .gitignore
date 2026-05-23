@@ -11,8 +11,6 @@ MZ700Emul-*.zip
 *.suo
 
 # Diagnostic / runtime files written by the emulator
-pit_writes.txt
-pc_hist.txt
 dump.txt
 dump.txt.trace
 *.trace
