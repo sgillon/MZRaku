@@ -28,6 +28,12 @@ transparently. MZ-1X03 joysticks are emulated and driven from any
 Windows-recognised game controller. Tested against several commercial
 titles (Nightmare Park, Star Trek, Space Panic, etc.).
 
+**Z80 core: passes both ZEXDOC and ZEXALL** — the de-facto Z80
+instruction exercisers from the CP/M Users Group, covering documented
+and undocumented behaviour (including the X/Y flag bits). The harness
+is built in (`Debug → Run Z80 Test…`) and can be re-run any time
+against the supplied `tools/CPM/zexdoc.com` / `zexall.com`.
+
 ## Quickstart
 
 The emulator itself is freely available, but the MZ-700 firmware that
@@ -163,29 +169,50 @@ games/           Joystick test program (joytest.bas / .mzf)
 - MZ-only glyphs (graphics blocks, kana) aren't reachable from a PC
   keyboard in the current char-driven model — by design.
 - Sound reproduction isn't quite right. It works well enough to play most games, but sometimes sounds are missing and I'm not confident about the timings.
-- Some issues in BASIC. For example, in Solo Software's version of Star Trek, there seems to be an issue parsing variables for things like the long range and galactic maps.
-- Saving to cassette is not currently possible.
+- Auto-typed input (BASIC source paste / command auto-load) is still
+  hit-and-miss with shifted characters and is slow enough to be a
+  bottleneck when dumping long listings.
+- A few PC keys still don't map cleanly to their MZ-700 equivalents
+  (`*` is the known offender; broader verification pending).
 
 ## Planned future work
 
 Items I'd like to come back to (rough priority order):
 
+- **Auto-typer reliability + speed** — fix shifted-character drops and
+  raise throughput so pasting BASIC source / auto-LIST dumps stop
+  being a bottleneck. Likely needs direct keyboard-buffer injection
+  rather than driving the matrix.
+- **Keyboard mapping verification + GUI editor** — sweep the PC→MZ
+  character map (`*` and any other strays) and expose it as a
+  user-editable mapping persisted to a file.
+- **Game controller button mapping (GUI)** — let the user assign host
+  gamepad buttons to MZ-1X03 buttons via a config dialog, rather than
+  the current hardcoded mapping.
 - **BASIC-aware debugger panes** — program lister with de-tokenised
-  output, current-line indicator, variable-table reader. Primarily to
-  help track down the Star Trek variable-parsing bug.
+  output, current-line indicator, variable-table reader. Now a general
+  inspection aid rather than a trek-debug tool.
 - **Current-line highlighting** in the source view once the BASIC
   line pointer is wired up.
 - **Persisted debugger state** — remember window placement and the
   breakpoint list across runs (in `settings.ini`).
 - **BASIC source editor pane** — read the live BASIC program out of
   RAM, render it in an editable text pane, and write edits back.
-- **Configurable keyboard mapping (GUI)** — host-key → MZ-matrix
-  mapping editable via a settings dialog, persisted to file.
 - **Settings dialog** — replace direct `settings.ini` editing with a
   tabbed UI once there are enough groups to justify it (sound, joystick
   mapping, user-editable keyboard glyphs).
 - **Hotkeys for the remaining menu items.**
-- **Cassette save support.**
+
+### Longer-term / infrastructure
+
+- **Extract the Z80 core into a standalone class library**
+  (`Z80Core.dll`) — the `Z80/` folder already depends only on the
+  `IMemory` and `IIoBus` interfaces defined within it, with one
+  small MZ-700-specific quirk in the disassembler. Splitting it out
+  would let it be reused for other Z80-based machines (Spectrum,
+  Amstrad CPC, MSX, CP/M, etc.). **In the meantime**, treat the
+  `Z80/` folder as a clean room: no MZ-700-specific code should
+  land there.
 
 ## Acknowledgements
 

@@ -70,6 +70,19 @@ public sealed partial class Z80Cpu
         return eff;
     }
 
+    // Fetch a single displacement byte and resolve (IX+d) or (IY+d). The
+    // caller guarantees _idx != 0. Used by read-modify-write opcodes that
+    // touch the same (IX+d) cell twice — calling GetHLorIdxWithDisp twice
+    // would consume two stream bytes as separate displacements.
+    private ushort IdxAddrFetchD()
+    {
+        sbyte d = (sbyte)Fetch();
+        ushort baseR = _idx == 1 ? IX : IY;
+        ushort eff = (ushort)(baseR + d);
+        WZ = eff;
+        return eff;
+    }
+
     // For opcodes where (HL) would be read but we're in IX/IY mode, when the
     // opcode does NOT encode register 6 (HL), then H/L refer to IXH/IXL. But
     // for LD (HL),n style where (HL) is encoded, we need to read 'd' first and
@@ -276,6 +289,16 @@ public sealed partial class Z80Cpu
 
             case 4: // INC r
             {
+                if (y == 6 && _idx != 0)
+                {
+                    // INC (IX+d) / INC (IY+d): displacement must be fetched
+                    // ONCE — naive GetR(6)+SetR(6) would Fetch d twice (the
+                    // second Fetch consumes the next instruction's opcode
+                    // as a bogus displacement). 23 T-states on real Z80.
+                    ushort addr = IdxAddrFetchD();
+                    Mem.Write(addr, Inc8(Mem.Read(addr)));
+                    return 23;
+                }
                 byte v = GetR(y, out ex);
                 v = Inc8(v);
                 SetR(y, v, out int ex2);
@@ -285,6 +308,12 @@ public sealed partial class Z80Cpu
 
             case 5: // DEC r
             {
+                if (y == 6 && _idx != 0)
+                {
+                    ushort addr = IdxAddrFetchD();
+                    Mem.Write(addr, Dec8(Mem.Read(addr)));
+                    return 23;
+                }
                 byte v = GetR(y, out ex);
                 v = Dec8(v);
                 SetR(y, v, out int ex2);

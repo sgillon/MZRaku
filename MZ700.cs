@@ -104,6 +104,7 @@ public sealed class MZ700
         Cassette.Pending = null;
         Cassette.HeaderDelivered = false;
         Cassette.DataDelivered = false;
+        Cassette.ResetSaveState();
         // Clear VRAM to spaces, attributes to white-on-blue (MZ-700 default)
         for (int i = 0; i < 2048; i++) { Mem.Vram[i] = 0x00; Mem.Aram[i] = 0x71; }
         // Run monitor: the ROM handles its own startup

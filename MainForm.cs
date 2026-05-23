@@ -64,6 +64,11 @@ public sealed class MainForm : Form
         _status.Items.Add(_joyStatus);
         _statusLabel.Text = "Ready.";
         _joyStatus.Text = "Joy: --";
+
+        // SAVE-tape trap surfaces save outcomes via this event. Fires on
+        // the UI thread (OnPreStep is called from Timer_Tick → RunFrame),
+        // so we can touch the status label directly.
+        _machine.Cassette.OnSaved += msg => _statusLabel.Text = msg;
         // Docking order matters: the Fill control must be added LAST so the
         // menu (top) and status strip (bottom) claim their space first.
         Controls.Add(_status);
@@ -133,6 +138,8 @@ public sealed class MainForm : Form
         var debug = new ToolStripMenuItem("&Debug");
         debug.DropDownItems.Add(new ToolStripMenuItem("&Debugger…", null, (_, _) => OpenDebugger()) { ShortcutKeys = Keys.Control | Keys.D });
         debug.DropDownItems.Add(new ToolStripMenuItem("&Memory Viewer…", null, (_, _) => OpenMemoryViewer()) { ShortcutKeys = Keys.Control | Keys.M });
+        debug.DropDownItems.Add(new ToolStripSeparator());
+        debug.DropDownItems.Add(new ToolStripMenuItem("Run &Z80 Test (ZEXDOC/ZEXALL)…", null, (_, _) => OpenZ80Test()));
         menu.Items.Add(debug);
 
         var help = new ToolStripMenuItem("&Help");
@@ -500,7 +507,7 @@ public sealed class MainForm : Form
         var sb0 = new System.Text.StringBuilder("RAM @ $1200: ");
         for (int i = 0; i < 32; i++) sb0.Append($"{_machine.Mem.Read((ushort)(0x1200 + i)):X2} ");
         w.WriteLine(sb0.ToString());
-        w.WriteLine($"Tape trap hits: BreakWait={_machine.Cassette.BreakWaitTrapHits} Header={_machine.Cassette.HeaderTrapHits} Data={_machine.Cassette.DataTrapHits}");
+        w.WriteLine($"Tape trap hits: BreakWait={_machine.Cassette.BreakWaitTrapHits} Header={_machine.Cassette.HeaderTrapHits} Data={_machine.Cassette.DataTrapHits} WriteTape={_machine.Cassette.WriteTapeTrapHits}");
         w.WriteLine();
         w.WriteLine("VRAM (40x25 text codes):");
         for (int row = 0; row < 25; row++)
@@ -789,6 +796,37 @@ public sealed class MainForm : Form
         _memViewer.Owner = this;
         _memViewer.Show();
         _memViewer.BringToFront();
+    }
+
+    private void OpenZ80Test()
+    {
+        using var dlg = new OpenFileDialog
+        {
+            Title = "Select Z80 test .com (ZEXDOC / ZEXALL)",
+            Filter = "CP/M COM|*.com|All files|*.*",
+            InitialDirectory = FindToolsCpmDir() ?? AppContext.BaseDirectory,
+        };
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+        // Stop the 60Hz tick so the test thread has exclusive access to
+        // the CPU. Resumed when the test form closes.
+        _timer.Stop();
+        var form = new Z80TestForm(_machine, dlg.FileName);
+        form.FormClosed += (_, _) => _timer.Start();
+        form.Owner = this;
+        form.Show(this);
+    }
+
+    private static string? FindToolsCpmDir()
+    {
+        string? dir = AppContext.BaseDirectory;
+        while (dir != null)
+        {
+            var candidate = Path.Combine(dir, "tools", "CPM");
+            if (Directory.Exists(candidate)) return candidate;
+            dir = Directory.GetParent(dir)?.FullName;
+        }
+        return null;
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]

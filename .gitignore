@@ -2,6 +2,8 @@
 bin/
 obj/
 publish/
+publish-*/
+MZ700Emul-*.zip
 
 # Visual Studio
 .vs/
@@ -14,6 +16,10 @@ pc_hist.txt
 dump.txt
 dump.txt.trace
 *.trace
+ram-*.txt
+
+# Local archive form of tools (committed extracted)
+tools/CPM.zip
 
 # User-customised keymap (regenerated from defaults if missing)
 keymap.json

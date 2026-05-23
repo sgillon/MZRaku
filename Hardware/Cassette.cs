@@ -36,6 +36,24 @@ public sealed class Cassette
     public const ushort TrapBreakWait = 0x02C8;
     public const ushort HeaderBufferAddr = 0x10F0;
 
+    // S-BASIC's outgoing tape header lives at $0FFC — cleverly tucked
+    // into the $0000-$0FFF region that's RAM when BASIC has the monitor
+    // ROM banked out. Layout is the standard MZF: type at +0, filename
+    // at +1 (terminated by $0D), size LE at +$12, load LE at +$14.
+    // Discovered empirically by dumping RAM during a SAVE attempt and
+    // spotting the filename "VARTEST" at $0FFD-$1003.
+    public const ushort BasicSaveHeaderAddr = 0x0FFC;
+
+    // SAVE-tape trap address: the "press RECORD and PLAY" wait loop
+    // inside the monitor's tape-write routine. This is the SAVE
+    // counterpart to <see cref="TrapBreakWait"/> at $02C8 used by LOAD.
+    // Found empirically: the SAVE prompt was reproduced in S-BASIC and
+    // the debugger paused at PC=$0D47 while the prompt was on screen.
+    // Trapping here lets us short-circuit the wait, snapshot the header
+    // BASIC has prepared at $10F0, snapshot the data from
+    // [load..load+size], and write a .mzf file in one go.
+    public const ushort TrapWriteTape = 0x0D47;
+
     public sealed class MzfImage
     {
         public byte[] Header = new byte[128];
@@ -53,11 +71,23 @@ public sealed class Cassette
     public int BreakWaitTrapHits;
     public int HeaderTrapHits;
     public int DataTrapHits;
+    public int WriteTapeTrapHits;
+
+    // Once a SAVE has been committed within an attempt, ignore further
+    // hits on the wait-loop trap. Without this we'd write the same
+    // .mzf dozens of times as BASIC re-enters the wait. Cleared on
+    // machine reset and on any new BasicSaveHeaderAddr filename.
+    private bool _saveCommittedThisAttempt;
 
     public MZ700Memory Memory = null!;
     public Z80Cpu Cpu = null!;
 
     public event Action<string>? OnLoaded;
+    public event Action<string>? OnSaved;
+
+    // Where SAVE'd cassettes land. Set by MainForm at startup.
+    public string SaveDirectory { get; set; } =
+        Path.Combine(AppContext.BaseDirectory, "saves");
 
     public static MzfImage Parse(byte[] bytes)
     {
@@ -158,17 +188,56 @@ public sealed class Cassette
     /// </summary>
     public bool OnPreStep()
     {
-        if (!Memory.RomEnabled) return false;
         ushort pc = Cpu.PC;
+
+        // SAVE-tape trap lives in S-BASIC's own code (high-RAM region),
+        // so it must run with ROM banked OUT — the opposite of the other
+        // traps. Specifically NOT gated by Memory.RomEnabled. Found
+        // empirically by pausing the debugger during a SAVE prompt.
+        //
+        // We do NOT pop the stack or change PC: $0D47 is mid-routine
+        // (not the entry), so the stack at this point has saved
+        // registers from the routine's own PUSHes, not a clean return
+        // address. Best we can do for now is snapshot the .mzf once
+        // and let BASIC stay in its wait loop — the user resets to
+        // escape. Properly exiting the wait needs disassembly of the
+        // routine around $0D40-$0D60 to find the post-wait address.
+        if (pc == TrapWriteTape && !Memory.RomEnabled)
+        {
+            WriteTapeTrapHits++;
+            if (!_saveCommittedThisAttempt)
+            {
+                CommitSavedTape();
+                _saveCommittedThisAttempt = true;
+            }
+            return false;
+        }
+
+        // Re-arm the SAVE trap once BASIC has gone back to executing
+        // monitor ROM code (i.e. the Ready prompt's keyboard/display
+        // calls). Without this the BREAK-on-save short-circuit would
+        // also fire on the next SAVE before any data has been written.
+        if (_saveCommittedThisAttempt && Memory.RomEnabled && pc < 0x1000)
+            _saveCommittedThisAttempt = false;
+
+        if (!Memory.RomEnabled) return false;
         if (pc == TrapBreakWait)
         {
             // Monitor's "press PLAY / check BREAK" wait. With no physical tape
             // and large PIT periods, the natural timeout can take many seconds
-            // under our emulation. Always short-circuit to the "no break, no
-            // timeout error" path. This is correct both for cassette LOAD and
-            // for BASIC's periodic break polls.
+            // under our emulation. Normally short-circuit to the "no break, no
+            // timeout error" path (CY=0). This is correct both for cassette
+            // LOAD and for BASIC's periodic break polls.
+            //
+            // Special case: once a SAVE has been committed, return CY=1
+            // (BREAK pressed) so BASIC abandons its tape-write loop and
+            // returns to Ready. Without this BASIC keeps generating tape
+            // signal forever — there's no real tape to acknowledge.
             BreakWaitTrapHits++;
-            Cpu.F &= 0xFE; // CY=0 (success / no break)
+            if (_saveCommittedThisAttempt)
+                Cpu.F |= 0x01;   // CY=1 (BREAK)
+            else
+                Cpu.F &= 0xFE;   // CY=0 (no break)
             Cpu.PC = PopFromStack();
             return true;
         }
@@ -220,10 +289,121 @@ public sealed class Cassette
         return false;
     }
 
+    /// <summary>
+    /// Re-arm the SAVE-tape trap so the next SAVE attempt fires. Called
+    /// by the machine reset path.
+    /// </summary>
+    public void ResetSaveState()
+    {
+        _saveCommittedThisAttempt = false;
+    }
+
+    /// <summary>
+    /// One-shot diagnostic that writes the bytes at $0D40-$0D7F (BASIC's
+    /// wait code, since ROM is banked out when this is called) into a
+    /// text file in the save directory. Used to figure out the proper
+    /// exit address for the SAVE wait loop.
+    /// </summary>
+    private void DumpBasicWaitCode()
+    {
+        try
+        {
+            Directory.CreateDirectory(SaveDirectory);
+            var path = Path.Combine(SaveDirectory, "basic_wait_code.txt");
+            using var w = new StreamWriter(path);
+            w.WriteLine("; BASIC code at $0D40-$0D7F captured at SAVE-trap time (ROM banked out).");
+            w.WriteLine($"; PC=${Cpu.PC:X4} SP=${Cpu.SP:X4} AF=${Cpu.AF:X4} BC=${Cpu.BC:X4} DE=${Cpu.DE:X4} HL=${Cpu.HL:X4}");
+            w.WriteLine();
+            for (int row = 0x0D40; row < 0x0D80; row += 16)
+            {
+                var sb = new System.Text.StringBuilder();
+                sb.Append($"{row:X4}: ");
+                for (int i = 0; i < 16; i++)
+                    sb.Append($"{Memory.Read((ushort)(row + i)):X2} ");
+                sb.Append("  ");
+                for (int i = 0; i < 16; i++)
+                {
+                    byte b = Memory.Read((ushort)(row + i));
+                    sb.Append(b >= 0x20 && b < 0x7F ? (char)b : '.');
+                }
+                w.WriteLine(sb.ToString());
+            }
+            // Also capture a wider stack snapshot so we can spot the real
+            // return address in there.
+            w.WriteLine();
+            w.WriteLine($"; Stack contents at SP=${Cpu.SP:X4} (16 bytes):");
+            var sbs = new System.Text.StringBuilder();
+            sbs.Append($"{Cpu.SP:X4}: ");
+            for (int i = 0; i < 16; i++)
+                sbs.Append($"{Memory.Read((ushort)(Cpu.SP + i)):X2} ");
+            w.WriteLine(sbs.ToString());
+        }
+        catch { /* non-fatal */ }
+    }
+
     private ushort PopFromStack()
     {
         byte lo = Memory.Read(Cpu.SP); Cpu.SP++;
         byte hi = Memory.Read(Cpu.SP); Cpu.SP++;
         return (ushort)(lo | (hi << 8));
+    }
+
+    /// <summary>
+    /// Read the 128-byte header BASIC has prepared at $0FFC, snapshot
+    /// the data from [load..load+size], and write a .mzf file. Called
+    /// from inside the SAVE-wait trap (ROM banked out, so $0FFC..$0FFF
+    /// reads as RAM); pop+return is the caller's job.
+    /// </summary>
+    private void CommitSavedTape()
+    {
+        var header = new byte[128];
+        for (int i = 0; i < 128; i++)
+            header[i] = Memory.Read((ushort)(BasicSaveHeaderAddr + i));
+
+        ushort size = (ushort)(header[0x12] | (header[0x13] << 8));
+        ushort loadAddr = (ushort)(header[0x14] | (header[0x15] << 8));
+
+        if (size == 0)
+        {
+            OnSaved?.Invoke($"Save skipped: header at ${BasicSaveHeaderAddr:X4} has size=0 (not populated).");
+            return;
+        }
+
+        var data = new byte[size];
+        for (int i = 0; i < size; i++)
+            data[i] = Memory.Read((ushort)(loadAddr + i));
+
+        // Header filename: ASCII at byte 1, 0x0D terminator.
+        int nameLen = 0;
+        while (nameLen < 16 &&
+               header[1 + nameLen] != 0x0D &&
+               header[1 + nameLen] != 0x00)
+            nameLen++;
+        var name = System.Text.Encoding.ASCII.GetString(header, 1, nameLen).Trim();
+        if (string.IsNullOrWhiteSpace(name)) name = "UNNAMED";
+        foreach (var c in Path.GetInvalidFileNameChars()) name = name.Replace(c, '_');
+
+        string finalPath;
+        try
+        {
+            Directory.CreateDirectory(SaveDirectory);
+            // Don't silently overwrite — pick a numbered suffix if the
+            // base name is already used. Reproducible runs would
+            // otherwise lose the previous capture without trace.
+            finalPath = Path.Combine(SaveDirectory, name + ".mzf");
+            int n = 1;
+            while (File.Exists(finalPath))
+                finalPath = Path.Combine(SaveDirectory, $"{name}-{n++}.mzf");
+
+            using var fs = File.Create(finalPath);
+            fs.Write(header, 0, 128);
+            fs.Write(data, 0, data.Length);
+        }
+        catch (Exception ex)
+        {
+            OnSaved?.Invoke($"Save failed: {ex.Message}");
+            return;
+        }
+        OnSaved?.Invoke($"Saved via tape trap: {Path.GetFileName(finalPath)} ({data.Length} bytes from ${loadAddr:X4})");
     }
 }
