@@ -21,7 +21,13 @@ public static class SpecialKeyMap
         [Keys.Back]        = (7, 6),
         [Keys.Delete]      = (7, 6),
         [Keys.Insert]      = (7, 7),
-        [Keys.Escape]      = (8, 5),
+        // BREAK lives on row-8 bit 7 (not bit 5 as previously guessed).
+        // Discovered 2026-05-30 by tracing which row-8 reads BASIC acts
+        // on during RUN: code at $04A9 does LD A,($E001); AND $81;
+        // RET Z — masking bits 0 (SHIFT) and 7. The user manual notes
+        // shifted BREAK is required to stop a program, which matches the
+        // bit-0 + bit-7 combination exactly.
+        [Keys.Escape]      = (8, 7),
         [Keys.LControlKey] = (9, 2),
         [Keys.RControlKey] = (9, 2),
         [Keys.F1]          = (9, 7),

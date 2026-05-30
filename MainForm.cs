@@ -292,6 +292,7 @@ public sealed class MainForm : Form
             _joyStatus.Text = $"Joy: {Fmt(s0, 1)} {Fmt(s1, 2)}";
         }
 
+
         // Inject pending BASIC as soon as the monitor's input prompt is
         // visible — the banner-detection signals that init is complete and
         // the keyboard loop is running, which is what BASIC's startup at

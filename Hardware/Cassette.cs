@@ -303,10 +303,10 @@ public sealed class Cassette
         _saveCommittedThisAttempt = false;
     }
 
-    // BREAK lives on matrix (8, 5) — strobe 8, column 5. Active low, so a
-    // held key reads as 0 in that bit. SpecialKeyMap binds Esc to this
-    // position; this helper is what makes the BreakWait trap honour it.
-    private bool IsBreakHeld() => (Keyboard.ReadRow(8) & (1 << 5)) == 0;
+    // BREAK lives on matrix (8, 7). Active low, so a held key reads as
+    // 0 in that bit. SpecialKeyMap binds Esc to this position; this
+    // helper is what makes the BreakWait trap honour it.
+    private bool IsBreakHeld() => (Keyboard.ReadRow(8) & (1 << 7)) == 0;
 
     /// <summary>
     /// One-shot diagnostic that writes the bytes at $0D40-$0D7F (BASIC's
