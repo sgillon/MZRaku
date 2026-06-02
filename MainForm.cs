@@ -35,6 +35,7 @@ public sealed class MainForm : Form
     private string? _pendingBasicSource;
     private DebuggerForm? _debugger;
     private MemoryViewerForm? _memViewer;
+    private HidDiagnosticForm? _hidDiag;
 
     public MainForm(string? cassettePath, bool autoLoadBasic, string? dumpPath = null)
     {
@@ -116,7 +117,7 @@ public sealed class MainForm : Form
             Focus();
             Start();
         };
-        FormClosing += (_, _) => { _timer.Stop(); _debugger?.Dispose(); _memViewer?.Dispose(); _machine.Sound.Dispose(); };
+        FormClosing += (_, _) => { _timer.Stop(); _debugger?.Dispose(); _memViewer?.Dispose(); _hidDiag?.Dispose(); _machine.Sound.Dispose(); };
     }
 
     private void BuildMenu()
@@ -151,6 +152,7 @@ public sealed class MainForm : Form
         var debug = new ToolStripMenuItem("&Debug");
         debug.DropDownItems.Add(new ToolStripMenuItem("&Debugger…", null, (_, _) => OpenDebugger()) { ShortcutKeys = Keys.Control | Keys.D });
         debug.DropDownItems.Add(new ToolStripMenuItem("&Memory Viewer…", null, (_, _) => OpenMemoryViewer()) { ShortcutKeys = Keys.Control | Keys.M });
+        debug.DropDownItems.Add(new ToolStripMenuItem("&HID Diagnostic…", null, (_, _) => OpenHidDiag()) { ShortcutKeys = Keys.Control | Keys.H });
         debug.DropDownItems.Add(new ToolStripSeparator());
         debug.DropDownItems.Add(new ToolStripMenuItem("Run &Z80 Test (ZEXDOC/ZEXALL)…", null, (_, _) => OpenZ80Test()));
         menu.Items.Add(debug);
@@ -291,6 +293,7 @@ public sealed class MainForm : Form
         _bootFrames++;
         _debugger?.RefreshIfVisible();
         _memViewer?.RefreshIfVisible();
+        _hidDiag?.RefreshIfVisible();
 
         // Refresh joystick indicator every ~10 frames (~6 Hz) — enough
         // to confirm at a glance whether XInput is seeing a controller.
@@ -816,6 +819,27 @@ public sealed class MainForm : Form
         _memViewer.Owner = this;
         _memViewer.Show();
         _memViewer.BringToFront();
+    }
+
+    private void OpenHidDiag()
+    {
+        if (_hidDiag == null || _hidDiag.IsDisposed)
+        {
+            _hidDiag = new HidDiagnosticForm(_machine, _joystickInput);
+            // First open: park it to the right of the main window so it
+            // doesn't fight the debugger for screen space.
+            _hidDiag.Location = new Point(Bounds.Right + 8, Bounds.Top + 240);
+        }
+        _hidDiag.Owner = this;
+        _hidDiag.Show();
+        // Deliberately not BringToFront — that activates the window and
+        // steals focus from the emulator, which defeats the diagnostic's
+        // purpose (watching live input from the main window). The form's
+        // ShowWithoutActivation override stops Show() from grabbing focus
+        // on first open; for subsequent re-opens of an already-visible
+        // form, we explicitly re-activate the main window so the user can
+        // keep typing without clicking back.
+        Activate();
     }
 
     private void OpenZ80Test()

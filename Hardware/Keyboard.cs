@@ -36,6 +36,11 @@ public sealed class Keyboard
     // matches pre-layered code.
     public KeyOverride? Overrides;
 
+    // Live telemetry the HID diagnostic window reads each frame. Populated
+    // here so the diagnostic doesn't need to subscribe to events or duplicate
+    // mapping logic.
+    public readonly KeyboardDiagnostics Diag = new();
+
     // True PC shift state; tracked so KeyUp can recompute the MZ shift
     // bit after a char-driven hold ends.
     private bool _pcShift;
@@ -75,8 +80,16 @@ public sealed class Keyboard
     {
         if (strobe < 0 || strobe > 9) return 0xFF;
         _scanMask |= 1 << strobe;
+        Diag.LastScanRow = strobe;
         return _rows[strobe];
     }
+
+    /// <summary>
+    /// Side-effect-free row read for diagnostic UIs — does not touch the
+    /// auto-typer's scan mask or the diagnostic's last-scanned-row.
+    /// </summary>
+    public byte PeekMatrixRow(int row) =>
+        (row < 0 || row > 9) ? (byte)0xFF : _rows[row];
 
     public void SetMatrix(int row, int col, bool pressed)
     {
@@ -142,6 +155,8 @@ public sealed class Keyboard
         var bareVk = keyData & Keys.KeyCode;
         if (_holds.ContainsKey(bareVk)) return true; // auto-repeat: bit already held
 
+        Diag.LastKeyDown = keyData;
+
         // Layer 1: user overrides. MzShift can be true/false/null and the
         // ActiveHold honours each — see EffectiveMzShift's null check.
         var ov = Overrides?.Resolve(keyData);
@@ -153,6 +168,7 @@ public sealed class Keyboard
             SetMatrix(8, 0, EffectiveMzShift());
             if (Memory != null && b.MzShift.HasValue)
                 Memory.Ram[0x1170] = (byte)(b.MzShift.Value ? 0x01 : 0x00);
+            Diag.Record(InputLayer.Override, b.Row, b.Col, b.MzShift);
             return true;
         }
 
@@ -164,6 +180,7 @@ public sealed class Keyboard
             _holds[bareVk] = new ActiveHold(rc.row, rc.col, ExplicitMzShift: null);
             SetMatrix(rc.row, rc.col, true);
             SetMatrix(8, 0, EffectiveMzShift());
+            Diag.Record(InputLayer.SpecialKey, rc.row, rc.col, null);
             return true;
         }
 
@@ -178,11 +195,16 @@ public sealed class Keyboard
     /// </summary>
     public void OnKeyPress(char ch)
     {
+        Diag.LastKeyChar = ch;
         if (_pendingDownVk == Keys.None) return;
         var vk = _pendingDownVk;
         _pendingDownVk = Keys.None;
 
-        if (!CharMap.TryLookup(ch, out var p)) return;
+        if (!CharMap.TryLookup(ch, out var p))
+        {
+            Diag.Record(InputLayer.None, -1, -1, null);
+            return;
+        }
 
         // Record the hold with an EXPLICIT shift requirement so SetShift
         // (which fires on every subsequent key event while PC Shift is
@@ -191,6 +213,7 @@ public sealed class Keyboard
         SetMatrix(p.Row, p.Col, true);
         SetMatrix(8, 0, EffectiveMzShift());
         if (Memory != null) Memory.Ram[0x1170] = (byte)(p.MzShift ? 0x01 : 0x00);
+        Diag.Record(InputLayer.Character, p.Row, p.Col, p.MzShift);
     }
 
     /// <summary>
@@ -203,6 +226,7 @@ public sealed class Keyboard
     public bool OnKeyUp(Keys keyData, bool pcShift)
     {
         _pcShift = pcShift;
+        Diag.LastKeyUp = keyData;
         var bareVk = keyData & Keys.KeyCode;
         if (_pendingDownVk == bareVk) _pendingDownVk = Keys.None;
 
@@ -360,5 +384,27 @@ public sealed class Keyboard
                 }
                 break;
         }
+    }
+}
+
+public enum InputLayer { None, Override, SpecialKey, Character }
+
+public sealed class KeyboardDiagnostics
+{
+    public Keys LastKeyDown;
+    public Keys LastKeyUp;
+    public char LastKeyChar;
+    public InputLayer LastLayer;
+    public int LastRow = -1;
+    public int LastCol = -1;
+    public bool? LastMzShift;
+    public int LastScanRow = -1;
+
+    public void Record(InputLayer layer, int row, int col, bool? mzShift)
+    {
+        LastLayer = layer;
+        LastRow = row;
+        LastCol = col;
+        LastMzShift = mzShift;
     }
 }
