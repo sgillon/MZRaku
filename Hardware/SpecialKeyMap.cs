@@ -59,4 +59,54 @@ public static class SpecialKeyMap
         [Keys.F11]         = (0, 6),  // F11 → GRAPH
         [Keys.F12]         = (0, 4),  // F12 → ALPHA
     };
+
+    /// <summary>
+    /// Friendly labels for the PC virtual keys above — used by the
+    /// keyboard-map editor's capture dialog to describe what was pressed.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<Keys, string> Labels = new Dictionary<Keys, string>
+    {
+        [Keys.Enter]       = "Enter",
+        [Keys.Left]        = "cursor left",
+        [Keys.Right]       = "cursor right",
+        [Keys.Down]        = "cursor down",
+        [Keys.Up]          = "cursor up",
+        [Keys.Back]        = "Backspace",
+        [Keys.Delete]      = "Delete",
+        [Keys.Insert]      = "Insert",
+        [Keys.Escape]      = "Esc (BREAK)",
+        [Keys.LControlKey] = "Left Ctrl",
+        [Keys.RControlKey] = "Right Ctrl",
+        [Keys.F1]          = "F1",
+        [Keys.F2]          = "F2",
+        [Keys.F3]          = "F3",
+        [Keys.F4]          = "F4",
+        [Keys.F11]         = "F11",
+        [Keys.F12]         = "F12",
+    };
+
+    /// <summary>
+    /// Friendly labels for non-printable MZ-700 matrix slots — used by the
+    /// keyboard-map editor's matrix grid to label cells that don't have a
+    /// glyph (cursors, BREAK, GRAPH/ALPHA, MZ Ctrl, F1-F4, MZ Shift).
+    /// </summary>
+    public static readonly IReadOnlyDictionary<(int row, int col), string> SlotLabels = new Dictionary<(int row, int col), string>
+    {
+        [(0, 0)] = "Enter",
+        [(0, 4)] = "ALPHA",
+        [(0, 6)] = "GRAPH",
+        [(7, 2)] = "←",
+        [(7, 3)] = "→",
+        [(7, 4)] = "↓",
+        [(7, 5)] = "↑",
+        [(7, 6)] = "DEL",
+        [(7, 7)] = "INST",
+        [(8, 0)] = "SHIFT",
+        [(8, 7)] = "BREAK",
+        [(9, 2)] = "CTRL",
+        [(9, 4)] = "F4",
+        [(9, 5)] = "F3",
+        [(9, 6)] = "F2",
+        [(9, 7)] = "F1",
+    };
 }

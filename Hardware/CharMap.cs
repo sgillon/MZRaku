@@ -22,7 +22,12 @@ public static class CharMap
 {
     public readonly record struct Press(int Row, int Col, bool MzShift);
 
-    private static readonly Dictionary<char, Press> Map = new()
+    /// <summary>
+    /// Built-in default character → MZ-matrix mapping. Exposed so the
+    /// keyboard-map editor (and other introspective callers) can enumerate
+    /// the canonical bindings without re-deriving them.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<char, Press> Defaults = new Dictionary<char, Press>
     {
         // Letters. MZ-700 default text mode is uppercase, so we send the
         // unshifted matrix position for both cases. Lowercase glyphs are
@@ -108,5 +113,5 @@ public static class CharMap
     };
 
     public static bool TryLookup(char c, out Press press) =>
-        Map.TryGetValue(c, out press);
+        Defaults.TryGetValue(c, out press);
 }
