@@ -178,6 +178,9 @@ Topic-by-topic guides live under [`docs/usage/`](docs/usage/):
   quirks the code learned the hard way (PIT topology, $E008, etc.).
 - [Launcher setup](docs/usage/launcher-setup.md) — wiring MZ700Emul
   into Launchbox (and other launchers to come).
+- [Project history](docs/history.md) — chronological record of major
+  changes and architectural decisions, for the curious or for
+  future-maintainer orientation.
 
 ## Project layout
 
