@@ -36,6 +36,7 @@ public sealed class MainForm : Form
     private DebuggerForm? _debugger;
     private MemoryViewerForm? _memViewer;
     private HidDiagnosticForm? _hidDiag;
+    private FontSheetForm? _fontSheet;
 
     public MainForm(string? cassettePath, bool autoLoadBasic, string? dumpPath = null)
     {
@@ -153,6 +154,7 @@ public sealed class MainForm : Form
         debug.DropDownItems.Add(new ToolStripMenuItem("&Debugger…", null, (_, _) => OpenDebugger()) { ShortcutKeys = Keys.Control | Keys.D });
         debug.DropDownItems.Add(new ToolStripMenuItem("&Memory Viewer…", null, (_, _) => OpenMemoryViewer()) { ShortcutKeys = Keys.Control | Keys.M });
         debug.DropDownItems.Add(new ToolStripMenuItem("&HID Diagnostic…", null, (_, _) => OpenHidDiag()) { ShortcutKeys = Keys.Control | Keys.H });
+        debug.DropDownItems.Add(new ToolStripMenuItem("&Font Sheet…", null, (_, _) => OpenFontSheet()));
         debug.DropDownItems.Add(new ToolStripSeparator());
         debug.DropDownItems.Add(new ToolStripMenuItem("Run &Z80 Test (ZEXDOC/ZEXALL)…", null, (_, _) => OpenZ80Test()));
         menu.Items.Add(debug);
@@ -819,6 +821,15 @@ public sealed class MainForm : Form
         _memViewer.Owner = this;
         _memViewer.Show();
         _memViewer.BringToFront();
+    }
+
+    private void OpenFontSheet()
+    {
+        if (_fontSheet == null || _fontSheet.IsDisposed)
+            _fontSheet = new FontSheetForm(_machine.Video);
+        _fontSheet.Owner = this;
+        _fontSheet.Show();
+        _fontSheet.BringToFront();
     }
 
     private void OpenHidDiag()

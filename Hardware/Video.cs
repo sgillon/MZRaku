@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 
@@ -38,10 +39,16 @@ public sealed class VideoRenderer
 
     public Bitmap Frame = new Bitmap(PixelWidth, PixelHeight, PixelFormat.Format32bppArgb);
 
+    // Standalone-glyph cache for picker / matrix-grid UIs. Keyed by
+    // (display-code, font-bank, scale-factor) so multiple scales coexist.
+    // Invalidated when the font ROM is reloaded.
+    private readonly Dictionary<(byte code, int bank, int scale), Bitmap> _glyphCache = new();
+
     public void LoadFont(byte[] font)
     {
         int n = Math.Min(font.Length, FontRom.Length);
         Array.Copy(font, FontRom, n);
+        InvalidateGlyphCache();
     }
 
     public void LoadFontHex(string hexText)
@@ -69,6 +76,69 @@ public sealed class VideoRenderer
                 }
             }
         }
+        InvalidateGlyphCache();
+    }
+
+    /// <summary>
+    /// Render one MZ-700 character-ROM glyph to a standalone Bitmap, scaled
+    /// by an integer factor. Black-on-white so the result is readable out
+    /// of the MZ palette context (used by picker / matrix-grid UIs).
+    /// Results are cached per (code, bank, scale); call
+    /// <see cref="InvalidateGlyphCache"/> if the font ROM changes.
+    /// </summary>
+    public Bitmap GetGlyph(byte code, int bank, int scale = 2)
+    {
+        if (scale < 1) scale = 1;
+        var key = (code, bank, scale);
+        if (_glyphCache.TryGetValue(key, out var cached)) return cached;
+        var bmp = RenderGlyph(code, bank, scale);
+        _glyphCache[key] = bmp;
+        return bmp;
+    }
+
+    public void InvalidateGlyphCache()
+    {
+        foreach (var bmp in _glyphCache.Values) bmp.Dispose();
+        _glyphCache.Clear();
+    }
+
+    private Bitmap RenderGlyph(byte code, int bank, int scale)
+    {
+        int size = CharWidth * scale;
+        var bmp = new Bitmap(size, size, PixelFormat.Format32bppArgb);
+        int fontOff = (bank & 1) * 2048 + code * CharHeight;
+        int fg = unchecked((int)0xFF000000);
+        int bg = unchecked((int)0xFFFFFFFF);
+        var rect = new Rectangle(0, 0, size, size);
+        var data = bmp.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            unsafe
+            {
+                int stride = data.Stride / 4;
+                int* pix = (int*)data.Scan0;
+                for (int r = 0; r < CharHeight; r++)
+                {
+                    byte fb = FontRom[fontOff + r];
+                    // Same LSB-first decoding as Render; bit 0 is leftmost.
+                    for (int sy = 0; sy < scale; sy++)
+                    {
+                        int* dst = pix + (r * scale + sy) * stride;
+                        for (int c = 0; c < CharWidth; c++)
+                        {
+                            int color = ((fb & (1 << c)) != 0) ? fg : bg;
+                            for (int sx = 0; sx < scale; sx++)
+                                dst[c * scale + sx] = color;
+                        }
+                    }
+                }
+            }
+        }
+        finally
+        {
+            bmp.UnlockBits(data);
+        }
+        return bmp;
     }
 
     private static bool IsHex(char c)
