@@ -293,6 +293,14 @@ public sealed class Keyboard
         if (CharMap.TryLookup(ch, out var p)) _typeQueue.Enqueue(p);
     }
 
+    /// <summary>
+    /// Queue a raw matrix-position press for the auto-typer. Used to drive
+    /// the keyboard from sources that don't go through a Unicode char —
+    /// e.g. the Font Sheet's click-to-input flow, which knows the MZ
+    /// display code but not necessarily its host-keyboard glyph.
+    /// </summary>
+    public void TypePress(CharMap.Press p) => _typeQueue.Enqueue(p);
+
     public void TickAutoType()
     {
         switch (_phase)

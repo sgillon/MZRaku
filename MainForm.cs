@@ -826,7 +826,7 @@ public sealed class MainForm : Form
     private void OpenFontSheet()
     {
         if (_fontSheet == null || _fontSheet.IsDisposed)
-            _fontSheet = new FontSheetForm(_machine.Video);
+            _fontSheet = new FontSheetForm(_machine);
         _fontSheet.Owner = this;
         _fontSheet.Show();
         _fontSheet.BringToFront();

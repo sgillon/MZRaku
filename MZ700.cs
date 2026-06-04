@@ -20,6 +20,7 @@ public sealed class MZ700
     public Cassette Cassette = new();
     public Sound Sound = new();
     public Joystick Joystick = new();
+    public RomKeyTables KeyTables = new();
 
     public const double CpuClockHz = 3546900.0;             // MZ-700 master clock ~3.5MHz
     public const double PitC0InputHz = 895000.0;            // counter 0 input clock
@@ -79,6 +80,7 @@ public sealed class MZ700
     public void LoadRoms(string monitorRomPath, string? fontPath)
     {
         Mem.LoadRom(File.ReadAllBytes(monitorRomPath));
+        KeyTables.Build(Mem.Rom);
         if (!string.IsNullOrEmpty(fontPath) && File.Exists(fontPath))
         {
             // Dispatch on extension: .int = binary, .txt = hex dump.
