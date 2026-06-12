@@ -33,14 +33,32 @@ public static class SpecialKeyMap
         // shifted BREAK is required to stop a program, which matches the
         // bit-0 + bit-7 combination exactly.
         [Keys.Escape]      = (8, 7),
-        // MZ Ctrl on left Ctrl only. Right Ctrl is repurposed for ALPHA
-        // (mode-key) below, mirroring the MZ-700's grouping of GRAPH /
-        // ALPHA / CTRL together as modal keys.
-        [Keys.LControlKey] = (9, 2),
+        // MZ Ctrl on either PC Ctrl. WinForms normalises Left/Right Ctrl
+        // KeyDowns to the generic Keys.ControlKey in KeyEventArgs.KeyCode
+        // (the lParam extended-key bit is the only way to tell them apart,
+        // and OnKeyDown above masks via `keyData & Keys.KeyCode`), so the
+        // bare-VK lookup must use Keys.ControlKey. Earlier code used
+        // Keys.LControlKey and never matched — MZ Ctrl was unreachable
+        // until 2026-06-12. Accepting both Ctrls fire MZ Ctrl is fine;
+        // L/R distinction can be revisited if a user needs separate
+        // bindings (would need a WndProc lParam-bit-24 read).
+        //
+        // MZ CTRL slot: per Owner's Manual the CTRL key lives at (8, 6),
+        // NOT (9, 2) as earlier code assumed. (9, 2) appears to be unused
+        // — pressing it in S-BASIC produces the same effect as shifted F5
+        // (CHR$( output), suggesting either an alias or scan-decoder
+        // quirk. Corrected 2026-06-12 after the user verified against
+        // the owner's manual.
+        [Keys.ControlKey]  = (8, 6),
         [Keys.F1]          = (9, 7),
         [Keys.F2]          = (9, 6),
         [Keys.F3]          = (9, 5),
         [Keys.F4]          = (9, 4),
+        // F5 → (9, 3), confirmed against Owner's Manual 2026-06-12. The
+        // diagram-drawing code (MzKeyboardLayout.cs) had inferred this
+        // slot from row-9 symmetry months earlier but it was never wired
+        // up here, so PC F5 had no MZ-side effect until now.
+        [Keys.F5]          = (9, 3),
         // MZ-700 mode-toggle keys (page 142 of the owner's manual lists
         // GRAPH and ALPHA on row 1 — our row 0 — at D6 and D4 respectively).
         // GRAPH puts the machine in graphic-char input mode; ALPHA returns
@@ -75,12 +93,16 @@ public static class SpecialKeyMap
         [Keys.Delete]      = "Delete",
         [Keys.Insert]      = "Insert",
         [Keys.Escape]      = "Esc (BREAK)",
+        [Keys.ControlKey]  = "Ctrl",
+        // Kept for completeness; not reached at runtime — WinForms
+        // normalises both to Keys.ControlKey before KeyDown fires.
         [Keys.LControlKey] = "Left Ctrl",
         [Keys.RControlKey] = "Right Ctrl",
         [Keys.F1]          = "F1",
         [Keys.F2]          = "F2",
         [Keys.F3]          = "F3",
         [Keys.F4]          = "F4",
+        [Keys.F5]          = "F5",
         [Keys.F11]         = "F11",
         [Keys.F12]         = "F12",
     };
@@ -102,8 +124,9 @@ public static class SpecialKeyMap
         [(7, 6)] = "DEL",
         [(7, 7)] = "INST",
         [(8, 0)] = "SHIFT",
+        [(8, 6)] = "CTRL",
         [(8, 7)] = "BREAK",
-        [(9, 2)] = "CTRL",
+        [(9, 3)] = "F5",
         [(9, 4)] = "F4",
         [(9, 5)] = "F3",
         [(9, 6)] = "F2",

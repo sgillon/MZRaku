@@ -109,9 +109,9 @@ public static class MzKeyboardLayout
         // Function row — F1 to F5 along the top, half-height, labelled
         // "F1" etc. Left-justified labels handled by the renderer based
         // on KeyKind.Function.
-        // PF5 → matrix (9, 3) inferred from row-9 symmetry
-        // (F4=col 4, F3=col 5, F2=col 6, F1=col 7). NOT yet wired in
-        // SpecialKeyMap. TODO: verify against Owner's Manual p.114.
+        // PF5 → matrix (9, 3). Confirmed against Owner's Manual
+        // 2026-06-12 (alongside CTRL=(8,6) correction). Wired in
+        // SpecialKeyMap → Keys.F5.
         // ============================================================
         new("PF1", 9, 7, X: 0f,   Y: FnRowY, W: 1.5f, H: FnRowH, KeyKind.Function, "F1"),
         new("PF2", 9, 6, X: 1.5f, Y: FnRowY, W: 1.5f, H: FnRowH, KeyKind.Function, "F2"),
@@ -175,7 +175,11 @@ public static class MzKeyboardLayout
         // L-shaped. A future revision can introduce an LShape key shape
         // without changing the data layer.
         // ============================================================
-        new("CTRL",   9, 2, X: 0f,     Y: AsdfRowY, W: 1.75f, H: StdH, KeyKind.Modifier, "CTRL"),
+        // CTRL matrix slot = (8, 6) per Owner's Manual (verified
+        // 2026-06-12). Earlier code placed CTRL at (9, 2) but that slot
+        // is actually a shifted-F5 alias / unused — pressing it produced
+        // CHR$( instead of the CTRL modifier.
+        new("CTRL",   8, 6, X: 0f,     Y: AsdfRowY, W: 1.75f, H: StdH, KeyKind.Modifier, "CTRL"),
         new("A",      4, 7, X: 1.75f,  Y: AsdfRowY, W: Std,   H: StdH, KeyKind.Character, null),
         new("S",      2, 5, X: 2.75f,  Y: AsdfRowY, W: Std,   H: StdH, KeyKind.Character, null),
         new("D",      4, 4, X: 3.75f,  Y: AsdfRowY, W: Std,   H: StdH, KeyKind.Character, null),

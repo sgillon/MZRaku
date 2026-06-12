@@ -72,7 +72,7 @@ internal static class Program
         var slotLabels = new HashSet<(int row, int col)>
         {
             (0,0),(0,4),(0,6),(7,2),(7,3),(7,4),(7,5),(7,6),(7,7),
-            (8,0),(8,7),(9,2),(9,4),(9,5),(9,6),(9,7),
+            (8,0),(8,6),(8,7),(9,3),(9,4),(9,5),(9,6),(9,7),
         };
         var byCode = new Dictionary<(byte Code, int Bank), (int Row, int Col, bool MzShift)>();
         Load(rom, 0x0BEA, 0, false, slotLabels, byCode);
