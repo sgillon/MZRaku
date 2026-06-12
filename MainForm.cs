@@ -179,12 +179,11 @@ public sealed class MainForm : Form
         menu.Items.Add(debug);
 
         var help = new ToolStripMenuItem("&Help");
-        help.DropDownItems.Add(new ToolStripMenuItem("&About", null, (_, _) =>
-            MessageBox.Show(this, "Sharp MZ-700 Emulator\n\n" +
-                "Command-line: MZ700Emul.exe [--basic] [cassette.mzf]\n" +
-                "Drag-and-drop .mzf files onto the window to load them.\n" +
-                "Ctrl+O: Load cassette | Ctrl+B: Load BASIC | Ctrl+R: Reset",
-                "About")));
+        help.DropDownItems.Add(new ToolStripMenuItem("&About…", null, (_, _) =>
+        {
+            using var dlg = new AboutForm();
+            dlg.ShowDialog(this);
+        }));
         menu.Items.Add(help);
         MainMenuStrip = menu;
         Controls.Add(menu);

@@ -11,6 +11,11 @@
     <AssemblyName>MZ700Emul</AssemblyName>
     <RootNamespace>MZ700Emul</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Version is surfaced in the About dialog (Help → About). The
+         dialog reads AssemblyInformationalVersion at runtime, so bumping
+         this string here is enough; no code change needed at release.
+         Use the in-progress version (the one the next git tag will be). -->
+    <Version>0.0.8-preview</Version>
   </PropertyGroup>
 
   <!-- Release publish settings: bundle everything into a single .exe.
