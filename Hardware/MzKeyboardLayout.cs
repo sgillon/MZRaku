@@ -145,11 +145,15 @@ public static class MzKeyboardLayout
         // + blank dummy (visual filler that keeps the row length uniform
         // with the rest of the keyboard).
         //
-        // @ key: '@' unshifted, '\'' shifted — shifted side overridden
-        //   because ' is already mapped to (5,1,true) shift-7 in CharMap
-        //   and can't be reused.
+        // @ key: matrix slot (1, 5) per Owner's Manual (reconciled
+        //   2026-06-13 via Mz700MatrixReference). Earlier code put @ at
+        //   (0, 3) which was wrong; (0, 3) is empty in the scan matrix.
+        //   Shifted side overridden because ' is already mapped to
+        //   (5,1,true) shift-7 in CharMap and can't be reused.
         // £ key: matrix slot (0, 5), confirmed against Owner's Manual p.114.
-        // BLANK: no matrix slot — purely a visual filler.
+        // BLANK: physical dummy cap; matrix slot (0, 7) on real
+        //   hardware. Kept as KeyKind.Blank so EssentialKeys excludes
+        //   it from the safety gate.
         // ============================================================
         new("ALPHA", 0, 4, X: 0f,    Y: QwertyRowY, W: 1.5f, H: StdH, KeyKind.Mode,      "ALPHA"),
         new("Q",     2, 7, X: 1.5f,  Y: QwertyRowY, W: Std,  H: StdH, KeyKind.Character, null),
@@ -162,12 +166,12 @@ public static class MzKeyboardLayout
         new("I",     3, 7, X: 8.5f,  Y: QwertyRowY, W: Std,  H: StdH, KeyKind.Character, null),
         new("O",     3, 1, X: 9.5f,  Y: QwertyRowY, W: Std,  H: StdH, KeyKind.Character, null),
         new("P",     3, 0, X: 10.5f, Y: QwertyRowY, W: Std,  H: StdH, KeyKind.Character, null),
-        new("AT",    0, 3, X: 11.5f, Y: QwertyRowY, W: Std,  H: StdH, KeyKind.Character, null,
+        new("AT",    1, 5, X: 11.5f, Y: QwertyRowY, W: Std,  H: StdH, KeyKind.Character, null,
              UnshiftedLabel: "@", ShiftedLabel: "'"),
-        new("LBRK",  1, 3, X: 12.5f, Y: QwertyRowY, W: Std,  H: StdH, KeyKind.Character, null),
+        new("LBRK",  1, 4, X: 12.5f, Y: QwertyRowY, W: Std,  H: StdH, KeyKind.Character, null),
         new("POUND", 0, 5, X: 13.5f, Y: QwertyRowY, W: Std,  H: StdH, KeyKind.Character, null,
              UnshiftedLabel: "↓", ShiftedLabel: "£"),
-        new("BLANK", null, null, X: 14.5f, Y: QwertyRowY, W: Std, H: StdH, KeyKind.Blank, null),
+        new("BLANK", 0, 7,    X: 14.5f, Y: QwertyRowY, W: Std, H: StdH, KeyKind.Blank, null),
 
         // ============================================================
         // ASDF row — CTRL (1.75) + A S D F G H J K L ; : ] + RETURN.
@@ -191,7 +195,7 @@ public static class MzKeyboardLayout
         new("L",      3, 4, X: 9.75f,  Y: AsdfRowY, W: Std,   H: StdH, KeyKind.Character, null),
         new("SEMI",   0, 2, X: 10.75f, Y: AsdfRowY, W: Std,   H: StdH, KeyKind.Character, null),
         new("COLON",  0, 1, X: 11.75f, Y: AsdfRowY, W: Std,   H: StdH, KeyKind.Character, null),
-        new("RBRK",   1, 4, X: 12.75f, Y: AsdfRowY, W: Std,   H: StdH, KeyKind.Character, null),
+        new("RBRK",   1, 3, X: 12.75f, Y: AsdfRowY, W: Std,   H: StdH, KeyKind.Character, null),
         new("RETURN", 0, 0, X: 13.75f, Y: AsdfRowY, W: 1.75f, H: StdH, KeyKind.Enter,    "CR"),
 
         // ============================================================

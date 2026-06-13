@@ -97,12 +97,13 @@ public static class CharMap
         ['~']      = new(6, 6, true),
 
         // Square brackets and curly braces — row 1 of the matrix carries
-        // these alongside Y/Z (verified against ROM tables: unshifted $54
-        // / $52 = `[` / `]`; shifted $40 / $BC = `{` / `}`).
-        ['['] = new(1, 3, false),
-        [']'] = new(1, 4, false),
-        ['{'] = new(1, 3, true),
-        ['}'] = new(1, 4, true),
+        // these alongside Y/Z. Slots reconciled 2026-06-13 against the
+        // owner's manual via Mz700MatrixReference: ] at (1, 3) and [ at
+        // (1, 4) — earlier code had these swapped.
+        [']'] = new(1, 3, false),
+        ['['] = new(1, 4, false),
+        ['}'] = new(1, 3, true),
+        ['{'] = new(1, 4, true),
 
         // Punctuation. Positions chosen by the GLYPH the MZ-700 produces
         // at that matrix slot, not by ASCII alignment.
@@ -115,7 +116,11 @@ public static class CharMap
         ['='] = new(6, 5, true),
         ['/'] = new(7, 0, false),
         ['?'] = new(7, 1, false),
-        ['@'] = new(9, 3, false),
+        // @ at (1, 5) per the owner's manual (reconciled 2026-06-13 via
+        // Mz700MatrixReference). Earlier code had this at (9, 3) which
+        // is the F5 slot — sending '@' from PC silently pressed F5
+        // until now.
+        ['@'] = new(1, 5, false),
         [' '] = new(6, 4, false),
         ['\\'] = new(6, 7, false),
     };
