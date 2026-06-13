@@ -1,5 +1,6 @@
 using System;
 using System.Windows.Forms;
+using MZ700Emul.Hardware;
 
 namespace MZ700Emul;
 
@@ -49,6 +50,13 @@ internal static class Program
                 cassettePath = a;
             }
         }
+
+        // Cross-check the canonical matrix reference against its
+        // consumer files (SpecialKeyMap / CharMap / MzKeyboardLayout).
+        // Silent if all four agree; logs to debug output otherwise. The
+        // reference was introduced to catch the drift that had been
+        // letting slot bugs hide for weeks at a time.
+        MatrixValidation.RunAndLog();
 
         ApplicationConfiguration.Initialize();
         var form = new MainForm(cassettePath, autoLoadBasic, dumpPath);

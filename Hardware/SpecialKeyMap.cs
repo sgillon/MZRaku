@@ -132,4 +132,46 @@ public static class SpecialKeyMap
         [(9, 6)] = "F2",
         [(9, 7)] = "F1",
     };
+
+    /// <summary>
+    /// Cross-checks <see cref="Map"/> and <see cref="SlotLabels"/> against
+    /// <see cref="Mz700MatrixReference"/>. Returns a list of human-readable
+    /// complaints; an empty list means SpecialKeyMap is consistent with
+    /// the canonical matrix.
+    /// </summary>
+    public static IReadOnlyList<string> Validate()
+    {
+        var complaints = new List<string>();
+        foreach (var kv in Map)
+        {
+            var slot = Mz700MatrixReference.Get(kv.Value.row, kv.Value.col);
+            if (slot is null)
+            {
+                complaints.Add($"Map[{kv.Key}] → ({kv.Value.row}, {kv.Value.col}) is out of matrix range");
+                continue;
+            }
+            var k = slot.Value.Kind;
+            if (k == Mz700MatrixReference.SlotKind.Char ||
+                k == Mz700MatrixReference.SlotKind.Unused ||
+                k == Mz700MatrixReference.SlotKind.Blank ||
+                k == Mz700MatrixReference.SlotKind.Unknown)
+            {
+                complaints.Add($"Map[{kv.Key}] → ({kv.Value.row}, {kv.Value.col}) is {k} in the reference; SpecialKeyMap is for non-printable slots only");
+            }
+        }
+        foreach (var kv in SlotLabels)
+        {
+            var slot = Mz700MatrixReference.Get(kv.Key.row, kv.Key.col);
+            if (slot is null)
+            {
+                complaints.Add($"SlotLabels[({kv.Key.row}, {kv.Key.col})] = '{kv.Value}' is out of matrix range");
+                continue;
+            }
+            if (slot.Value.Kind == Mz700MatrixReference.SlotKind.Char)
+            {
+                complaints.Add($"SlotLabels[({kv.Key.row}, {kv.Key.col})] = '{kv.Value}' labels a Char slot; Char slots get their labels from glyphs, not SlotLabels");
+            }
+        }
+        return complaints;
+    }
 }

@@ -137,4 +137,35 @@ public static class CharMap
         if (Overrides != null && Overrides.TryLookup(c, out press)) return true;
         return Defaults.TryGetValue(c, out press);
     }
+
+    /// <summary>
+    /// Cross-checks <see cref="Defaults"/> against
+    /// <see cref="Mz700MatrixReference"/>. Returns a list of complaints;
+    /// empty means every default char points at a slot that produces
+    /// typeable output (Char, Space, or Enter). Glyph identity isn't
+    /// checked — fall-back mappings (e.g. UK '£' pointing at the MZ
+    /// '#' slot) are intentional and would false-positive a strict
+    /// glyph match.
+    /// </summary>
+    public static IReadOnlyList<string> Validate()
+    {
+        var complaints = new List<string>();
+        foreach (var kv in Defaults)
+        {
+            var slot = Mz700MatrixReference.Get(kv.Value.Row, kv.Value.Col);
+            if (slot is null)
+            {
+                complaints.Add($"Defaults['{kv.Key}'] → ({kv.Value.Row}, {kv.Value.Col}) is out of matrix range");
+                continue;
+            }
+            var k = slot.Value.Kind;
+            if (k != Mz700MatrixReference.SlotKind.Char &&
+                k != Mz700MatrixReference.SlotKind.Space &&
+                k != Mz700MatrixReference.SlotKind.Enter)
+            {
+                complaints.Add($"Defaults['{kv.Key}'] → ({kv.Value.Row}, {kv.Value.Col}) is {k} in the reference; CharMap defaults must point at Char / Space / Enter slots");
+            }
+        }
+        return complaints;
+    }
 }

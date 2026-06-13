@@ -274,7 +274,9 @@ public static class MzKeyboardLayout
     /// binding before Settings → Apply / OK will save without a confirm
     /// prompt. Every key that corresponds to a real MZ-700 matrix slot
     /// qualifies — the only excluded entries are layout-only fillers
-    /// like <see cref="KeyKind.Blank"/>, which carry no Row/Col.
+    /// like <see cref="KeyKind.Blank"/>, which the user doesn't need
+    /// to bind even though (since 2026-06-13) we know the BLANK cap
+    /// occupies real matrix slot (0, 7).
     /// </summary>
     public static IEnumerable<MzKey> EssentialKeys
     {
@@ -285,4 +287,45 @@ public static class MzKeyboardLayout
                     yield return k;
         }
     }
+
+    /// <summary>
+    /// Cross-checks every key in <see cref="Keys"/> against
+    /// <see cref="Mz700MatrixReference"/>. Returns a list of complaints;
+    /// empty means each MzKey's (Row, Col) lands on a matrix slot of
+    /// the matching kind.
+    /// </summary>
+    public static IReadOnlyList<string> Validate()
+    {
+        var complaints = new List<string>();
+        foreach (var k in Keys)
+        {
+            if (!k.Row.HasValue || !k.Col.HasValue) continue;
+            var slot = Mz700MatrixReference.Get(k.Row.Value, k.Col.Value);
+            if (slot is null)
+            {
+                complaints.Add($"Key '{k.Id}' → ({k.Row}, {k.Col}) is out of matrix range");
+                continue;
+            }
+            var expected = ExpectedSlotKind(k.Kind);
+            if (slot.Value.Kind != expected)
+            {
+                complaints.Add($"Key '{k.Id}' is {k.Kind} but ({k.Row}, {k.Col}) is {slot.Value.Kind} in the reference (expected {expected})");
+            }
+        }
+        return complaints;
+    }
+
+    private static Mz700MatrixReference.SlotKind ExpectedSlotKind(KeyKind k) => k switch
+    {
+        KeyKind.Character => Mz700MatrixReference.SlotKind.Char,
+        KeyKind.Function  => Mz700MatrixReference.SlotKind.Function,
+        KeyKind.Modifier  => Mz700MatrixReference.SlotKind.Modifier,
+        KeyKind.Mode      => Mz700MatrixReference.SlotKind.Mode,
+        KeyKind.Cursor    => Mz700MatrixReference.SlotKind.Cursor,
+        KeyKind.Edit      => Mz700MatrixReference.SlotKind.Edit,
+        KeyKind.Enter     => Mz700MatrixReference.SlotKind.Enter,
+        KeyKind.Space     => Mz700MatrixReference.SlotKind.Space,
+        KeyKind.Blank     => Mz700MatrixReference.SlotKind.Blank,
+        _                 => Mz700MatrixReference.SlotKind.Unknown,
+    };
 }
