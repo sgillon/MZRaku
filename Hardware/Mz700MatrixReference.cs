@@ -119,6 +119,11 @@ public static class Mz700MatrixReference
         // another drift to reconcile when wiring.
         Put(m, 1, 3, SlotKind.Char,   "RBRK", "]", "}");
         Put(m, 1, 4, SlotKind.Char,   "LBRK", "[", "{");
+        // (1, 5) shifted is the REVERSED-apostrophe glyph at bank 0 code
+        // $A4 — a different character from the conventional ' at (5, 1)
+        // shifted (bank 0 $67). They render similarly in the editor but
+        // CharMap maps PC ' to (5, 1); (1, 5) shifted has no PC binding
+        // by design.
         Put(m, 1, 5, SlotKind.Char,   "AT",   "@", "'");
         Put(m, 1, 6, SlotKind.Char,   "Z",    "Z");
         Put(m, 1, 7, SlotKind.Char,   "Y",    "Y");
