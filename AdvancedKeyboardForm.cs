@@ -27,6 +27,7 @@ public sealed class AdvancedKeyboardForm : Form
     private KeyboardMatrixGrid? _kbdGrid;
     private System.Windows.Forms.Timer? _kbdGridTimer;
     private ListView? _overridesList;
+    private ListView? _unboundList;
 
     public AdvancedKeyboardForm(
         MZ700? machine,
@@ -55,14 +56,15 @@ public sealed class AdvancedKeyboardForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 4,
+            RowCount = 5,
             Padding = new Padding(10),
             AutoScroll = true,
         };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));        // caption
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));        // matrix
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));   // list
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));        // unbound-slot panel
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));   // overrides list
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));        // close button row
 
         root.Controls.Add(new Label
@@ -108,6 +110,8 @@ public sealed class AdvancedKeyboardForm : Form
             }, 0, 1);
         }
 
+        root.Controls.Add(BuildUnboundPanel(), 0, 2);
+
         _overridesList = new ListView
         {
             Dock = DockStyle.Fill,
@@ -123,7 +127,7 @@ public sealed class AdvancedKeyboardForm : Form
         _overridesList.Columns.Add("MZ slot",    80);
         _overridesList.Columns.Add("Shift",      100);
         PopulateOverridesList();
-        root.Controls.Add(_overridesList, 0, 2);
+        root.Controls.Add(_overridesList, 0, 3);
 
         var closeBtn = new Button
         {
@@ -140,7 +144,7 @@ public sealed class AdvancedKeyboardForm : Form
             Margin = new Padding(0),
         };
         closeRow.Controls.Add(closeBtn);
-        root.Controls.Add(closeRow, 0, 3);
+        root.Controls.Add(closeRow, 0, 4);
         AcceptButton = closeBtn;
         CancelButton = closeBtn;
 
@@ -157,6 +161,93 @@ public sealed class AdvancedKeyboardForm : Form
         if (editor.ShowDialog(this) != DialogResult.OK) return;
         _kbdGrid?.RefreshBindings();
         PopulateOverridesList();
+        PopulateUnboundList();
+    }
+
+    private Control BuildUnboundPanel()
+    {
+        var caption = new Label
+        {
+            Text = "Unbound slots — reference cells nothing currently reaches:",
+            AutoSize = true,
+            ForeColor = SystemColors.GrayText,
+            Margin = new Padding(0, 0, 0, 4),
+        };
+        _unboundList = new ListView
+        {
+            View = View.Details,
+            FullRowSelect = true,
+            GridLines = true,
+            HeaderStyle = ColumnHeaderStyle.Nonclickable,
+            MultiSelect = false,
+            Height = 110,
+            Dock = DockStyle.Fill,
+        };
+        _unboundList.Columns.Add("MZ slot", 80);
+        _unboundList.Columns.Add("Kind",    80);
+        _unboundList.Columns.Add("Label",   240);
+        PopulateUnboundList();
+
+        var panel = new TableLayoutPanel
+        {
+            ColumnCount = 1,
+            RowCount = 2,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Margin = new Padding(0, 0, 0, 8),
+            Dock = DockStyle.Fill,
+        };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 110f));
+        panel.Controls.Add(caption, 0, 0);
+        panel.Controls.Add(_unboundList, 0, 1);
+        return panel;
+    }
+
+    private void PopulateUnboundList()
+    {
+        if (_unboundList == null) return;
+        _unboundList.Items.Clear();
+        var unbound = MatrixCoverage.FindUnbound(_charOverrides, _keyOverrides);
+        foreach (var slot in unbound)
+        {
+            _unboundList.Items.Add(new ListViewItem(new[]
+            {
+                $"({slot.Row},{slot.Col})",
+                slot.Kind.ToString(),
+                BuildSlotLabel(slot),
+            }));
+        }
+        if (_unboundList.Items.Count == 0)
+        {
+            var ok = new ListViewItem(new[]
+            {
+                "—",
+                "—",
+                "(every bindable reference cell has at least one PC binding)",
+            })
+            {
+                ForeColor = SystemColors.GrayText,
+            };
+            _unboundList.Items.Add(ok);
+        }
+    }
+
+    private static string BuildSlotLabel(Mz700MatrixReference.Slot slot)
+    {
+        // For Char slots prefer the glyph pair (e.g. "1 / !") so the user
+        // immediately recognises which key is missing. Non-Char slots use
+        // the Id directly (e.g. "F5", "BREAK", "←").
+        if (slot.Kind == Mz700MatrixReference.SlotKind.Char)
+        {
+            var unshifted = slot.UnshiftedGlyph ?? "";
+            var shifted = slot.ShiftedGlyph;
+            return string.IsNullOrEmpty(shifted)
+                ? $"{slot.Id}   '{unshifted}'"
+                : $"{slot.Id}   '{unshifted}' / '{shifted}'";
+        }
+        return slot.Id;
     }
 
     private void PopulateOverridesList()
