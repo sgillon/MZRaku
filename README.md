@@ -191,24 +191,29 @@ Z80Core/         Separate class-library project (Z80Core.dll) — Z80 CPU
                  disassembler. Pure net8.0, no WinForms, no MZ-700-
                  specific code; reusable for other Z80 machines.
 Hardware/        8255 PPI, 8253 PIT, memory map, keyboard (CharMap +
-                 SpecialKeyMap), video, sound, cassette + zip loader,
-                 joystick (MZ-1X03 + WinMM bridge)
-MainForm         Window, menu, timer-driven RunFrame loop, CLI auto-load
-MZ700            Top-level "machine" that wires CPU + I/O + ROMs
-DebuggerForm.cs  Debugger window (execution control, registers,
-                 disassembly pane, breakpoints)
-MemoryViewerForm.cs  Hex / ASCII memory viewer (companion to the
-                 debugger; PC / SP highlighting, live updates)
-HidDiagnosticForm.cs Live view of host input (keyboard / joystick),
-                 the mapping layer that matched, and the resolved
-                 MZ-700 keyboard matrix
-SmoothControls.cs    Double-buffered Label / ListBox / TableLayoutPanel
-                 subclasses used by the debugger windows
-Settings.cs      INI-backed user preferences (settings.ini)
-docs/usage/      Topic-by-topic usage docs
-roms/            (You supply) Monitor ROM + character generator
-basic/           (You supply) S-BASIC cassette image
-games/           Joystick test program (joytest.bas / .mzf)
+                 SpecialKeyMap + Mz700MatrixReference), video, sound,
+                 cassette + zip loader, joystick (MZ-1X03 + WinMM
+                 bridge).
+UI/              All WinForms surfaces, grouped by feature area:
+  Keyboard/        Diagram, per-key + per-VK editor, matrix grid,
+                   capture controls — the diagram-first editing flow
+                   in Settings → Keyboard plus the advanced child.
+  Debugger/        DebuggerForm, MemoryViewer, Z80 test runner.
+  Diagnostics/     HID Diagnostic + Font Sheet — live observation
+                   windows under the Debug menu.
+  Settings/        SettingsForm tabs + Joystick button capture
+                   dialog.
+  AboutForm.cs     Help → About dialog (icon, version, build date).
+  SmoothControls.cs  Double-buffered Label / ListBox / TableLayout
+                   subclasses shared by the debugger windows.
+MainForm.cs      Window, menu, timer-driven RunFrame loop, CLI auto-load.
+MZ700.cs         Top-level "machine" that wires CPU + I/O + ROMs.
+Program.cs       Main entry point + CLI argument parsing.
+Settings.cs      INI-backed user preferences (settings.ini).
+docs/usage/      Topic-by-topic usage docs.
+roms/            (You supply) Monitor ROM + character generator.
+basic/           (You supply) S-BASIC cassette image.
+games/           Joystick test program (joytest.bas / .mzf).
 ```
 
 ## Known limitations & imperfections
