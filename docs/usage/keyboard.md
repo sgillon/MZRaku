@@ -125,6 +125,33 @@ matrix cell to edit the character binding for that specific
 uses; the matrix view is just an alternative entry point for slot-by-
 slot work.
 
+## Known limitations
+
+The Keyboard tab in Settings surfaces the same three items as a small
+panel; this section is the long-form companion.
+
+- **Font Sheet — bank-1 click-to-type.** Clicking a bank-1 (bottom) glyph
+  types the byte to VRAM correctly, but the attribute byte isn't switched
+  to bank 1, so the cell renders as its bank-0 equivalent rather than
+  the intended graphic. Browse-mode (reading bank 1) still works, and
+  the ROM tables that drive it are wired up — investigation narrowed
+  the gap to a difference between PC-keystroke and auto-typer input
+  paths inside S-BASIC's input handler.
+- **MZ-shift assertion race on rapid char-driven input.** When the same
+  key fires repeatedly, the MZ shift bit doesn't always reach the matrix
+  before the key bit does, so the press registers as if shift wasn't
+  held. The clearest case today: repeatedly hitting the PC `'` key
+  produces an intermittent `7` instead of `'`, and shifted produces an
+  intermittent `'` instead of `@`. Pre-existing for shifted alphabetics
+  too, but the MZ-700's uppercase default font hides it (`P` and `p`
+  look the same on screen). Cosmetic in practice — it's never produced
+  a wrong-keyword error in BASIC for us.
+- **Left and Right PC Ctrl not distinguished.** Both PC Ctrl keys fire
+  MZ Ctrl. Telling them apart on Windows needs a `WndProc` read of the
+  lParam bit-24 (the "extended key" flag), which we haven't plumbed
+  yet — the keyboard editor therefore can't bind them to separate MZ
+  slots. Niche; will revisit if a user needs the distinction.
+
 ## Where bindings live
 
 | Layer | File location | What it stores |

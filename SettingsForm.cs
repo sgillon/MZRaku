@@ -63,10 +63,11 @@ public sealed class SettingsForm : Form
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         // Sized to the Keyboard tab's natural content (caption + 210 px
-        // diagram + Export/Import row + Advanced settings button); the
-        // matrix grid + overrides list live in AdvancedKeyboardForm now,
-        // so the main dialog no longer has to budget room for them.
-        ClientSize = new Size(740, 400);
+        // diagram + Export/Import row + Advanced settings button +
+        // known-limitations panel); the matrix grid + overrides list
+        // live in AdvancedKeyboardForm now, so the main dialog no
+        // longer has to budget room for them.
+        ClientSize = new Size(740, 600);
         MinimizeBox = false;
         MaximizeBox = false;
         ShowInTaskbar = false;
@@ -242,7 +243,7 @@ public sealed class SettingsForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 4,
+            RowCount = 5,
             Padding = new Padding(8),
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
@@ -250,6 +251,7 @@ public sealed class SettingsForm : Form
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 210f));  // diagram
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));        // export / import row
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));        // advanced settings button
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));        // known-limitations panel
 
         layout.Controls.Add(new Label
         {
@@ -294,7 +296,107 @@ public sealed class SettingsForm : Form
         advancedBtn.Click += (_, _) => OpenAdvancedKeyboard();
         layout.Controls.Add(advancedBtn, 0, 3);
 
+        layout.Controls.Add(BuildKeyboardLimitationsPanel(), 0, 4);
+
         return BuildTabPage("Keyboard", layout);
+    }
+
+    private const string KeyboardDocUrl =
+        "https://github.com/sgillon/Mz700Emul/blob/main/docs/usage/keyboard.md";
+
+    private static Control BuildKeyboardLimitationsPanel()
+    {
+        var group = new GroupBox
+        {
+            Text = "Known limitations",
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            // GroupBox's title sits inside its top padding band — 8px
+            // isn't enough to clear the text, so the first content row
+            // overlaps the heading. Same 6/16/6/6 pattern used by the
+            // HID Diagnostic groupboxes.
+            Padding = new Padding(8, 16, 8, 8),
+            Margin = new Padding(0, 12, 0, 0),
+        };
+
+        var stack = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.TopDown,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            WrapContents = false,
+            Margin = new Padding(0),
+            // Dock so the FlowLayoutPanel respects the GroupBox's
+            // Padding — without this it sits at (0, 0) and the first
+            // bullet renders over the heading text.
+            Dock = DockStyle.Fill,
+        };
+
+        stack.Controls.Add(Item(
+            "Font Sheet — bank-1 click-to-type lands the byte but the attribute "
+            + "isn't switched to bank 1, so the glyph renders as its bank-0 "
+            + "equivalent. Browse-mode (reading bank 1) still works."));
+        stack.Controls.Add(Item(
+            "Rapid char-driven input can occasionally drop the MZ shift bit, "
+            + "so a shifted character registers unshifted (e.g. repeated '@' "
+            + "may produce ''')."));
+        stack.Controls.Add(Item(
+            "Left and Right PC Ctrl are not distinguished — both fire MZ Ctrl. "
+            + "The keyboard editor can't currently bind them separately."));
+
+        var linkRow = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.LeftToRight,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            WrapContents = false,
+            Margin = new Padding(0, 4, 0, 0),
+        };
+        linkRow.Controls.Add(new Label
+        {
+            Text = "Full details:",
+            AutoSize = true,
+            Margin = new Padding(0, 3, 6, 0),
+            ForeColor = SystemColors.ControlDarkDark,
+        });
+        var link = new LinkLabel
+        {
+            Text = "docs/usage/keyboard.md",
+            AutoSize = true,
+            Margin = new Padding(0, 3, 0, 0),
+            LinkBehavior = LinkBehavior.HoverUnderline,
+        };
+        link.LinkClicked += (_, _) =>
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = KeyboardDocUrl,
+                    UseShellExecute = true,
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Couldn't open browser:\n" + ex.Message, "Settings",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        };
+        linkRow.Controls.Add(link);
+        stack.Controls.Add(linkRow);
+
+        group.Controls.Add(stack);
+        return group;
+
+        static Label Item(string text) => new()
+        {
+            Text = "• " + text,
+            AutoSize = true,
+            MaximumSize = new Size(680, 0),
+            Margin = new Padding(0, 0, 0, 4),
+            ForeColor = SystemColors.ControlText,
+        };
     }
 
     private void OpenAdvancedKeyboard()
