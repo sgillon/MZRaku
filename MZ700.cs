@@ -108,6 +108,12 @@ public sealed class MZ700
         Cassette.HeaderDelivered = false;
         Cassette.DataDelivered = false;
         Cassette.ResetSaveState();
+        // Drop any matrix bits a host KeyDown asserted but hasn't yet
+        // released. Ctrl+R is the canonical case: PC Ctrl down asserts
+        // MZ CTRL (8,6), the menu shortcut then fires Reset, and without
+        // this the monitor would boot with CTRL still held until the
+        // user lifted the PC Ctrl key.
+        Keyboard.ReleaseAll();
         // Clear VRAM to spaces, attributes to white-on-blue (MZ-700 default)
         for (int i = 0; i < 2048; i++) { Mem.Vram[i] = 0x00; Mem.Aram[i] = 0x71; }
         // Run monitor: the ROM handles its own startup
