@@ -625,10 +625,14 @@ public sealed class MainForm : Form
         // e.Shift can momentarily lag on the very first shift keydown, so
         // also detect via the VK code itself.
         bool shift = e.Shift || IsShiftKey(e.KeyCode);
-        _machine.Keyboard.SetShift(shift);
         // Pass KeyData (VK + modifier flags) so the override layer can
         // match modifier-aware bindings; Keyboard internally strips
         // modifiers when consulting SpecialKeyMap and managing holds.
+        // Shift state goes inside OnKeyDown — calling SetShift here too
+        // would prematurely write the PC-shift-derived $1170 value and
+        // race the upcoming OnKeyPress on layouts where the MZ shift
+        // requirement disagrees (UK `'` → MZ-shift ON; UK Shift+`'` →
+        // `@` → MZ-shift OFF).
         if (_machine.Keyboard.OnKeyDown(e.KeyData, shift)) e.Handled = true;
     }
 
@@ -640,7 +644,6 @@ public sealed class MainForm : Form
     private void OnKeyUp(object? s, KeyEventArgs e)
     {
         bool shift = e.Shift && !IsShiftKey(e.KeyCode);
-        _machine.Keyboard.SetShift(shift);
         if (_machine.Keyboard.OnKeyUp(e.KeyData, shift)) e.Handled = true;
     }
 

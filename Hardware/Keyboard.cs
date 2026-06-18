@@ -108,28 +108,57 @@ public sealed class Keyboard
 
     /// <summary>
     /// Reflect the PC's shift-modifier state into the MZ-700.
-    /// Called from the form on every key event so SHIFT bit (8,0) tracks
-    /// the user's actual shift-held state, except while a char-driven
-    /// hold has an explicit MZ-shift requirement.
+    /// Retained as a public API for callers that need to force a sync
+    /// outside the OnKeyDown / OnKeyUp flow (none in-tree right now).
+    /// The form no longer calls this on every key event — see the
+    /// "shift-race" notes on <see cref="OnKeyDown"/>.
     /// </summary>
     public void SetShift(bool held)
     {
         _pcShift = held;
-        SetMatrix(8, 0, EffectiveMzShift());
-        if (Memory != null) Memory.Ram[0x1170] = (byte)(EffectiveMzShift() ? 0x01 : 0x00);
+        ApplyShiftState();
     }
 
     /// <summary>
-    /// Resolve the MZ shift bit's desired state. Any active hold with an
-    /// explicit MzShift requirement wins (e.g. UK Shift+' → '@' wants
-    /// shift OFF even though PC Shift is held); otherwise pass through
-    /// PC shift state.
+    /// Write the current <see cref="EffectiveMzShift"/> value to both
+    /// the matrix bit (8,0) and the RAM mirror at $1170. Consolidates
+    /// the two writes so any caller that updates <c>_pcShift</c> or
+    /// <c>_holds</c> can sync the MZ-visible state with one line.
+    /// </summary>
+    private void ApplyShiftState()
+    {
+        bool effective = EffectiveMzShift();
+        SetMatrix(8, 0, effective);
+        if (Memory != null) Memory.Ram[0x1170] = (byte)(effective ? 0x01 : 0x00);
+    }
+
+    private static bool IsShiftKey(Keys k) =>
+        k == Keys.ShiftKey || k == Keys.LShiftKey || k == Keys.RShiftKey;
+
+    /// <summary>
+    /// Resolve the MZ shift bit's desired state.
+    /// - Any active hold with an explicit MzShift requirement wins
+    ///   (e.g. UK Shift+' → '@' wants shift OFF even though PC Shift
+    ///   is held).
+    /// - Otherwise, if at least one hold is active, fall through to PC
+    ///   shift state (lets Shift+arrow assert MZ shift on the arrow's
+    ///   SpecialKey hold).
+    /// - With no holds at all, returns false unconditionally. PC Shift
+    ///   held alone does NOT raise the MZ shift bit: the MZ only cares
+    ///   about shift state when a key is also being pressed, and
+    ///   asserting it between presses opens a window where the ROM's
+    ///   GETKY can cache "shift held" and apply it to the next press
+    ///   even when that press's MzShift requirement disagrees.
     /// </summary>
     private bool EffectiveMzShift()
     {
+        bool anyHold = false;
         foreach (var h in _holds.Values)
+        {
             if (h.ExplicitMzShift.HasValue) return h.ExplicitMzShift.Value;
-        return _pcShift;
+            anyHold = true;
+        }
+        return anyHold && _pcShift;
     }
 
     /// <summary>
@@ -148,6 +177,15 @@ public sealed class Keyboard
     ///      consults <see cref="CharMap"/> with the resolved Unicode
     ///      character so host keyboard layout / AltGr / dead keys all
     ///      work transparently.
+    ///
+    /// Shift-race avoidance: the form no longer calls SetShift in its
+    /// KeyDown handler. For non-shift, non-modifier character keys we
+    /// don't touch matrix(8,0) or $1170 until OnKeyPress resolves the
+    /// character — otherwise we'd write a PC-shift-derived value that
+    /// disagrees with the upcoming press's MzShift requirement (UK
+    /// `'` → MZ-shift ON; UK Shift+`'` → `@` → MZ-shift OFF), and the
+    /// ROM's GETKY can cache the wrong shift state across frames in
+    /// the gap between the two events.
     /// </summary>
     public bool OnKeyDown(Keys keyData, bool pcShift)
     {
@@ -159,15 +197,15 @@ public sealed class Keyboard
 
         // Layer 1: user overrides. MzShift can be true/false/null and the
         // ActiveHold honours each — see EffectiveMzShift's null check.
+        // Write shift state BEFORE the key bit so any GETKY observation
+        // that picks up the key bit also picks up the matching shift.
         var ov = Overrides?.Resolve(keyData);
         if (ov.HasValue)
         {
             var b = ov.Value;
             _holds[bareVk] = new ActiveHold(b.Row, b.Col, b.MzShift);
+            ApplyShiftState();
             SetMatrix(b.Row, b.Col, true);
-            SetMatrix(8, 0, EffectiveMzShift());
-            if (Memory != null && b.MzShift.HasValue)
-                Memory.Ram[0x1170] = (byte)(b.MzShift.Value ? 0x01 : 0x00);
             Diag.Record(InputLayer.Override, b.Row, b.Col, b.MzShift);
             return true;
         }
@@ -178,13 +216,25 @@ public sealed class Keyboard
             // Non-printable: drive matrix directly, pass PC shift through
             // (no explicit shift requirement on this hold).
             _holds[bareVk] = new ActiveHold(rc.row, rc.col, ExplicitMzShift: null);
+            ApplyShiftState();
             SetMatrix(rc.row, rc.col, true);
-            SetMatrix(8, 0, EffectiveMzShift());
             Diag.Record(InputLayer.SpecialKey, rc.row, rc.col, null);
             return true;
         }
 
+        // Shift key alone: don't write matrix(8,0) or $1170 yet. The
+        // modifier state is tracked in _pcShift and surfaces on the
+        // next press via EffectiveMzShift's "any-hold fall-through".
+        // Asserting it here would leave the OS with a "shift held"
+        // observation in the gap before the next press lands, and the
+        // ROM's GETKY can cache that across frames — producing the
+        // very mismatch we're trying to close.
+        if (IsShiftKey(bareVk))
+            return false;
+
         // Layer 3: defer to KeyPress for character-driven mapping.
+        // Deliberately do NOT touch matrix(8,0) / $1170 here — see the
+        // shift-race note in the XML doc above.
         _pendingDownVk = bareVk;
         return false;
     }
@@ -192,6 +242,15 @@ public sealed class Keyboard
     /// <summary>
     /// PC KeyPress. Pairs the resolved Unicode char with the pending
     /// KeyDown VK and asserts the corresponding matrix bits.
+    ///
+    /// Write order matters here: matrix(8,0) and $1170 are written
+    /// BEFORE the key bit so any GETKY scan that picks up the key bit
+    /// also reads the matching shift state — the auto-typer's
+    /// AwaitShiftScan staging exists for the same reason on its side.
+    /// Combined with <see cref="OnKeyDown"/> no longer touching shift
+    /// state on character keys, this closes the cross-frame race
+    /// where the gap between OnKeyDown and OnKeyPress could leave
+    /// $1170 at a value that didn't match the press's MzShift.
     /// </summary>
     public void OnKeyPress(char ch)
     {
@@ -206,13 +265,12 @@ public sealed class Keyboard
             return;
         }
 
-        // Record the hold with an EXPLICIT shift requirement so SetShift
-        // (which fires on every subsequent key event while PC Shift is
-        // held) doesn't clobber our override.
+        // Record the hold with an EXPLICIT shift requirement so any
+        // subsequent EffectiveMzShift reads (e.g. on shift-key release)
+        // don't clobber our override.
         _holds[vk] = new ActiveHold(p.Row, p.Col, ExplicitMzShift: p.MzShift);
+        ApplyShiftState();
         SetMatrix(p.Row, p.Col, true);
-        SetMatrix(8, 0, EffectiveMzShift());
-        if (Memory != null) Memory.Ram[0x1170] = (byte)(p.MzShift ? 0x01 : 0x00);
         Diag.Record(InputLayer.Character, p.Row, p.Col, p.MzShift);
     }
 
@@ -222,6 +280,12 @@ public sealed class Keyboard
     /// and the user's actual PC shift state. <paramref name="keyData"/>
     /// is the combined VK + modifiers; the bare VK is what's keyed in
     /// <see cref="_holds"/>.
+    ///
+    /// Always recomputes shift state at the end — even when no hold
+    /// matched the released VK — because the form no longer calls
+    /// SetShift on shift-key release: that path now flows through
+    /// here, with <c>pcShift</c> already reflecting the post-release
+    /// modifier state.
     /// </summary>
     public bool OnKeyUp(Keys keyData, bool pcShift)
     {
@@ -230,16 +294,19 @@ public sealed class Keyboard
         var bareVk = keyData & Keys.KeyCode;
         if (_pendingDownVk == bareVk) _pendingDownVk = Keys.None;
 
-        if (!_holds.TryGetValue(bareVk, out var h)) return false;
+        bool handled = false;
+        if (_holds.TryGetValue(bareVk, out var h))
+        {
+            SetMatrix(h.Row, h.Col, false);
+            _holds.Remove(bareVk);
+            handled = true;
+        }
 
-        SetMatrix(h.Row, h.Col, false);
-        _holds.Remove(bareVk);
-
-        // Recompute MZ shift from remaining holds + PC state.
-        bool effective = EffectiveMzShift();
-        SetMatrix(8, 0, effective);
-        if (Memory != null) Memory.Ram[0x1170] = (byte)(effective ? 0x01 : 0x00);
-        return true;
+        // Shift-key release lands here without a matching hold (shift
+        // alone doesn't go in _holds). Recompute unconditionally so
+        // matrix(8,0) and $1170 mirror the new PC modifier state.
+        ApplyShiftState();
+        return handled;
     }
 
     // ---- Auto-typing (used by CLI auto-load to send "RUN\r" etc.) -------
