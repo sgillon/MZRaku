@@ -253,6 +253,32 @@ public static class Mz700MatrixReference
     public static Slot? Get(int row, int col)
         => All.TryGetValue((row, col), out var s) ? s : null;
 
+    /// <summary>
+    /// MZ glyph positions that have no equivalent on a PC keyboard by
+    /// design — the safety gate treats them as reachable so it doesn't
+    /// nag every Apply. These are still surfaced in the Advanced
+    /// unbound-slot panel (slot-level view, separate question), so the
+    /// information isn't lost.
+    ///
+    /// The three exempt cells:
+    /// - (1, 5, true) — the reversed-apostrophe at bank 0 $A4 on the
+    ///   shifted side of the @ key. Looks like a normal apostrophe but
+    ///   is a distinct ROM glyph; the conventional ' lives at (5, 1)
+    ///   shifted and IS reachable.
+    /// - (0, 5, false) — the down-arrow display glyph on the POUND key.
+    ///   Distinct from the cursor-down VK at (7, 4) which is reachable.
+    /// - (0, 5, true) — the £ glyph on the POUND key. CharMap routes PC
+    ///   £ (UK Shift+3) to (5, 5, true) so the user gets MZ '#' on
+    ///   screen — a deliberate UK-layout fallback, not a missing binding.
+    /// </summary>
+    public static bool IsKnownUnreachableFromPc(int row, int col, bool shift)
+    {
+        if (row == 1 && col == 5 && shift) return true;
+        if (row == 0 && col == 5 && !shift) return true;
+        if (row == 0 && col == 5 && shift) return true;
+        return false;
+    }
+
     /// <summary>All slots of a given kind, in (row, col) order.</summary>
     public static IEnumerable<Slot> OfKind(SlotKind kind)
     {

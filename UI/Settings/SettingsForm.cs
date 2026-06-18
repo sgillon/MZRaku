@@ -575,6 +575,12 @@ public sealed class SettingsForm : Form
     /// Fixed-label keys (CR, GRAPH, ALPHA, CTRL, SHIFT, BREAK, INST,
     /// DEL, cursors) are shift-agnostic — any binding in either shift
     /// state is enough.
+    ///
+    /// Glyphs flagged by
+    /// <see cref="Mz700MatrixReference.IsKnownUnreachableFromPc"/>
+    /// (reverse-apostrophe at AT, ↓ and £ at POUND) count as reachable
+    /// here — they're not on a PC keyboard by design, so the gate
+    /// shouldn't nag every Apply.
     /// </summary>
     private static bool IsKeyFullyReachable(
         MzKeyboardLayout.MzKey k,
@@ -592,8 +598,14 @@ public sealed class SettingsForm : Form
         bool hasShifted = !string.IsNullOrEmpty(k.ShiftedLabel)
             || MzGlyphCatalog.FindByPrintableSlot(row, col, true).HasValue;
 
-        if (hasUnshifted && !labels.ContainsKey((row, col, false))) return false;
-        if (hasShifted && !labels.ContainsKey((row, col, true))) return false;
+        if (hasUnshifted
+            && !labels.ContainsKey((row, col, false))
+            && !Mz700MatrixReference.IsKnownUnreachableFromPc(row, col, false))
+            return false;
+        if (hasShifted
+            && !labels.ContainsKey((row, col, true))
+            && !Mz700MatrixReference.IsKnownUnreachableFromPc(row, col, true))
+            return false;
         return true;
     }
 
