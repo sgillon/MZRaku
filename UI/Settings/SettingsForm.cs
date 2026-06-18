@@ -49,6 +49,12 @@ public sealed class SettingsForm : Form
     private readonly NumericUpDown _numButton1 = new() { Minimum = 0, Maximum = 31, Width = 60 };
     private readonly NumericUpDown _numButton2 = new() { Minimum = 0, Maximum = 31, Width = 60 };
 
+    // Pre-edit baseline captured when the dialog opens; diffed against
+    // the live state at Apply / OK time so the user sees a summary of
+    // exactly what's about to be persisted. Refreshed after a successful
+    // Apply so a second Apply doesn't re-list the same changes.
+    private SettingsSnapshot _baseline = null!;
+
     /// <summary>Raised after settings are written. MainForm uses this to
     /// reflect changes in the running emulator (display scale, joystick
     /// button bindings).</summary>
@@ -97,6 +103,8 @@ public sealed class SettingsForm : Form
 
         LoadFromSettings();
         WireValidation();
+
+        _baseline = SettingsSnapshot.Capture(_settings);
     }
 
     // -- Tab construction -----------------------------------------------
@@ -622,6 +630,7 @@ public sealed class SettingsForm : Form
         ok.Click += (_, _) =>
         {
             if (!ConfirmKeyboardSafetyGate()) return;
+            if (!ConfirmDiff()) return;
             ApplyChanges();
             DialogResult = DialogResult.OK;
             Close();
@@ -629,6 +638,7 @@ public sealed class SettingsForm : Form
         apply.Click += (_, _) =>
         {
             if (!ConfirmKeyboardSafetyGate()) return;
+            if (!ConfirmDiff()) return;
             ApplyChanges();
         };
 
@@ -674,6 +684,46 @@ public sealed class SettingsForm : Form
         _settings.JoyButton2Index = (int)_numButton2.Value;
         _settings.Save();
         Applied?.Invoke();
+
+        // Reset baseline so a follow-up Apply only summarises further
+        // edits, not the ones the user just confirmed.
+        _baseline = SettingsSnapshot.Capture(_settings);
+    }
+
+    /// <summary>
+    /// Apply-time change summary: snapshot the dialog's current state
+    /// (controls for scalars, live overrides for keyboard layers) and
+    /// diff against the baseline taken when the dialog opened. If there
+    /// are changes, show a Yes/No confirmation listing them so the user
+    /// can see exactly what's about to be persisted. Returns false only
+    /// if the user declines; an empty diff falls through silently.
+    /// </summary>
+    private bool ConfirmDiff()
+    {
+        var candidate = SettingsSnapshot.Build(
+            displayScale: _rb3x.Checked ? 3 : _rb1x.Checked ? 1 : 2,
+            monitorPath: _txtMonitor.Text.Trim(),
+            fontPath: _txtFont.Text.Trim(),
+            basicPath: _txtBasic.Text.Trim(),
+            joy1: (int)_numButton1.Value,
+            joy2: (int)_numButton2.Value,
+            charOverrides: _settings.CharMapOverrides,
+            keyOverrides: _settings.KeyOverrides);
+
+        var lines = SettingsDiff.Describe(_baseline, candidate);
+        if (lines.Count == 0) return true;
+
+        const int previewMax = 16;
+        var preview = string.Join("\n", lines.Take(previewMax).Select(l => "  • " + l));
+        if (lines.Count > previewMax)
+            preview += $"\n  • … (+{lines.Count - previewMax} more)";
+
+        var result = MessageBox.Show(this,
+            $"Saving {lines.Count} change{(lines.Count == 1 ? "" : "s")}:\n\n{preview}\n\nApply?",
+            "Confirm changes",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Information);
+        return result == DialogResult.Yes;
     }
 
     /// <summary>
