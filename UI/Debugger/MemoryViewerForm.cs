@@ -26,6 +26,7 @@ namespace MZ700Emul;
 public sealed class MemoryViewerForm : Form
 {
     private readonly MZ700 _machine;
+    private readonly Settings _settings;
 
     private readonly SmoothListBox _list = new();
     private readonly TextBox _gotoAddr = new();
@@ -54,14 +55,23 @@ public sealed class MemoryViewerForm : Form
     private readonly StringBuilder _rowBuf = new(80);
     private readonly byte[] _rowBytes = new byte[BytesPerRow];
 
-    public MemoryViewerForm(MZ700 machine)
+    public MemoryViewerForm(MZ700 machine, Settings settings)
     {
         _machine = machine;
+        _settings = settings;
 
         Text = "Memory Viewer";
         StartPosition = FormStartPosition.Manual;
         FormBorderStyle = FormBorderStyle.SizableToolWindow;
-        ClientSize = new Size(600, 520);
+        if (_settings.MemoryViewerWindow.HasGeometry)
+        {
+            Location = new Point(_settings.MemoryViewerWindow.X, _settings.MemoryViewerWindow.Y);
+            ClientSize = new Size(_settings.MemoryViewerWindow.Width, _settings.MemoryViewerWindow.Height);
+        }
+        else
+        {
+            ClientSize = new Size(600, 520);
+        }
         MinimumSize = new Size(560, 240);
         KeyPreview = true;
         DoubleBuffered = true;
@@ -397,6 +407,10 @@ public sealed class MemoryViewerForm : Form
 
     private void OnFormClosing(object? sender, FormClosingEventArgs e)
     {
+        _settings.MemoryViewerWindow = new Settings.WindowState(
+            Location.X, Location.Y, ClientSize.Width, ClientSize.Height);
+        _settings.Save();
+
         // Same lifecycle as DebuggerForm — hide on user close, real dispose
         // only at app shutdown.
         if (e.CloseReason == CloseReason.UserClosing)

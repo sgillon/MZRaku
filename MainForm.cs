@@ -850,9 +850,12 @@ public sealed class MainForm : Form
     {
         if (_debugger == null || _debugger.IsDisposed)
         {
-            _debugger = new DebuggerForm(_machine, ResetMachine);
-            // First open: park it just to the right of the main window.
-            _debugger.Location = new Point(Bounds.Right + 8, Bounds.Top);
+            _debugger = new DebuggerForm(_machine, ResetMachine, _settings);
+            // First open ever: park just to the right of the main window.
+            // The form ctor honours any saved geometry, so this only
+            // applies when nothing's been persisted yet.
+            if (!_settings.DebuggerWindow.HasGeometry)
+                _debugger.Location = new Point(Bounds.Right + 8, Bounds.Top);
         }
         _debugger.Owner = this;
         _debugger.Show();
@@ -863,10 +866,11 @@ public sealed class MainForm : Form
     {
         if (_memViewer == null || _memViewer.IsDisposed)
         {
-            _memViewer = new MemoryViewerForm(_machine);
-            // First open: park it below the main window so it doesn't fight
-            // the debugger for the right-side slot.
-            _memViewer.Location = new Point(Bounds.Left, Bounds.Bottom + 8);
+            _memViewer = new MemoryViewerForm(_machine, _settings);
+            // First open ever: park below the main window so it doesn't
+            // fight the debugger for the right-side slot.
+            if (!_settings.MemoryViewerWindow.HasGeometry)
+                _memViewer.Location = new Point(Bounds.Left, Bounds.Bottom + 8);
         }
         _memViewer.Owner = this;
         _memViewer.Show();

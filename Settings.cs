@@ -52,6 +52,19 @@ public sealed class Settings
     // Anything in here is consulted FIRST by CharMap.TryLookup.
     public CharMapOverrides CharMapOverrides { get; } = new();
 
+    // Persisted debugger / memory-viewer state. Values of (0,0,0,0)
+    // mean "no saved geometry — fall back to the host's default
+    // positioning on first open." Serialised to [DebuggerWindow] /
+    // [MemoryViewerWindow] / [DebuggerBreakpoints] sections.
+    public WindowState DebuggerWindow { get; set; } = new();
+    public WindowState MemoryViewerWindow { get; set; } = new();
+    public List<int> DebuggerBreakpoints { get; set; } = new();
+
+    public record struct WindowState(int X, int Y, int Width, int Height)
+    {
+        public bool HasGeometry => Width > 0 && Height > 0;
+    }
+
     public string MonitorRomFullPath => Resolve(MonitorRomPath);
     public string FontFullPath => Resolve(FontPath);
     public string BasicFullPath => Resolve(BasicPath);
@@ -83,6 +96,18 @@ public sealed class Settings
                 {
                     foreach (var kv in cm) s.CharMapOverrides.TryParseLine(kv.Key, kv.Value);
                 }
+                s.DebuggerWindow = ReadWindowState(ini, "DebuggerWindow");
+                s.MemoryViewerWindow = ReadWindowState(ini, "MemoryViewerWindow");
+                if (ini.TryGetValue("DebuggerBreakpoints", out var bps))
+                {
+                    foreach (var kv in bps)
+                    {
+                        if (int.TryParse(kv.Key, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var a)
+                            && a >= 0 && a <= 0xFFFF)
+                            s.DebuggerBreakpoints.Add(a);
+                    }
+                    s.DebuggerBreakpoints.Sort();
+                }
                 // Older settings.ini files predate sections added in later
                 // versions. Flag any missing section so Save() runs once
                 // and the user gets a complete, editable file (now with the
@@ -90,6 +115,9 @@ public sealed class Settings
                 if (!ini.ContainsKey("Joystick")) missingSection = true;
                 if (!ini.ContainsKey("KeyOverrides")) missingSection = true;
                 if (!ini.ContainsKey("CharMap")) missingSection = true;
+                if (!ini.ContainsKey("DebuggerWindow")) missingSection = true;
+                if (!ini.ContainsKey("MemoryViewerWindow")) missingSection = true;
+                if (!ini.ContainsKey("DebuggerBreakpoints")) missingSection = true;
             }
         }
         catch { /* fall through to defaults */ }
@@ -185,6 +213,39 @@ public sealed class Settings
             sb.AppendLine(";   <glyph>          Free-text comment showing the literal character,");
             sb.AppendLine(";                    purely for hand-editing readability.");
             foreach (var line in CharMapOverrides.SerialiseLines()) sb.AppendLine(line);
+            sb.AppendLine();
+
+            sb.AppendLine("[DebuggerWindow]");
+            sb.AppendLine("; Last on-screen position + size of the Debugger window (Ctrl+D).");
+            sb.AppendLine("; Restored on next open so the layout follows the user across runs.");
+            sb.AppendLine("; If a value is missing or zero the window falls back to its default");
+            sb.AppendLine("; placement (just to the right of the main emulator window).");
+            sb.AppendLine(";   X / Y       desktop pixel coordinates of the top-left corner");
+            sb.AppendLine(";   Width / Height   client-area size in pixels");
+            sb.AppendLine($"X={DebuggerWindow.X}");
+            sb.AppendLine($"Y={DebuggerWindow.Y}");
+            sb.AppendLine($"Width={DebuggerWindow.Width}");
+            sb.AppendLine($"Height={DebuggerWindow.Height}");
+            sb.AppendLine();
+
+            sb.AppendLine("[MemoryViewerWindow]");
+            sb.AppendLine("; Last on-screen position + size of the Memory Viewer (Ctrl+M).");
+            sb.AppendLine("; Format matches [DebuggerWindow] above; defaults to just below the");
+            sb.AppendLine("; main emulator window on first open.");
+            sb.AppendLine($"X={MemoryViewerWindow.X}");
+            sb.AppendLine($"Y={MemoryViewerWindow.Y}");
+            sb.AppendLine($"Width={MemoryViewerWindow.Width}");
+            sb.AppendLine($"Height={MemoryViewerWindow.Height}");
+            sb.AppendLine();
+
+            sb.AppendLine("[DebuggerBreakpoints]");
+            sb.AppendLine("; Address-based breakpoints to re-arm in the Debugger on next launch.");
+            sb.AppendLine("; One line per breakpoint, 4-digit hex Z80 address followed by '=1':");
+            sb.AppendLine(";   <hex-addr>=1");
+            sb.AppendLine("; Edit by hand to add or remove; the Debugger writes this section");
+            sb.AppendLine("; back from the live list when it's closed.");
+            foreach (var addr in DebuggerBreakpoints)
+                sb.AppendLine($"{addr:X4}=1");
 
             File.WriteAllText(FilePath, sb.ToString());
         }
@@ -345,5 +406,14 @@ public sealed class Settings
         if (ini.TryGetValue(section, out var s) && s.TryGetValue(key, out var v))
             return v;
         return fallback;
+    }
+
+    private static WindowState ReadWindowState(Dictionary<string, Dictionary<string, string>> ini, string section)
+    {
+        int x = GetInt(ini, section, "X", 0);
+        int y = GetInt(ini, section, "Y", 0);
+        int w = GetInt(ini, section, "Width", 0);
+        int h = GetInt(ini, section, "Height", 0);
+        return new WindowState(x, y, w, h);
     }
 }

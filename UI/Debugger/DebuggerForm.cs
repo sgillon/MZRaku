@@ -35,6 +35,7 @@ public sealed class DebuggerForm : Form
 
     private readonly MZ700 _machine;
     private readonly Action _resetMachine;
+    private readonly Settings _settings;
 
     private readonly Button _btnPause = new();
     private readonly Button _btnStep = new();
@@ -67,19 +68,39 @@ public sealed class DebuggerForm : Form
     private int _lastDrawnBpVersion;
     private int _bpVersion;
 
-    public DebuggerForm(MZ700 machine, Action resetMachine)
+    public DebuggerForm(MZ700 machine, Action resetMachine, Settings settings)
     {
         _machine = machine;
         _resetMachine = resetMachine;
+        _settings = settings;
 
         Text = "Debugger";
         StartPosition = FormStartPosition.Manual;
         FormBorderStyle = FormBorderStyle.SizableToolWindow;
-        ClientSize = new Size(880, 500);
+        // Apply saved geometry if any; else fall back to a default size
+        // and let the host position the window on first open.
+        if (_settings.DebuggerWindow.HasGeometry)
+        {
+            Location = new Point(_settings.DebuggerWindow.X, _settings.DebuggerWindow.Y);
+            ClientSize = new Size(_settings.DebuggerWindow.Width, _settings.DebuggerWindow.Height);
+        }
+        else
+        {
+            ClientSize = new Size(880, 500);
+        }
         MinimumSize = new Size(720, 380);
         KeyPreview = true;
         DoubleBuffered = true;
         ShowInTaskbar = false;
+
+        // Re-arm any breakpoints persisted from a prior run before
+        // wiring the disassembly view, so the first paint already shows
+        // them.
+        foreach (var addr in _settings.DebuggerBreakpoints)
+        {
+            if (addr >= 0 && addr < _machine.Cpu.Breakpoints.Length)
+                _machine.Cpu.Breakpoints[addr] = true;
+        }
 
         _mono = new Font(FontFamily.GenericMonospace, 9f);
 
@@ -606,6 +627,11 @@ public sealed class DebuggerForm : Form
 
     private void OnFormClosing(object? sender, FormClosingEventArgs e)
     {
+        // Snapshot geometry + breakpoints to Settings on every close,
+        // including the user-hides-the-window path, so the state lives
+        // through to the next launch.
+        SaveStateToSettings();
+
         // Closing the window just hides it — keep breakpoints and the
         // instance alive so reopening is instant. MainForm disposes it
         // for real when the emulator shuts down.
@@ -614,6 +640,18 @@ public sealed class DebuggerForm : Form
             e.Cancel = true;
             Hide();
         }
+    }
+
+    private void SaveStateToSettings()
+    {
+        _settings.DebuggerWindow = new Settings.WindowState(
+            Location.X, Location.Y, ClientSize.Width, ClientSize.Height);
+        var bps = _machine.Cpu.Breakpoints;
+        var list = new List<int>();
+        for (int a = 0; a < bps.Length; a++)
+            if (bps[a]) list.Add(a);
+        _settings.DebuggerBreakpoints = list;
+        _settings.Save();
     }
 
     // --- helpers --------------------------------------------------------
