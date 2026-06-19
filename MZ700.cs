@@ -52,6 +52,7 @@ public sealed class MZ700
         Io.Ppi = Ppi;
         Io.Pit = Pit;
         Io.Memory = Mem;
+        Io.Sound = Sound;
         Mem.IoBus = Io;
         Mem.Cpu = Cpu;
         Ppi.Keyboard = Keyboard;
@@ -95,6 +96,11 @@ public sealed class MZ700
     {
         Cpu.Reset();
         Cpu.IM = 1;
+        // FF1.CL on the schematic is the system RESET line, so the
+        // speaker-NAND hard gate clears on power-on / Ctrl+R. ROM
+        // sets it back to 1 via a write to $E008 when it wants the
+        // boot tone audible.
+        Sound.HardGate = false;
         // Restore power-on bank state. Without this, a reset while BASIC
         // is running leaves RomEnabled=false (BASIC banks the monitor
         // ROM out at startup). The CPU then resumes at $0000 from RAM,

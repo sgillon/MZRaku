@@ -22,7 +22,16 @@ public sealed class Sound : IDisposable
     private volatile bool _running;
 
     public double InputClockHz = 895000.0;
-    public volatile bool Enabled;   // PPI PC3 gate
+    // The MZ-700 has two independent gates between C0.OUT and the
+    // speaker (confirmed against the service-manual schematic
+    // 2026-06-19 — see Mz700SoundReference):
+    //   Soft gate (Enabled)  ← PPI PC3 via IC7E LS74 FF2 → PIT GATE0.
+    //   Hard gate (HardGate) ← write D0 to $E008, latched by IC7E
+    //                          LS74 FF1, gates the speaker-amp NAND.
+    // Audible iff both gates are asserted. Cleared by Reset (FF1.CL
+    // = system RESET line on the schematic).
+    public volatile bool Enabled;
+    public volatile bool HardGate;
     private volatile int _reload = 0;
 
     public void SetReload(int reload) { _reload = reload; }
@@ -44,7 +53,7 @@ public sealed class Sound : IDisposable
             try
             {
                 int reload = _reload;
-                bool gate = Enabled;
+                bool gate = Enabled && HardGate;
                 double freq = (reload > 1) ? InputClockHz / reload : 0;
                 if (!gate || freq < 20 || freq > 20000) freq = 0;
 

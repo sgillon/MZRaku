@@ -37,6 +37,7 @@ public sealed class MainForm : Form
     private DebuggerForm? _debugger;
     private MemoryViewerForm? _memViewer;
     private HidDiagnosticForm? _hidDiag;
+    private SoundDiagnosticForm? _soundDiag;
     private FontSheetForm? _fontSheet;
 
     // Full-screen state. _isFullScreen tracks the toggle; the other
@@ -193,6 +194,7 @@ public sealed class MainForm : Form
             _debugger?.Dispose();
             _memViewer?.Dispose();
             _hidDiag?.Dispose();
+            _soundDiag?.Dispose();
             _machine.Sound.Dispose();
         };
     }
@@ -272,6 +274,7 @@ public sealed class MainForm : Form
         debug.DropDownItems.Add(new ToolStripMenuItem("&Debugger…", null, (_, _) => OpenDebugger()) { ShortcutKeys = Keys.Control | Keys.D });
         debug.DropDownItems.Add(new ToolStripMenuItem("&Memory Viewer…", null, (_, _) => OpenMemoryViewer()) { ShortcutKeys = Keys.Control | Keys.M });
         debug.DropDownItems.Add(new ToolStripMenuItem("&HID Diagnostic…", null, (_, _) => OpenHidDiag()) { ShortcutKeys = Keys.Control | Keys.H });
+        debug.DropDownItems.Add(new ToolStripMenuItem("&Sound Diagnostic…", null, (_, _) => OpenSoundDiag()));
         debug.DropDownItems.Add(new ToolStripMenuItem("Keyboard &Matrix…", null, (_, _) => OpenKeyboardMatrix()));
         debug.DropDownItems.Add(new ToolStripSeparator());
         debug.DropDownItems.Add(new ToolStripMenuItem("Run &Z80 Test (ZEXDOC/ZEXALL)…", null, (_, _) => OpenZ80Test()));
@@ -493,6 +496,7 @@ public sealed class MainForm : Form
         _debugger?.RefreshIfVisible();
         _memViewer?.RefreshIfVisible();
         _hidDiag?.RefreshIfVisible();
+        _soundDiag?.RefreshIfVisible();
 
         // Refresh joystick indicator every ~10 frames (~6 Hz) — enough
         // to confirm at a glance whether XInput is seeing a controller.
@@ -1099,6 +1103,20 @@ public sealed class MainForm : Form
         // on first open; for subsequent re-opens of an already-visible
         // form, we explicitly re-activate the main window so the user can
         // keep typing without clicking back.
+        Activate();
+    }
+
+    private void OpenSoundDiag()
+    {
+        if (_soundDiag == null || _soundDiag.IsDisposed)
+        {
+            _soundDiag = new SoundDiagnosticForm(_machine);
+            _soundDiag.Location = new Point(Bounds.Right + 8, Bounds.Top);
+        }
+        _soundDiag.Owner = this;
+        _soundDiag.Show();
+        // Same focus-preserving pattern as the HID Diagnostic — keep
+        // typing from the main window unobstructed.
         Activate();
     }
 

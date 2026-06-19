@@ -13,6 +13,14 @@ public sealed class IoBus : IIoBus
     public Pit8253 Pit = null!;
     public MZ700Memory Memory = null!;
     public Joystick Joystick = null!;
+    public Sound Sound = null!;
+
+    /// <summary>
+    /// Fires on every CPU write to $E008. Value is the data byte
+    /// written. Consumed by the Sound Diagnostic so $E008 traffic
+    /// surfaces alongside PIT and PC3 events.
+    /// </summary>
+    public event Action<byte>? OnE008Write;
 
     public byte MemIn(ushort addr)
     {
@@ -43,8 +51,20 @@ public sealed class IoBus : IIoBus
         int off = addr & 0x000F;
         if (off <= 3) { Ppi.Write(off, value); return; }
         if (off <= 7) { Pit.Write(off - 4, value); return; }
-        // $E008 write on MZ-700 is used (in some ROM versions) to clear the
-        // maskable-interrupt latch; in our simplified IRQ model we just drop it.
+        if (off == 8)
+        {
+            // $E008 write: D0 latches into IC7E LS74 FF1 (CK fires on
+            // every write to the CSE2-decoded range, of which $E008
+            // is one address). FF1.Q drives the speaker-amp NAND's
+            // second input — D0=1 lets C0.OUT through to the
+            // amplifier, D0=0 forces silence regardless of C0. This
+            // is how the ROM's boot tone ends and how S-BASIC's
+            // MUSIC produces discrete notes. See Mz700SoundReference
+            // (SpeakerNandGate enum) for the schematic citation.
+            Sound.HardGate = (value & 0x01) != 0;
+            OnE008Write?.Invoke(value);
+            return;
+        }
     }
 
     // Z80 IN/OUT: on MZ-700 most port I/O is unused, except ports $E0-$E5

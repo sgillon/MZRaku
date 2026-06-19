@@ -48,6 +48,16 @@ public sealed class Pit8253
 
     public event Action<bool>? Counter2Out;  // cursor blink / interrupt source
 
+    /// <summary>
+    /// Fires on every CPU-side write to the PIT, after the write has
+    /// been applied. <c>reg</c> is the low two bits of the I/O port
+    /// (0–2 for counter LSB/MSB, 3 for the control word). Consumed by
+    /// the Sound Diagnostic window — the existing WriteLog
+    /// StringBuilder is fine for offline dumps but too clunky for a
+    /// live per-frame view.
+    /// </summary>
+    public event Action<int, byte>? OnWrite;
+
     public Pit8253()
     {
         for (int i = 0; i < 3; i++) Counters[i] = new Counter();
@@ -110,6 +120,7 @@ public sealed class Pit8253
 
     public void Write(int reg, byte val)
     {
+        OnWrite?.Invoke(reg & 3, val);
         int idx = reg & 3;
         if (idx == 3)
         {
@@ -133,12 +144,27 @@ public sealed class Pit8253
                 Counters[sc].Mode = (byte)mode;
                 Counters[sc].WriteHigh = false;
                 Counters[sc].ReadHigh = false;
-                Counters[sc].Running = false;
-                // Intel 8253 spec: writing a control word forces OUT to its
-                // initial state for the new mode. Mode 0 → OUT low; modes
-                // 2/3 → OUT high. Critical for BASIC's MUSIC, which polls
-                // C2.OUT via $E008 bit 0 in a "wait LOW then wait HIGH" loop
-                // at $09F1 — without this reset, OUT stays high from the
+                // Intel 8253 spec: writing a control word does NOT halt a
+                // running counter. It reconfigures the mode/rw for the
+                // next count-value load. The counter keeps decrementing
+                // with its current count until a fresh LSB+MSB pair is
+                // written, at which point the new count takes effect.
+                // Previously we were resetting Running=false here, which
+                // killed the MZ-700 boot tone — the ROM writes the same
+                // mode-3 control word twice around the LSB/MSB pair, and
+                // the second write was silencing a counter that should
+                // have been generating the tone (sequence diagnosed
+                // 2026-06-18 via Sound Diagnostic; service-manual
+                // schematic re-read 2026-06-19 confirmed that audible
+                // silencing happens at the speaker-amp NAND via the
+                // $E008-D0 hard gate, not by halting C0 — see
+                // Mz700SoundReference.SpeakerNandGate).
+                //
+                // Writing a control word forces OUT to its initial state
+                // for the new mode. Mode 0 → OUT low; modes 2/3 → OUT
+                // high. Critical for BASIC's MUSIC, which polls C2.OUT
+                // via $E008 bit 0 in a "wait LOW then wait HIGH" loop at
+                // $09F1 — without this reset, OUT stays high from the
                 // previous note's terminal count and the loop hangs.
                 if (mode == 0) Counters[sc].Out = false;
                 else if (mode == 2 || mode == 3) Counters[sc].Out = true;
