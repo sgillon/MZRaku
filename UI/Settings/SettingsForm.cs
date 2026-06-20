@@ -336,7 +336,7 @@ public sealed class SettingsForm : Form
     }
 
     private const string KeyboardDocUrl =
-        "https://github.com/sgillon/Mz700Emul/blob/main/docs/usage/keyboard.md";
+        "https://github.com/sgillon/MZRaku/blob/main/docs/usage/keyboard.md";
 
     private static Control BuildKeyboardLimitationsPanel()
     {

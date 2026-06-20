@@ -15,8 +15,8 @@ namespace MZRaku;
 /// </summary>
 public sealed class AboutForm : Form
 {
-    private const string GitHubUrl = "https://github.com/sgillon/Mz700Emul";
-    private const string LauncherDocUrl = "https://github.com/sgillon/Mz700Emul/blob/main/docs/usage/launcher-setup.md";
+    private const string GitHubUrl = "https://github.com/sgillon/MZRaku";
+    private const string LauncherDocUrl = "https://github.com/sgillon/MZRaku/blob/main/docs/usage/launcher-setup.md";
 
     public AboutForm()
     {

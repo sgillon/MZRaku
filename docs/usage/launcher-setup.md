@@ -10,9 +10,9 @@ Basic instructions for configuring popular emulation launchers to use MZRaku. Th
 
 - Select the Add... button
 
-- Add the details of MZRaku to the 'Details' pane of the 'Add Emulator' screen, with the path pointing to wherever you have installed it. The 'Sample Command' field should auto-populate ![Add emulator details settings](https://github.com/sgillon/Mz700Emul/blob/main/docs/launcher-images/lb-editemulator-details.png?raw=true)
+- Add the details of MZRaku to the 'Details' pane of the 'Add Emulator' screen, with the path pointing to wherever you have installed it. The 'Sample Command' field should auto-populate ![Add emulator details settings](https://github.com/sgillon/MZRaku/blob/main/docs/launcher-images/lb-editemulator-details.png?raw=true)
 
-- On the 'Associated Platforms' pane, type "Sharp MZ-700" manually (it probably won't be listed in the default platforms dropdown) and optionally check the 'Default Emulator' box ![Set associated platform](https://github.com/sgillon/Mz700Emul/blob/main/docs/launcher-images/lb-editemulator-assocplatforms.png?raw=true)
+- On the 'Associated Platforms' pane, type "Sharp MZ-700" manually (it probably won't be listed in the default platforms dropdown) and optionally check the 'Default Emulator' box ![Set associated platform](https://github.com/sgillon/MZRaku/blob/main/docs/launcher-images/lb-editemulator-assocplatforms.png?raw=true)
 
 - Press OK and then Close on the 'Manage Emulators' window
 
