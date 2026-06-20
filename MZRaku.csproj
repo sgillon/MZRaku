@@ -16,6 +16,7 @@
          this string here is enough; no code change needed at release.
          Use the in-progress version (the one the next git tag will be). -->
     <Version>1.0.0</Version>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <!-- Release publish settings: bundle everything into a single .exe.

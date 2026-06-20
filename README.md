@@ -186,6 +186,13 @@ Items I'd like to come back to (rough priority order):
 - **MUSIC tempo re-validation** — stopwatch against a real MZ-700 now that discrete notes make timing comparison meaningful.
 
 
+## License
+
+MZRaku is released under the [MIT License](LICENSE) — do what you
+like with it, just keep the copyright notice. Third-party files
+bundled in the source tree under their own licenses (notably ZEXDOC /
+ZEXALL under GPL v2 in `tools/CPM/`) are listed in [NOTICES.md](NOTICES.md).
+
 ## Acknowledgements
 
 - **Sharp Corporation** — original MZ-700 hardware and ROM firmware. All ROM/BASIC files referenced in [Quickstart](#quickstart) remain
