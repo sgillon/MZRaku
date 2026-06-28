@@ -23,7 +23,6 @@ The emulator runs most MZ-700 software and games, in both BASIC and machine code
 - The default keyboard layout maps appropriate PC keys to the MZ-700 character set - e.g. typing a '+' on the PC keyboard will generate a '+' in the emulator, even though those keys are in relatively-different positions on actual hardware. An editor for the keyboard mappings is available under `File->Settings` if you would like to change to alternative mappings.
 - MZRaku emulates the MZ-1X03 joystick via any Windows-recognised game controller. Button mappings can be changed via `File->Settings`
 - Text files containing BASIC listings can be loaded. These are auto-typed into the emulator at about 6-8 chars per second. (Speeding this up will be a future focus)
-- The Z80 CPU emulator is maintained as a standalone library at [sgillon/Z80Core](https://github.com/sgillon/Z80Core), consumed here as a git submodule. It passes both ZEXDOC and ZEXALL; the bundled test harness now lives there as `samples/ZexHarness/`.
 
 
 
