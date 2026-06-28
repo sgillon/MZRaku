@@ -23,7 +23,7 @@ The emulator runs most MZ-700 software and games, in both BASIC and machine code
 - The default keyboard layout maps appropriate PC keys to the MZ-700 character set - e.g. typing a '+' on the PC keyboard will generate a '+' in the emulator, even though those keys are in relatively-different positions on actual hardware. An editor for the keyboard mappings is available under `File->Settings` if you would like to change to alternative mappings.
 - MZRaku emulates the MZ-1X03 joystick via any Windows-recognised game controller. Button mappings can be changed via `File->Settings`
 - Text files containing BASIC listings can be loaded. These are auto-typed into the emulator at about 6-8 chars per second. (Speeding this up will be a future focus)
-- The running of Frank Cringle's Z80 instruction set exerciser (ZEXDOC/ZEXALL) is integrated into MZRaku and all tests pass. The harness can be run from `Debug → Run Z80 Test…` at any time using the supplied `tools/CPM/zexdoc.com` / `zexall.com`. 
+- The Z80 CPU emulator is maintained as a standalone library at [sgillon/Z80Core](https://github.com/sgillon/Z80Core), consumed here as a git submodule. It passes both ZEXDOC and ZEXALL; the bundled test harness now lives there as `samples/ZexHarness/`.
 
 
 
@@ -59,10 +59,17 @@ One of the primary objectives of MZRaku is to make it much easier to launch MZ-7
 
 ## Building & running
 
+The Z80 CPU emulator lives in a separate repo
+([sgillon/Z80Core](https://github.com/sgillon/Z80Core)) and is
+included here as a git submodule. After cloning:
+
 ```
+git submodule update --init
 dotnet build
 dotnet run
 ```
+
+If you cloned with `git clone --recurse-submodules`, the submodule step is already done.
 
 Or once built:
 
@@ -189,9 +196,11 @@ Items I'd like to come back to (rough priority order):
 ## License
 
 MZRaku is released under the [MIT License](LICENSE) — do what you
-like with it, just keep the copyright notice. Third-party files
-bundled in the source tree under their own licenses (notably ZEXDOC /
-ZEXALL under GPL v2 in `tools/CPM/`) are listed in [NOTICES.md](NOTICES.md).
+like with it, just keep the copyright notice.
+
+The Z80 CPU emulator that powers MZRaku is maintained separately at
+[sgillon/Z80Core](https://github.com/sgillon/Z80Core) (also MIT) and
+included here as a git submodule under `Z80Core/`.
 
 ## Acknowledgements
 

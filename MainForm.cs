@@ -276,8 +276,6 @@ public sealed class MainForm : Form
         debug.DropDownItems.Add(new ToolStripMenuItem("&HID Diagnostic…", null, (_, _) => OpenHidDiag()) { ShortcutKeys = Keys.Control | Keys.H });
         debug.DropDownItems.Add(new ToolStripMenuItem("&Sound Diagnostic…", null, (_, _) => OpenSoundDiag()));
         debug.DropDownItems.Add(new ToolStripMenuItem("Keyboard &Matrix…", null, (_, _) => OpenKeyboardMatrix()));
-        debug.DropDownItems.Add(new ToolStripSeparator());
-        debug.DropDownItems.Add(new ToolStripMenuItem("Run &Z80 Test (ZEXDOC/ZEXALL)…", null, (_, _) => OpenZ80Test()));
         menu.Items.Add(debug);
 
         var help = new ToolStripMenuItem("&Help");
@@ -1118,37 +1116,6 @@ public sealed class MainForm : Form
         // Same focus-preserving pattern as the HID Diagnostic — keep
         // typing from the main window unobstructed.
         Activate();
-    }
-
-    private void OpenZ80Test()
-    {
-        using var dlg = new OpenFileDialog
-        {
-            Title = "Select Z80 test .com (ZEXDOC / ZEXALL)",
-            Filter = "CP/M COM|*.com|All files|*.*",
-            InitialDirectory = FindToolsCpmDir() ?? AppContext.BaseDirectory,
-        };
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
-
-        // Stop the 60Hz tick so the test thread has exclusive access to
-        // the CPU. Resumed when the test form closes.
-        _timer.Stop();
-        var form = new Z80TestForm(_machine, dlg.FileName);
-        form.FormClosed += (_, _) => _timer.Start();
-        form.Owner = this;
-        form.Show(this);
-    }
-
-    private static string? FindToolsCpmDir()
-    {
-        string? dir = AppContext.BaseDirectory;
-        while (dir != null)
-        {
-            var candidate = Path.Combine(dir, "tools", "CPM");
-            if (Directory.Exists(candidate)) return candidate;
-            dir = Directory.GetParent(dir)?.FullName;
-        }
-        return null;
     }
 
     private static Icon? LoadEmbeddedIcon()
