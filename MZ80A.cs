@@ -27,6 +27,12 @@ public sealed class MZ80A : IMachine
     public Mz80aVideo Video = new();
     public Mz80aKeyboard Keyboard = new();
     public Mz80aCassette Cassette = new();
+    // MZ-80A sound path is simpler than MZ-700's dual-gate NAND — a
+    // single hard gate at $E008 D0 in front of the audio amplifier,
+    // fed by PIT counter 1's OUT (per Owner's Manual p.163 text). We
+    // reuse the MZ-700 Sound class with Enabled pinned true (no soft
+    // gate exists on MZ-80A) and a different input-clock rate.
+    public Sound Sound = new();
 
     public MachineType Kind => MachineType.MZ80A;
     Z80Core.IMemory IMachine.Mem => Mem;
@@ -73,6 +79,16 @@ public sealed class MZ80A : IMachine
         Cassette.Memory = Mem;
         Cassette.Cpu = Cpu;
         Cpu.PreStep = Cassette.OnPreStep;
+
+        // Sound: MZ-80A has no soft gate (no MZ-700-style PC3 stage),
+        // so Enabled is pinned. The hard gate at $E008 D0 is wired via
+        // Mz80aIoBus. Best-guess input clock 31.5 kHz for C1 (matches
+        // Owner's Manual p.162 block diagram's "31.5 kHz" annotation
+        // on the 8253 input path); tune when a MUSIC-tempo reference
+        // is available.
+        Sound.Enabled = true;
+        Sound.InputClockHz = 31_500.0;
+        Io.Sound = Sound;
 
         // Timer interrupt from PIT counter 2. On MZ-80A, $E002 D2 is
         // documented in Owner's Manual Table 3.1 as "Masking of timer
@@ -160,6 +176,11 @@ public sealed class MZ80A : IMachine
         if (tripped || stepFrame) Paused = true;
 
         RenderFrame();
+
+        // Feed the sound generator with PIT counter 1's current reload.
+        // When the counter isn't actively running (e.g. between control
+        // words and LSB/MSB loads), zero it so the speaker stays silent.
+        Sound.SetReload(Pit.Counters[1].Running ? Pit.Counters[1].Reload : 0);
     }
 
     private void RenderFrame()

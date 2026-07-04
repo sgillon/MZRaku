@@ -46,6 +46,7 @@ public sealed class Mz80aIoBus : IIoBus
     public Ppi8255 Ppi = null!;
     public Pit8253 Pit = null!;
     public MZ80AMemory Memory = null!;
+    public Sound Sound = null!;
 
     // Phase 2 will populate this with a video renderer; the video-mode
     // and scroll registers ($E014/$E015/$E200-$E2FF) toggle its state.
@@ -113,8 +114,9 @@ public sealed class Mz80aIoBus : IIoBus
         if (off <= 7) { Pit.Write(off - 4, value); return; }
         if (off == 8)
         {
-            // $E008 W: D0 = sound gate. Wired to the sound generator
-            // in Phase 5; silently discarded here.
+            // $E008 W: D0 = sound gate (hard gate in front of the
+            // audio amp — no MZ-700-style dual-NAND, just one bit).
+            Sound.HardGate = (value & 0x01) != 0;
             return;
         }
         // Writes to $E014, $E015, $E200-$E2FF etc. are undefined on

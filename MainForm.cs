@@ -232,8 +232,8 @@ public sealed class MainForm : Form
             _memViewer?.Dispose();
             _hidDiag?.Dispose();
             _soundDiag?.Dispose();
-            // Sound is MZ-700-only for now — MZ-80A doesn't own one yet.
             _machine?.Sound.Dispose();
+            _mz80a?.Sound.Dispose();
         };
     }
 
@@ -479,6 +479,7 @@ public sealed class MainForm : Form
                 _machine!.Mem.BankSwitchLog = _traceEnabled ? new System.Text.StringBuilder() : null;
                 _machine!.Sound.Start();
             }
+            _mz80a?.Sound.Start();
 
             // Auto-load BASIC if requested explicitly (--basic) OR if the
             // initial cassette is a BASIC program (type 0x02 / 0x05). The
