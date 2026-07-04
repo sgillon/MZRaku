@@ -232,7 +232,8 @@ public sealed class MainForm : Form
             _memViewer?.Dispose();
             _hidDiag?.Dispose();
             _soundDiag?.Dispose();
-            _machine!.Sound.Dispose();
+            // Sound is MZ-700-only for now — MZ-80A doesn't own one yet.
+            _machine?.Sound.Dispose();
         };
     }
 
