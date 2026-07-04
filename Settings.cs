@@ -26,18 +26,57 @@ public sealed class Settings
     // Display, persisted as [Display] Scanlines=true/false.
     public bool DisplayScanlines { get; set; } = false;
 
+    // Which machine model MZRaku is currently emulating. Persisted at
+    // [Machine] Type=; overridden per-run by the --mz700 / --mz80a
+    // CLI flags. The default (MZ700) matches the historical behaviour
+    // — pre-existing settings.ini files that lack a [Machine] section
+    // stay on MZ-700 automatically.
+    public MachineType Type { get; set; } = MachineType.MZ700;
+
     // Paths to the system files (monitor ROM, character font, BASIC
-    // cassette image). Populated automatically on first run by scanning
-    // the program directory; the user can edit settings.ini afterwards
-    // to point them somewhere else.
+    // cassette image), split by machine so both machines can coexist
+    // in one settings.ini. Auto-detected on first run by scanning the
+    // program directory for each machine's expected filenames; the
+    // user can edit settings.ini afterwards to point them elsewhere.
     //
-    // The raw *Path strings are written to disk verbatim — kept as a
-    // path RELATIVE to the executable when the file lives at-or-below
-    // it, otherwise as an absolute path. Use the *FullPath helpers
-    // when actually opening the file.
-    public string MonitorRomPath { get; set; } = "";
-    public string FontPath { get; set; } = "";
-    public string BasicPath { get; set; } = "";
+    // Raw *Path strings are written to disk verbatim — kept RELATIVE
+    // to the executable when the file lives at-or-below it, absolute
+    // otherwise. Use the *FullPath helpers when actually opening a
+    // file.
+    public RomPathSet Mz700Roms { get; } = new();
+    public RomPathSet Mz80aRoms { get; } = new();
+
+    /// <summary>The ROM paths for the currently-selected <see cref="Type"/>.</summary>
+    public RomPathSet ActiveRoms => Type == MachineType.MZ700 ? Mz700Roms : Mz80aRoms;
+
+    // Convenience passthrough properties: read the ACTIVE machine's
+    // ROM paths, so callers that don't care which machine (MainForm's
+    // startup ROM-missing check, the Settings UI's ROMs tab, etc.)
+    // just see one set. Write-through so EnsureRomPaths' auto-detect
+    // updates the right sub-section.
+    public string MonitorRomPath
+    {
+        get => ActiveRoms.MonitorRomPath;
+        set => ActiveRoms.MonitorRomPath = value;
+    }
+    public string FontPath
+    {
+        get => ActiveRoms.FontPath;
+        set => ActiveRoms.FontPath = value;
+    }
+    public string BasicPath
+    {
+        get => ActiveRoms.BasicPath;
+        set => ActiveRoms.BasicPath = value;
+    }
+
+    /// <summary>Per-machine monitor / font / BASIC path storage.</summary>
+    public sealed class RomPathSet
+    {
+        public string MonitorRomPath { get; set; } = "";
+        public string FontPath { get; set; } = "";
+        public string BasicPath { get; set; } = "";
+    }
 
     // PC gamepad button index (0..31, matching the WinMM dwButtons
     // bitmask) that drives each MZ-1X03 stick button. Defaults match
@@ -92,9 +131,26 @@ public sealed class Settings
                 var ini = ParseIni(File.ReadAllLines(FilePath));
                 s.DisplayScale = GetInt(ini, "Display", "Scale", s.DisplayScale);
                 s.DisplayScanlines = GetBool(ini, "Display", "Scanlines", s.DisplayScanlines);
-                s.MonitorRomPath = GetString(ini, "Roms", "Monitor", "");
-                s.FontPath = GetString(ini, "Roms", "Font", "");
-                s.BasicPath = GetString(ini, "Roms", "Basic", "");
+
+                // [Machine] Type=MZ700|MZ80A. Absent → default MZ700.
+                var typeStr = GetString(ini, "Machine", "Type", "");
+                if (typeStr.Equals("MZ80A", StringComparison.OrdinalIgnoreCase))
+                    s.Type = MachineType.MZ80A;
+                else
+                    s.Type = MachineType.MZ700;
+
+                // Per-machine ROM sections. Falls back to the legacy
+                // flat [Roms] section for MZ-700 so pre-split INI files
+                // still work; the next Save() rewrites in the new form.
+                s.Mz700Roms.MonitorRomPath = GetString(ini, "Roms.MZ700", "Monitor",
+                    GetString(ini, "Roms", "Monitor", ""));
+                s.Mz700Roms.FontPath = GetString(ini, "Roms.MZ700", "Font",
+                    GetString(ini, "Roms", "Font", ""));
+                s.Mz700Roms.BasicPath = GetString(ini, "Roms.MZ700", "Basic",
+                    GetString(ini, "Roms", "Basic", ""));
+                s.Mz80aRoms.MonitorRomPath = GetString(ini, "Roms.MZ80A", "Monitor", "");
+                s.Mz80aRoms.FontPath = GetString(ini, "Roms.MZ80A", "Font", "");
+                s.Mz80aRoms.BasicPath = GetString(ini, "Roms.MZ80A", "Basic", "");
                 s.JoyButton1Index = GetInt(ini, "Joystick", "Button1", s.JoyButton1Index);
                 s.JoyButton2Index = GetInt(ini, "Joystick", "Button2", s.JoyButton2Index);
                 if (ini.TryGetValue("KeyOverrides", out var ko))
@@ -129,6 +185,11 @@ public sealed class Settings
                 if (!ini.ContainsKey("DebuggerWindow")) missingSection = true;
                 if (!ini.ContainsKey("MemoryViewerWindow")) missingSection = true;
                 if (!ini.ContainsKey("DebuggerBreakpoints")) missingSection = true;
+                if (!ini.ContainsKey("Machine")) missingSection = true;
+                // Split-Roms upgrade: an INI written before MZ-80A support
+                // will have a flat [Roms] section but no [Roms.MZ700] one.
+                // Fold-and-save on next launch so both sub-sections exist.
+                if (!ini.ContainsKey("Roms.MZ700")) missingSection = true;
             }
         }
         catch { /* fall through to defaults */ }
@@ -146,7 +207,7 @@ public sealed class Settings
         try
         {
             var sb = new StringBuilder();
-            sb.AppendLine("; MZ700 Emulator settings — edit by hand if you like.");
+            sb.AppendLine("; MZRaku settings — edit by hand if you like.");
             sb.AppendLine("; Every section's format is documented inline below; you shouldn't");
             sb.AppendLine("; need to consult anything else to understand or tweak this file.");
             sb.AppendLine();
@@ -162,17 +223,39 @@ public sealed class Settings
             sb.AppendLine($"Scanlines={(DisplayScanlines ? "true" : "false")}");
             sb.AppendLine();
 
-            sb.AppendLine("[Roms]");
-            sb.AppendLine("; Paths to the Sharp firmware files. Stored relative to MZRaku.exe");
-            sb.AppendLine("; when the file lives at-or-below it (portable installs), absolute");
-            sb.AppendLine("; otherwise. If a path goes stale (file moved or deleted) the next");
-            sb.AppendLine("; launch re-scans the standard locations and patches the entry up.");
+            sb.AppendLine("[Machine]");
+            sb.AppendLine("; Which Sharp MZ machine to emulate on next launch. Values:");
+            sb.AppendLine(";   Type=MZ700   Sharp MZ-700 (default; original MZRaku target)");
+            sb.AppendLine(";   Type=MZ80A   Sharp MZ-80A (added later)");
+            sb.AppendLine("; Overridable per-run via the --mz700 / --mz80a CLI flags without");
+            sb.AppendLine("; touching this file. The File → Machine menu writes this value and");
+            sb.AppendLine("; prompts a restart.");
+            sb.AppendLine($"Type={Type}");
+            sb.AppendLine();
+
+            sb.AppendLine("[Roms.MZ700]");
+            sb.AppendLine("; Paths to the MZ-700's Sharp firmware files. Stored relative to");
+            sb.AppendLine("; MZRaku.exe when the file lives at-or-below it (portable installs),");
+            sb.AppendLine("; absolute otherwise. If a path goes stale the next launch re-scans");
+            sb.AppendLine("; the standard locations and patches the entry up.");
             sb.AppendLine(";   Monitor   1z-013a.rom   4 KiB monitor ROM");
             sb.AppendLine(";   Font      mz700fon.int  character generator ROM");
             sb.AppendLine(";   Basic     1Z-013B.mzf   S-BASIC cassette image");
-            sb.AppendLine($"Monitor={MonitorRomPath}");
-            sb.AppendLine($"Font={FontPath}");
-            sb.AppendLine($"Basic={BasicPath}");
+            sb.AppendLine($"Monitor={Mz700Roms.MonitorRomPath}");
+            sb.AppendLine($"Font={Mz700Roms.FontPath}");
+            sb.AppendLine($"Basic={Mz700Roms.BasicPath}");
+            sb.AppendLine();
+
+            sb.AppendLine("[Roms.MZ80A]");
+            sb.AppendLine("; Paths to the MZ-80A's Sharp firmware files. Same format as");
+            sb.AppendLine("; [Roms.MZ700] above. Left blank on machines that never boot MZ-80A;");
+            sb.AppendLine("; auto-populated when Type=MZ80A and the launcher finds the files.");
+            sb.AppendLine(";   Monitor   SA-1510.rom   4 KiB monitor ROM");
+            sb.AppendLine(";   Font      SA-CG.rom     2 KiB character generator ROM");
+            sb.AppendLine(";   Basic     SA-5510.mzf   S-BASIC cassette image");
+            sb.AppendLine($"Monitor={Mz80aRoms.MonitorRomPath}");
+            sb.AppendLine($"Font={Mz80aRoms.FontPath}");
+            sb.AppendLine($"Basic={Mz80aRoms.BasicPath}");
             sb.AppendLine();
 
             sb.AppendLine("[Joystick]");
@@ -293,19 +376,38 @@ public sealed class Settings
     /// </summary>
     private bool EnsureRomPaths()
     {
+        // Auto-detect only for the currently-active machine — no point
+        // scanning the disk for the other machine's ROMs on every
+        // launch. The passthrough setters route writes into the right
+        // sub-set (Mz700Roms or Mz80aRoms).
         bool dirty = false;
-        dirty |= EnsureOne(
-            MonitorRomFullPath, MonitorRomPath, v => MonitorRomPath = v,
-            () => FindFile("1z-013a.rom", "roms", ""));
-        dirty |= EnsureOne(
-            FontFullPath, FontPath, v => FontPath = v,
-            // Prefer the binary font over the hex text dump.
-            () => FindFile("mz700fon.int", "roms", "") ?? FindFile("font_hex.txt", "roms", ""));
-        dirty |= EnsureOne(
-            BasicFullPath, BasicPath, v => BasicPath = v,
-            // BASIC is conceptually another ROM image; scan the same
-            // places, plus the legacy basic/ folder for back-compat.
-            () => FindFile("1Z-013B.mzf", "roms", "basic", ""));
+        if (Type == MachineType.MZ700)
+        {
+            dirty |= EnsureOne(
+                MonitorRomFullPath, MonitorRomPath, v => MonitorRomPath = v,
+                () => FindFile("1z-013a.rom", "roms", ""));
+            dirty |= EnsureOne(
+                FontFullPath, FontPath, v => FontPath = v,
+                // Prefer the binary font over the hex text dump.
+                () => FindFile("mz700fon.int", "roms", "") ?? FindFile("font_hex.txt", "roms", ""));
+            dirty |= EnsureOne(
+                BasicFullPath, BasicPath, v => BasicPath = v,
+                // BASIC is conceptually another ROM image; scan the same
+                // places, plus the legacy basic/ folder for back-compat.
+                () => FindFile("1Z-013B.mzf", "roms", "basic", ""));
+        }
+        else // MZ80A
+        {
+            dirty |= EnsureOne(
+                MonitorRomFullPath, MonitorRomPath, v => MonitorRomPath = v,
+                () => FindFile("SA-1510.rom", "roms", ""));
+            dirty |= EnsureOne(
+                FontFullPath, FontPath, v => FontPath = v,
+                () => FindFile("SA-CG.rom", "roms", ""));
+            dirty |= EnsureOne(
+                BasicFullPath, BasicPath, v => BasicPath = v,
+                () => FindFile("SA-5510.mzf", "roms", "basic", ""));
+        }
         return dirty;
     }
 

@@ -16,6 +16,7 @@ internal static class Program
         int? displayScaleOverride = null;
         bool startFullScreen = false;
         bool? scanlinesOverride = null;
+        MachineType? machineOverride = null;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -23,6 +24,14 @@ internal static class Program
             if (a.Equals("--basic", StringComparison.OrdinalIgnoreCase) || a.Equals("-b", StringComparison.OrdinalIgnoreCase))
             {
                 autoLoadBasic = true;
+            }
+            else if (a.Equals("--mz700", StringComparison.OrdinalIgnoreCase))
+            {
+                machineOverride = MachineType.MZ700;
+            }
+            else if (a.Equals("--mz80a", StringComparison.OrdinalIgnoreCase))
+            {
+                machineOverride = MachineType.MZ80A;
             }
             else if (a.StartsWith("--dump=", StringComparison.OrdinalIgnoreCase))
             {
@@ -55,7 +64,7 @@ internal static class Program
                 {
                     MessageBox.Show(
                         $"--scanlines value '{v}' isn't recognised. Expected on or off.",
-                        "MZ-700 Emulator", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        "MZRaku", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
             }
@@ -76,15 +85,21 @@ internal static class Program
                 {
                     MessageBox.Show(
                         $"--display value '{v}' isn't recognised. Expected 1, 2, 3, or full.",
-                        "MZ-700 Emulator", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        "MZRaku", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
             }
             else if (a.Equals("--help", StringComparison.OrdinalIgnoreCase) || a == "-h" || a == "/?")
             {
                 MessageBox.Show(
-                    "MZ-700 Emulator\n\n" +
-                    "Usage: MZRaku.exe [--basic] [--display=N] [path\\to\\cassette.mzf|.zip]\n\n" +
+                    "MZRaku — Sharp MZ-700 / MZ-80A emulator\n\n" +
+                    "Usage: MZRaku.exe [--mz700|--mz80a] [--basic] [--display=N]\n" +
+                    "                  [path\\to\\cassette.mzf|.zip]\n\n" +
+                    "  --mz700         Emulate the Sharp MZ-700 for this run (default).\n" +
+                    "  --mz80a         Emulate the Sharp MZ-80A for this run. Overrides\n" +
+                    "                  the persisted [Machine] Type in settings.ini for\n" +
+                    "                  this launch only. Change the default via File →\n" +
+                    "                  Machine → MZ-80A.\n" +
                     "  --basic         Force BASIC to be loaded at startup. Usually not\n" +
                     "                  needed: BASIC cassettes auto-load BASIC anyway.\n" +
                     "  --display=N     Override the persisted window scale for this run:\n" +
@@ -100,7 +115,7 @@ internal static class Program
                     "                  code images run directly under the monitor.\n\n" +
                     "At runtime you may also drag-and-drop a .mzf or .zip file onto the\n" +
                     "window or use the File menu to load one.",
-                    "MZ-700 Emulator");
+                    "MZRaku");
                 return;
             }
             else if (!a.StartsWith("-"))
@@ -117,7 +132,7 @@ internal static class Program
         MatrixValidation.RunAndLog();
 
         ApplicationConfiguration.Initialize();
-        var form = new MainForm(cassettePath, autoLoadBasic, dumpPath, displayScaleOverride, startFullScreen, scanlinesOverride);
+        var form = new MainForm(cassettePath, autoLoadBasic, dumpPath, displayScaleOverride, startFullScreen, scanlinesOverride, machineOverride);
         form._dumpFrame = dumpFrame;
         Application.Run(form);
     }

@@ -68,7 +68,7 @@ public sealed class MainForm : Form
 
     public MainForm(string? cassettePath, bool autoLoadBasic, string? dumpPath = null,
         int? displayScaleOverride = null, bool startFullScreen = false,
-        bool? scanlinesOverride = null)
+        bool? scanlinesOverride = null, MachineType? machineOverride = null)
     {
         _initialCassette = cassettePath;
         _autoLoadBasic = autoLoadBasic;
@@ -80,6 +80,21 @@ public sealed class MainForm : Form
         {
             _scanlinesRestoreOnClose = _settings.DisplayScanlines;
             _settings.DisplayScanlines = scanlinesOverride.Value;
+        }
+        // Machine selection: --mz700/--mz80a CLI wins for this run
+        // over the persisted [Machine] Type. Not written back to
+        // settings.ini (the File → Machine menu is the persist path).
+        if (machineOverride.HasValue) _settings.Type = machineOverride.Value;
+        // MZ-80A support arrives in a later phase. For now, warn and
+        // fall back to MZ-700 so the app still comes up if the user
+        // selected MZ-80A via CLI or menu. Removing this block in the
+        // Phase 1 patch is the trigger for MZ-80A becoming live.
+        if (_settings.Type == MachineType.MZ80A)
+        {
+            MessageBox.Show(
+                "MZ-80A emulation is not yet available in this build — falling back to MZ-700 for this run.\n\n" +
+                "The File → Machine menu setting is unchanged; it will take effect once MZ-80A support ships.",
+                "MZRaku", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         _joystickInput = new Hardware.JoystickInput(_machine.Joystick);
         _joystickInput.SetButtonIndices(_settings.JoyButton1Index, _settings.JoyButton2Index);
@@ -228,6 +243,26 @@ public sealed class MainForm : Form
             (_, _) => OpenSettings(SettingsForm.Tab.Joystick))
             { ShortcutKeys = Keys.Control | Keys.Shift | Keys.J });
         file.DropDownItems.Add(settings);
+        file.DropDownItems.Add(new ToolStripSeparator());
+        // Machine selection — radio pair. Selecting the non-active
+        // machine writes settings.ini and prompts a restart; no live
+        // switch (the debugger, memory viewer, sound diagnostic all
+        // hold references to the current _machine, so tearing it
+        // down mid-run is messier than an application restart).
+        var machine = new ToolStripMenuItem("&Machine");
+        var mz700Item = new ToolStripMenuItem("MZ-&700")
+        {
+            Checked = _settings.Type == MachineType.MZ700,
+        };
+        var mz80aItem = new ToolStripMenuItem("MZ-&80A")
+        {
+            Checked = _settings.Type == MachineType.MZ80A,
+        };
+        mz700Item.Click += (_, _) => SwitchMachine(MachineType.MZ700);
+        mz80aItem.Click += (_, _) => SwitchMachine(MachineType.MZ80A);
+        machine.DropDownItems.Add(mz700Item);
+        machine.DropDownItems.Add(mz80aItem);
+        file.DropDownItems.Add(machine);
         file.DropDownItems.Add(new ToolStripSeparator());
         file.DropDownItems.Add(new ToolStripMenuItem("E&xit", null, (_, _) => Close()));
         menu.Items.Add(file);
@@ -1004,6 +1039,25 @@ public sealed class MainForm : Form
         _monitorReady = false;
         _basicLoadedFrame = -1;
         _statusLabel.Text = "Reset.";
+    }
+
+    private void SwitchMachine(MachineType target)
+    {
+        if (target == _settings.Type) return; // already on it — no-op
+        var name = target == MachineType.MZ700 ? "MZ-700" : "MZ-80A";
+        var result = MessageBox.Show(
+            $"Restart MZRaku to switch to Sharp {name}?\n\n" +
+            "Your settings.ini will record the new choice regardless — pick No to defer the switch until the next launch.",
+            "Switch machine",
+            MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+        if (result == DialogResult.Cancel) return;
+        _settings.Type = target;
+        _settings.Save();
+        if (result == DialogResult.Yes)
+        {
+            Application.Restart();
+            Environment.Exit(0);
+        }
     }
 
     private void OpenSettings(SettingsForm.Tab tab = SettingsForm.Tab.Roms)

@@ -8,10 +8,15 @@ namespace MZRaku;
 /// <summary>
 /// Assembled Sharp MZ-700 machine: Z80 + memory + I/O devices + cassette.
 /// </summary>
-public sealed class MZ700
+public sealed class MZ700 : IMachine
 {
-    public Z80Cpu Cpu = new();
-    public MZ700Memory Mem = new();
+    // Cpu / Mem are auto-properties (not fields) so this class can
+    // satisfy IMachine's read-only property requirements. The Mem
+    // property's declared type stays MZ700Memory so MZ-700-typed
+    // callers can still reach VRAM/ARAM/Ram directly; IMachine.Mem
+    // is exposed as Z80Core.IMemory via explicit interface impl below.
+    public Z80Cpu Cpu { get; } = new();
+    public MZ700Memory Mem { get; } = new();
     public Ppi8255 Ppi = new();
     public Pit8253 Pit = new();
     public IoBus Io = new();
@@ -21,6 +26,9 @@ public sealed class MZ700
     public Sound Sound = new();
     public Joystick Joystick = new();
     public RomKeyTables KeyTables = new();
+
+    public MachineType Kind => MachineType.MZ700;
+    Z80Core.IMemory IMachine.Mem => Mem;
 
     public const double CpuClockHz = 3546900.0;             // MZ-700 master clock ~3.5MHz
     public const double PitC0InputHz = 895000.0;            // counter 0 input clock
@@ -42,7 +50,7 @@ public sealed class MZ700
     // When Paused, RunFrame renders the screen but does not advance the
     // CPU. _stepFrameRequested is a one-shot that lets a single frame
     // run while still Paused (the "step frame" debugger action).
-    public bool Paused;
+    public bool Paused { get; set; }
     private bool _stepFrameRequested;
 
     public MZ700()
