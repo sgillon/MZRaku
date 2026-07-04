@@ -10,7 +10,15 @@ namespace MZRaku;
 
 public sealed class MainForm : Form
 {
-    private readonly MZ700 _machine = new();
+    // Exactly one of these is populated at construction based on
+    // Settings.Type. MZ-700-specific accesses (Sound, Ppi, Pit,
+    // Joystick, Cassette, Keyboard, Video, KeyTables) use _machine!.
+    // and are gated by _machine != null. IMachine-surface calls
+    // (Cpu, Mem, RunFrame, Reset, LoadRoms, AutoLoad*, debugger
+    // controls) use the Active property, which works for both.
+    private readonly MZ700? _machine;
+    private readonly MZ80A? _mz80a;
+    private IMachine Active => (IMachine?)_machine ?? _mz80a!;
     private readonly Hardware.JoystickInput _joystickInput;
     private readonly System.Windows.Forms.Timer _timer = new();
     private readonly StatusStrip _status = new();
@@ -85,21 +93,33 @@ public sealed class MainForm : Form
         // over the persisted [Machine] Type. Not written back to
         // settings.ini (the File → Machine menu is the persist path).
         if (machineOverride.HasValue) _settings.Type = machineOverride.Value;
-        // MZ-80A support arrives in a later phase. For now, warn and
-        // fall back to MZ-700 so the app still comes up if the user
-        // selected MZ-80A via CLI or menu. Removing this block in the
-        // Phase 1 patch is the trigger for MZ-80A becoming live.
-        if (_settings.Type == MachineType.MZ80A)
-        {
-            MessageBox.Show(
-                "MZ-80A emulation is not yet available in this build — falling back to MZ-700 for this run.\n\n" +
-                "The File → Machine menu setting is unchanged; it will take effect once MZ-80A support ships.",
-                "MZRaku", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-        _joystickInput = new Hardware.JoystickInput(_machine.Joystick);
+        // EnsureRomPaths scans for both machines' ROMs, so the CLI
+        // override finding e.g. SA-1510.rom under roms/ works even
+        // when settings.ini had never seen an MZ-80A launch before.
+        // No-op if the previous Load() already populated both sides.
+        if (_settings.EnsureRomPaths()) _settings.Save();
+        // Construct exactly one of the two machines.
+        if (_settings.Type == MachineType.MZ700)
+            _machine = new MZ700();
+        else
+            _mz80a = new MZ80A();
+
+        // JoystickInput needs a non-null Joystick reference to
+        // construct even when the machine has no joystick (MZ-80A).
+        // A fresh throwaway Joystick keeps the field non-null; nothing
+        // ever pumps its bits, and Timer_Tick's Poll() is guarded so
+        // the reads go nowhere. Cheap — Joystick is a small POCO.
+        var joystickForInput = _machine?.Joystick ?? new Hardware.Joystick();
+        _joystickInput = new Hardware.JoystickInput(joystickForInput);
         _joystickInput.SetButtonIndices(_settings.JoyButton1Index, _settings.JoyButton2Index);
-        _machine.Keyboard.Overrides = _settings.KeyOverrides;
-        CharMap.Overrides = _settings.CharMapOverrides;
+        // Keyboard-override wiring is MZ-700-specific for now; the
+        // MZ-80A keyboard model lands in Phase 3 and hooks its own
+        // overrides at that point.
+        if (_machine != null)
+        {
+            _machine!.Keyboard.Overrides = _settings.KeyOverrides;
+            CharMap.Overrides = _settings.CharMapOverrides;
+        }
 
         Text = "MZRaku";
         Icon = LoadEmbeddedIcon();
@@ -145,8 +165,10 @@ public sealed class MainForm : Form
 
         // SAVE-tape trap surfaces save outcomes via this event. Fires on
         // the UI thread (OnPreStep is called from Timer_Tick → RunFrame),
-        // so we can touch the status label directly.
-        _machine.Cassette.OnSaved += msg => _statusLabel.Text = msg;
+        // so we can touch the status label directly. MZ-700 only for
+        // Phase 1 — MZ-80A cassette lands in Phase 4.
+        if (_machine != null)
+            _machine!.Cassette.OnSaved += msg => _statusLabel.Text = msg;
         // Docking order matters: the Fill control must be added LAST so the
         // menu (top) and status strip (bottom) claim their space first.
         Controls.Add(_status);
@@ -210,7 +232,7 @@ public sealed class MainForm : Form
             _memViewer?.Dispose();
             _hidDiag?.Dispose();
             _soundDiag?.Dispose();
-            _machine.Sound.Dispose();
+            _machine!.Sound.Dispose();
         };
     }
 
@@ -433,30 +455,41 @@ public sealed class MainForm : Form
         {
             if (string.IsNullOrEmpty(_settings.MonitorRomFullPath) || !File.Exists(_settings.MonitorRomFullPath))
             {
+                var expected = _settings.Type == MachineType.MZ700
+                    ? "1z-013a.rom"
+                    : "SA-1510.rom";
                 var configured = string.IsNullOrEmpty(_settings.MonitorRomPath)
                     ? "(none configured)"
                     : $"{_settings.MonitorRomPath}  →  {_settings.MonitorRomFullPath}";
                 throw new FileNotFoundException(
-                    $"Monitor ROM (1z-013a.rom) not found.\n\n" +
+                    $"Monitor ROM ({expected}) not found.\n\n" +
                     $"Configured path: {configured}\n\n" +
-                    $"Place 1z-013a.rom under a 'roms' folder next to the executable, " +
-                    $"or set [Roms] Monitor= in {Path.Combine(AppContext.BaseDirectory, "settings.ini")}.");
+                    $"Place {expected} under a 'roms' folder next to the executable, " +
+                    $"or set [Roms.{_settings.Type}] Monitor= in {Path.Combine(AppContext.BaseDirectory, "settings.ini")}.");
             }
-            _machine.LoadRoms(_settings.MonitorRomFullPath, _settings.FontFullPath);
-            _machine.Reset();
-            _machine.Cpu.PcTraceEnabled = _traceEnabled;
-            _machine.Pit.WriteLog = _traceEnabled ? new System.Text.StringBuilder() : null;
-            _machine.Mem.BankSwitchLog = _traceEnabled ? new System.Text.StringBuilder() : null;
-            _machine.Sound.Start();
+            Active.LoadRoms(_settings.MonitorRomFullPath, _settings.FontFullPath);
+            Active.Reset();
+            Active.Cpu.PcTraceEnabled = _traceEnabled;
+            // Pit / Mem / Sound diagnostic hooks are MZ-700-specific
+            // for now — MZ-80A equivalents arrive with Phase 2/5.
+            if (_machine != null)
+            {
+                _machine!.Pit.WriteLog = _traceEnabled ? new System.Text.StringBuilder() : null;
+                _machine!.Mem.BankSwitchLog = _traceEnabled ? new System.Text.StringBuilder() : null;
+                _machine!.Sound.Start();
+            }
 
             // Auto-load BASIC if requested explicitly (--basic) OR if the
             // initial cassette is a BASIC program (type 0x02 / 0x05). The
             // type peek means the user doesn't have to know whether a
             // given .mzf is MC or BASIC — they just point the emulator at
             // it and the right boot path runs.
+            //
+            // MZ-80A path: skipped for Phase 1 — the cassette-trap
+            // machinery isn't wired yet. Users get a plain SA-1510 boot.
             bool loadBasic = _autoLoadBasic;
             bool cassetteNeedsBasic = false;
-            if (_initialCassette != null)
+            if (_machine != null && _initialCassette != null)
             {
                 try
                 {
@@ -466,7 +499,7 @@ public sealed class MainForm : Form
                 catch { /* let the Timer_Tick load path surface the error with a clearer status */ }
                 _pendingCassette = _initialCassette;
             }
-            if (loadBasic)
+            if (_machine != null && loadBasic)
             {
                 // Pre-flight the BASIC file so the failure shows up as a modal
                 // at startup (parity with the menu's Load BASIC) rather than a
@@ -508,7 +541,7 @@ public sealed class MainForm : Form
     private bool MonitorReady()
     {
         if (_monitorReady) return true;
-        var v = _machine.Mem.Vram;
+        var v = _machine!.Mem.Vram;
         // MZ display codes: M=$0D O=$0F N=$0E I=$09 T=$14 1=$21 Z=$1A *=$2A
         if (v[4] == 0x0D && v[5] == 0x0F && v[6] == 0x0E && v[7] == 0x09 &&
             v[8] == 0x14 && v[9] == 0x0F && v[10] == 0x12 &&
@@ -523,11 +556,24 @@ public sealed class MainForm : Form
         // Sample real gamepad state once per frame, before the emulated
         // CPU runs — values get latched at the VBLK falling edge inside
         // RunFrame, so they need to be fresh by then.
-        _joystickInput.Poll();
-        _machine.RunFrame();
+        if (_machine != null) _joystickInput.Poll();
+        Active.RunFrame();
         _bootFrames++;
         _debugger?.RefreshIfVisible();
         _memViewer?.RefreshIfVisible();
+
+        // MZ-80A boot spike: skip everything below (joystick indicator,
+        // banner detection, BASIC/cassette autoload state machine,
+        // trace log, dump path). Those pieces come online in later
+        // phases — Phase 2 (video), Phase 3 (keyboard), Phase 4
+        // (cassette + BASIC). The display refresh at the bottom of the
+        // MZ-700 path is a no-op for now because MZ-80A hasn't got a
+        // video renderer wired yet.
+        if (_machine == null)
+        {
+            _display.Invalidate();
+            return;
+        }
         _hidDiag?.RefreshIfVisible();
         _soundDiag?.RefreshIfVisible();
 
@@ -535,8 +581,8 @@ public sealed class MainForm : Form
         // to confirm at a glance whether XInput is seeing a controller.
         if (_bootFrames % 10 == 0)
         {
-            var s0 = _machine.Joystick.Sticks[0];
-            var s1 = _machine.Joystick.Sticks[1];
+            var s0 = _machine!.Joystick.Sticks[0];
+            var s1 = _machine!.Joystick.Sticks[1];
             string Fmt(Hardware.Joystick.StickState s, int n) =>
                 s.Active
                     ? $"{n}[X{s.AxisX:D3} Y{s.AxisY:D3}{(s.Sw1 ? " A" : "")}{(s.Sw2 ? " B" : "")}]"
@@ -560,7 +606,7 @@ public sealed class MainForm : Form
             }
             else
             {
-                bool graph = (_machine.Mem.Read(0x0060) & 0x10) != 0;
+                bool graph = (_machine!.Mem.Read(0x0060) & 0x10) != 0;
                 if (graph && _modeLabel.Text != "GRAPH")
                 {
                     _modeLabel.Text = "GRAPH";
@@ -640,14 +686,14 @@ public sealed class MainForm : Form
                     // at $0436/$04D8) — its own tape code reads PortC bit 5
                     // directly and has no real cassette to read from here.
                     var img = Hardware.Cassette.Parse(Hardware.CassetteFile.ReadBytes(_pendingCassette));
-                    _machine.Cassette.DirectInject(img, jumpExec: false);
+                    _machine!.Cassette.DirectInject(img, jumpExec: false);
                     if (img.Type == 0x02 || img.Type == 0x05)
                     {
-                        _machine.Cassette.FixupBasicProgramPointers(img.LoadAddr, img.Data.Length);
+                        _machine!.Cassette.FixupBasicProgramPointers(img.LoadAddr, img.Data.Length);
                         // Auto-RUN: with the program injected and pointers
                         // fixed, BASIC's RUN command preprocesses lengths and
                         // starts execution. End-to-end automation from CLI.
-                        _machine.Keyboard.TypeString("RUN\r");
+                        _machine!.Keyboard.TypeString("RUN\r");
                         _statusLabel.Text = $"Loaded {img.Filename}. Running.";
                     }
                     else
@@ -694,9 +740,9 @@ public sealed class MainForm : Form
         // Trace state every 20 frames to help diagnose boot/load issues
         if (_traceEnabled && (_bootFrames <= 10 || _bootFrames % 20 == 0) && _bootFrames <= _dumpFrame)
         {
-            var c0 = _machine.Pit.Counters[0];
-            var c2 = _machine.Pit.Counters[2];
-            _traceLog.AppendLine($"[F{_bootFrames:D4}] PC=${_machine.Cpu.PC:X4} SP=${_machine.Cpu.SP:X4} IFF1={_machine.Cpu.IFF1} C0.rel={c0.Reload} run={c0.Running} out={c0.Out} C2.rel={c2.Reload} run={c2.Running} out={c2.Out} INTMSK={_machine.Ppi.InterruptMask} hdr={_machine.Cassette.HeaderDelivered} dat={_machine.Cassette.DataDelivered}");
+            var c0 = _machine!.Pit.Counters[0];
+            var c2 = _machine!.Pit.Counters[2];
+            _traceLog.AppendLine($"[F{_bootFrames:D4}] PC=${_machine!.Cpu.PC:X4} SP=${_machine!.Cpu.SP:X4} IFF1={_machine!.Cpu.IFF1} C0.rel={c0.Reload} run={c0.Running} out={c0.Out} C2.rel={c2.Reload} run={c2.Running} out={c2.Out} INTMSK={_machine!.Ppi.InterruptMask} hdr={_machine!.Cassette.HeaderDelivered} dat={_machine!.Cassette.DataDelivered}");
         }
 
         if (_dumpPath != null && _bootFrames == _dumpFrame)
@@ -710,24 +756,24 @@ public sealed class MainForm : Form
                     var sb = new System.Text.StringBuilder();
                     sb.AppendLine();
                     sb.AppendLine("Recent PC trace (oldest first):");
-                    int start = _machine.Cpu.PcTraceIdx;
-                    for (int i = 0; i < _machine.Cpu.PcTrace.Length; i++)
+                    int start = _machine!.Cpu.PcTraceIdx;
+                    for (int i = 0; i < _machine!.Cpu.PcTrace.Length; i++)
                     {
-                        sb.Append($"${_machine.Cpu.PcTrace[(start + i) & 0xFF]:X4} ");
+                        sb.Append($"${_machine!.Cpu.PcTrace[(start + i) & 0xFF]:X4} ");
                         if (i % 16 == 15) sb.AppendLine();
                     }
                     _traceLog.Append(sb);
-                    if (_machine.Pit.WriteLog != null)
+                    if (_machine!.Pit.WriteLog != null)
                     {
                         _traceLog.AppendLine();
                         _traceLog.AppendLine("PIT write log:");
-                        _traceLog.Append(_machine.Pit.WriteLog);
+                        _traceLog.Append(_machine!.Pit.WriteLog);
                     }
-                    if (_machine.Mem.BankSwitchLog != null)
+                    if (_machine!.Mem.BankSwitchLog != null)
                     {
                         _traceLog.AppendLine();
                         _traceLog.AppendLine("Bank-switch log:");
-                        _traceLog.Append(_machine.Mem.BankSwitchLog);
+                        _traceLog.Append(_machine!.Mem.BankSwitchLog);
                     }
                     File.WriteAllText(_dumpPath + ".trace", _traceLog.ToString());
                 }
@@ -745,15 +791,15 @@ public sealed class MainForm : Form
     {
         using var w = new StreamWriter(path);
         w.WriteLine($"MZ700 state after {_bootFrames} frames");
-        w.WriteLine($"CPU: PC=${_machine.Cpu.PC:X4} SP=${_machine.Cpu.SP:X4} A=${_machine.Cpu.A:X2} F=${_machine.Cpu.F:X2} HL=${_machine.Cpu.HL:X4} BC=${_machine.Cpu.BC:X4} DE=${_machine.Cpu.DE:X4}");
-        w.WriteLine($"IM={_machine.Cpu.IM} IFF1={_machine.Cpu.IFF1} Halted={_machine.Cpu.Halted} Cycles={_machine.Cpu.TotalCycles}");
-        w.WriteLine($"PPI PortA=${_machine.Ppi.PortA:X2} PortCOut=${_machine.Ppi.PortCOut:X2} PortCIn=${_machine.Ppi.PortCIn:X2}");
-        w.WriteLine($"Mem RomEnabled={_machine.Mem.RomEnabled} VramIoEnabled={_machine.Mem.VramIoEnabled}");
-        w.WriteLine($"PIT C0.Reload={_machine.Pit.Counters[0].Reload} C2.Reload={_machine.Pit.Counters[2].Reload}");
+        w.WriteLine($"CPU: PC=${_machine!.Cpu.PC:X4} SP=${_machine!.Cpu.SP:X4} A=${_machine!.Cpu.A:X2} F=${_machine!.Cpu.F:X2} HL=${_machine!.Cpu.HL:X4} BC=${_machine!.Cpu.BC:X4} DE=${_machine!.Cpu.DE:X4}");
+        w.WriteLine($"IM={_machine!.Cpu.IM} IFF1={_machine!.Cpu.IFF1} Halted={_machine!.Cpu.Halted} Cycles={_machine!.Cpu.TotalCycles}");
+        w.WriteLine($"PPI PortA=${_machine!.Ppi.PortA:X2} PortCOut=${_machine!.Ppi.PortCOut:X2} PortCIn=${_machine!.Ppi.PortCIn:X2}");
+        w.WriteLine($"Mem RomEnabled={_machine!.Mem.RomEnabled} VramIoEnabled={_machine!.Mem.VramIoEnabled}");
+        w.WriteLine($"PIT C0.Reload={_machine!.Pit.Counters[0].Reload} C2.Reload={_machine!.Pit.Counters[2].Reload}");
         var sb0 = new System.Text.StringBuilder("RAM @ $1200: ");
-        for (int i = 0; i < 32; i++) sb0.Append($"{_machine.Mem.Read((ushort)(0x1200 + i)):X2} ");
+        for (int i = 0; i < 32; i++) sb0.Append($"{_machine!.Mem.Read((ushort)(0x1200 + i)):X2} ");
         w.WriteLine(sb0.ToString());
-        w.WriteLine($"Tape trap hits: BreakWait={_machine.Cassette.BreakWaitTrapHits} Header={_machine.Cassette.HeaderTrapHits} Data={_machine.Cassette.DataTrapHits} WriteTape={_machine.Cassette.WriteTapeTrapHits}");
+        w.WriteLine($"Tape trap hits: BreakWait={_machine!.Cassette.BreakWaitTrapHits} Header={_machine!.Cassette.HeaderTrapHits} Data={_machine!.Cassette.DataTrapHits} WriteTape={_machine!.Cassette.WriteTapeTrapHits}");
         w.WriteLine();
         w.WriteLine("VRAM (40x25 text codes):");
         for (int row = 0; row < 25; row++)
@@ -762,7 +808,7 @@ public sealed class MainForm : Form
             sb.Append($"[{row:D2}] ");
             for (int col = 0; col < 40; col++)
             {
-                byte b = _machine.Mem.Vram[row * 40 + col];
+                byte b = _machine!.Mem.Vram[row * 40 + col];
                 sb.Append($"{b:X2} ");
             }
             w.WriteLine(sb.ToString());
@@ -775,7 +821,7 @@ public sealed class MainForm : Form
             sb.Append($"[{row:D2}] ");
             for (int col = 0; col < 40; col++)
             {
-                byte b = _machine.Mem.Vram[row * 40 + col];
+                byte b = _machine!.Mem.Vram[row * 40 + col];
                 char c = MzDisplayToAscii(b);
                 sb.Append(c);
             }
@@ -799,7 +845,15 @@ public sealed class MainForm : Form
 
     private void Display_Paint(object? sender, PaintEventArgs e)
     {
-        var frame = _machine.Video.Frame;
+        // MZ-80A video renderer arrives in Phase 2; until then paint a
+        // plain black screen so the user sees "the machine is running,
+        // just no display yet" rather than a nulref.
+        if (_machine == null)
+        {
+            e.Graphics.Clear(Color.Black);
+            return;
+        }
+        var frame = _machine!.Video.Frame;
         e.Graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
         e.Graphics.PixelOffsetMode = PixelOffsetMode.Half;
         e.Graphics.SmoothingMode = SmoothingMode.None;
@@ -835,6 +889,10 @@ public sealed class MainForm : Form
 
     private void OnKeyDown(object? s, KeyEventArgs e)
     {
+        // MZ-80A keyboard model lands in Phase 3; until then, keys
+        // bypass the emulator entirely (menu shortcuts still work
+        // because ProcessCmdKey runs before OnKeyDown).
+        if (_machine == null) return;
         // e.Shift can momentarily lag on the very first shift keydown, so
         // also detect via the VK code itself.
         bool shift = e.Shift || IsShiftKey(e.KeyCode);
@@ -846,18 +904,20 @@ public sealed class MainForm : Form
         // race the upcoming OnKeyPress on layouts where the MZ shift
         // requirement disagrees (UK `'` → MZ-shift ON; UK Shift+`'` →
         // `@` → MZ-shift OFF).
-        if (_machine.Keyboard.OnKeyDown(e.KeyData, shift)) e.Handled = true;
+        if (_machine!.Keyboard.OnKeyDown(e.KeyData, shift)) e.Handled = true;
     }
 
     private void OnKeyPress(object? s, KeyPressEventArgs e)
     {
-        _machine.Keyboard.OnKeyPress(e.KeyChar);
+        if (_machine == null) return;
+        _machine!.Keyboard.OnKeyPress(e.KeyChar);
     }
 
     private void OnKeyUp(object? s, KeyEventArgs e)
     {
+        if (_machine == null) return;
         bool shift = e.Shift && !IsShiftKey(e.KeyCode);
-        if (_machine.Keyboard.OnKeyUp(e.KeyData, shift)) e.Handled = true;
+        if (_machine!.Keyboard.OnKeyUp(e.KeyData, shift)) e.Handled = true;
     }
 
     private void OnDragEnter(object? s, DragEventArgs e)
@@ -924,13 +984,13 @@ public sealed class MainForm : Form
             {
                 // Pure monitor + machine-code cassette: direct-inject and
                 // jump straight to its exec entry. No reset needed.
-                _machine.Cassette.DirectInject(img, jumpExec: true);
+                _machine!.Cassette.DirectInject(img, jumpExec: true);
                 _statusLabel.Text = $"Loaded & run: {img.Filename} exec=${img.ExecAddr:X4}";
             }
             else
             {
                 // Other type at the monitor: queue for monitor LOAD command.
-                _machine.Cassette.Queue(img);
+                _machine!.Cassette.Queue(img);
                 _statusLabel.Text = $"Queued: {img.Filename}. Type LOAD to fetch.";
             }
         }
@@ -945,7 +1005,7 @@ public sealed class MainForm : Form
         if (!EnsureBasicAvailable()) return;
         try
         {
-            _machine.AutoLoadBasic(_settings.BasicFullPath);
+            Active.AutoLoadBasic(_settings.BasicFullPath);
             _basicLoadedFrame = _bootFrames;
             _statusLabel.Text = "BASIC loaded.";
         }
@@ -1028,13 +1088,13 @@ public sealed class MainForm : Form
             if (line.Length == 0) continue;
             var trimmed = line.TrimStart();
             if (trimmed.StartsWith(';') || trimmed.StartsWith('\'')) continue;
-            _machine.Keyboard.TypeString(line + "\r");
+            _machine!.Keyboard.TypeString(line + "\r");
         }
     }
 
     private void ResetMachine()
     {
-        _machine.Reset();
+        Active.Reset();
         _bootFrames = 0;
         _monitorReady = false;
         _basicLoadedFrame = -1;
@@ -1090,7 +1150,7 @@ public sealed class MainForm : Form
     {
         if (_debugger == null || _debugger.IsDisposed)
         {
-            _debugger = new DebuggerForm(_machine, ResetMachine, _settings);
+            _debugger = new DebuggerForm(Active, ResetMachine, _settings);
             // First open ever: park just to the right of the main window.
             // The form ctor honours any saved geometry, so this only
             // applies when nothing's been persisted yet.
@@ -1106,7 +1166,7 @@ public sealed class MainForm : Form
     {
         if (_memViewer == null || _memViewer.IsDisposed)
         {
-            _memViewer = new MemoryViewerForm(_machine, _settings);
+            _memViewer = new MemoryViewerForm(Active, _settings);
             // First open ever: park below the main window so it doesn't
             // fight the debugger for the right-side slot.
             if (!_settings.MemoryViewerWindow.HasGeometry)
@@ -1119,6 +1179,7 @@ public sealed class MainForm : Form
 
     private void OpenFontSheet()
     {
+        if (_machine == null) { NotAvailableOnMz80a("Font Sheet"); return; }
         if (_fontSheet == null || _fontSheet.IsDisposed)
             _fontSheet = new FontSheetForm(_machine);
         _fontSheet.Owner = this;
@@ -1128,6 +1189,7 @@ public sealed class MainForm : Form
 
     private void OpenKeyboardMatrix()
     {
+        if (_machine == null) { NotAvailableOnMz80a("Keyboard Matrix"); return; }
         if (_matrixForm == null || _matrixForm.IsDisposed)
             _matrixForm = new KeyboardMatrixForm(_machine);
         _matrixForm.Owner = this;
@@ -1139,6 +1201,7 @@ public sealed class MainForm : Form
 
     private void OpenHidDiag()
     {
+        if (_machine == null) { NotAvailableOnMz80a("HID Diagnostic"); return; }
         if (_hidDiag == null || _hidDiag.IsDisposed)
         {
             _hidDiag = new HidDiagnosticForm(_machine, _joystickInput);
@@ -1160,6 +1223,7 @@ public sealed class MainForm : Form
 
     private void OpenSoundDiag()
     {
+        if (_machine == null) { NotAvailableOnMz80a("Sound Diagnostic"); return; }
         if (_soundDiag == null || _soundDiag.IsDisposed)
         {
             _soundDiag = new SoundDiagnosticForm(_machine);
@@ -1170,6 +1234,19 @@ public sealed class MainForm : Form
         // Same focus-preserving pattern as the HID Diagnostic — keep
         // typing from the main window unobstructed.
         Activate();
+    }
+
+    /// <summary>
+    /// Shows a friendly "not available on MZ-80A" popup for any
+    /// diagnostic pane that reaches into MZ-700-specific hardware
+    /// (Sound, PPI PortC bit meanings, matrix layout, PCG font). These
+    /// come back online as MZ-80A equivalents in later phases.
+    /// </summary>
+    private void NotAvailableOnMz80a(string pane)
+    {
+        MessageBox.Show(this,
+            $"{pane} is currently MZ-700-only. An MZ-80A equivalent will land in a later phase.",
+            "MZRaku", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private static Icon? LoadEmbeddedIcon()

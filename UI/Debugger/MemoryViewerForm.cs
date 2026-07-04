@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
+using MZRaku.Hardware;
 
 namespace MZRaku;
 
@@ -25,7 +26,7 @@ namespace MZRaku;
 /// </summary>
 public sealed class MemoryViewerForm : Form
 {
-    private readonly MZ700 _machine;
+    private readonly IMachine _machine;
     private readonly Settings _settings;
 
     private readonly SmoothListBox _list = new();
@@ -55,7 +56,7 @@ public sealed class MemoryViewerForm : Form
     private readonly StringBuilder _rowBuf = new(80);
     private readonly byte[] _rowBytes = new byte[BytesPerRow];
 
-    public MemoryViewerForm(MZ700 machine, Settings settings)
+    public MemoryViewerForm(IMachine machine, Settings settings)
     {
         _machine = machine;
         _settings = settings;

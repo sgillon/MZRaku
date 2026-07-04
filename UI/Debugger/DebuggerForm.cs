@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Windows.Forms;
+using MZRaku.Hardware;
 using Z80Core;
 
 namespace MZRaku;
@@ -33,7 +34,7 @@ public sealed class DebuggerForm : Form
     private static readonly Func<ushort, bool> IsMzIoWindow =
         a => a >= 0xE000 && a <= 0xE00F;
 
-    private readonly MZ700 _machine;
+    private readonly IMachine _machine;
     private readonly Action _resetMachine;
     private readonly Settings _settings;
 
@@ -68,7 +69,7 @@ public sealed class DebuggerForm : Form
     private int _lastDrawnBpVersion;
     private int _bpVersion;
 
-    public DebuggerForm(MZ700 machine, Action resetMachine, Settings settings)
+    public DebuggerForm(IMachine machine, Action resetMachine, Settings settings)
     {
         _machine = machine;
         _resetMachine = resetMachine;

@@ -374,40 +374,49 @@ public sealed class Settings
     /// so dev-time runs from <c>bin/Debug/...</c> still find files at
     /// the source-tree root). Returns true if anything changed.
     /// </summary>
-    private bool EnsureRomPaths()
+    /// <summary>
+    /// Auto-detects and normalises ROM/font/BASIC paths for BOTH
+    /// machines. Scanning both regardless of the currently-active
+    /// Type means a --mz80a CLI override on a Type=MZ700 INI still
+    /// finds SA-1510.rom without needing a save-round-trip first.
+    /// Called from Load() and again from MainForm after the CLI
+    /// machine-type override has been applied.
+    /// </summary>
+    public bool EnsureRomPaths()
     {
-        // Auto-detect only for the currently-active machine — no point
-        // scanning the disk for the other machine's ROMs on every
-        // launch. The passthrough setters route writes into the right
-        // sub-set (Mz700Roms or Mz80aRoms).
         bool dirty = false;
-        if (Type == MachineType.MZ700)
-        {
-            dirty |= EnsureOne(
-                MonitorRomFullPath, MonitorRomPath, v => MonitorRomPath = v,
-                () => FindFile("1z-013a.rom", "roms", ""));
-            dirty |= EnsureOne(
-                FontFullPath, FontPath, v => FontPath = v,
-                // Prefer the binary font over the hex text dump.
-                () => FindFile("mz700fon.int", "roms", "") ?? FindFile("font_hex.txt", "roms", ""));
-            dirty |= EnsureOne(
-                BasicFullPath, BasicPath, v => BasicPath = v,
-                // BASIC is conceptually another ROM image; scan the same
-                // places, plus the legacy basic/ folder for back-compat.
-                () => FindFile("1Z-013B.mzf", "roms", "basic", ""));
-        }
-        else // MZ80A
-        {
-            dirty |= EnsureOne(
-                MonitorRomFullPath, MonitorRomPath, v => MonitorRomPath = v,
-                () => FindFile("SA-1510.rom", "roms", ""));
-            dirty |= EnsureOne(
-                FontFullPath, FontPath, v => FontPath = v,
-                () => FindFile("SA-CG.rom", "roms", ""));
-            dirty |= EnsureOne(
-                BasicFullPath, BasicPath, v => BasicPath = v,
-                () => FindFile("SA-5510.mzf", "roms", "basic", ""));
-        }
+
+        // MZ-700 side.
+        dirty |= EnsureOne(
+            Resolve(Mz700Roms.MonitorRomPath), Mz700Roms.MonitorRomPath,
+            v => Mz700Roms.MonitorRomPath = v,
+            () => FindFile("1z-013a.rom", "roms", ""));
+        dirty |= EnsureOne(
+            Resolve(Mz700Roms.FontPath), Mz700Roms.FontPath,
+            v => Mz700Roms.FontPath = v,
+            // Prefer the binary font over the hex text dump.
+            () => FindFile("mz700fon.int", "roms", "") ?? FindFile("font_hex.txt", "roms", ""));
+        dirty |= EnsureOne(
+            Resolve(Mz700Roms.BasicPath), Mz700Roms.BasicPath,
+            v => Mz700Roms.BasicPath = v,
+            // BASIC is conceptually another ROM image; scan the same
+            // places, plus the legacy basic/ folder for back-compat.
+            () => FindFile("1Z-013B.mzf", "roms", "basic", ""));
+
+        // MZ-80A side.
+        dirty |= EnsureOne(
+            Resolve(Mz80aRoms.MonitorRomPath), Mz80aRoms.MonitorRomPath,
+            v => Mz80aRoms.MonitorRomPath = v,
+            () => FindFile("SA-1510.rom", "roms", ""));
+        dirty |= EnsureOne(
+            Resolve(Mz80aRoms.FontPath), Mz80aRoms.FontPath,
+            v => Mz80aRoms.FontPath = v,
+            () => FindFile("SA-CG.rom", "roms", ""));
+        dirty |= EnsureOne(
+            Resolve(Mz80aRoms.BasicPath), Mz80aRoms.BasicPath,
+            v => Mz80aRoms.BasicPath = v,
+            () => FindFile("SA-5510.mzf", "roms", "basic", ""));
+
         return dirty;
     }
 
