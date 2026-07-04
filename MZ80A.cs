@@ -117,6 +117,11 @@ public sealed class MZ80A : IMachine
         bool stepFrame = _stepFrameRequested;
         _stepFrameRequested = false;
 
+        // Advance any staged key-release countdowns so a PC press
+        // that KeyDown'd and KeyUp'd within one 60 Hz host frame
+        // stays asserted long enough for the ROM's scan to observe.
+        Keyboard.TickFrame();
+
         Ppi.SetVBlank(false);
         int cyclesThisFrame = 0;
         int cyclesToVBlank = (int)(CyclesPerFrame * 0.85);

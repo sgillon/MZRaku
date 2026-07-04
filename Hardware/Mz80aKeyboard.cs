@@ -21,6 +21,19 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
     // the matrix bits its OnKeyDown asserted.
     private readonly Dictionary<Keys, (int row, int col)> _holds = new();
 
+    // Staged key releases — when PC KeyUp fires, we don't release the
+    // matrix bit immediately. Instead we schedule it to release after
+    // MinHoldFrames frames from the KeyDown. This ensures the ROM's
+    // keyboard scan (which runs several times per host frame at 2 MHz)
+    // sees the pressed state on at least one full scan pass, even
+    // when SendKeys / rapid typing fires KeyDown+KeyUp within a single
+    // 60Hz host frame. Same pattern MZ-700 uses (staged shift bits) but
+    // applied uniformly since MZ-80A has no character-driven typing
+    // path yet.
+    private record struct StagedRelease(Keys Vk, int Row, int Col, int FramesLeft);
+    private readonly List<StagedRelease> _pendingReleases = new();
+    private const int MinHoldFrames = 4;
+
     public Mz80aKeyboard()
     {
         for (int i = 0; i < 10; i++) _rows[i] = 0xFF;
@@ -74,11 +87,37 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
         UpdateModifiers(keyData);
         if (_holds.TryGetValue(key, out var pos))
         {
-            SetMatrix(pos.row, pos.col, false);
+            // Stage the release rather than fire immediately — the
+            // ROM's scan needs to observe the pressed state on at
+            // least one full pass. TickFrame() completes the release
+            // once the countdown expires.
+            _pendingReleases.Add(new StagedRelease(key, pos.row, pos.col, MinHoldFrames));
             _holds.Remove(key);
             return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// Called once per host frame by MZ80A.RunFrame. Advances staged
+    /// releases and drops matrix bits whose countdown has expired.
+    /// </summary>
+    public void TickFrame()
+    {
+        for (int i = _pendingReleases.Count - 1; i >= 0; i--)
+        {
+            var r = _pendingReleases[i];
+            r.FramesLeft--;
+            if (r.FramesLeft <= 0)
+            {
+                SetMatrix(r.Row, r.Col, false);
+                _pendingReleases.RemoveAt(i);
+            }
+            else
+            {
+                _pendingReleases[i] = r;
+            }
+        }
     }
 
     private void UpdateModifiers(Keys keyData)
