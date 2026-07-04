@@ -845,15 +845,15 @@ public sealed class MainForm : Form
 
     private void Display_Paint(object? sender, PaintEventArgs e)
     {
-        // MZ-80A video renderer arrives in Phase 2; until then paint a
-        // plain black screen so the user sees "the machine is running,
-        // just no display yet" rather than a nulref.
-        if (_machine == null)
+        // Machine-agnostic framebuffer pick: use whichever machine is
+        // active. Both renderers back onto a 320×200 32bppArgb Bitmap
+        // so the downstream draw + scanline overlay code is identical.
+        var frame = _machine?.Video.Frame ?? _mz80a?.Video.Frame;
+        if (frame == null)
         {
             e.Graphics.Clear(Color.Black);
             return;
         }
-        var frame = _machine!.Video.Frame;
         e.Graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
         e.Graphics.PixelOffsetMode = PixelOffsetMode.Half;
         e.Graphics.SmoothingMode = SmoothingMode.None;

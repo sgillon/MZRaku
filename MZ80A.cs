@@ -24,6 +24,7 @@ public sealed class MZ80A : IMachine
     public Ppi8255 Ppi = new();
     public Pit8253 Pit = new();
     public Mz80aIoBus Io = new();
+    public Mz80aVideo Video = new();
 
     public MachineType Kind => MachineType.MZ80A;
     Z80Core.IMemory IMachine.Mem => Mem;
@@ -72,10 +73,10 @@ public sealed class MZ80A : IMachine
     public void LoadRoms(string monitorRomPath, string? fontPath)
     {
         Mem.LoadRom(File.ReadAllBytes(monitorRomPath));
-        // Font (SA-CG.rom) is used only by the video renderer, which
-        // arrives in Phase 2. Read the path so the ROMs-missing modal
-        // in MainForm doesn't complain, but don't wire it anywhere yet.
-        _ = fontPath;
+        if (!string.IsNullOrEmpty(fontPath) && File.Exists(fontPath))
+        {
+            Video.LoadFont(File.ReadAllBytes(fontPath));
+        }
     }
 
     public void Reset()
@@ -98,7 +99,10 @@ public sealed class MZ80A : IMachine
     {
         if (Paused && !_stepFrameRequested)
         {
-            // Video renderer arrives in Phase 2; nothing to draw yet.
+            // Still rebuild the framebuffer so the debugger's memory
+            // viewer and any external tools see a live-ish display
+            // even while the CPU is paused. Same pattern as MZ700.
+            RenderFrame();
             return;
         }
         bool stepFrame = _stepFrameRequested;
@@ -132,6 +136,19 @@ public sealed class MZ80A : IMachine
         }
 
         if (tripped || stepFrame) Paused = true;
+
+        RenderFrame();
+    }
+
+    private void RenderFrame()
+    {
+        // Copy the two side-effect-latched settings from the IoBus over
+        // to the renderer just before drawing. Keeping them out of the
+        // hot MMIO path (they change infrequently) keeps the bus code
+        // small — Mz80aIoBus doesn't need to know Mz80aVideo exists.
+        Video.Reverse = Io.ReverseVideo;
+        Video.ScrollOffset = Io.ScrollOffset;
+        Video.Render(Mem.Vram);
     }
 
     public void Pause() => Paused = true;
