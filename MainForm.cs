@@ -489,7 +489,7 @@ public sealed class MainForm : Form
             // machinery isn't wired yet. Users get a plain SA-1510 boot.
             bool loadBasic = _autoLoadBasic;
             bool cassetteNeedsBasic = false;
-            if (_machine != null && _initialCassette != null)
+            if (_initialCassette != null)
             {
                 try
                 {
@@ -499,7 +499,7 @@ public sealed class MainForm : Form
                 catch { /* let the Timer_Tick load path surface the error with a clearer status */ }
                 _pendingCassette = _initialCassette;
             }
-            if (_machine != null && loadBasic)
+            if (loadBasic)
             {
                 // Pre-flight the BASIC file so the failure shows up as a modal
                 // at startup (parity with the menu's Load BASIC) rather than a
@@ -562,16 +562,45 @@ public sealed class MainForm : Form
         _debugger?.RefreshIfVisible();
         _memViewer?.RefreshIfVisible();
 
-        // MZ-80A boot spike: skip everything below (joystick indicator,
-        // banner detection, BASIC/cassette autoload state machine,
-        // trace log, dump path). Those pieces come online in later
-        // phases — Phase 2 (video), Phase 3 (keyboard), Phase 4
-        // (cassette + BASIC). The display refresh at the bottom of the
-        // MZ-700 path is a no-op for now because MZ-80A hasn't got a
-        // video renderer wired yet.
+        // MZ-80A path: skip the MZ-700-flavoured banner detection,
+        // joystick indicator, trace log, and dump path. The BASIC /
+        // cassette autoload uses a simpler fixed-frame delay
+        // (~5 s at 60 Hz) rather than banner-detection since the
+        // SA-1510 "*" prompt display uses a blinking cursor overlay
+        // that makes text detection unreliable.
         if (_machine == null)
         {
             _display.Invalidate();
+            if (_mz80a != null && (_pendingLoadBasic || _pendingCassette != null) && _bootFrames >= 300)
+            {
+                if (_pendingLoadBasic)
+                {
+                    try
+                    {
+                        Active.AutoLoadBasic(_settings.BasicFullPath);
+                        _statusLabel.Text = "BASIC loaded.";
+                        _basicLoadedFrame = _bootFrames;
+                    }
+                    catch (Exception ex)
+                    {
+                        _statusLabel.Text = "BASIC load failed: " + ex.Message;
+                    }
+                    _pendingLoadBasic = false;
+                }
+                if (_pendingCassette != null)
+                {
+                    try
+                    {
+                        Active.DirectInjectCassette(_pendingCassette);
+                        _statusLabel.Text = $"Loaded: {Path.GetFileName(_pendingCassette)}";
+                    }
+                    catch (Exception ex)
+                    {
+                        _statusLabel.Text = "Cassette load failed: " + ex.Message;
+                    }
+                    _pendingCassette = null;
+                }
+            }
             return;
         }
         _hidDiag?.RefreshIfVisible();

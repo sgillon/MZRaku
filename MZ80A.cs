@@ -26,6 +26,7 @@ public sealed class MZ80A : IMachine
     public Mz80aIoBus Io = new();
     public Mz80aVideo Video = new();
     public Mz80aKeyboard Keyboard = new();
+    public Mz80aCassette Cassette = new();
 
     public MachineType Kind => MachineType.MZ80A;
     Z80Core.IMemory IMachine.Mem => Mem;
@@ -65,6 +66,13 @@ public sealed class MZ80A : IMachine
         // MZ-80A keyboard shim. Assigned via the shared
         // IKeyboardMatrix interface so Ppi8255 stays machine-agnostic.
         Ppi.Keyboard = Keyboard;
+
+        // Cassette needs memory + CPU for trap injection; PreStep
+        // watches SA-1510's RDINF ($0027) and RDDAT ($002A) entry
+        // points and delivers the queued .mzf image directly.
+        Cassette.Memory = Mem;
+        Cassette.Cpu = Cpu;
+        Cpu.PreStep = Cassette.OnPreStep;
 
         // Timer interrupt from PIT counter 2. On MZ-80A, $E002 D2 is
         // documented in Owner's Manual Table 3.1 as "Masking of timer
@@ -211,24 +219,32 @@ public sealed class MZ80A : IMachine
         Pit.Tick(c0, c1);
     }
 
-    // Cassette + BASIC autoload — Phase 4 wires these properly. Until
-    // then, throw a clear message rather than crash the app; MainForm
-    // catches this in the --basic path and shows a friendlier prompt.
     public void AutoLoadBasic(string basicPath)
     {
-        throw new NotSupportedException(
-            "MZ-80A BASIC autoload arrives in Phase 4. For now the machine boots to the SA-1510 monitor.");
+        if (!File.Exists(basicPath))
+            throw new FileNotFoundException("BASIC cassette image not found", basicPath);
+        var img = Hardware.Cassette.Parse(File.ReadAllBytes(basicPath));
+        // Direct-inject rather than dispatch through SA-1510's LOAD —
+        // the L command needs a keyboard input path that isn't fully
+        // wired yet (auto-typer is MZ-700 only). Once the auto-typer
+        // lands, this can switch to Queue + "L\r" to exercise the
+        // real trap path.
+        Cassette.DirectInject(img, jumpExec: true);
     }
 
     public void AutoLoadCassette(string path, bool autoRun)
     {
-        throw new NotSupportedException(
-            "MZ-80A cassette autoload arrives in Phase 4.");
+        if (!File.Exists(path))
+            throw new FileNotFoundException("Cassette image not found", path);
+        var img = Hardware.Cassette.Parse(CassetteFile.ReadBytes(path));
+        // Same direct-inject shortcut as AutoLoadBasic — bypasses the
+        // monitor's L command until a keyboard auto-typer exists.
+        Cassette.DirectInject(img, jumpExec: true);
     }
 
     public void DirectInjectCassette(string path)
     {
-        throw new NotSupportedException(
-            "MZ-80A cassette autoload arrives in Phase 4.");
+        var img = Hardware.Cassette.Parse(CassetteFile.ReadBytes(path));
+        Cassette.DirectInject(img, jumpExec: true);
     }
 }
