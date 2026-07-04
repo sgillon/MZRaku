@@ -11,8 +11,10 @@ a release, update the checklist before fixing the bug.
 
 - [ ] `dotnet publish` (Release, single-file) completes with no warnings.
       Output filename is `MZRaku.exe`.
-- [ ] Publish output does **not** contain `1z-013a.rom`, `mz700fon.int`,
-      or `1Z-013B.mzf` (Sharp copyright — must not be redistributed).
+- [ ] Publish output does **not** contain any Sharp firmware —
+      neither MZ-700's `1z-013a.rom` / `mz700fon.int` / `1Z-013B.mzf`
+      nor MZ-80A's `SA-1510.rom` / `SA-CG.rom` / `SA-5510.mzf`
+      (Sharp copyright — must not be redistributed).
 - [ ] Exe runs on a clean folder (no `settings.ini`) and auto-detects
       the three system files from `roms/` next to it.
 - [ ] Window title bar reads "MZRaku" (not "Sharp MZ-700 Emulator" — that
@@ -200,10 +202,51 @@ a release, update the checklist before fixing the bug.
 
 - [ ] **Help → About…** opens the AboutForm (not a MessageBox);
       title says "About MZRaku", header label says "MZRaku", version
-      matches `<Version>` in the csproj, a build date is shown, both
-      project + launcher-setup GitHub links open in the browser when
-      clicked and resolve to `sgillon/MZRaku`, and Sharp / Claude
-      acknowledgements are present.
+      matches `<Version>` in the csproj, a build date is shown, an
+      `Emulating: Sharp MZ-XXX` line matches the currently-active
+      machine, both project + launcher-setup GitHub links open in
+      the browser when clicked and resolve to `sgillon/MZRaku`, and
+      Sharp / Claude acknowledgements are present.
+
+## Machine selection (MZ-700 ↔ MZ-80A)
+
+- [ ] `MZRaku.exe` (no flag) launches into MZ-700 and shows the blue
+      Sharp screen with `Ready` — as it always has.
+- [ ] `MZRaku.exe --mz80a` launches into MZ-80A. Screen is black,
+      shows `** MONITOR SA-1510 **` on the top row, and after a
+      moment the `BASIC interpreter SA-5510` / `Copyright 1981 by
+      SHARP Corp.` / `32492 Bytes` / `Ready` sequence renders — the
+      SA-1510 monitor and SA-5510 BASIC both boot cleanly.
+- [ ] `File → Machine → MZ-80A` while running on MZ-700 shows a
+      restart prompt; Yes restarts into MZ-80A. Same in reverse.
+      `settings.ini` `[Machine] Type=` reflects the choice after
+      restart.
+- [ ] `settings.ini` contains both `[Roms.MZ700]` and `[Roms.MZ80A]`
+      sub-sections with self-documenting comments; ROM path
+      auto-detection populated MZ-80A's `Monitor` / `Font` / `Basic`
+      keys from `roms/SA-1510.rom`, `roms/SA-CG.rom`,
+      `basic/SA-5510.mzf` respectively.
+- [ ] Diagnostic menu items that are MZ-700-only (Sound Diagnostic,
+      Font Sheet, HID Diagnostic, Keyboard Matrix) each show a
+      friendly "MZ-700 only for now" MessageBox when opened while
+      MZ-80A is active — they do NOT NRE.
+- [ ] Debugger (Ctrl+D) and Memory Viewer (Ctrl+M) both work on
+      MZ-80A. Set a breakpoint inside SA-1510 code, hit it,
+      single-step off, resume.
+
+## MZ-80A regression canaries
+
+- [ ] `MZRaku.exe --mz80a --basic` boots to the `Ready` prompt.
+      Type `PRINT 1.5` + Enter (may need to Shift for uppercase —
+      known keyboard polish item). Result: `1.5` on the next line
+      (regression canary for the Z80 indexed INC/DEC bug — same as
+      MZ-700's).
+- [ ] `MZRaku.exe --mz80a NEW-INVADERS-80A.mzf` boots the game.
+      Title screen with `SCORE :00000  HI-SCORE :` line, invader
+      sprite grid, and ship formation visible.
+- [ ] `MZRaku.exe --mz80a cricket.mzf` (BASIC game) — currently
+      loads via DirectInject but needs the L-command / auto-type
+      path to fully RUN. Verify no crash on load.
 
 ## Release packaging
 

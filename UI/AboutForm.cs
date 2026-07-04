@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Windows.Forms;
+using MZRaku.Hardware;
 
 namespace MZRaku;
 
@@ -18,8 +19,11 @@ public sealed class AboutForm : Form
     private const string GitHubUrl = "https://github.com/sgillon/MZRaku";
     private const string LauncherDocUrl = "https://github.com/sgillon/MZRaku/blob/main/docs/usage/launcher-setup.md";
 
-    public AboutForm()
+    private readonly MachineType _activeMachine;
+
+    public AboutForm(MachineType activeMachine)
     {
+        _activeMachine = activeMachine;
         Text = "About MZRaku";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterParent;
@@ -46,7 +50,7 @@ public sealed class AboutForm : Form
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));   // body labels
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));   // close button
 
-        root.Controls.Add(BuildHeader(), 0, 0);
+        root.Controls.Add(BuildHeader(_activeMachine), 0, 0);
         root.Controls.Add(BuildBody(), 0, 1);
 
         var close = new Button
@@ -66,7 +70,7 @@ public sealed class AboutForm : Form
         Controls.Add(root);
     }
 
-    private static Control BuildHeader()
+    private static Control BuildHeader(MachineType activeMachine)
     {
         var header = new TableLayoutPanel
         {
@@ -118,6 +122,14 @@ public sealed class AboutForm : Form
             ForeColor = SystemColors.ControlDarkDark,
             Margin = new Padding(0, 1, 0, 0),
         });
+        var machineLabel = activeMachine == MachineType.MZ700 ? "Sharp MZ-700" : "Sharp MZ-80A";
+        textStack.Controls.Add(new Label
+        {
+            Text = $"Emulating: {machineLabel}",
+            AutoSize = true,
+            ForeColor = SystemColors.ControlDarkDark,
+            Margin = new Padding(0, 1, 0, 0),
+        });
         header.Controls.Add(textStack, 1, 0);
         return header;
     }
@@ -135,8 +147,10 @@ public sealed class AboutForm : Form
 
         body.Controls.Add(new Label
         {
-            Text = "A Sharp MZ-700 emulator written in C#/.NET 8.",
+            Text = "A Sharp MZ-700 / MZ-80A emulator written in C#/.NET 8. "
+                + "Switch machines via File → Machine.",
             AutoSize = true,
+            MaximumSize = new Size(380, 0),
             Margin = new Padding(0, 0, 0, 12),
         });
 

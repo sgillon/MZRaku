@@ -339,7 +339,7 @@ public sealed class MainForm : Form
         var help = new ToolStripMenuItem("&Help");
         help.DropDownItems.Add(new ToolStripMenuItem("&About…", null, (_, _) =>
         {
-            using var dlg = new AboutForm();
+            using var dlg = new AboutForm(_settings.Type);
             dlg.ShowDialog(this);
         }));
         menu.Items.Add(help);

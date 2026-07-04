@@ -641,6 +641,111 @@ Distribution model is git-submodule for now, not NuGet — the user
 wanted reuse across personal projects without a publish/version
 cycle yet. NuGet remains an option for later.
 
+### Sharp MZ-80A support (2026-07-04)
+
+MZRaku is now a two-machine emulator. `--mz80a` or the new
+`File → Machine → MZ-80A` menu boots into a Sharp MZ-80A (Sharp's
+1982 successor to the MZ-80K, sibling to the domestic MZ-1200)
+instead of the default MZ-700. Both machines coexist in one binary
+and one `settings.ini`.
+
+Rough shape of the port:
+
+- **Foundation.** New `MachineType` enum and `IMachine` interface
+  in `Hardware/`. Both `MZ700` and `MZ80A` implement `IMachine`
+  covering the minimum surface MainForm and the debugger panes
+  need (Cpu, Mem, Paused, RunFrame, Reset, LoadRoms, AutoLoad*,
+  step controls, Kind). MZ-700-specific hardware fields (Ppi,
+  Pit, Sound, Joystick, Video, Cassette, Keyboard, KeyTables)
+  stay off the interface; panes that need them cast to the
+  concrete class or gate their menu items on `Kind`. Settings
+  gained a `[Machine] Type=` section and split `[Roms]` into
+  `[Roms.MZ700]` / `[Roms.MZ80A]` sub-sections with legacy
+  migration on save.
+
+- **Memory + I/O.** `Hardware/MZ80AMemory.cs` implements the
+  MZ-80A layout (Owner's Manual Fig 3.2): 4 KiB ROM at `$0000`,
+  48 KiB RAM `$1000-$CFFF`, 4 KiB VRAM window `$D000-$DFFF`, MMIO
+  `$E000-$EFFF`, floppy stub `$F000-$FFFF`. The memory-swap
+  mechanism (ROM ↔ `$C000`) toggles on **reads** to `$E00C` /
+  `$E010` rather than MZ-700's port-OUT bank switch — the Read
+  path handles the toggles before dispatching to `Mz80aIoBus`.
+  `Hardware/Mz80aIoBus.cs` wires PPI + PIT at the same
+  `$E000-$E007` block but with the MZ-80A-specific bit
+  assignments from Owner's Manual Table 3.1 (INTMSK semantic
+  is *inverted* from MZ-700 — the manual says "Masking of timer
+  interrupt", so D2=1 masks). $E008 read-bit-0 gets a toggle
+  hack for H-Blank so SA-1510's early polling loop at $02DB
+  exits within one iteration.
+
+- **Video.** `Hardware/Mz80aVideo.cs` renders monochrome 40×25
+  from a 2 KiB single-bank font (SA-CG.rom). No attribute plane
+  at `$D800` (that's the hardware-scroll buffer instead).
+  Hardware scroll — VRAM window walks in 8-character units set
+  by reads to `$E200-$E2FF` — and reverse-video mode
+  (`$E014` / `$E015`) both wired through IoBus flags that
+  `RunFrame` copies to the renderer before drawing. **SA-CG.rom
+  stores glyphs MSB-first, opposite of MZ-700's `mz700fon.int`
+  which is LSB-first.** First render came out horizontally
+  mirrored; flipping the bit order in the decode was the fix.
+
+- **Keyboard.** New `IKeyboardMatrix` interface — the minimum
+  surface Ppi8255 needs — lets either MZ-700's rich `Keyboard`
+  or MZ-80A's leaner `Mz80aKeyboard` feed row bits into Port B.
+  `Mz80aKeyboard` uses Fig 3.6 (Owner's Manual p.167) to map
+  a UK PC layout to MZ-80A slots for letters, digits, Enter,
+  Space, Shift, Ctrl, and cursor keys. Staged key releases (a
+  4-frame minimum hold after PC KeyDown) means single-frame PC
+  KeyDown+KeyUp pairs stay visible to the ROM's scan across at
+  least one full pass — same shape as MZ-700's staged shift
+  bits but applied uniformly. Mapping-quality anomalies on
+  punctuation keys are known and parked for the Post-v1
+  "Phase 6.5" usability pass.
+
+- **Cassette + BASIC.** `Hardware/Mz80aCassette.cs` implements
+  the two read traps documented at SA-1510's jump table
+  (`$0027` RDINF, `$002A` RDDAT — Owner's Manual §2.1.2,
+  printed p.128). The header buffer at `$10F0-$1163` uses the
+  **same** layout as MZ-700 (type / name / size / load addr /
+  exec addr fields byte-identical), so `MzfImage` from the
+  MZ-700 Cassette parser is reused directly. `DirectInject`
+  writes the header + body straight to memory and jumps to the
+  exec address — bypasses the L command for now, which needs
+  the auto-typer path that MZ-80A doesn't have yet.
+  `--mz80a --basic` autoloads SA-5510 to its `Ready` prompt;
+  `--mz80a NEW-INVADERS-80A.mzf` boots straight into the game.
+
+- **Sound.** MZ-80A's audio path is simpler than MZ-700's — no
+  PC3 soft gate, no dual-NAND, just a single hard gate at
+  `$E008 D0` in front of the audio amp with PIT counter 1's OUT
+  as the tone source. Reuses `Hardware/Sound.cs` with
+  `Enabled` pinned true and `InputClockHz = 31_500`. PIT
+  counter 1 clocked at 15.72 kHz relative to the 2 MHz CPU
+  (best-guess from Fig 3.1 block diagram; refine when a
+  MUSIC-tempo reference is available).
+
+- **Boot-ready detection.** MZ-80A has its own `MonitorReady`
+  analogue — watches VRAM at `$D028` (row 1 col 0) for the
+  SA-1510 boot cursor glyph, which the ROM writes once its
+  main-loop cursor blink starts. Same shape as MZ-700's
+  banner-text sniff, simpler byte match. Autoload fires the
+  instant this trips, not on a fixed timeout, so `--mz80a`
+  boot-to-BASIC-Ready feels as snappy as MZ-700's.
+
+- **Diagnostic panes.** SoundDiag, FontSheet, HidDiag,
+  KeyboardMatrix stay MZ-700-typed and show a friendly
+  "MZ-700 only for now" MessageBox when opened while MZ-80A
+  is active. DebuggerForm and MemoryViewerForm take
+  `IMachine` so both work on either machine. About dialog
+  now shows `Emulating: Sharp MZ-XXX` under the version so
+  the current mode is glanceable.
+
+The MZ-80A support shipped in six focused commits over the day
+(Phase 0 → Phase 6). Total lines added: ~1500. Reuse from the
+MZ-700 codebase was high — Z80Core, Ppi8255, Pit8253,
+WinmmWaveOut, Sound, CassetteFile, MzfImage, most `UI/`, all
+reused unchanged.
+
 ---
 
 ## Principles
