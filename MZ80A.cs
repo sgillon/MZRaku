@@ -50,6 +50,7 @@ public sealed class MZ80A : IMachine
     private bool _stepFrameRequested;
 
     private int _pitC0Accum;
+    private int _pitC1Accum;
 
     public MZ80A()
     {
@@ -65,13 +66,16 @@ public sealed class MZ80A : IMachine
         // IKeyboardMatrix interface so Ppi8255 stays machine-agnostic.
         Ppi.Keyboard = Keyboard;
 
-        // MZ-80A INTMSK bit is at $E002 write bit 2 — same PPI Port C
-        // bit position as MZ-700, which happens to align with the
-        // existing InterruptMask property on Ppi8255. Reuse the same
-        // event wiring; the semantic (mask on/off) is identical.
+        // Timer interrupt from PIT counter 2. On MZ-80A, $E002 D2 is
+        // documented in Owner's Manual Table 3.1 as "Masking of timer
+        // interrupt" — natural reading is D2=1 masks (disables). This
+        // is the OPPOSITE convention to MZ-700 where the same bit
+        // (PC2) is "INTMSK" with D2=1 meaning enabled. So we read the
+        // raw PortCOut bit and treat 0=not-masked=fire.
         Pit.Counter2Out += _ =>
         {
-            if (Ppi.InterruptMask) Cpu.RequestInterrupt();
+            bool notMasked = (Ppi.PortCOut & 0x04) == 0;
+            if (notMasked) Cpu.RequestInterrupt();
         };
     }
 
@@ -183,13 +187,23 @@ public sealed class MZ80A : IMachine
 
     private void AccumulatePit(int cpuCycles)
     {
-        // Phase 1: coarse — C0 (audio input) is the only counter that
-        // matters for boot; C1 is refined in Phase 5 for sound.
-        // 895kHz / 2MHz = ratio ≈ 0.4475. Fixed-point: cycles * 895 / 2000.
+        // C0 (audio input) coarse rate 895 kHz — refined in Phase 5.
         _pitC0Accum += cpuCycles * 895;
         int c0 = _pitC0Accum / 2000;
         _pitC0Accum -= c0 * 2000;
-        Pit.Tick(c0, 0);
+
+        // C1 clocks the display timing tree — per Fig 3.1 on Owner's
+        // Manual p.162 C1's output cascades into C2 to derive the
+        // 1-second interrupt. Without a live C1 tick, C2 never fires
+        // and the SA-1510 monitor's main-loop wait never completes
+        // (the `*` prompt would never print). Best-guess rate for
+        // Phase 3: the horizontal-sync 15.72 kHz frequency, matching
+        // what the MZ-700 does for HBLNK-derived cursor timing.
+        _pitC1Accum += cpuCycles * 157;    // 157/20000 ≈ 15.72 kHz @ 2 MHz
+        int c1 = _pitC1Accum / 20000;
+        _pitC1Accum -= c1 * 20000;
+
+        Pit.Tick(c0, c1);
     }
 
     // Cassette + BASIC autoload — Phase 4 wires these properly. Until
