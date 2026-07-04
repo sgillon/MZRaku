@@ -30,7 +30,9 @@ public sealed class Ppi8255
     public byte PortCOut;   // low nibble outputs
     public byte PortCIn;    // high nibble inputs (bits 4-7)
 
-    public Keyboard? Keyboard;
+    // Held as the interface so either MZ-700's Keyboard or MZ-80A's
+    // Mz80aKeyboard can feed the strobed row bits into Port B.
+    public IKeyboardMatrix? Keyboard;
 
     public bool CassetteMotorOn => (PortCOut & 0x01) == 0; // MZ uses active-low; 0 = motor on... docs vary. We'll use: bit = 1 means motor on
     public bool SpeakerGate => (PortCOut & 0x08) != 0;

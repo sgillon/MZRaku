@@ -20,7 +20,7 @@ namespace MZRaku.Hardware;
 /// MZ Ctrl) take a separate path through SpecialKeyMap on KeyDown,
 /// since they don't fire KeyPress.
 /// </summary>
-public sealed class Keyboard
+public sealed class Keyboard : IKeyboardMatrix
 {
     private readonly byte[] _rows = new byte[10];
 

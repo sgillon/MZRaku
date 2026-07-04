@@ -889,9 +889,14 @@ public sealed class MainForm : Form
 
     private void OnKeyDown(object? s, KeyEventArgs e)
     {
-        // MZ-80A keyboard model lands in Phase 3; until then, keys
-        // bypass the emulator entirely (menu shortcuts still work
-        // because ProcessCmdKey runs before OnKeyDown).
+        // MZ-80A path: physical-key → matrix mapping only. The rich
+        // CharMap / SpecialKeyMap / auto-typer stack is MZ-700-only
+        // for now; extending it is Phase 3+ polish.
+        if (_mz80a != null)
+        {
+            if (_mz80a.Keyboard.OnKeyDown(e.KeyData)) e.Handled = true;
+            return;
+        }
         if (_machine == null) return;
         // e.Shift can momentarily lag on the very first shift keydown, so
         // also detect via the VK code itself.
@@ -909,12 +914,20 @@ public sealed class MainForm : Form
 
     private void OnKeyPress(object? s, KeyPressEventArgs e)
     {
+        // MZ-80A doesn't consume the char path — it maps physical keys
+        // only. Just early-return so we don't NRE.
+        if (_mz80a != null) return;
         if (_machine == null) return;
         _machine!.Keyboard.OnKeyPress(e.KeyChar);
     }
 
     private void OnKeyUp(object? s, KeyEventArgs e)
     {
+        if (_mz80a != null)
+        {
+            if (_mz80a.Keyboard.OnKeyUp(e.KeyData)) e.Handled = true;
+            return;
+        }
         if (_machine == null) return;
         bool shift = e.Shift && !IsShiftKey(e.KeyCode);
         if (_machine!.Keyboard.OnKeyUp(e.KeyData, shift)) e.Handled = true;

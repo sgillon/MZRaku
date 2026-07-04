@@ -52,6 +52,11 @@ public sealed class Mz80aIoBus : IIoBus
     public bool ReverseVideo;
     public int ScrollOffset;
 
+    // Toggles on every $E008 read to unblock the SA-1510 boot polling
+    // loop that reads bit 0 (H-Blank) and RRCAs it into carry. See
+    // the comment in MemIn where it's used.
+    private bool _hblankToggle;
+
     public byte MemIn(ushort addr)
     {
         // $E200-$E2FF: hardware scroll offset set. Reading any address
@@ -79,11 +84,23 @@ public sealed class Mz80aIoBus : IIoBus
         if (off <= 7) return Pit.Read(off - 4);        // $E004-$E007 PIT
         if (off == 8)
         {
-            // $E008 R: D7 = tempo-timer status, D0 = H-Blank. H-Blank
-            // is not yet modelled (comes online with the video render
-            // path in Phase 2); leave it 0 for now.
+            // $E008 R: D7 = tempo-timer status, D0 = H-Blank.
+            //
+            // SA-1510 has a tight polling loop at $02DB that reads
+            // $E008 and RRCAs bit 0 into carry, looping while
+            // carry is clear — i.e. waiting for H-Blank to go HIGH.
+            // On real hardware the H-Blank signal is a 15.72 kHz
+            // square-ish pulse; we don't model raster timing at
+            // sub-instruction granularity, so simulate the wait
+            // exiting by toggling H-Blank on every read. The next
+            // read observes the opposite state and the busy-loop
+            // completes within one iteration. Coarse, but enough
+            // for boot polls; real per-scanline modelling can wait
+            // until something needs the accurate rate.
+            _hblankToggle = !_hblankToggle;
             byte v = 0;
             if (Ppi.TempoBit) v |= 0x80;
+            if (_hblankToggle) v |= 0x01;
             return v;
         }
         return 0xFF;

@@ -25,6 +25,7 @@ public sealed class MZ80A : IMachine
     public Pit8253 Pit = new();
     public Mz80aIoBus Io = new();
     public Mz80aVideo Video = new();
+    public Mz80aKeyboard Keyboard = new();
 
     public MachineType Kind => MachineType.MZ80A;
     Z80Core.IMemory IMachine.Mem => Mem;
@@ -59,6 +60,10 @@ public sealed class MZ80A : IMachine
         Io.Memory = Mem;
         Mem.IoBus = Io;
         Mem.Cpu = Cpu;
+        // PPI Port B reads pull the strobed row bits out of the
+        // MZ-80A keyboard shim. Assigned via the shared
+        // IKeyboardMatrix interface so Ppi8255 stays machine-agnostic.
+        Ppi.Keyboard = Keyboard;
 
         // MZ-80A INTMSK bit is at $E002 write bit 2 — same PPI Port C
         // bit position as MZ-700, which happens to align with the
