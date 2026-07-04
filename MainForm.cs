@@ -540,6 +540,27 @@ public sealed class MainForm : Form
     /// works cleanly only after the monitor has set up its stack and
     /// stopped clearing RAM around $1200.
     /// </summary>
+    /// <summary>
+    /// MZ-80A analogue of MonitorReady. SA-1510 draws a block-cursor
+    /// glyph ($6B) at VRAM row 1 col 0 ($D028 → Vram[40]) once its
+    /// boot init is complete and the main-loop cursor blink starts.
+    /// The prompt "*" ($2A) alternates with the block via the cursor
+    /// blink phase, so either non-zero value at that position
+    /// indicates the prompt is live — either way, the ROM is out
+    /// of init and it's safe to auto-inject BASIC or a cassette.
+    /// </summary>
+    private bool Mz80aMonitorReady()
+    {
+        if (_monitorReady) return true;
+        if (_mz80a == null) return false;
+        var v = _mz80a.Mem.Vram;
+        if (v[40] != 0)
+        {
+            _monitorReady = true;
+        }
+        return _monitorReady;
+    }
+
     private bool MonitorReady()
     {
         if (_monitorReady) return true;
@@ -564,16 +585,16 @@ public sealed class MainForm : Form
         _debugger?.RefreshIfVisible();
         _memViewer?.RefreshIfVisible();
 
-        // MZ-80A path: skip the MZ-700-flavoured banner detection,
-        // joystick indicator, trace log, and dump path. The BASIC /
-        // cassette autoload uses a simpler fixed-frame delay
-        // (~5 s at 60 Hz) rather than banner-detection since the
-        // SA-1510 "*" prompt display uses a blinking cursor overlay
-        // that makes text detection unreliable.
+        // MZ-80A path: skip the MZ-700-flavoured joystick indicator,
+        // trace log, and dump path. BASIC / cassette autoload now
+        // uses dynamic "monitor ready" detection (analogous to
+        // MZ-700's MonitorReady) rather than a fixed 5-second wait,
+        // so cold-boot to Ready feels as snappy on MZ-80A as on
+        // MZ-700.
         if (_machine == null)
         {
             _display.Invalidate();
-            if (_mz80a != null && (_pendingLoadBasic || _pendingCassette != null) && _bootFrames >= 300)
+            if (_mz80a != null && (_pendingLoadBasic || _pendingCassette != null) && Mz80aMonitorReady())
             {
                 if (_pendingLoadBasic)
                 {
