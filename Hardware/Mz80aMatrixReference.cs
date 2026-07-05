@@ -102,8 +102,8 @@ public static class Mz80aMatrixReference
         // the actual key here is TBC pending empirical check.
         // ============================================================
         Put(m, 1, 0, SlotKind.Char,   "Z",  "Z");
-        Put(m, 1, 1, SlotKind.Char,   "X",  "X");
-        Put(m, 1, 2, SlotKind.Unknown, "s1b2");         // <-- was 'S', now flagged
+        Put(m, 1, 1, SlotKind.Unused,  "s1b1");         // X shifted to (2,1) 2026-07-05
+        Put(m, 1, 2, SlotKind.Unused,  "s1b2");         // was 'S' pre-audit; S now at (2,2)
         Put(m, 1, 3, SlotKind.Char,   "A",  "A");
         Put(m, 1, 4, SlotKind.Char,   "Q",  "Q");       // user-confirmed 2026-07-05
         Put(m, 1, 5, SlotKind.Char,   "W",  "W");       // user-confirmed 2026-07-05
@@ -117,7 +117,7 @@ public static class Mz80aMatrixReference
         // hypothesis pending verification.
         // ============================================================
         Put(m, 2, 0, SlotKind.Char,   "C",  "C");
-        Put(m, 2, 1, SlotKind.Char,   "V",  "V");
+        Put(m, 2, 1, SlotKind.Char,   "X",  "X");        // shifted from (1,1) 2026-07-05
         Put(m, 2, 2, SlotKind.Char,   "S",  "S");       // user-confirmed 2026-07-05
         Put(m, 2, 3, SlotKind.Char,   "D",  "D");
         Put(m, 2, 4, SlotKind.Char,   "E",  "E");
@@ -126,51 +126,57 @@ public static class Mz80aMatrixReference
         Put(m, 2, 7, SlotKind.Char,   "D4", "4", "$");
 
         // ============================================================
-        // Strobe 3 — B, N, H, G, T, Y column.
+        // Strobe 3 — V and F at D1/D2 shifted right from initial
+        // read. B, G, T, Y confirmed.
         // ============================================================
-        Put(m, 3, 0, SlotKind.Char,   "B",  "B");
-        Put(m, 3, 1, SlotKind.Char,   "N",  "N");
-        Put(m, 3, 2, SlotKind.Char,   "H",  "H");
-        Put(m, 3, 3, SlotKind.Char,   "G",  "G");
-        Put(m, 3, 4, SlotKind.Char,   "T",  "T");
-        Put(m, 3, 5, SlotKind.Char,   "Y",  "Y");
+        Put(m, 3, 0, SlotKind.Char,   "B",  "B");        // user-confirmed 2026-07-05
+        Put(m, 3, 1, SlotKind.Char,   "V",  "V");        // shifted from (2,1) 2026-07-05
+        Put(m, 3, 2, SlotKind.Char,   "F",  "F");        // shifted from (2,2) 2026-07-05
+        Put(m, 3, 3, SlotKind.Char,   "G",  "G");        // user-confirmed 2026-07-05
+        Put(m, 3, 4, SlotKind.Char,   "T",  "T");        // user-confirmed 2026-07-05
+        Put(m, 3, 5, SlotKind.Char,   "Y",  "Y");        // user-confirmed 2026-07-05
         Put(m, 3, 6, SlotKind.Char,   "D5", "5", "%");
         Put(m, 3, 7, SlotKind.Char,   "D6", "6", "&");
 
         // ============================================================
-        // Strobe 4 — SPACE, COMMA, K, J, U, I column.
+        // Strobe 4 — N and H at D1/D2 shifted right from initial read.
+        // SPACE at D0 still confirmed via direct Space-key test.
         // ============================================================
         Put(m, 4, 0, SlotKind.Space,  "SPACE");
-        Put(m, 4, 1, SlotKind.Char,   "COMMA", ",", "<");
-        Put(m, 4, 2, SlotKind.Char,   "K",     "K");
-        Put(m, 4, 3, SlotKind.Char,   "J",     "J");
-        Put(m, 4, 4, SlotKind.Char,   "U",     "U");
-        Put(m, 4, 5, SlotKind.Char,   "I",     "I");
+        Put(m, 4, 1, SlotKind.Char,   "N",     "N");     // shifted from (3,1) 2026-07-05
+        Put(m, 4, 2, SlotKind.Char,   "H",     "H");     // shifted from (3,2) 2026-07-05
+        Put(m, 4, 3, SlotKind.Char,   "J",     "J");     // user-confirmed 2026-07-05
+        Put(m, 4, 4, SlotKind.Char,   "U",     "U");     // user-confirmed 2026-07-05
+        Put(m, 4, 5, SlotKind.Char,   "I",     "I");     // user-confirmed 2026-07-05
         Put(m, 4, 6, SlotKind.Char,   "D7",    "7", "/");
         Put(m, 4, 7, SlotKind.Char,   "D8",    "8", "(");
 
         // ============================================================
-        // Strobe 5 — M, MINUS, SEMICOLON, L, O, P column.
+        // Strobe 5 — COMMA and K at D1/D2 shifted right from initial
+        // read (both confirmed via cross-typing: PC minus produced ',',
+        // PC semicolon produced K).
         // ============================================================
-        Put(m, 5, 0, SlotKind.Char,   "M",         "M");
-        Put(m, 5, 1, SlotKind.Char,   "MINUS",     "-", "/");    // shifted glyph TBC
-        Put(m, 5, 2, SlotKind.Char,   "SEMI",      ";", "+");
-        Put(m, 5, 3, SlotKind.Char,   "L",         "L");
-        Put(m, 5, 4, SlotKind.Char,   "O",         "O");
-        Put(m, 5, 5, SlotKind.Char,   "P",         "P");
+        Put(m, 5, 0, SlotKind.Char,   "M",         "M");        // user-confirmed 2026-07-05
+        Put(m, 5, 1, SlotKind.Char,   "COMMA",     ",", "<");   // shifted from (4,1) 2026-07-05
+        Put(m, 5, 2, SlotKind.Char,   "K",         "K");        // shifted from (4,2) 2026-07-05
+        Put(m, 5, 3, SlotKind.Char,   "L",         "L");        // user-confirmed 2026-07-05
+        Put(m, 5, 4, SlotKind.Char,   "O",         "O");        // user-confirmed 2026-07-05
+        Put(m, 5, 5, SlotKind.Char,   "P",         "P");        // user-confirmed 2026-07-05
         Put(m, 5, 6, SlotKind.Char,   "D9",        "9", ")");
-        Put(m, 5, 7, SlotKind.Char,   "D0",        "0", ")");    // Fig shows )0 in D7 slot
+        Put(m, 5, 7, SlotKind.Char,   "D0",        "0", ")");
 
         // ============================================================
-        // Strobe 6 — DOT, LEFT, COLON, AT, LBRK, RBRK column, plus
-        // ~^ and = in the shifted area. Punctuation cluster.
+        // Strobe 6 — DOT confirmed. D1/D2 slots hold MINUS and SEMI
+        // (also shifted right one strobe from initial read). Other
+        // slots retain the initial hypothesis pending more empirical
+        // data.
         // ============================================================
-        Put(m, 6, 0, SlotKind.Char,   "DOT",     ".", ">");
-        Put(m, 6, 1, SlotKind.Cursor, "LEFT");                   // ← printable arrow / cursor-left
-        Put(m, 6, 2, SlotKind.Char,   "RBRK",    "]");
+        Put(m, 6, 0, SlotKind.Char,   "DOT",     ".", ">");     // user-confirmed 2026-07-05
+        Put(m, 6, 1, SlotKind.Char,   "MINUS",   "-");           // shifted from (5,1) 2026-07-05
+        Put(m, 6, 2, SlotKind.Char,   "SEMI",    ";", "+");      // shifted from (5,2) 2026-07-05
         Put(m, 6, 3, SlotKind.Char,   "COLON",   ":", "*");
-        Put(m, 6, 4, SlotKind.Char,   "AT",      "@", "\\");     // \@ combo cell
-        Put(m, 6, 5, SlotKind.Char,   "LBRK",    "[");
+        Put(m, 6, 4, SlotKind.Char,   "AT",      "@", "\\");
+        Put(m, 6, 5, SlotKind.Char,   "LBRK",    "[");           // user-confirmed 2026-07-05
         Put(m, 6, 6, SlotKind.Char,   "EQUALS",  "=");
         Put(m, 6, 7, SlotKind.Char,   "CARET",   "^", "~");
 
@@ -178,8 +184,8 @@ public static class Mz80aMatrixReference
         // Strobe 7 — cursor arrows, CR/ENT, CLR/HOME, pipe/backslash.
         // ============================================================
         Put(m, 7, 0, SlotKind.Char,   "UPARROW", "↑", "?");     // ↑? cell in Fig 3.6
-        Put(m, 7, 1, SlotKind.Unused, "s7b1");
-        Put(m, 7, 2, SlotKind.Unused, "s7b2");
+        Put(m, 7, 1, SlotKind.Cursor, "LEFT");                    // shifted from (6,1) 2026-07-05
+        Put(m, 7, 2, SlotKind.Char,   "RBRK",    "]");            // shifted from (6,2) 2026-07-05
         Put(m, 7, 3, SlotKind.Enter,  "CR");
         Put(m, 7, 4, SlotKind.Cursor, "CURSOR_UP");
         Put(m, 7, 5, SlotKind.Cursor, "CURSOR_RIGHT");
