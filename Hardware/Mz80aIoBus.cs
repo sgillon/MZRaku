@@ -58,6 +58,13 @@ public sealed class Mz80aIoBus : IIoBus
     // the comment in MemIn where it's used.
     private bool _hblankToggle;
 
+    // Sound-diagnostic counters — surfaced in the status bar while
+    // chasing Bug 2 (no MZ-80A sound). Remove once resolved.
+    public int E008WriteCount;
+    public int E008GateOnCount;
+    public byte LastE008Write;
+    public int LastReloadWhenGateOn;
+
     public byte MemIn(ushort addr)
     {
         // $E200-$E2FF: hardware scroll offset set. Reading any address
@@ -116,7 +123,15 @@ public sealed class Mz80aIoBus : IIoBus
         {
             // $E008 W: D0 = sound gate (hard gate in front of the
             // audio amp — no MZ-700-style dual-NAND, just one bit).
-            Sound.HardGate = (value & 0x01) != 0;
+            LastE008Write = value;
+            E008WriteCount++;
+            bool gateOn = (value & 0x01) != 0;
+            if (gateOn)
+            {
+                E008GateOnCount++;
+                LastReloadWhenGateOn = Pit.Counters[1].Reload;
+            }
+            Sound.HardGate = gateOn;
             return;
         }
         // Writes to $E014, $E015, $E200-$E2FF etc. are undefined on

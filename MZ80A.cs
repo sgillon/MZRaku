@@ -81,13 +81,13 @@ public sealed class MZ80A : IMachine
         Cpu.PreStep = Cassette.OnPreStep;
 
         // Sound: MZ-80A has no soft gate (no MZ-700-style PC3 stage),
-        // so Enabled is pinned. The hard gate at $E008 D0 is wired via
-        // Mz80aIoBus. Best-guess input clock 31.5 kHz for C1 (matches
-        // Owner's Manual p.162 block diagram's "31.5 kHz" annotation
-        // on the 8253 input path); tune when a MUSIC-tempo reference
-        // is available.
+        // so Enabled is pinned. The hard gate at $E008 D0 is wired
+        // via Mz80aIoBus. Input clock is 2 MHz — per Owner's Manual
+        // §2.1.2 MSTA doc "frequency produced is 2 MHz/nn'", where
+        // nn' is the counter division factor. Same value as the CPU
+        // clock; both fed off the 8 MHz crystal / 4.
         Sound.Enabled = true;
-        Sound.InputClockHz = 31_500.0;
+        Sound.InputClockHz = 2_000_000.0;
         Io.Sound = Sound;
 
         // Timer interrupt from PIT counter 2. On MZ-80A, $E002 D2 is

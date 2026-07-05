@@ -596,6 +596,16 @@ public sealed class MainForm : Form
             _display.Invalidate();
             if (_mz80a != null)
             {
+                // Temporary sound diagnostic — every 20 frames, update
+                // the status bar with $E008 write activity and PIT C1
+                // reload. Removes once Bug 2 is understood.
+                if (_bootFrames % 20 == 0)
+                {
+                    var c1 = _mz80a.Pit.Counters[1];
+                    _statusLabel.Text =
+                        $"E008 W={_mz80a.Io.E008WriteCount} on={_mz80a.Io.E008GateOnCount} last=${_mz80a.Io.LastE008Write:X2}  "
+                        + $"C1 rel={c1.Reload} relOn={_mz80a.Io.LastReloadWhenGateOn} run={c1.Running} gate={_mz80a.Sound.HardGate}";
+                }
                 // BASIC gets loaded first (as soon as the SA-1510 prompt
                 // is up), THEN the cassette waits 60 frames past
                 // _basicLoadedFrame so SA-5510 has time to reach its
