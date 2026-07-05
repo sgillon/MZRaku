@@ -260,12 +260,23 @@ public sealed class MZ80A : IMachine
         var img = Hardware.Cassette.Parse(CassetteFile.ReadBytes(path));
         // Same direct-inject shortcut as AutoLoadBasic — bypasses the
         // monitor's L command until a keyboard auto-typer exists.
-        Cassette.DirectInject(img, jumpExec: true);
+        Cassette.DirectInject(img, jumpExec: ShouldJumpExecForType(img.Type));
     }
 
     public void DirectInjectCassette(string path)
     {
         var img = Hardware.Cassette.Parse(CassetteFile.ReadBytes(path));
-        Cassette.DirectInject(img, jumpExec: true);
+        Cassette.DirectInject(img, jumpExec: ShouldJumpExecForType(img.Type));
     }
+
+    /// <summary>
+    /// Only machine-code (type 01) images have a monitor-callable exec
+    /// address in their .mzf header. BASIC text (02), BASIC data (03),
+    /// and relocatable (05) images typically carry exec=$0000, which
+    /// is SA-1510's reset entry — jumping there would wipe the loaded
+    /// BASIC and reset the whole machine. Load them into RAM but leave
+    /// PC alone so BASIC can run them via its own RUN command (which
+    /// still needs to be typed manually until the auto-typer lands).
+    /// </summary>
+    private static bool ShouldJumpExecForType(byte type) => type == 0x01;
 }

@@ -594,9 +594,14 @@ public sealed class MainForm : Form
         if (_machine == null)
         {
             _display.Invalidate();
-            if (_mz80a != null && (_pendingLoadBasic || _pendingCassette != null) && Mz80aMonitorReady())
+            if (_mz80a != null)
             {
-                if (_pendingLoadBasic)
+                // BASIC gets loaded first (as soon as the SA-1510 prompt
+                // is up), THEN the cassette waits 60 frames past
+                // _basicLoadedFrame so SA-5510 has time to reach its
+                // Ready prompt before we overwrite the program area.
+                // Same two-phase shape as MZ-700 uses.
+                if (_pendingLoadBasic && Mz80aMonitorReady())
                 {
                     try
                     {
@@ -612,16 +617,32 @@ public sealed class MainForm : Form
                 }
                 if (_pendingCassette != null)
                 {
-                    try
+                    bool viaBasic = _basicLoadedFrame >= 0;
+                    bool ready = viaBasic
+                        ? _bootFrames - _basicLoadedFrame >= 60
+                        : Mz80aMonitorReady();
+                    if (ready)
                     {
-                        Active.DirectInjectCassette(_pendingCassette);
-                        _statusLabel.Text = $"Loaded: {Path.GetFileName(_pendingCassette)}";
+                        try
+                        {
+                            var img = Hardware.Cassette.Parse(
+                                Hardware.CassetteFile.ReadBytes(_pendingCassette));
+                            _mz80a.Cassette.DirectInject(img,
+                                jumpExec: img.Type == 0x01);
+                            // For BASIC-type images, the user still needs to
+                            // type RUN — MZ-80A auto-typer arrives in the
+                            // Phase 6.5 usability pass.
+                            if (img.Type == 0x02 || img.Type == 0x05)
+                                _statusLabel.Text = $"Loaded {img.Filename} — type RUN to start.";
+                            else
+                                _statusLabel.Text = $"Loaded: {img.Filename}";
+                        }
+                        catch (Exception ex)
+                        {
+                            _statusLabel.Text = "Cassette load failed: " + ex.Message;
+                        }
+                        _pendingCassette = null;
                     }
-                    catch (Exception ex)
-                    {
-                        _statusLabel.Text = "Cassette load failed: " + ex.Message;
-                    }
-                    _pendingCassette = null;
                 }
             }
             return;
@@ -1049,14 +1070,29 @@ public sealed class MainForm : Form
             {
                 // Pure monitor + machine-code cassette: direct-inject and
                 // jump straight to its exec entry. No reset needed.
-                _machine!.Cassette.DirectInject(img, jumpExec: true);
+                if (_mz80a != null)
+                    _mz80a.Cassette.DirectInject(img, jumpExec: true);
+                else
+                    _machine!.Cassette.DirectInject(img, jumpExec: true);
                 _statusLabel.Text = $"Loaded & run: {img.Filename} exec=${img.ExecAddr:X4}";
             }
             else
             {
-                // Other type at the monitor: queue for monitor LOAD command.
-                _machine!.Cassette.Queue(img);
-                _statusLabel.Text = $"Queued: {img.Filename}. Type LOAD to fetch.";
+                // Other type at the monitor: queue for monitor LOAD command
+                // (MZ-700) or direct-inject as best-effort (MZ-80A doesn't
+                // have the L-command auto-typer path yet). Non-MC .mzf
+                // types (03 BASIC data, 04 ASCII, A0/A1 PASCAL) don't
+                // have a reliable exec address — inject-only.
+                if (_mz80a != null)
+                {
+                    _mz80a.Cassette.DirectInject(img, jumpExec: false);
+                    _statusLabel.Text = $"Loaded (no exec): {img.Filename}";
+                }
+                else
+                {
+                    _machine!.Cassette.Queue(img);
+                    _statusLabel.Text = $"Queued: {img.Filename}. Type LOAD to fetch.";
+                }
             }
         }
         catch (Exception ex)
