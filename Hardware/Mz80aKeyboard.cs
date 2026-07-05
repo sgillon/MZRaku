@@ -17,9 +17,9 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
 {
     private readonly byte[] _rows = new byte[10];
 
-    // Live PC-key → (row, col) holds. Lets OnKeyUp release exactly
+    // Live PC-key → (strobe, bit) holds. Lets OnKeyUp release exactly
     // the matrix bits its OnKeyDown asserted.
-    private readonly Dictionary<Keys, (int row, int col)> _holds = new();
+    private readonly Dictionary<Keys, (int strobe, int bit)> _holds = new();
 
     // Staged key releases — when PC KeyUp fires, we don't release the
     // matrix bit immediately. Instead we schedule it to release after
@@ -30,7 +30,7 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
     // 60Hz host frame. Same pattern MZ-700 uses (staged shift bits) but
     // applied uniformly since MZ-80A has no character-driven typing
     // path yet.
-    private record struct StagedRelease(Keys Vk, int Row, int Col, int FramesLeft);
+    private record struct StagedRelease(Keys Vk, int Strobe, int Bit, int FramesLeft);
     private readonly List<StagedRelease> _pendingReleases = new();
     private const int MinHoldFrames = 4;
 
@@ -76,7 +76,7 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
         UpdateModifiers(keyData);
         var pos = MapKey(key);
         if (pos == null) return false;
-        SetMatrix(pos.Value.row, pos.Value.col, true);
+        SetMatrix(pos.Value.strobe, pos.Value.bit, true);
         _holds[key] = pos.Value;
         return true;
     }
@@ -91,7 +91,7 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
             // ROM's scan needs to observe the pressed state on at
             // least one full pass. TickFrame() completes the release
             // once the countdown expires.
-            _pendingReleases.Add(new StagedRelease(key, pos.row, pos.col, MinHoldFrames));
+            _pendingReleases.Add(new StagedRelease(key, pos.strobe, pos.bit, MinHoldFrames));
             _holds.Remove(key);
             return true;
         }
@@ -110,7 +110,7 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
             r.FramesLeft--;
             if (r.FramesLeft <= 0)
             {
-                SetMatrix(r.Row, r.Col, false);
+                SetMatrix(r.Strobe, r.Bit, false);
                 _pendingReleases.RemoveAt(i);
             }
             else
@@ -133,84 +133,84 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
     }
 
     /// <summary>
-    /// Static PC virtual-key → MZ-80A (row, col) map derived from Fig
-    /// 3.6. Covers letters, digits, main-block control keys. Numeric
-    /// pad, cursor keys, GRPH etc. can be added as needs surface.
+    /// Reverse index built once from <see cref="Mz80aMatrixReference"/>:
+    /// PC virtual key → (strobe, bit). The reference is the single
+    /// source of truth for slot placement; MapKey defers to it via
+    /// this lookup so drift between the map and the reference is
+    /// impossible.
     /// </summary>
-    private static (int row, int col)? MapKey(Keys k) => k switch
+    private static readonly Dictionary<Keys, (int strobe, int bit)> _pcKeyToSlot = BuildPcKeyMap();
+
+    private static Dictionary<Keys, (int, int)> BuildPcKeyMap()
     {
-        // Row 0 (D0) — SHIFT, Z, C, B, SPACE, M, >., ↑?, 0, .
-        Keys.Z => (1, 0),
-        Keys.C => (2, 0),
-        Keys.B => (3, 0),
-        Keys.Space => (4, 0),
-        Keys.M => (5, 0),
-        Keys.OemPeriod => (6, 0),
+        var m = new Dictionary<Keys, (int, int)>();
+        foreach (var kv in Mz80aMatrixReference.All)
+        {
+            var slot = kv.Value;
+            var vk = PcKeyForSlot(slot);
+            if (vk != Keys.None) m[vk] = (slot.Strobe, slot.Bit);
+        }
+        return m;
+    }
 
-        // Row 1 (D1) — GRPH, X, V, N, <,, -/, ←, unused, unused, 00
-        Keys.X => (1, 1),
-        Keys.V => (2, 1),
-        Keys.N => (3, 1),
-        Keys.Oemcomma => (4, 1),
-        Keys.OemMinus => (5, 1),
+    /// <summary>
+    /// PC virtual-key that "should" produce the character sitting at
+    /// this slot. Match is by <see cref="Mz80aMatrixReference.Slot.Id"/>
+    /// — the canonical slot label. Unknown / Unused slots return
+    /// Keys.None so the PC key list stays minimal.
+    /// </summary>
+    private static Keys PcKeyForSlot(Mz80aMatrixReference.Slot s) => s.Id switch
+    {
+        // Letters — direct A..Z map.
+        "A" => Keys.A, "B" => Keys.B, "C" => Keys.C, "D" => Keys.D,
+        "E" => Keys.E, "F" => Keys.F, "G" => Keys.G, "H" => Keys.H,
+        "I" => Keys.I, "J" => Keys.J, "K" => Keys.K, "L" => Keys.L,
+        "M" => Keys.M, "N" => Keys.N, "O" => Keys.O, "P" => Keys.P,
+        "Q" => Keys.Q, "R" => Keys.R, "S" => Keys.S, "T" => Keys.T,
+        "U" => Keys.U, "V" => Keys.V, "W" => Keys.W, "X" => Keys.X,
+        "Y" => Keys.Y, "Z" => Keys.Z,
 
-        // Row 2 (D2) — INST/DEL, S, F, H, K, +;, ], unused, 1(pad), 3(pad)
-        Keys.Delete => (0, 2),
-        Keys.Back => (0, 2),
-        Keys.S => (1, 2),
-        Keys.F => (2, 2),
-        Keys.H => (3, 2),
-        Keys.K => (4, 2),
-        Keys.OemSemicolon => (5, 2),
-        Keys.OemCloseBrackets => (6, 2),
+        // Number row — D0..D9.
+        "D0" => Keys.D0, "D1" => Keys.D1, "D2" => Keys.D2, "D3" => Keys.D3,
+        "D4" => Keys.D4, "D5" => Keys.D5, "D6" => Keys.D6, "D7" => Keys.D7,
+        "D8" => Keys.D8, "D9" => Keys.D9,
 
-        // Row 3 (D3) — unused, A, D, G, J, L, *:, CR/ENT, 2(pad), unused
-        Keys.A => (1, 3),
-        Keys.D => (2, 3),
-        Keys.G => (3, 3),
-        Keys.J => (4, 3),
-        Keys.L => (5, 3),
-        Keys.Oemplus => (6, 3), // ':' shifted lives on same key as '*'
-        Keys.Enter => (7, 3), // Keys.Return is an alias of Keys.Enter
+        // Punctuation / edit / control.
+        "SPACE"        => Keys.Space,
+        "CR"           => Keys.Enter,
+        "COMMA"        => Keys.Oemcomma,
+        "DOT"          => Keys.OemPeriod,
+        "MINUS"        => Keys.OemMinus,
+        "SEMI"         => Keys.OemSemicolon,
+        "COLON"        => Keys.Oemplus,          // ':' shares key with '*'
+        "LBRK"         => Keys.OemOpenBrackets,
+        "RBRK"         => Keys.OemCloseBrackets,
+        "AT"           => Keys.Oem3,             // UK layout '@' on Shift+'
+        "EQUALS"       => Keys.OemQuestion,      // best-effort
+        "PIPE"         => Keys.OemPipe,
+        "CARET"        => Keys.Oem6,             // '^' on UK layout
+        "INST_DEL"     => Keys.Delete,           // BACK also aliased below
+        "BREAK_CTRL"   => Keys.Escape,
+        "CLR_HOME"     => Keys.Home,
+        "CURSOR_UP"    => Keys.Up,
+        "CURSOR_RIGHT" => Keys.Right,
+        "LEFT"         => Keys.Left,             // ← printable / cursor-left
+        "UPARROW"      => Keys.PageUp,           // best-effort placeholder
 
-        // Row 4 (D4) — unused, Q, E, T, U, O, \@, CURSOR↑, 4(pad), 6(pad)
-        Keys.Q => (1, 4),
-        Keys.E => (2, 4),
-        Keys.T => (3, 4),
-        Keys.U => (4, 4),
-        Keys.O => (5, 4),
-        Keys.Oem3 => (6, 4), // UK-layout '@' on Shift+' — approximation
-        Keys.Up => (7, 4),
-
-        // Row 5 (D5) — unused, W, R, Y, I, P, [, CURSOR→, 5(pad), -(pad)
-        Keys.W => (1, 5),
-        Keys.R => (2, 5),
-        Keys.Y => (3, 5),
-        Keys.I => (4, 5),
-        Keys.P => (5, 5),
-        Keys.OemOpenBrackets => (6, 5),
-        Keys.Right => (7, 5),
-
-        // Row 6 (D6) — unused, !1, #3, %5, /7, )9, =, |\, 7(pad), 9(pad)
-        Keys.D1 => (1, 6),
-        Keys.D3 => (2, 6),
-        Keys.D5 => (3, 6),
-        Keys.D7 => (4, 6),
-        Keys.D9 => (5, 6),
-        Keys.OemQuestion => (6, 6), // '=' — best-effort layout guess
-        Keys.OemPipe => (7, 6),
-
-        // Row 7 (D7) — BREAK/CTRL, 1", $4, &6, (8, )0, ~^, CLR/HOME
-        // CTRL modifier handled in UpdateModifiers; ESC drops into
-        // BREAK (Shift+CTRL) here for convenience.
-        Keys.Escape => (0, 7),
-        Keys.D2 => (8, 3),  // '2' on num-pad column (unshifted)
-        Keys.D4 => (8, 4),  // '4'
-        Keys.D6 => (9, 4),  // '6'
-        Keys.D8 => (8, 7),  // '8'
-        Keys.D0 => (8, 0),  // '0'
-        Keys.Home => (7, 7),
-
-        _ => null,
+        // Numeric-pad handled via NumPadN aliases would be cleaner —
+        // for now they collide with the main-row digits so leave them
+        // unmapped rather than double-binding.
+        _ => Keys.None,
     };
+
+    /// <summary>
+    /// PC virtual-key → (strobe, bit) lookup. Backspace mirrors Delete
+    /// to the INST/DEL slot since both are edit-erase on PC.
+    /// </summary>
+    private static (int strobe, int bit)? MapKey(Keys k)
+    {
+        if (k == Keys.Back && _pcKeyToSlot.TryGetValue(Keys.Delete, out var d))
+            return d;
+        return _pcKeyToSlot.TryGetValue(k, out var pos) ? pos : null;
+    }
 }
