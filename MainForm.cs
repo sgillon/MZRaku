@@ -627,15 +627,31 @@ public sealed class MainForm : Form
                         {
                             var img = Hardware.Cassette.Parse(
                                 Hardware.CassetteFile.ReadBytes(_pendingCassette));
-                            _mz80a.Cassette.DirectInject(img,
-                                jumpExec: img.Type == 0x01);
-                            // For BASIC-type images, the user still needs to
-                            // type RUN — MZ-80A auto-typer arrives in the
-                            // Phase 6.5 usability pass.
-                            if (img.Type == 0x02 || img.Type == 0x05)
-                                _statusLabel.Text = $"Loaded {img.Filename} — type RUN to start.";
+                            // BASIC-type images: Queue the image so SA-5510's
+                            // LOAD command hits our SA-1510 RDINF/RDDAT
+                            // traps ($0027/$002A) and the ROM's own load
+                            // path maintains BASIC's internal program
+                            // pointers. DirectInject bypasses this and
+                            // produces Error 19 on RUN. Machine-code images
+                            // still DirectInject + jumpExec — SA-1510's
+                            // monitor L command sequence isn't wired yet
+                            // for MZ-80A and the shortcut works cleanly for
+                            // type 01.
+                            bool isBasicType = img.Type == 0x02
+                                || img.Type == 0x03
+                                || img.Type == 0x05;
+                            if (isBasicType)
+                            {
+                                _mz80a.Cassette.Queue(img);
+                                _statusLabel.Text =
+                                    $"Queued {img.Filename} — in BASIC type LOAD, then RUN.";
+                            }
                             else
+                            {
+                                _mz80a.Cassette.DirectInject(img,
+                                    jumpExec: img.Type == 0x01);
                                 _statusLabel.Text = $"Loaded: {img.Filename}";
+                            }
                         }
                         catch (Exception ex)
                         {
