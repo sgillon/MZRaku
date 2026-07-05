@@ -172,12 +172,16 @@ public static class Mz80aMatrixReference
         // data.
         // ============================================================
         Put(m, 6, 0, SlotKind.Char,   "DOT",     ".", ">");     // user-confirmed 2026-07-05
-        Put(m, 6, 1, SlotKind.Char,   "MINUS",   "-");           // shifted from (5,1) 2026-07-05
+        // (6, 1) is the SLASH key (not MINUS). Users reported PC '-'
+        // produced '/' on screen — i.e. (6, 1) really decodes as '/'.
+        Put(m, 6, 1, SlotKind.Char,   "SLASH",   "/");           // was MINUS, correction 2026-07-05
         Put(m, 6, 2, SlotKind.Char,   "SEMI",    ";", "+");      // shifted from (5,2) 2026-07-05
         Put(m, 6, 3, SlotKind.Char,   "COLON",   ":", "*");
         Put(m, 6, 4, SlotKind.Char,   "AT",      "@", "\\");
         Put(m, 6, 5, SlotKind.Char,   "LBRK",    "[");           // user-confirmed 2026-07-05
-        Put(m, 6, 6, SlotKind.Char,   "EQUALS",  "=");
+        // (6, 6) is the MINUS key (not EQUALS). Users reported PC '/'
+        // produced '-' on screen; this is the other half of the swap.
+        Put(m, 6, 6, SlotKind.Char,   "MINUS",   "-");           // was EQUALS, correction 2026-07-05
         Put(m, 6, 7, SlotKind.Char,   "CARET",   "^", "~");
 
         // ============================================================

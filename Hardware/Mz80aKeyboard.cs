@@ -180,13 +180,13 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
         "CR"           => Keys.Enter,
         "COMMA"        => Keys.Oemcomma,
         "DOT"          => Keys.OemPeriod,
-        "MINUS"        => Keys.OemMinus,
+        "MINUS"        => Keys.OemMinus,         // PC '-' key
+        "SLASH"        => Keys.OemQuestion,      // PC '/' key (US layout — UK may differ)
         "SEMI"         => Keys.OemSemicolon,
         "COLON"        => Keys.Oemplus,          // ':' shares key with '*'
         "LBRK"         => Keys.OemOpenBrackets,
         "RBRK"         => Keys.OemCloseBrackets,
         "AT"           => Keys.Oem3,             // UK layout '@' on Shift+'
-        "EQUALS"       => Keys.OemQuestion,      // best-effort
         "PIPE"         => Keys.OemPipe,
         "CARET"        => Keys.Oem6,             // '^' on UK layout
         "INST_DEL"     => Keys.Delete,           // BACK also aliased below
