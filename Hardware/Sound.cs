@@ -31,8 +31,28 @@ public sealed class Sound : IDisposable
     // Audible iff both gates are asserted. Cleared by Reset (FF1.CL
     // = system RESET line on the schematic).
     public volatile bool Enabled;
-    public volatile bool HardGate;
+    private volatile bool _hardGate;
+    private volatile int _gateHoldChunks;
     private volatile int _reload = 0;
+
+    /// <summary>
+    /// $E008 D0 gate (MZ-80A) or IC7E FF1 latch (MZ-700). Setting true
+    /// also latches a "recent-transition" flag for a couple of feed
+    /// chunks so brief pulses (SA-1510's MSTA/MSTP toggle the gate in
+    /// under a millisecond — much faster than FeedLoop's 20 ms poll)
+    /// still make at least one audible chunk. On real hardware the
+    /// speaker cone would move on the current pulse regardless of
+    /// duration; this mimics that behavior.
+    /// </summary>
+    public bool HardGate
+    {
+        get => _hardGate || _gateHoldChunks > 0;
+        set
+        {
+            _hardGate = value;
+            if (value) _gateHoldChunks = 2;  // ~40 ms of audible pulse
+        }
+    }
 
     public void SetReload(int reload) { _reload = reload; }
 
@@ -54,6 +74,10 @@ public sealed class Sound : IDisposable
             {
                 int reload = _reload;
                 bool gate = Enabled && HardGate;
+                // Consume one chunk of the pulse-hold latch, so brief
+                // gate-on events fade after a couple of chunks even if
+                // _hardGate is now false.
+                if (_gateHoldChunks > 0 && !_hardGate) _gateHoldChunks--;
                 double freq = (reload > 1) ? InputClockHz / reload : 0;
                 if (!gate || freq < 20 || freq > 20000) freq = 0;
 

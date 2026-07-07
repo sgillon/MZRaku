@@ -177,10 +177,22 @@ public sealed class MZ80A : IMachine
 
         RenderFrame();
 
-        // Feed the sound generator with PIT counter 1's current reload.
-        // When the counter isn't actively running (e.g. between control
-        // words and LSB/MSB loads), zero it so the speaker stays silent.
-        Sound.SetReload(Pit.Counters[1].Running ? Pit.Counters[1].Reload : 0);
+        // Feed the sound generator. MZ-80A's official audio source is
+        // PIT counter 0 (per SA-1510's MSTA at $02AB, which writes the
+        // division factor to $E004 — the counter-0 port — and opens the
+        // $E008 D0 gate). Counter 1 is the display-timing / cursor-blink
+        // path (cascaded into counter 2's 1-sec RTC). Some MC games
+        // bypass MSTA and program counter 1 for their own sound engine
+        // rather than counter 0 — probably a period-1 mixing quirk on
+        // real hardware. Prefer counter 0 when it's actively running;
+        // fall back to counter 1 so those MC games still make sound.
+        var c0 = Pit.Counters[0];
+        var c1 = Pit.Counters[1];
+        int reload;
+        if (c0.Running && c0.Reload > 0) reload = c0.Reload;
+        else if (c1.Running && c1.Reload > 0) reload = c1.Reload;
+        else reload = 0;
+        Sound.SetReload(reload);
     }
 
     private void RenderFrame()
