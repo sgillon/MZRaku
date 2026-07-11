@@ -102,7 +102,10 @@ public sealed class MainForm : Form
         if (_settings.Type == MachineType.MZ700)
             _machine = new MZ700();
         else
+        {
             _mz80a = new MZ80A();
+            _mz80a.Keyboard.InvertLetterShift = _settings.Mz80aInvertLetterShift;
+        }
 
         // JoystickInput needs a non-null Joystick reference to
         // construct even when the machine has no joystick (MZ-80A).

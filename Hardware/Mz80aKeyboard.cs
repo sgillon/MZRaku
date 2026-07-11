@@ -34,6 +34,15 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
     private readonly List<StagedRelease> _pendingReleases = new();
     private const int MinHoldFrames = 4;
 
+    /// <summary>
+    /// If true, inverts the SHIFT-bit assertion for letter keys only
+    /// so PC users get PC-style casing (Shift+A → uppercase A, plain
+    /// a → lowercase a). Set from Settings.Mz80aInvertLetterShift.
+    /// Digits and punctuation ignore this flag — their shifted
+    /// variants (! # $ etc.) still work via Shift regardless.
+    /// </summary>
+    public bool InvertLetterShift { get; set; } = true;
+
     public Mz80aKeyboard()
     {
         for (int i = 0; i < 10; i++) _rows[i] = 0xFF;
@@ -73,7 +82,7 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
         // Ctrl aren't ordinary characters but they matter for shifted
         // glyphs / BREAK detection, so we assert them alongside the
         // "real" key.
-        UpdateModifiers(keyData);
+        UpdateModifiers(keyData, key);
         var pos = MapKey(key);
         if (pos == null) return false;
         SetMatrix(pos.Value.strobe, pos.Value.bit, true);
@@ -84,7 +93,7 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
     public bool OnKeyUp(Keys keyData)
     {
         var key = keyData & Keys.KeyCode;
-        UpdateModifiers(keyData);
+        UpdateModifiers(keyData, key);
         if (_holds.TryGetValue(key, out var pos))
         {
             // Stage the release rather than fire immediately — the
@@ -120,17 +129,26 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
         }
     }
 
-    private void UpdateModifiers(Keys keyData)
+    private void UpdateModifiers(Keys keyData, Keys currentKey)
     {
-        // SHIFT is strobe 0 D0 on MZ-80A (Fig 3.6).
+        // SHIFT is strobe 0 D0 on MZ-80A (Fig 3.6). MZ-80A's letter
+        // convention is unshifted=uppercase / shifted=lowercase, which
+        // is the opposite of PC. When InvertLetterShift is on AND the
+        // key currently being pressed is a plain A-Z letter, we flip
+        // the SHIFT assertion so PC muscle memory works. Digits and
+        // punctuation aren't inverted — their shifted variants are
+        // needed as-is for '!', '#', '$', etc.
         bool pcShift = (keyData & Keys.Shift) != 0;
-        SetMatrix(0, 0, pcShift);
+        bool invert = InvertLetterShift && IsLetter(currentKey);
+        SetMatrix(0, 0, pcShift ^ invert);
         // CTRL is strobe 0 D7 on MZ-80A — same key as BREAK, which is
         // shifted-CTRL. Phase 3 wires plain Ctrl only; BREAK detection
         // (checking shift+ctrl combo) can layer on top.
         bool pcCtrl = (keyData & Keys.Control) != 0;
         SetMatrix(0, 7, pcCtrl);
     }
+
+    private static bool IsLetter(Keys k) => k >= Keys.A && k <= Keys.Z;
 
     /// <summary>
     /// Reverse index built once from <see cref="Mz80aMatrixReference"/>:
