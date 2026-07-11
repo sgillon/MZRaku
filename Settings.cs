@@ -33,16 +33,16 @@ public sealed class Settings
     // stay on MZ-700 automatically.
     public MachineType Type { get; set; } = MachineType.MZ700;
 
-    // On real MZ-80A, unshifted letter keys give uppercase and Shift
-    // toggles them to lowercase — the opposite of a PC keyboard. That
-    // makes BASIC keywords (which are uppercase) awkward to type
-    // because a habitual Shift-for-uppercase press gives lowercase.
-    // Default: invert Shift for letter keys so PC muscle memory works
-    // (Shift+A → uppercase A, no-Shift a → lowercase a). Set to false
-    // for authentic MZ-80A hardware behaviour. Digits and punctuation
-    // are unaffected either way — their shifted variants (! # $ etc.)
-    // still work via Shift regardless of this setting.
-    public bool Mz80aInvertLetterShift { get; set; } = true;
+    // On real MZ-80A, unshifted letter keys give UPPERCASE and Shift
+    // toggles them to lowercase — the opposite of a PC keyboard. We
+    // default to that authentic behaviour because BASIC keywords are
+    // uppercase (LIST, PRINT, RUN…) and typing them unshifted is the
+    // natural flow. Set to true to invert only for letter keys so PC
+    // muscle memory works (Shift+A → uppercase A) — useful for users
+    // typing lowercase-heavy content. Digits and punctuation are
+    // unaffected either way; their shifted variants (! # $ …) still
+    // work via Shift regardless.
+    public bool Mz80aInvertLetterShift { get; set; } = false;
 
     // Paths to the system files (monitor ROM, character font, BASIC
     // cassette image), split by machine so both machines can coexist
@@ -245,13 +245,13 @@ public sealed class Settings
             sb.AppendLine("; prompts a restart.");
             sb.AppendLine($"Type={Type}");
             sb.AppendLine(";");
-            sb.AppendLine("; Mz80aInvertLetterShift  MZ-80A only. On real hardware, letter keys");
-            sb.AppendLine(";                          default to UPPERCASE and Shift toggles to");
-            sb.AppendLine(";                          lowercase — the opposite of a PC keyboard.");
-            sb.AppendLine(";                          Default true inverts the mapping so PC muscle");
-            sb.AppendLine(";                          memory works (Shift+A → 'A'). Set false for");
-            sb.AppendLine(";                          authentic MZ-80A behaviour. Digits and");
-            sb.AppendLine(";                          punctuation are unaffected either way.");
+            sb.AppendLine("; Mz80aInvertLetterShift  MZ-80A only. Real hardware types UPPERCASE");
+            sb.AppendLine(";                          letters unshifted and lowercase when Shift is");
+            sb.AppendLine(";                          held — opposite of a PC keyboard. Default false");
+            sb.AppendLine(";                          keeps that authentic behaviour (natural for");
+            sb.AppendLine(";                          BASIC keywords: LIST, PRINT, RUN…). Set true if");
+            sb.AppendLine(";                          you prefer PC-style Shift-for-uppercase. Digits");
+            sb.AppendLine(";                          and punctuation are unaffected either way.");
             sb.AppendLine($"Mz80aInvertLetterShift={(Mz80aInvertLetterShift ? "true" : "false")}");
             sb.AppendLine();
 
