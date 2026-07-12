@@ -163,7 +163,7 @@ public static class Mz80aMatrixReference
         Put(m, 5, 4, SlotKind.Char,   "O",         "O");        // user-confirmed 2026-07-05
         Put(m, 5, 5, SlotKind.Char,   "P",         "P");        // user-confirmed 2026-07-05
         Put(m, 5, 6, SlotKind.Char,   "D9",        "9", ")");
-        Put(m, 5, 7, SlotKind.Char,   "D0",        "0", ")");
+        Put(m, 5, 7, SlotKind.Char,   "D0",        "0", "_");     // shifted '_' user-confirmed 2026-07-08
 
         // ============================================================
         // Strobe 6 — DOT confirmed. D1/D2 slots hold MINUS and SEMI
@@ -172,13 +172,15 @@ public static class Mz80aMatrixReference
         // data.
         // ============================================================
         Put(m, 6, 0, SlotKind.Char,   "DOT",     ".", ">");     // user-confirmed 2026-07-05
-        // (6, 1) is the SLASH key. Shifted glyph hypothesised as '?'
-        // (standard Sharp house layout — user to verify).
-        Put(m, 6, 1, SlotKind.Char,   "SLASH",   "/", "?");
+        // (6, 1) is the SLASH key. Shifted glyph is a Sharp-specific
+        // left-arrow character (user-confirmed 2026-07-08), not '?'.
+        Put(m, 6, 1, SlotKind.Char,   "SLASH",   "/", "←");
         Put(m, 6, 2, SlotKind.Char,   "SEMI",    ";", "+");      // shifted from (5,2) 2026-07-05
         Put(m, 6, 3, SlotKind.Char,   "COLON",   ":", "*");
-        Put(m, 6, 4, SlotKind.Char,   "AT",      "@", "\\");
-        Put(m, 6, 5, SlotKind.Char,   "LBRK",    "[");           // user-confirmed 2026-07-05
+        // AT shifted is backtick '`' (user-confirmed 2026-07-08), not
+        // '\'. Backslash lives on the PIPE slot at (7, 6).
+        Put(m, 6, 4, SlotKind.Char,   "AT",      "@", "`");
+        Put(m, 6, 5, SlotKind.Char,   "LBRK",    "[", "{");       // user-confirmed 2026-07-05 / 2026-07-08
         // (6, 6) is the MINUS key. Shifted variant hypothesised as '='
         // (matches the common Sharp '-=' keycap layout — user to
         // verify). Reachable via PC Shift+'-'; a direct PC '=' →
@@ -192,11 +194,13 @@ public static class Mz80aMatrixReference
         // ============================================================
         Put(m, 7, 0, SlotKind.Char,   "UPARROW", "↑", "?");     // ↑? cell in Fig 3.6
         Put(m, 7, 1, SlotKind.Cursor, "LEFT");                    // shifted from (6,1) 2026-07-05
-        Put(m, 7, 2, SlotKind.Char,   "RBRK",    "]");            // shifted from (6,2) 2026-07-05
+        Put(m, 7, 2, SlotKind.Char,   "RBRK",    "]", "}");        // shifted from (6,2) 2026-07-05, '}' 2026-07-08
         Put(m, 7, 3, SlotKind.Enter,  "CR");
         Put(m, 7, 4, SlotKind.Cursor, "CURSOR_UP");
         Put(m, 7, 5, SlotKind.Cursor, "CURSOR_RIGHT");
-        Put(m, 7, 6, SlotKind.Char,   "PIPE",    "|", "\\");
+        // PIPE slot: '\' unshifted, '|' shifted (user-confirmed
+        // 2026-07-08 — the initial ordering was backwards).
+        Put(m, 7, 6, SlotKind.Char,   "PIPE",    "\\", "|");
         Put(m, 7, 7, SlotKind.Edit,   "CLR_HOME");   // CLR shifted / HOME unshifted
 
         // ============================================================
