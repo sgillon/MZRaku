@@ -52,6 +52,19 @@ public sealed class Mz80aVideo
     /// </summary>
     public int ScrollOffset;
 
+    /// <summary>
+    /// Foreground pixel colour as a 32-bit ARGB int (0xAARRGGBB). Set
+    /// by MainForm from Settings — pure green (0xFF00FF00) for the
+    /// authentic P1-phosphor look (matches EmuZ-80A's tint,
+    /// user-confirmed via MS Paint dropper 2026-07-12), white
+    /// (0xFFFFFFFF) otherwise. Reverse-video swaps this with
+    /// <see cref="BackgroundArgb"/> per-frame.
+    /// </summary>
+    public int ForegroundArgb = unchecked((int)0xFF00FF00);
+
+    /// <summary>Background pixel colour, mate to <see cref="ForegroundArgb"/>.</summary>
+    public int BackgroundArgb = unchecked((int)0xFF000000);
+
     public Bitmap Frame = new(PixelWidth, PixelHeight, PixelFormat.Format32bppArgb);
 
     public void LoadFont(byte[] font)
@@ -62,13 +75,12 @@ public sealed class Mz80aVideo
 
     public void Render(byte[] vram)
     {
-        // MZ-80A is monochrome: white on black, or inverted globally
-        // when Reverse is set. Foreground/background computed once
-        // per frame — no per-cell attribute lookup.
-        int white = unchecked((int)0xFFFFFFFF);
-        int black = unchecked((int)0xFF000000);
-        int fg = Reverse ? black : white;
-        int bg = Reverse ? white : black;
+        // MZ-80A is monochrome. Foreground/background come from
+        // configurable ARGB fields (green-phosphor by default), swapped
+        // when Reverse is set. Computed once per frame — no per-cell
+        // attribute lookup.
+        int fg = Reverse ? BackgroundArgb : ForegroundArgb;
+        int bg = Reverse ? ForegroundArgb : BackgroundArgb;
 
         var rect = new Rectangle(0, 0, PixelWidth, PixelHeight);
         var data = Frame.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);

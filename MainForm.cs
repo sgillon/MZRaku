@@ -59,6 +59,7 @@ public sealed class MainForm : Form
     private Rectangle _preFullScreenBounds;
     private ToolStripMenuItem? _fullScreenMenuItem;
     private ToolStripMenuItem? _scanlinesMenuItem;
+    private ToolStripMenuItem? _mz80aGreenMenuItem;
     private readonly bool _startFullScreen;
     // Captures the pre-override scanlines value when --scanlines was
     // passed on the CLI. The natural-close FormClosing handler restores
@@ -105,6 +106,7 @@ public sealed class MainForm : Form
         {
             _mz80a = new MZ80A();
             _mz80a.Keyboard.InvertLetterShift = _settings.Mz80aInvertLetterShift;
+            ApplyMz80aScreenColor();
         }
 
         // JoystickInput needs a non-null Joystick reference to
@@ -322,6 +324,14 @@ public sealed class MainForm : Form
             Checked = _settings.DisplayScanlines,
         };
         view.DropDownItems.Add(_scanlinesMenuItem);
+        // MZ-80A only: green-phosphor tint on the monochrome display.
+        // Shown for MZ-700 too so users can see the option exists;
+        // toggling has no visible effect until Type=MZ80A.
+        _mz80aGreenMenuItem = new ToolStripMenuItem("&Green screen (MZ-80A)", null, (_, _) => ToggleMz80aGreenScreen())
+        {
+            Checked = _settings.Mz80aGreenScreen,
+        };
+        view.DropDownItems.Add(_mz80aGreenMenuItem);
         view.DropDownItems.Add(new ToolStripSeparator());
         // Font Sheet — always available from View for click-to-type
         // glyph access. Also auto-surfaces in the Timer_Tick handler
@@ -404,6 +414,30 @@ public sealed class MainForm : Form
         _settings.Save();
         if (_scanlinesMenuItem != null) _scanlinesMenuItem.Checked = _settings.DisplayScanlines;
         _display.Invalidate();
+    }
+
+    private void ToggleMz80aGreenScreen()
+    {
+        _settings.Mz80aGreenScreen = !_settings.Mz80aGreenScreen;
+        _settings.Save();
+        if (_mz80aGreenMenuItem != null) _mz80aGreenMenuItem.Checked = _settings.Mz80aGreenScreen;
+        ApplyMz80aScreenColor();
+        _display.Invalidate();
+    }
+
+    private void ApplyMz80aScreenColor()
+    {
+        if (_mz80a == null) return;
+        if (_settings.Mz80aGreenScreen)
+        {
+            _mz80a.Video.ForegroundArgb = unchecked((int)0xFF00FF00);
+            _mz80a.Video.BackgroundArgb = unchecked((int)0xFF000000);
+        }
+        else
+        {
+            _mz80a.Video.ForegroundArgb = unchecked((int)0xFFFFFFFF);
+            _mz80a.Video.BackgroundArgb = unchecked((int)0xFF000000);
+        }
     }
 
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)

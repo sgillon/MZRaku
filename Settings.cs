@@ -44,6 +44,13 @@ public sealed class Settings
     // work via Shift regardless.
     public bool Mz80aInvertLetterShift { get; set; } = false;
 
+    // Sharp shipped the MZ-80A with a green-phosphor monochrome monitor
+    // as standard, so a bright-green foreground on black is the
+    // authentic look. Default true; toggle from View → Green screen
+    // (MZ-80A) — the setting is MZ-80A-only (MZ-700 has a colour
+    // display and ignores this).
+    public bool Mz80aGreenScreen { get; set; } = true;
+
     // Paths to the system files (monitor ROM, character font, BASIC
     // cassette image), split by machine so both machines can coexist
     // in one settings.ini. Auto-detected on first run by scanning the
@@ -156,6 +163,8 @@ public sealed class Settings
                     s.Type = MachineType.MZ700;
                 s.Mz80aInvertLetterShift = GetBool(ini, "Machine",
                     "Mz80aInvertLetterShift", s.Mz80aInvertLetterShift);
+                s.Mz80aGreenScreen = GetBool(ini, "Machine",
+                    "Mz80aGreenScreen", s.Mz80aGreenScreen);
 
                 // Per-machine ROM sections. Falls back to the legacy
                 // flat [Roms] section for MZ-700 so pre-split INI files
@@ -263,6 +272,14 @@ public sealed class Settings
             sb.AppendLine(";                          you prefer PC-style Shift-for-uppercase. Digits");
             sb.AppendLine(";                          and punctuation are unaffected either way.");
             sb.AppendLine($"Mz80aInvertLetterShift={(Mz80aInvertLetterShift ? "true" : "false")}");
+            sb.AppendLine(";");
+            sb.AppendLine("; Mz80aGreenScreen         MZ-80A only. Renders the monochrome display");
+            sb.AppendLine(";                          in bright green on black, matching the Sharp-");
+            sb.AppendLine(";                          shipped P1-phosphor monitor. Default true —");
+            sb.AppendLine(";                          the authentic look for the machine. Set false");
+            sb.AppendLine(";                          for plain white-on-black. MZ-700 has a colour");
+            sb.AppendLine(";                          display and ignores this setting.");
+            sb.AppendLine($"Mz80aGreenScreen={(Mz80aGreenScreen ? "true" : "false")}");
             sb.AppendLine();
 
             sb.AppendLine("[Roms.MZ700]");
