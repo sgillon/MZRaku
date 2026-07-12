@@ -172,16 +172,19 @@ public static class Mz80aMatrixReference
         // data.
         // ============================================================
         Put(m, 6, 0, SlotKind.Char,   "DOT",     ".", ">");     // user-confirmed 2026-07-05
-        // (6, 1) is the SLASH key (not MINUS). Users reported PC '-'
-        // produced '/' on screen — i.e. (6, 1) really decodes as '/'.
-        Put(m, 6, 1, SlotKind.Char,   "SLASH",   "/");           // was MINUS, correction 2026-07-05
+        // (6, 1) is the SLASH key. Shifted glyph hypothesised as '?'
+        // (standard Sharp house layout — user to verify).
+        Put(m, 6, 1, SlotKind.Char,   "SLASH",   "/", "?");
         Put(m, 6, 2, SlotKind.Char,   "SEMI",    ";", "+");      // shifted from (5,2) 2026-07-05
         Put(m, 6, 3, SlotKind.Char,   "COLON",   ":", "*");
         Put(m, 6, 4, SlotKind.Char,   "AT",      "@", "\\");
         Put(m, 6, 5, SlotKind.Char,   "LBRK",    "[");           // user-confirmed 2026-07-05
-        // (6, 6) is the MINUS key (not EQUALS). Users reported PC '/'
-        // produced '-' on screen; this is the other half of the swap.
-        Put(m, 6, 6, SlotKind.Char,   "MINUS",   "-");           // was EQUALS, correction 2026-07-05
+        // (6, 6) is the MINUS key. Shifted variant hypothesised as '='
+        // (matches the common Sharp '-=' keycap layout — user to
+        // verify). Reachable via PC Shift+'-'; a direct PC '=' →
+        // MINUS+forceShift mapping would be a nicer UX but needs the
+        // PC-key binding to carry a force-shift flag (deferred).
+        Put(m, 6, 6, SlotKind.Char,   "MINUS",   "-", "=");
         Put(m, 6, 7, SlotKind.Char,   "CARET",   "^", "~");
 
         // ============================================================
