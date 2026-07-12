@@ -46,12 +46,13 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
     private const int LiveShiftStageFrames = 2;
 
     /// <summary>
-    /// Legacy setting retained for INI compatibility. With the char-map
-    /// layer active, letter case is encoded per-char (PC 'a' and 'A'
-    /// both land on the uppercase slot by default), so this flag no
-    /// longer changes runtime behaviour. Users wanting PC-style casing
-    /// can add per-char overrides. Kept as a public property so old
-    /// settings.ini files load without complaint.
+    /// When false (default) MZ-80A letters follow authentic behaviour:
+    /// PC 'a' unshifted → MZ 'A' (uppercase), PC 'A' shifted → MZ 'a'
+    /// (lowercase). When true, letters follow PC muscle memory:
+    /// unshifted → lowercase, shifted → uppercase. Implemented by
+    /// flipping the char-map's MzShift bit for letter chars in
+    /// <see cref="OnKeyPress"/>. Digits and punctuation are unaffected —
+    /// their char-map entries decide shift by glyph identity, not case.
     /// </summary>
     public bool InvertLetterShift { get; set; } = false;
 
@@ -143,10 +144,19 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
 
         if (!Mz80aCharMap.TryLookup(ch, out var p)) return;
 
-        _holds[vk] = new ActiveHold(p.Strobe, p.Bit, ExplicitMzShift: p.MzShift);
+        // InvertLetterShift = true swaps MZ-side case for letters so
+        // PC-style Shift-for-uppercase works. Only letters flip; digits
+        // and punctuation resolve by glyph identity (PC ',' and PC '<'
+        // are distinct chars → distinct char-map entries), so their
+        // shift polarity is already correct.
+        bool mzShift = p.MzShift;
+        if (InvertLetterShift && char.IsLetter(ch))
+            mzShift = !mzShift;
+
+        _holds[vk] = new ActiveHold(p.Strobe, p.Bit, ExplicitMzShift: mzShift);
         ApplyShiftState();
 
-        if (p.MzShift)
+        if (mzShift)
         {
             // Stage the key bit: SHIFT is on strobe 0 already, let a
             // ROM scan catch it, THEN drop the key bit. Without this,
