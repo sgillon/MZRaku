@@ -121,20 +121,32 @@ public static class Mz80aCharMap
 
     /// <summary>
     /// Cross-checks <see cref="Defaults"/> against
-    /// <see cref="Mz80aMatrixReference"/>. Returns human-readable
-    /// complaints; empty means every default char points at a Char /
-    /// Space / Enter slot. Glyph identity is not checked — fallback
-    /// mappings (UK '£' → MZ '#' slot) are intentional and would
-    /// false-positive a strict glyph match.
+    /// <see cref="Mz80aMatrixReference"/> in both directions.
+    ///
+    /// Char → slot: every default char points at a Char / Space / Enter
+    /// slot (never Unused / Modifier / Cursor etc.). Glyph identity is
+    /// not checked — fallback mappings (UK '£' → MZ '#' slot) are
+    /// intentional and would false-positive a strict glyph match.
+    ///
+    /// Slot → char (coverage gap): every Char slot in the reference with
+    /// a non-empty UnshiftedGlyph is reachable via at least one default
+    /// unshifted press, and same for ShiftedGlyph via a shifted press.
+    /// Numeric-pad slots (Id starts with "NP") are excluded — they alias
+    /// the main-row digits and are wired separately (Phase B note).
+    /// A gap here means the user can see a glyph on the keycap that PC
+    /// typing cannot reach without a manual [CharMap.MZ80A] override.
     /// </summary>
     public static IReadOnlyList<string> Validate()
     {
         var complaints = new List<string>();
+
+        // Direction 1: char → slot. Every default entry points at a
+        // typeable slot kind.
         foreach (var kv in Defaults)
         {
             if (!Mz80aMatrixReference.All.TryGetValue((kv.Value.Strobe, kv.Value.Bit), out var slot))
             {
-                complaints.Add($"Mz80aCharMap.Defaults['{kv.Key}'] → ({kv.Value.Strobe}, {kv.Value.Bit}) is out of matrix range");
+                complaints.Add($"Defaults['{kv.Key}'] → ({kv.Value.Strobe}, {kv.Value.Bit}) is out of matrix range");
                 continue;
             }
             var k = slot.Kind;
@@ -142,9 +154,35 @@ public static class Mz80aCharMap
                 k != Mz80aMatrixReference.SlotKind.Space &&
                 k != Mz80aMatrixReference.SlotKind.Enter)
             {
-                complaints.Add($"Mz80aCharMap.Defaults['{kv.Key}'] → ({kv.Value.Strobe}, {kv.Value.Bit}) is {k}; defaults must point at Char / Space / Enter slots");
+                complaints.Add($"Defaults['{kv.Key}'] → ({kv.Value.Strobe}, {kv.Value.Bit}) is {k}; defaults must point at Char / Space / Enter slots");
             }
         }
+
+        // Direction 2: glyph → char-map. Every glyph on a Char slot's
+        // keycap is reachable from at least one default entry. Checked
+        // by glyph identity (not by matrix position) — a glyph that
+        // appears at two slots only needs one default hitting either.
+        // Numeric-pad slot glyphs are excluded — they alias main-row
+        // digits and are wired separately (Phase B note).
+        foreach (var slot in Mz80aMatrixReference.All.Values)
+        {
+            if (slot.Kind != Mz80aMatrixReference.SlotKind.Char) continue;
+            if (slot.Id.StartsWith("NP")) continue;
+            CheckGlyphReachable(slot, slot.UnshiftedGlyph, "unshifted", complaints);
+            CheckGlyphReachable(slot, slot.ShiftedGlyph, "shifted", complaints);
+        }
+
         return complaints;
+    }
+
+    private static void CheckGlyphReachable(
+        Mz80aMatrixReference.Slot slot, string? glyph, string polarity, List<string> complaints)
+    {
+        if (string.IsNullOrEmpty(glyph)) return;
+        foreach (char c in glyph)
+        {
+            if (!Defaults.ContainsKey(c))
+                complaints.Add($"Slot '{slot.Id}' ({slot.Strobe}, {slot.Bit}) {polarity} glyph '{c}' is not reachable from any default char");
+        }
     }
 }

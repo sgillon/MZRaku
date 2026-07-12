@@ -250,4 +250,36 @@ public static class Mz80aMatrixReference
     {
         m[(strobe, bit)] = new Slot(strobe, bit, kind, id, unshifted, shifted);
     }
+
+    /// <summary>
+    /// Self-check: every cell present, no duplicate Ids, and a report of
+    /// any <see cref="SlotKind.Unknown"/> cells still awaiting empirical
+    /// confirmation. Returns human-readable complaints; an empty list
+    /// means the reference is fully populated. Mirrors
+    /// <see cref="Mz700MatrixReference.Validate"/>.
+    /// </summary>
+    public static IReadOnlyList<string> Validate()
+    {
+        var complaints = new List<string>();
+        for (int s = 0; s < Strobes; s++)
+        {
+            for (int b = 0; b < Bits; b++)
+            {
+                if (!All.ContainsKey((s, b)))
+                    complaints.Add($"Missing cell ({s}, {b})");
+            }
+        }
+        var ids = new HashSet<string>();
+        foreach (var slot in All.Values)
+        {
+            if (!ids.Add(slot.Id))
+                complaints.Add($"Duplicate Slot.Id '{slot.Id}' at ({slot.Strobe}, {slot.Bit})");
+        }
+        int unknownCount = 0;
+        foreach (var slot in All.Values)
+            if (slot.Kind == SlotKind.Unknown) unknownCount++;
+        if (unknownCount > 0)
+            complaints.Add($"{unknownCount} cell(s) still SlotKind.Unknown — confirm against owner's manual Fig 3.6");
+        return complaints;
+    }
 }
