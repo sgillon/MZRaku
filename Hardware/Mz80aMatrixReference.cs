@@ -89,7 +89,10 @@ public static class Mz80aMatrixReference
         // ============================================================
         Put(m, 0, 0, SlotKind.Modifier, "SHIFT");
         Put(m, 0, 1, SlotKind.Mode,     "GRPH");
-        Put(m, 0, 2, SlotKind.Edit,     "INST_DEL");    // one physical key: INST unshifted / DEL shifted
+        // (0, 2) was hypothesised as INST/DEL pre-audit but the 2026-07-12
+        // audit confirmed INST/DEL sits at (1, 2). Parked as Unused
+        // pending anything empirically landing here.
+        Put(m, 0, 2, SlotKind.Unused,   "s0b2");
         Put(m, 0, 3, SlotKind.Unused,   "s0b3");
         Put(m, 0, 4, SlotKind.Unused,   "s0b4");
         Put(m, 0, 5, SlotKind.Unused,   "s0b5");
@@ -103,7 +106,10 @@ public static class Mz80aMatrixReference
         // ============================================================
         Put(m, 1, 0, SlotKind.Char,   "Z",  "Z");
         Put(m, 1, 1, SlotKind.Unused,  "s1b1");         // X shifted to (2,1) 2026-07-05
-        Put(m, 1, 2, SlotKind.Unused,  "s1b2");         // was 'S' pre-audit; S now at (2,2)
+        // (1, 2) is the INST/DEL key. User-confirmed 2026-07-12: unshifted
+        // press deletes a character, SHIFTED press inserts a space —
+        // polarity opposite of the pre-audit assumption.
+        Put(m, 1, 2, SlotKind.Edit,   "INST_DEL");
         Put(m, 1, 3, SlotKind.Char,   "A",  "A");
         Put(m, 1, 4, SlotKind.Char,   "Q",  "Q");       // user-confirmed 2026-07-05
         Put(m, 1, 5, SlotKind.Char,   "W",  "W");       // user-confirmed 2026-07-05
@@ -192,8 +198,15 @@ public static class Mz80aMatrixReference
         // ============================================================
         // Strobe 7 — cursor arrows, CR/ENT, CLR/HOME, pipe/backslash.
         // ============================================================
-        Put(m, 7, 0, SlotKind.Char,   "UPARROW", "↑", "?");     // ↑? cell in Fig 3.6
-        Put(m, 7, 1, SlotKind.Cursor, "LEFT");                    // shifted from (6,1) 2026-07-05
+        // UPARROW slot: keycap shows both ↑ and ?. Empirically the
+        // MZ-80A puts '?' on the unshifted press and '↑' on shifted
+        // (user-confirmed 2026-07-12 — Shift+/ via char-map → '↑').
+        Put(m, 7, 0, SlotKind.Char,   "UPARROW", "?", "↑");
+        // (7, 1) is blank on Fig 3.6 — no wired key. Real MZ-80A LEFT
+        // is Shift+CURSOR_RIGHT (7, 5). Empirically pressing this cell
+        // moved the cursor right, which is what a phantom scan or
+        // aliased RIGHT would look like; either way, no dedicated key.
+        Put(m, 7, 1, SlotKind.Unused,  "s7b1");
         Put(m, 7, 2, SlotKind.Char,   "RBRK",    "]", "}");        // shifted from (6,2) 2026-07-05, '}' 2026-07-08
         Put(m, 7, 3, SlotKind.Enter,  "CR");
         Put(m, 7, 4, SlotKind.Cursor, "CURSOR_UP");
