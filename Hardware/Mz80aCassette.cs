@@ -84,6 +84,31 @@ public sealed class Mz80aCassette
     }
 
     /// <summary>
+    /// Replicate SA-5510's post-LOAD workspace pointer updates so
+    /// DirectInject can stand in for a user-typed LOAD command.
+    /// Discovered empirically 2026-07-12 via pre/post-LOAD RAM diff on
+    /// cricket.mzf: LOAD's only load-bearing change is a 36-entry
+    /// pointer table at $4E4E-$4E95, where entry[i] holds
+    /// ProgramEnd + 2*i (entry 0 at $4E4E is VARTAB itself). Other
+    /// diff regions are cosmetic (command-echo buffer, line-input
+    /// state, Z80 stack scraps) and can be ignored.
+    /// </summary>
+    public void FixupBasicProgramPointers(ushort loadAddr, int dataLen)
+    {
+        int programEnd = loadAddr + dataLen;
+        // The $4E4E variable-slot table: 36 pointers stepping by 2,
+        // rooted at ProgramEnd (VARTAB). Discovered 2026-07-12 via
+        // pre/post-LOAD RAM diff.
+        for (int i = 0; i < 36; i++)
+        {
+            int addr = 0x4E4E + i * 2;
+            int val  = programEnd + i * 2;
+            Memory.Write((ushort)addr, (byte)(val & 0xFF));
+            Memory.Write((ushort)(addr + 1), (byte)((val >> 8) & 0xFF));
+        }
+    }
+
+    /// <summary>
     /// Traps SA-1510's tape read entry points when a Pending image is
     /// queued. Injects header / data into RAM, synthesises a
     /// successful RET (CY=0), then advances state so a follow-up call

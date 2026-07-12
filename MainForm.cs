@@ -570,6 +570,14 @@ public sealed class MainForm : Form
     private int _bootFrames;
     private bool _monitorReady;
     private int _basicLoadedFrame = -1;
+    // MZ-80A cassette autorun (BASIC .mzf loaded at startup): typed
+    // LOAD via the auto-typer once BASIC is Ready, then wait for the
+    // cassette trap to deliver the body, settle for a moment while
+    // BASIC re-tokenises, then type RUN. Same net UX as MZ-700's
+    // AutoLoadCassette path.
+    private bool _mz80aLoadTyped;
+    private int _mz80aLoadDoneFrame = -1;
+    private bool _mz80aRunTyped;
 
     /// <summary>
     /// Detect "monitor finished booting" by spotting the "MONITOR 1Z*"
@@ -598,6 +606,189 @@ public sealed class MainForm : Form
             _monitorReady = true;
         }
         return _monitorReady;
+    }
+
+    /// <summary>
+    /// Detect SA-5510's "Ready" prompt landing in VRAM. Scans the whole
+    /// text area for the display-code sequence R($12) e($85) a($81)
+    /// d($84) y($99) — uppercase R + lowercase-bank e/a/d/y (MZ-80A
+    /// lowercase display codes = uppercase + $80). Used as the "safe
+    /// to start typing" gate for cassette autorun on MZ-80A; the
+    /// 60-frame heuristic that works for MZ-700 fires too early here
+    /// because SA-5510's cold init takes ~3.3s.
+    /// </summary>
+    private bool Mz80aBasicReady()
+    {
+        if (_mz80a == null) return false;
+        var v = _mz80a.Mem.Vram;
+        for (int i = 0; i < 996; i++)
+        {
+            if (v[i]     == 0x12 && v[i + 1] == 0x85 &&
+                v[i + 2] == 0x81 && v[i + 3] == 0x84 &&
+                v[i + 4] == 0x99)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Phase D pointer-hunt diagnostic (2026-07-12): dumps a report of
+    /// candidate SA-5510 TXTTAB / VARTAB pointer positions to a text
+    /// file next to MZRaku.exe. The $4E4E variable-slot table was
+    /// pinned via this — see Mz80aCassette.FixupBasicProgramPointers.
+    /// Other post-LOAD state SA-5510 needs for RUN resisted synthesis
+    /// (Error 16 on GOSUB); kept dormant for future iteration on the
+    /// invisible-LOAD path. Wire in from Timer_Tick when needed.
+    /// </summary>
+    private void DumpMz80aBasicPointerCandidates(Hardware.Cassette.MzfImage img, byte[] preLoadRam)
+    {
+        if (_mz80a == null) return;
+        var ram = _mz80a.Mem.Ram;
+        int loadAddr = img.LoadAddr;
+        int endAddr  = loadAddr + img.Data.Length;
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("SA-5510 BASIC pointer-hunt diagnostic");
+        sb.AppendLine($"Image: {img.Filename}");
+        sb.AppendLine($"Type=${img.Type:X2}  LoadAddr=${loadAddr:X4}  ExecAddr=${img.ExecAddr:X4}  DataLen={img.Data.Length}");
+        sb.AppendLine($"ProgramEnd = LoadAddr+DataLen = ${endAddr:X4}");
+        sb.AppendLine();
+
+        // Scan the whole 64 KiB RAM backing (though only $1000-$CFFF is
+        // real user RAM). Report every LE 16-bit pair equal to any of
+        // the target values, plus a few pointers into the program body.
+        var targets = new (string label, int value)[]
+        {
+            ("LoadAddr           (TXTTAB?)  ", loadAddr),
+            ("LoadAddr+1         (TXTTAB+1?)", loadAddr + 1),
+            ("ProgramEnd         (VARTAB?)  ", endAddr),
+            ("ProgramEnd+1       (VARTAB?)  ", endAddr + 1),
+            ("ProgramEnd+2       (ARRTAB?)  ", endAddr + 2),
+            ("ProgramEnd+3       (STREND?)  ", endAddr + 3),
+        };
+        foreach (var t in targets)
+        {
+            byte lo = (byte)(t.value & 0xFF);
+            byte hi = (byte)((t.value >> 8) & 0xFF);
+            sb.AppendLine($"Scan for ${t.value:X4} ({t.label}):");
+            int hits = 0;
+            for (int a = 0x1000; a < 0xF000; a++)
+            {
+                if (ram[a] == lo && ram[a + 1] == hi)
+                {
+                    sb.AppendLine($"  ${a:X4}");
+                    hits++;
+                    if (hits >= 32) { sb.AppendLine("  …(cutoff at 32 hits)"); break; }
+                }
+            }
+            if (hits == 0) sb.AppendLine("  (no hits)");
+            sb.AppendLine();
+        }
+
+        // Hex dump the first few bytes at LoadAddr — sanity check that
+        // the program body actually landed where the header claimed.
+        sb.AppendLine($"RAM[${loadAddr:X4}..${loadAddr + 31:X4}]:");
+        sb.Append("  ");
+        for (int i = 0; i < 32; i++)
+            sb.Append($"{ram[loadAddr + i]:X2} ");
+        sb.AppendLine();
+        sb.AppendLine();
+
+        // Hex dump the region right after the program end — that's
+        // where a "0 0 0" empty-array marker typically follows the
+        // program-text terminator on Sharp BASICs.
+        sb.AppendLine($"RAM[${endAddr:X4}..${endAddr + 31:X4}]:");
+        sb.Append("  ");
+        for (int i = 0; i < 32; i++)
+            sb.Append($"{ram[endAddr + i]:X2} ");
+        sb.AppendLine();
+        sb.AppendLine();
+
+        // Also scan for LoadAddr-1: some Sharp BASICs (following MSBASIC)
+        // store TXTTAB as start-of-text-minus-one so the link-follow
+        // loop can pre-increment.
+        int loadMinus1 = loadAddr - 1;
+        {
+            byte lo = (byte)(loadMinus1 & 0xFF);
+            byte hi = (byte)((loadMinus1 >> 8) & 0xFF);
+            sb.AppendLine($"Scan for ${loadMinus1:X4} (LoadAddr-1, TXTTAB MSBASIC-style):");
+            int hits = 0;
+            for (int a = 0x1000; a < 0xF000; a++)
+            {
+                if (ram[a] == lo && ram[a + 1] == hi)
+                {
+                    sb.AppendLine($"  ${a:X4}");
+                    hits++;
+                    if (hits >= 32) { sb.AppendLine("  …(cutoff at 32 hits)"); break; }
+                }
+            }
+            if (hits == 0) sb.AppendLine("  (no hits)");
+            sb.AppendLine();
+        }
+
+        // Focused hex dumps: the VARTAB cluster at ~$4E4E, and the
+        // suspicious LoadAddr low-RAM cluster ~$1AC0-$1B30. TXTTAB
+        // almost certainly sits in one of these regions.
+        void DumpRange(int start, int end)
+        {
+            sb.AppendLine($"RAM[${start:X4}..${end:X4}]:");
+            for (int a = start; a <= end; a += 16)
+            {
+                sb.Append($"  ${a:X4}: ");
+                for (int j = 0; j < 16 && a + j <= end; j++)
+                    sb.Append($"{ram[a + j]:X2} ");
+                sb.AppendLine();
+            }
+            sb.AppendLine();
+        }
+        DumpRange(0x4E40, 0x4E7F);
+        DumpRange(0x1AC0, 0x1B3F);
+        DumpRange(0x18A0, 0x18DF);
+
+        // The killer diff: bytes that changed between pre-LOAD and
+        // post-LOAD, EXCLUDING the program body (LoadAddr..ProgramEnd-1)
+        // and the header buffer at $10F0-$113F (Cassette trap injection).
+        // What remains is BASIC's own post-LOAD bookkeeping — this is
+        // exactly the set of writes DirectInject needs to replicate.
+        {
+            sb.AppendLine("Diff: RAM bytes changed by LOAD (excluding program body + header buffer):");
+            var changed = new List<int>();
+            for (int a = 0x1000; a < 0xF000; a++)
+            {
+                bool inBody = a >= loadAddr && a < endAddr;
+                bool inHeader = a >= 0x10F0 && a < 0x1170;
+                if (inBody || inHeader) continue;
+                if (preLoadRam[a] != ram[a]) changed.Add(a);
+            }
+            sb.AppendLine($"  {changed.Count} address(es) changed");
+            // Cluster consecutive changes for readability.
+            int idx = 0;
+            while (idx < changed.Count && idx < 512)
+            {
+                int start = changed[idx];
+                int end = start;
+                while (idx + 1 < changed.Count && changed[idx + 1] == end + 1)
+                {
+                    idx++;
+                    end = changed[idx];
+                }
+                idx++;
+                sb.Append($"  ${start:X4}-${end:X4}: ");
+                for (int a = start; a <= end; a++)
+                {
+                    sb.Append($"{preLoadRam[a]:X2}→{ram[a]:X2} ");
+                }
+                sb.AppendLine();
+            }
+            if (idx < changed.Count) sb.AppendLine($"  …(cutoff at 512 clusters)");
+        }
+
+        var path = System.IO.Path.Combine(AppContext.BaseDirectory,
+            "mz80a_basic_pointers.txt");
+        System.IO.File.WriteAllText(path, sb.ToString());
+        _statusLabel.Text = $"Pointer report → {path}";
     }
 
     private bool MonitorReady()
@@ -657,8 +848,15 @@ public sealed class MainForm : Form
                 if (_pendingCassette != null)
                 {
                     bool viaBasic = _basicLoadedFrame >= 0;
+                    // Cassette-via-BASIC needs SA-5510's "Ready" prompt
+                    // to be on screen — the keyboard input path only
+                    // starts polling after BASIC finishes its ~3.3s
+                    // cold init. Using a fixed frame count here (like
+                    // the MZ-700 path's 60-frame wait) fires too early
+                    // and BASIC eats the LOAD keystrokes into a buffer
+                    // it isn't reading yet.
                     bool ready = viaBasic
-                        ? _bootFrames - _basicLoadedFrame >= 60
+                        ? Mz80aBasicReady()
                         : Mz80aMonitorReady();
                     if (ready)
                     {
@@ -681,9 +879,21 @@ public sealed class MainForm : Form
                                 || img.Type == 0x05;
                             if (isBasicType)
                             {
+                                // Queue the image so SA-5510's LOAD hits
+                                // the SA-1510 traps, then auto-type LOAD
+                                // and (once the trap has fired + BASIC
+                                // has settled) RUN. Same shape as the
+                                // MZ-700 autorun path. Attempted a
+                                // DirectInject + pointer-fixup shortcut
+                                // 2026-07-12 to make LOAD invisible; the
+                                // $4E4E variable table was pinned but
+                                // other state SA-5510's RUN depends on
+                                // (Error 16 on GOSUB) resisted synthesis.
+                                // Kept as a future item.
                                 _mz80a.Cassette.Queue(img);
-                                _statusLabel.Text =
-                                    $"Queued {img.Filename} — in BASIC type LOAD, then RUN.";
+                                _mz80a.Keyboard.TypeString("LOAD\r");
+                                _mz80aLoadTyped = true;
+                                _statusLabel.Text = $"Loading {img.Filename}…";
                             }
                             else
                             {
@@ -697,6 +907,24 @@ public sealed class MainForm : Form
                             _statusLabel.Text = "Cassette load failed: " + ex.Message;
                         }
                         _pendingCassette = null;
+                    }
+                }
+                // Cassette-autorun sequencing: LOAD was typed above; once
+                // the RDDAT trap has fired (DataDelivered latches true),
+                // wait 90 frames for BASIC to re-tokenise the loaded
+                // program then auto-type RUN. 90 frames ≈ 1.5s is
+                // conservative — trap injection is instantaneous, so the
+                // window is BASIC's post-load bookkeeping.
+                if (_mz80aLoadTyped && !_mz80aRunTyped)
+                {
+                    if (_mz80aLoadDoneFrame < 0 && _mz80a.Cassette.DataDelivered)
+                        _mz80aLoadDoneFrame = _bootFrames;
+                    if (_mz80aLoadDoneFrame >= 0 &&
+                        _bootFrames - _mz80aLoadDoneFrame >= 60)
+                    {
+                        _mz80a.Keyboard.TypeString("RUN\r");
+                        _mz80aRunTyped = true;
+                        _statusLabel.Text = "Running.";
                     }
                 }
             }
@@ -1258,6 +1486,13 @@ public sealed class MainForm : Form
         _bootFrames = 0;
         _monitorReady = false;
         _basicLoadedFrame = -1;
+        // MZ-80A cassette autorun flags — must reset so a second
+        // BASIC cassette load (drag/drop or menu after the first)
+        // gets its LOAD-then-RUN sequence, rather than reading the
+        // previous run's "already ran" state.
+        _mz80aLoadTyped = false;
+        _mz80aLoadDoneFrame = -1;
+        _mz80aRunTyped = false;
         _statusLabel.Text = "Reset.";
     }
 

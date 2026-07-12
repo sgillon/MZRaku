@@ -204,7 +204,8 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
 
     /// <summary>
     /// Called once per host frame by MZ80A.RunFrame. Progresses staged
-    /// shifted-key-bit assertions (SHIFT-then-key ordering guarantee).
+    /// shifted-key-bit assertions (SHIFT-then-key ordering guarantee)
+    /// and the auto-typer state machine.
     /// </summary>
     public void TickFrame()
     {
@@ -220,6 +221,119 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
             if (_holds.ContainsKey(s.Vk))
                 SetMatrix(s.Strobe, s.Bit, true);
             _stagedKeyBits.RemoveAt(i);
+        }
+        TickAutoType();
+    }
+
+    // ---- Auto-typer -----------------------------------------------------
+    // Time-based (no scan-detection) — simpler than the MZ-700's queue
+    // and adequate for LOAD/RUN sequencing during BASIC cassette load.
+    // Each queued press is applied for HoldFrames, released for
+    // ReleaseFrames, then the machine returns to Idle (Enter gets a
+    // longer cooldown so BASIC has time to parse a line).
+    //
+    // Shifted presses set SHIFT first, wait ShiftStageFrames for a ROM
+    // scan to observe it, THEN drop the key bit — same race window as
+    // live typing's staged-key-bit pattern.
+    private readonly Queue<Mz80aCharMap.Press> _typeQueue = new();
+    private enum AutoPhase { Idle, ShiftStage, Hold, Release, EnterCooldown }
+    private AutoPhase _autoPhase;
+    private int _autoPhaseFramesLeft;
+    private Mz80aCharMap.Press? _autoCurrent;
+
+    private const int AutoShiftStageFrames = 2;
+    private const int AutoHoldFrames = 4;
+    private const int AutoReleaseFrames = 3;
+    private const int AutoEnterCooldownFrames = 20;
+
+    /// <summary>
+    /// Enqueue a string for auto-typing. Non-CharMap chars are silently
+    /// skipped. '\r' / '\n' become the SA-5510 Enter key
+    /// (SpecialKeyMap[Enter] → strobe 7, bit 3).
+    /// </summary>
+    public void TypeString(string s)
+    {
+        foreach (char ch in s) TypeChar(ch);
+    }
+
+    public void TypeChar(char ch)
+    {
+        if (ch == '\r' || ch == '\n')
+        {
+            var enter = Mz80aSpecialKeyMap.Map[Keys.Enter];
+            _typeQueue.Enqueue(new Mz80aCharMap.Press(enter.Strobe, enter.Bit, false));
+            return;
+        }
+        // Fold uppercase letters to their lowercase char-map entry so
+        // the MZ prints them uppercase. Under the authentic MZ-80A
+        // convention encoded in Mz80aCharMap, unshifted-key = UPPERCASE
+        // glyph, so PC 'l' maps to (slot, MzShift=false) → MZ prints
+        // 'L'. TypeString("LOAD\r") therefore needs the letters to go
+        // through the lowercase char-map entries. Callers pass strings
+        // in their natural uppercase form (BASIC keywords) — this fold
+        // does the translation once, centrally.
+        if (ch >= 'A' && ch <= 'Z') ch = (char)(ch + 32);
+        if (Mz80aCharMap.TryLookup(ch, out var p))
+            _typeQueue.Enqueue(p);
+    }
+
+    public bool AutoTypeIdle => _autoPhase == AutoPhase.Idle && _typeQueue.Count == 0;
+
+    private void TickAutoType()
+    {
+        switch (_autoPhase)
+        {
+            case AutoPhase.Idle:
+                if (_typeQueue.Count == 0) return;
+                _autoCurrent = _typeQueue.Dequeue();
+                var p = _autoCurrent.Value;
+                if (p.MzShift)
+                {
+                    SetMatrix(0, 0, true);
+                    _autoPhase = AutoPhase.ShiftStage;
+                    _autoPhaseFramesLeft = AutoShiftStageFrames;
+                }
+                else
+                {
+                    SetMatrix(p.Strobe, p.Bit, true);
+                    _autoPhase = AutoPhase.Hold;
+                    _autoPhaseFramesLeft = AutoHoldFrames;
+                }
+                break;
+
+            case AutoPhase.ShiftStage:
+                if (--_autoPhaseFramesLeft <= 0)
+                {
+                    var ps = _autoCurrent!.Value;
+                    SetMatrix(ps.Strobe, ps.Bit, true);
+                    _autoPhase = AutoPhase.Hold;
+                    _autoPhaseFramesLeft = AutoHoldFrames;
+                }
+                break;
+
+            case AutoPhase.Hold:
+                if (--_autoPhaseFramesLeft <= 0)
+                {
+                    var ph = _autoCurrent!.Value;
+                    SetMatrix(ph.Strobe, ph.Bit, false);
+                    if (ph.MzShift) SetMatrix(0, 0, false);
+                    // Enter uses SpecialKeyMap coords (strobe 7, bit 3);
+                    // any other press advances via the short release
+                    // window. Enter needs BASIC's line-tokenise pause.
+                    bool isEnter = ph.Strobe == 7 && ph.Bit == 3;
+                    _autoPhase = isEnter ? AutoPhase.EnterCooldown : AutoPhase.Release;
+                    _autoPhaseFramesLeft = isEnter ? AutoEnterCooldownFrames : AutoReleaseFrames;
+                }
+                break;
+
+            case AutoPhase.Release:
+            case AutoPhase.EnterCooldown:
+                if (--_autoPhaseFramesLeft <= 0)
+                {
+                    _autoCurrent = null;
+                    _autoPhase = AutoPhase.Idle;
+                }
+                break;
         }
     }
 
