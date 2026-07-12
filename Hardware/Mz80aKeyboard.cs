@@ -4,44 +4,56 @@ using System.Windows.Forms;
 namespace MZRaku.Hardware;
 
 /// <summary>
-/// Sharp MZ-80A keyboard matrix. Same 10-row × 8-column active-low
-/// shape as MZ-700, but different key placements per Fig 3.6 in the
-/// Owner's Manual (printed p.167). This class is deliberately much
-/// leaner than the MZ-700's <see cref="Keyboard"/> — Phase 3 aims
-/// for physical PC-key → MZ-80A matrix scans, not the rich
-/// CharMap/SpecialKeyMap/auto-typer stack. Adding those on top is
-/// straightforward once the machine boots to a prompt and there's
-/// something to type into.
+/// Sharp MZ-80A keyboard matrix. Same 10-strobe × 8-bit active-low
+/// shape as MZ-700, populated from Fig 3.6 in the Owner's Manual
+/// (printed p.167) via <see cref="Mz80aMatrixReference"/>.
+///
+/// PHASE A ARCHITECTURE (2026-07-12): two-layer input mirroring the
+/// MZ-700 stack.
+///   1. SpecialKeyMap (non-printables — arrows, INST/DEL, HOME,
+///      BREAK/CTRL, GRPH, Enter) is consulted in
+///      <see cref="OnKeyDown"/> and asserts directly.
+///   2. Character keys defer from OnKeyDown to
+///      <see cref="OnKeyPress"/>, which looks the resolved char up in
+///      <see cref="Mz80aCharMap"/> and asserts strobe/bit + explicit
+///      MZ-shift. This routes chars by the GLYPH the OS produced, so
+///      UK PC layouts and PC muscle memory both work without per-user
+///      VK mapping.
+///
+/// Shifted MZ chars are staged: SHIFT is applied on strobe 0 immediately,
+/// but the key bit itself is held back for a couple of host frames so a
+/// ROM scan captures the shift observation first — same race window as
+/// the MZ-700's LiveShiftStageFrames pattern.
 /// </summary>
 public sealed class Mz80aKeyboard : IKeyboardMatrix
 {
     private readonly byte[] _rows = new byte[10];
 
-    // Live PC-key → (strobe, bit) holds. Lets OnKeyUp release exactly
-    // the matrix bits its OnKeyDown asserted.
-    private readonly Dictionary<Keys, (int strobe, int bit)> _holds = new();
+    private record struct ActiveHold(int Strobe, int Bit, bool? ExplicitMzShift);
+    private readonly Dictionary<Keys, ActiveHold> _holds = new();
 
-    // Staged key releases — when PC KeyUp fires, we don't release the
-    // matrix bit immediately. Instead we schedule it to release after
-    // MinHoldFrames frames from the KeyDown. This ensures the ROM's
-    // keyboard scan (which runs several times per host frame at 2 MHz)
-    // sees the pressed state on at least one full scan pass, even
-    // when SendKeys / rapid typing fires KeyDown+KeyUp within a single
-    // 60Hz host frame. Same pattern MZ-700 uses (staged shift bits) but
-    // applied uniformly since MZ-80A has no character-driven typing
-    // path yet.
-    private record struct StagedRelease(Keys Vk, int Strobe, int Bit, int FramesLeft);
-    private readonly List<StagedRelease> _pendingReleases = new();
-    private const int MinHoldFrames = 4;
+    // PC VK whose KeyDown fired but hasn't yet been paired with its
+    // KeyPress char. Cleared on OnKeyPress or on OnKeyUp of the same VK.
+    private Keys _pendingDownVk;
+
+    // Latest observed PC-shift state. When a hold has no explicit
+    // MzShift requirement, EffectiveMzShift falls back to this so
+    // SpecialKeyMap presses respect PC shift naturally.
+    private bool _pcShift;
+
+    private record struct StagedPress(Keys Vk, int Strobe, int Bit, int FramesLeft);
+    private readonly List<StagedPress> _stagedKeyBits = new();
+    private const int LiveShiftStageFrames = 2;
 
     /// <summary>
-    /// If true, inverts the SHIFT-bit assertion for letter keys only
-    /// so PC users get PC-style casing (Shift+A → uppercase A, plain
-    /// a → lowercase a). Set from Settings.Mz80aInvertLetterShift.
-    /// Digits and punctuation ignore this flag — their shifted
-    /// variants (! # $ etc.) still work via Shift regardless.
+    /// Legacy setting retained for INI compatibility. With the char-map
+    /// layer active, letter case is encoded per-char (PC 'a' and 'A'
+    /// both land on the uppercase slot by default), so this flag no
+    /// longer changes runtime behaviour. Users wanting PC-style casing
+    /// can add per-char overrides. Kept as a public property so old
+    /// settings.ini files load without complaint.
     /// </summary>
-    public bool InvertLetterShift { get; set; } = true;
+    public bool InvertLetterShift { get; set; } = false;
 
     public Mz80aKeyboard()
     {
@@ -69,166 +81,150 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
     {
         for (int i = 0; i < 10; i++) _rows[i] = 0xFF;
         _holds.Clear();
+        _stagedKeyBits.Clear();
+        _pendingDownVk = Keys.None;
     }
 
     /// <summary>
     /// Called from MainForm.OnKeyDown. Returns true if the key was
-    /// consumed (should not be passed on to WinForms).
+    /// consumed (should not be passed on to WinForms). Non-printables
+    /// (SpecialKeyMap) return true and assert directly; character keys
+    /// return false and wait for OnKeyPress to pair them with a char.
     /// </summary>
     public bool OnKeyDown(Keys keyData)
     {
         var key = keyData & Keys.KeyCode;
-        // Map the modifier flags into their own matrix bits. Shift and
-        // Ctrl aren't ordinary characters but they matter for shifted
-        // glyphs / BREAK detection, so we assert them alongside the
-        // "real" key.
-        UpdateModifiers(keyData, key);
-        var pos = MapKey(key);
-        if (pos == null) return false;
-        SetMatrix(pos.Value.strobe, pos.Value.bit, true);
-        _holds[key] = pos.Value;
-        return true;
+        _pcShift = (keyData & Keys.Shift) != 0;
+        SetMatrix(0, 7, (keyData & Keys.Control) != 0);
+
+        if (_holds.ContainsKey(key)) { ApplyShiftState(); return true; }
+
+        // SHIFT alone: don't touch strobe 0 yet — the next press's
+        // char-map entry may want to override it. Deferring lets
+        // EffectiveMzShift resolve at press-time. Mirrors the MZ-700
+        // shift-race fix.
+        if (IsShiftKey(key)) return false;
+
+        if (Mz80aSpecialKeyMap.Map.TryGetValue(key, out var sp))
+        {
+            _holds[key] = new ActiveHold(sp.Strobe, sp.Bit, sp.ExplicitMzShift);
+            ApplyShiftState();
+            if (sp.ExplicitMzShift == true)
+            {
+                // Same staged-key-bit pattern as CharMap shifted presses
+                // — assert SHIFT now via ApplyShiftState above, let the
+                // ROM scan pick it up, THEN drop the key bit.
+                _stagedKeyBits.Add(new StagedPress(key, sp.Strobe, sp.Bit, LiveShiftStageFrames));
+            }
+            else
+            {
+                SetMatrix(sp.Strobe, sp.Bit, true);
+            }
+            return true;
+        }
+
+        // Defer to OnKeyPress for char-driven mapping.
+        _pendingDownVk = key;
+        return false;
+    }
+
+    /// <summary>
+    /// Paired with the preceding OnKeyDown. Looks up the resolved char
+    /// in <see cref="Mz80aCharMap"/> and asserts the corresponding
+    /// matrix slot with the explicit MZ-shift the char-map dictates.
+    /// If the char isn't in the map, the press is silently dropped —
+    /// preferable to mis-translating it.
+    /// </summary>
+    public void OnKeyPress(char ch)
+    {
+        if (_pendingDownVk == Keys.None) return;
+        var vk = _pendingDownVk;
+        _pendingDownVk = Keys.None;
+
+        if (!Mz80aCharMap.TryLookup(ch, out var p)) return;
+
+        _holds[vk] = new ActiveHold(p.Strobe, p.Bit, ExplicitMzShift: p.MzShift);
+        ApplyShiftState();
+
+        if (p.MzShift)
+        {
+            // Stage the key bit: SHIFT is on strobe 0 already, let a
+            // ROM scan catch it, THEN drop the key bit. Without this,
+            // a scan that reads the key bit and strobe 0 in the same
+            // tick can cache pre-shift state and mis-classify the
+            // press as unshifted.
+            _stagedKeyBits.Add(new StagedPress(vk, p.Strobe, p.Bit, LiveShiftStageFrames));
+        }
+        else
+        {
+            SetMatrix(p.Strobe, p.Bit, true);
+        }
     }
 
     public bool OnKeyUp(Keys keyData)
     {
         var key = keyData & Keys.KeyCode;
-        UpdateModifiers(keyData, key);
-        if (_holds.TryGetValue(key, out var pos))
+        _pcShift = (keyData & Keys.Shift) != 0;
+        if ((keyData & Keys.Control) == 0) SetMatrix(0, 7, false);
+        if (_pendingDownVk == key) _pendingDownVk = Keys.None;
+
+        bool handled = false;
+        if (_holds.TryGetValue(key, out var h))
         {
-            // Stage the release rather than fire immediately — the
-            // ROM's scan needs to observe the pressed state on at
-            // least one full pass. TickFrame() completes the release
-            // once the countdown expires.
-            _pendingReleases.Add(new StagedRelease(key, pos.strobe, pos.bit, MinHoldFrames));
+            // Release the key bit IMMEDIATELY. Staging the release used
+            // to be defensive against SendKeys collapsing KeyDown+KeyUp
+            // into one host frame, but combined with the ApplyShiftState
+            // fallback below it opened a race: with shift still held, the
+            // hold's ExplicitMzShift=false has been removed from the
+            // dictionary but its slot bit is still asserted, so
+            // EffectiveMzShift falls back to _pcShift=true and the ROM
+            // catches an asserted slot bit while shift flips on — reading
+            // the just-released letter as shifted (lowercase). Same
+            // release pattern as MZ-700.
+            SetMatrix(h.Strobe, h.Bit, false);
             _holds.Remove(key);
-            return true;
+            handled = true;
         }
-        return false;
+        // If a staged press was still waiting, drop it — the OS never
+        // saw the key bit, so there's nothing to release.
+        _stagedKeyBits.RemoveAll(p => p.Vk == key);
+        ApplyShiftState();
+        return handled;
     }
 
     /// <summary>
-    /// Called once per host frame by MZ80A.RunFrame. Advances staged
-    /// releases and drops matrix bits whose countdown has expired.
+    /// Called once per host frame by MZ80A.RunFrame. Progresses staged
+    /// shifted-key-bit assertions (SHIFT-then-key ordering guarantee).
     /// </summary>
     public void TickFrame()
     {
-        for (int i = _pendingReleases.Count - 1; i >= 0; i--)
+        for (int i = _stagedKeyBits.Count - 1; i >= 0; i--)
         {
-            var r = _pendingReleases[i];
-            r.FramesLeft--;
-            if (r.FramesLeft <= 0)
+            var s = _stagedKeyBits[i];
+            int left = s.FramesLeft - 1;
+            if (left > 0)
             {
-                SetMatrix(r.Strobe, r.Bit, false);
-                _pendingReleases.RemoveAt(i);
+                _stagedKeyBits[i] = s with { FramesLeft = left };
+                continue;
             }
-            else
-            {
-                _pendingReleases[i] = r;
-            }
+            if (_holds.ContainsKey(s.Vk))
+                SetMatrix(s.Strobe, s.Bit, true);
+            _stagedKeyBits.RemoveAt(i);
         }
     }
 
-    private void UpdateModifiers(Keys keyData, Keys currentKey)
+    private void ApplyShiftState() => SetMatrix(0, 0, EffectiveMzShift());
+
+    private bool EffectiveMzShift()
     {
-        // SHIFT is strobe 0 D0 on MZ-80A (Fig 3.6). MZ-80A's letter
-        // convention is unshifted=uppercase / shifted=lowercase, which
-        // is the opposite of PC. When InvertLetterShift is on AND the
-        // key currently being pressed is a plain A-Z letter, we flip
-        // the SHIFT assertion so PC muscle memory works. Digits and
-        // punctuation aren't inverted — their shifted variants are
-        // needed as-is for '!', '#', '$', etc.
-        bool pcShift = (keyData & Keys.Shift) != 0;
-        bool invert = InvertLetterShift && IsLetter(currentKey);
-        SetMatrix(0, 0, pcShift ^ invert);
-        // CTRL is strobe 0 D7 on MZ-80A — same key as BREAK, which is
-        // shifted-CTRL. Phase 3 wires plain Ctrl only; BREAK detection
-        // (checking shift+ctrl combo) can layer on top.
-        bool pcCtrl = (keyData & Keys.Control) != 0;
-        SetMatrix(0, 7, pcCtrl);
+        // Any hold with an explicit MzShift wins. Multiple holds with
+        // conflicting explicit shifts is a pathological case (chord)
+        // — first-encountered wins, which is fine in practice.
+        foreach (var h in _holds.Values)
+            if (h.ExplicitMzShift.HasValue) return h.ExplicitMzShift.Value;
+        return _pcShift;
     }
 
-    private static bool IsLetter(Keys k) => k >= Keys.A && k <= Keys.Z;
-
-    /// <summary>
-    /// Reverse index built once from <see cref="Mz80aMatrixReference"/>:
-    /// PC virtual key → (strobe, bit). The reference is the single
-    /// source of truth for slot placement; MapKey defers to it via
-    /// this lookup so drift between the map and the reference is
-    /// impossible.
-    /// </summary>
-    private static readonly Dictionary<Keys, (int strobe, int bit)> _pcKeyToSlot = BuildPcKeyMap();
-
-    private static Dictionary<Keys, (int, int)> BuildPcKeyMap()
-    {
-        var m = new Dictionary<Keys, (int, int)>();
-        foreach (var kv in Mz80aMatrixReference.All)
-        {
-            var slot = kv.Value;
-            var vk = PcKeyForSlot(slot);
-            if (vk != Keys.None) m[vk] = (slot.Strobe, slot.Bit);
-        }
-        return m;
-    }
-
-    /// <summary>
-    /// PC virtual-key that "should" produce the character sitting at
-    /// this slot. Match is by <see cref="Mz80aMatrixReference.Slot.Id"/>
-    /// — the canonical slot label. Unknown / Unused slots return
-    /// Keys.None so the PC key list stays minimal.
-    /// </summary>
-    private static Keys PcKeyForSlot(Mz80aMatrixReference.Slot s) => s.Id switch
-    {
-        // Letters — direct A..Z map.
-        "A" => Keys.A, "B" => Keys.B, "C" => Keys.C, "D" => Keys.D,
-        "E" => Keys.E, "F" => Keys.F, "G" => Keys.G, "H" => Keys.H,
-        "I" => Keys.I, "J" => Keys.J, "K" => Keys.K, "L" => Keys.L,
-        "M" => Keys.M, "N" => Keys.N, "O" => Keys.O, "P" => Keys.P,
-        "Q" => Keys.Q, "R" => Keys.R, "S" => Keys.S, "T" => Keys.T,
-        "U" => Keys.U, "V" => Keys.V, "W" => Keys.W, "X" => Keys.X,
-        "Y" => Keys.Y, "Z" => Keys.Z,
-
-        // Number row — D0..D9.
-        "D0" => Keys.D0, "D1" => Keys.D1, "D2" => Keys.D2, "D3" => Keys.D3,
-        "D4" => Keys.D4, "D5" => Keys.D5, "D6" => Keys.D6, "D7" => Keys.D7,
-        "D8" => Keys.D8, "D9" => Keys.D9,
-
-        // Punctuation / edit / control.
-        "SPACE"        => Keys.Space,
-        "CR"           => Keys.Enter,
-        "COMMA"        => Keys.Oemcomma,
-        "DOT"          => Keys.OemPeriod,
-        "MINUS"        => Keys.OemMinus,         // PC '-' key
-        "SLASH"        => Keys.OemQuestion,      // PC '/' key (US layout — UK may differ)
-        "SEMI"         => Keys.OemSemicolon,
-        "COLON"        => Keys.Oemplus,          // ':' shares key with '*'
-        "LBRK"         => Keys.OemOpenBrackets,
-        "RBRK"         => Keys.OemCloseBrackets,
-        "AT"           => Keys.Oem3,             // UK layout '@' on Shift+'
-        "PIPE"         => Keys.OemPipe,
-        "CARET"        => Keys.Oem6,             // '^' on UK layout
-        "INST_DEL"     => Keys.Delete,           // BACK also aliased below
-        "BREAK_CTRL"   => Keys.Escape,
-        "CLR_HOME"     => Keys.Home,
-        "CURSOR_UP"    => Keys.Up,
-        "CURSOR_RIGHT" => Keys.Right,
-        "LEFT"         => Keys.Left,             // ← printable / cursor-left
-        "UPARROW"      => Keys.PageUp,           // best-effort placeholder
-
-        // Numeric-pad handled via NumPadN aliases would be cleaner —
-        // for now they collide with the main-row digits so leave them
-        // unmapped rather than double-binding.
-        _ => Keys.None,
-    };
-
-    /// <summary>
-    /// PC virtual-key → (strobe, bit) lookup. Backspace mirrors Delete
-    /// to the INST/DEL slot since both are edit-erase on PC.
-    /// </summary>
-    private static (int strobe, int bit)? MapKey(Keys k)
-    {
-        if (k == Keys.Back && _pcKeyToSlot.TryGetValue(Keys.Delete, out var d))
-            return d;
-        return _pcKeyToSlot.TryGetValue(k, out var pos) ? pos : null;
-    }
+    private static bool IsShiftKey(Keys k) =>
+        k == Keys.ShiftKey || k == Keys.LShiftKey || k == Keys.RShiftKey;
 }

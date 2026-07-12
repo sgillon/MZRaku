@@ -115,14 +115,16 @@ public sealed class MainForm : Form
         var joystickForInput = _machine?.Joystick ?? new Hardware.Joystick();
         _joystickInput = new Hardware.JoystickInput(joystickForInput);
         _joystickInput.SetButtonIndices(_settings.JoyButton1Index, _settings.JoyButton2Index);
-        // Keyboard-override wiring is MZ-700-specific for now; the
-        // MZ-80A keyboard model lands in Phase 3 and hooks its own
-        // overrides at that point.
+        // Keyboard-override wiring. MZ-700 uses KeyOverrides + CharMap;
+        // MZ-80A uses Mz80aCharMap (Phase A, 2026-07-12). Physical
+        // KeyOverride equivalent for MZ-80A is not yet wired — landed
+        // as part of Phase C polish.
         if (_machine != null)
         {
             _machine!.Keyboard.Overrides = _settings.KeyOverrides;
             CharMap.Overrides = _settings.CharMapOverrides;
         }
+        Mz80aCharMap.Overrides = _settings.Mz80aCharMapOverrides;
 
         Text = "MZRaku";
         Icon = LoadEmbeddedIcon();
@@ -1006,9 +1008,13 @@ public sealed class MainForm : Form
 
     private void OnKeyPress(object? s, KeyPressEventArgs e)
     {
-        // MZ-80A doesn't consume the char path — it maps physical keys
-        // only. Just early-return so we don't NRE.
-        if (_mz80a != null) return;
+        // MZ-80A: char-driven path added Phase A (2026-07-12). OnKeyDown
+        // routes non-printables directly and defers character keys here.
+        if (_mz80a != null)
+        {
+            _mz80a.Keyboard.OnKeyPress(e.KeyChar);
+            return;
+        }
         if (_machine == null) return;
         _machine!.Keyboard.OnKeyPress(e.KeyChar);
     }

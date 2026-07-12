@@ -108,6 +108,11 @@ public sealed class Settings
     // Anything in here is consulted FIRST by CharMap.TryLookup.
     public CharMapOverrides CharMapOverrides { get; } = new();
 
+    // MZ-80A char-map overrides. Persisted to [CharMap.MZ80A] in
+    // settings.ini. Consulted FIRST by Mz80aCharMap.TryLookup; defaults
+    // sit under it and come from Mz80aMatrixReference.
+    public Mz80aCharMapOverrides Mz80aCharMapOverrides { get; } = new();
+
     // Persisted main / debugger / memory-viewer state. Values of
     // (0,0,0,0) mean "no saved geometry — fall back to the host's
     // default positioning on first open." For [MainWindow] only X/Y
@@ -174,6 +179,10 @@ public sealed class Settings
                 {
                     foreach (var kv in cm) s.CharMapOverrides.TryParseLine(kv.Key, kv.Value);
                 }
+                if (ini.TryGetValue("CharMap.MZ80A", out var cm80a))
+                {
+                    foreach (var kv in cm80a) s.Mz80aCharMapOverrides.TryParseLine(kv.Key, kv.Value);
+                }
                 s.MainWindow = ReadWindowState(ini, "MainWindow");
                 s.DebuggerWindow = ReadWindowState(ini, "DebuggerWindow");
                 s.MemoryViewerWindow = ReadWindowState(ini, "MemoryViewerWindow");
@@ -194,6 +203,7 @@ public sealed class Settings
                 if (!ini.ContainsKey("Joystick")) missingSection = true;
                 if (!ini.ContainsKey("KeyOverrides")) missingSection = true;
                 if (!ini.ContainsKey("CharMap")) missingSection = true;
+                if (!ini.ContainsKey("CharMap.MZ80A")) missingSection = true;
                 if (!ini.ContainsKey("MainWindow")) missingSection = true;
                 if (!ini.ContainsKey("DebuggerWindow")) missingSection = true;
                 if (!ini.ContainsKey("MemoryViewerWindow")) missingSection = true;
@@ -332,6 +342,18 @@ public sealed class Settings
             sb.AppendLine(";   <glyph>          Free-text comment showing the literal character,");
             sb.AppendLine(";                    purely for hand-editing readability.");
             foreach (var line in CharMapOverrides.SerialiseLines()) sb.AppendLine(line);
+            sb.AppendLine();
+
+            sb.AppendLine("[CharMap.MZ80A]");
+            sb.AppendLine("; MZ-80A char-map overrides. Same format as [CharMap] above but");
+            sb.AppendLine("; coordinates are MZ-80A matrix strobe (0-9) + bit (0-7), per");
+            sb.AppendLine("; Fig 3.6 of the Owner's Manual. Consulted FIRST by");
+            sb.AppendLine("; Mz80aCharMap.TryLookup; defaults sit under it and are derived");
+            sb.AppendLine("; from Mz80aMatrixReference.");
+            sb.AppendLine(";   <hex-codepoint>=<strobe>,<bit>,<shift>   ; <glyph>");
+            sb.AppendLine("; Or to suppress a built-in default:");
+            sb.AppendLine(";   <hex-codepoint>=-                        ; <glyph> (suppressed)");
+            foreach (var line in Mz80aCharMapOverrides.SerialiseLines()) sb.AppendLine(line);
             sb.AppendLine();
 
             sb.AppendLine("[MainWindow]");
