@@ -56,6 +56,18 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
     /// </summary>
     public bool InvertLetterShift { get; set; } = false;
 
+    /// <summary>
+    /// Tracks whether the MZ-80A is in GRPH mode (true) or ALPHA
+    /// (false, default). Toggled on every F11 key-down, which is
+    /// what SA-1510 / SA-5510 use as the GRPH key. Read by the
+    /// status-bar mode indicator. Note: this is an F11-driven local
+    /// approximation — programs that switch mode via other means
+    /// (BASIC MODE command, direct video-mode writes) won't update
+    /// this flag. Good enough for the user-facing F11 workflow;
+    /// improve later if a program-driven case surfaces.
+    /// </summary>
+    public bool GraphMode { get; private set; }
+
     public Mz80aKeyboard()
     {
         for (int i = 0; i < 10; i++) _rows[i] = 0xFF;
@@ -84,6 +96,7 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
         _holds.Clear();
         _stagedKeyBits.Clear();
         _pendingDownVk = Keys.None;
+        GraphMode = false;
     }
 
     /// <summary>
@@ -121,6 +134,9 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
             {
                 SetMatrix(sp.Strobe, sp.Bit, true);
             }
+            // F11 = GRPH toggle. Track local state so the status bar
+            // can reflect ALPHA vs GRAPH.
+            if (key == Keys.F11) GraphMode = !GraphMode;
             return true;
         }
 

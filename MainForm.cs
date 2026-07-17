@@ -22,8 +22,27 @@ public sealed class MainForm : Form
     private readonly Hardware.JoystickInput _joystickInput;
     private readonly System.Windows.Forms.Timer _timer = new();
     private readonly StatusStrip _status = new();
-    private readonly ToolStripStatusLabel _statusLabel = new();
-    private readonly ToolStripStatusLabel _joyStatus = new() { Spring = false };
+    // Left pane: persistent machine identity (MZ-700 / MZ-80A). Fixed
+    // width so its position stays put across status changes.
+    private readonly ToolStripStatusLabel _machineLabel = new()
+    {
+        Spring = false,
+        AutoSize = false,
+        Width = 72,
+        TextAlign = ContentAlignment.MiddleCenter,
+        BorderSides = ToolStripStatusLabelBorderSides.Right,
+        BorderStyle = Border3DStyle.Etched,
+    };
+    // Middle pane: transient status messages. Springs to fill the
+    // remaining strip width; centered so the message doesn't jump
+    // horizontally as it changes length.
+    private readonly ToolStripStatusLabel _statusLabel = new()
+    {
+        Spring = true,
+        TextAlign = ContentAlignment.MiddleCenter,
+    };
+    // Right pane: ALPHA/GRAPH mode indicator. Fixed width; classic
+    // sunken separator on the left so it reads as a distinct pane.
     private readonly ToolStripStatusLabel _modeLabel = new()
     {
         Spring = false,
@@ -31,7 +50,18 @@ public sealed class MainForm : Form
         AutoSize = false,
         Width = 56,
         TextAlign = ContentAlignment.MiddleCenter,
+        BorderSides = ToolStripStatusLabelBorderSides.Left,
+        BorderStyle = Border3DStyle.Etched,
     };
+    // Frame at which _statusLabel last received a non-empty message.
+    // The message auto-clears after StatusIdleFrames so the middle
+    // pane stays empty when nothing's happening. Populated via the
+    // _statusLabel.TextChanged hook, so every direct
+    // `_statusLabel.Text = "…"` assignment sitewide participates
+    // without needing a helper wrapper.
+    private int _statusLastSetFrame = -1;
+    private const int StatusIdleFrames = 300;   // ~5 s at 60 Hz
+    private string MachineLabel => _mz80a != null ? "MZ-80A" : "MZ-700";
     private readonly PictureBox _display = new();
     private readonly Settings _settings = Settings.Load();
     private readonly ToolStripMenuItem[] _scaleMenuItems = new ToolStripMenuItem[3];
@@ -159,16 +189,13 @@ public sealed class MainForm : Form
         // form (which has KeyPreview = true).
         _display.TabStop = false;
 
-        _statusLabel.Spring = true;
-        // ToolStripStatusLabel defaults to MiddleCenter; status messages
-        // should sit consistently at the left edge so they're predictable
-        // to read and don't jump as text length changes.
-        _statusLabel.TextAlign = ContentAlignment.MiddleLeft;
+        // Three-pane layout: machine identity (left, fixed) | transient
+        // status (middle, spring, centered) | mode indicator (right,
+        // fixed). Order matters — leftmost item first.
+        _machineLabel.Text = MachineLabel;
+        _status.Items.Add(_machineLabel);
         _status.Items.Add(_statusLabel);
-        _status.Items.Add(_joyStatus);
         _status.Items.Add(_modeLabel);
-        _statusLabel.Text = "Ready.";
-        _joyStatus.Text = "Joy: --";
 
         // SAVE-tape trap surfaces save outcomes via this event. Fires on
         // the UI thread (OnPreStep is called from Timer_Tick → RunFrame),
@@ -176,6 +203,17 @@ public sealed class MainForm : Form
         // Phase 1 — MZ-80A cassette lands in Phase 4.
         if (_machine != null)
             _machine!.Cassette.OnSaved += msg => _statusLabel.Text = msg;
+
+        // Every direct assignment to _statusLabel.Text starts the
+        // idle-clear timer, so every call site sitewide participates
+        // without needing a helper wrapper. Empty-string assignments
+        // (our own idle revert) mark the tracker as -1 to stop
+        // retriggering.
+        _statusLabel.TextChanged += (_, _) =>
+        {
+            _statusLastSetFrame =
+                string.IsNullOrEmpty(_statusLabel.Text) ? -1 : _bootFrames;
+        };
         // Docking order matters: the Fill control must be added LAST so the
         // menu (top) and status strip (bottom) claim their space first.
         Controls.Add(_status);
@@ -634,6 +672,53 @@ public sealed class MainForm : Form
     }
 
     /// <summary>
+    /// Updates the right-hand mode indicator. <paramref name="graph"/>
+    /// null → grey "—" (mode unknowable / not-yet-meaningful), false
+    /// → normal "ALPHA", true → highlighted "GRAPH". Cheap enough to
+    /// call every 10 frames from either machine's tick block.
+    /// </summary>
+    private void UpdateModeLabel(bool? graph)
+    {
+        if (graph is null)
+        {
+            if (_modeLabel.Text != "—")
+            {
+                _modeLabel.Text = "—";
+                _modeLabel.ForeColor = SystemColors.GrayText;
+                _modeLabel.BackColor = SystemColors.Control;
+            }
+            return;
+        }
+        if (graph.Value && _modeLabel.Text != "GRAPH")
+        {
+            _modeLabel.Text = "GRAPH";
+            _modeLabel.ForeColor = Color.White;
+            _modeLabel.BackColor = Color.MediumVioletRed;
+        }
+        else if (!graph.Value && _modeLabel.Text != "ALPHA")
+        {
+            _modeLabel.Text = "ALPHA";
+            _modeLabel.ForeColor = SystemColors.ControlText;
+            _modeLabel.BackColor = SystemColors.Control;
+        }
+    }
+
+    /// <summary>
+    /// Called every frame — if the status label has held a transient
+    /// message for longer than <see cref="StatusIdleFrames"/>, clear
+    /// it. The machine identity lives in its own left pane, so the
+    /// middle pane just goes empty rather than reverting. Populated
+    /// by the TextChanged hook on _statusLabel, so every direct
+    /// assignment sitewide participates.
+    /// </summary>
+    private void RevertStatusIfIdle()
+    {
+        if (_statusLastSetFrame < 0) return;
+        if (_bootFrames - _statusLastSetFrame < StatusIdleFrames) return;
+        _statusLabel.Text = "";   // TextChanged resets _statusLastSetFrame
+    }
+
+    /// <summary>
     /// Phase D pointer-hunt diagnostic (2026-07-12): dumps a report of
     /// candidate SA-5510 TXTTAB / VARTAB pointer positions to a text
     /// file next to MZRaku.exe. The $4E4E variable-slot table was
@@ -814,6 +899,7 @@ public sealed class MainForm : Form
         _bootFrames++;
         _debugger?.RefreshIfVisible();
         _memViewer?.RefreshIfVisible();
+        RevertStatusIfIdle();
 
         // MZ-80A path: skip the MZ-700-flavoured joystick indicator,
         // trace log, and dump path. BASIC / cassette autoload now
@@ -927,59 +1013,36 @@ public sealed class MainForm : Form
                         _statusLabel.Text = "Running.";
                     }
                 }
+                // MZ-80A mode indicator. Tracked locally via F11 press
+                // events in Mz80aKeyboard.GraphMode — see the note there
+                // about program-driven mode changes not being caught.
+                if (_bootFrames % 10 == 0)
+                    UpdateModeLabel(_mz80a.Keyboard.GraphMode);
             }
             return;
         }
         _hidDiag?.RefreshIfVisible();
         _soundDiag?.RefreshIfVisible();
 
-        // Refresh joystick indicator every ~10 frames (~6 Hz) — enough
-        // to confirm at a glance whether XInput is seeing a controller.
+        // MZ-700 mode-label update. S-BASIC's keyboard mode flag lives
+        // at $0060 bit 4 (set = GRAPH, clear = ALPHA), discovered
+        // empirically via the memory-viewer snapshot/diff tool
+        // 2026-05-31. Only meaningful while S-BASIC owns the machine
+        // (ROM banked out so $0060 is RAM); before BASIC is loaded,
+        // $0060 reads from ROM and the indicator would be misleading,
+        // so we grey it out. Also surfaces the Font Sheet on
+        // ALPHA→GRAPH — GRAPH mode is unusable without the palette
+        // since graphic glyphs aren't reachable from any PC key.
         if (_bootFrames % 10 == 0)
         {
-            var s0 = _machine!.Joystick.Sticks[0];
-            var s1 = _machine!.Joystick.Sticks[1];
-            string Fmt(Hardware.Joystick.StickState s, int n) =>
-                s.Active
-                    ? $"{n}[X{s.AxisX:D3} Y{s.AxisY:D3}{(s.Sw1 ? " A" : "")}{(s.Sw2 ? " B" : "")}]"
-                    : $"{n}-";
-            _joyStatus.Text = $"Joy: {Fmt(s0, 1)} {Fmt(s1, 2)}";
-
-            // S-BASIC's keyboard mode flag, discovered empirically via the
-            // memory-viewer snapshot/diff tool 2026-05-31: bit 4 of $0060
-            // set = GRAPH mode, cleared = ALPHA. Only meaningful while
-            // S-BASIC owns the machine (ROM banked out so $0060 is RAM);
-            // before BASIC is loaded, $0060 reads from ROM and the
-            // indicator would be misleading, so we grey it out with "—".
             if (_basicLoadedFrame < 0)
             {
-                if (_modeLabel.Text != "—")
-                {
-                    _modeLabel.Text = "—";
-                    _modeLabel.ForeColor = SystemColors.GrayText;
-                    _modeLabel.BackColor = SystemColors.Control;
-                }
+                UpdateModeLabel(null);
             }
             else
             {
                 bool graph = (_machine!.Mem.Read(0x0060) & 0x10) != 0;
-                if (graph && _modeLabel.Text != "GRAPH")
-                {
-                    _modeLabel.Text = "GRAPH";
-                    _modeLabel.ForeColor = Color.White;
-                    _modeLabel.BackColor = Color.MediumVioletRed;
-                }
-                else if (!graph && _modeLabel.Text != "ALPHA")
-                {
-                    _modeLabel.Text = "ALPHA";
-                    _modeLabel.ForeColor = SystemColors.ControlText;
-                    _modeLabel.BackColor = SystemColors.Control;
-                }
-                // ALPHA→GRAPH transition: surface the Font Sheet, since
-                // graphic glyphs aren't reachable from any PC key. Opens
-                // every transition (if not already visible) — GRAPH mode
-                // is effectively unusable without the palette, so always
-                // putting it in front is the right default.
+                UpdateModeLabel(graph);
                 if (graph && !_wasGraphMode &&
                     (_fontSheet == null || _fontSheet.IsDisposed || !_fontSheet.Visible))
                 {
