@@ -106,24 +106,74 @@ public sealed class SettingsForm : Form
 
         var buttonRow = BuildButtonRow();
 
+        // MZ-80A notice banner. The MZ-80A got most of its settings
+        // wired straight into settings.ini during Phase A/B/C rather
+        // than through the dialog (char-map overrides, green-screen
+        // toggle, InvertLetterShift). Flag that up top so users
+        // know where to look. Retired once the settings-dialog-upgrade
+        // sweep covers MZ-80A properly ([[project-settings-dialog-upgrade]]).
+        Control? mz80aNotice = _settings.Type == MachineType.MZ80A
+            ? BuildMz80aNotice() : null;
+
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 2,
+            RowCount = mz80aNotice != null ? 3 : 2,
             Padding = new Padding(6),
         };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
-        root.Controls.Add(tabs, 0, 0);
-        root.Controls.Add(buttonRow, 0, 1);
+        if (mz80aNotice != null)
+        {
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
+            root.Controls.Add(mz80aNotice, 0, 0);
+            root.Controls.Add(tabs, 0, 1);
+            root.Controls.Add(buttonRow, 0, 2);
+        }
+        else
+        {
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
+            root.Controls.Add(tabs, 0, 0);
+            root.Controls.Add(buttonRow, 0, 1);
+        }
         Controls.Add(root);
 
         LoadFromSettings();
         WireValidation();
 
         _baseline = SettingsSnapshot.Capture(_settings);
+    }
+
+    // -- Notice banner --------------------------------------------------
+
+    private static Control BuildMz80aNotice()
+    {
+        var panel = new Panel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            BackColor = Color.FromArgb(0xFF, 0xF6, 0xD9),   // soft amber
+            Padding = new Padding(10, 8, 10, 8),
+            Margin = new Padding(0, 0, 0, 6),
+            BorderStyle = BorderStyle.FixedSingle,
+        };
+        panel.Controls.Add(new Label
+        {
+            Text = "MZ-80A notice: this dialog covers a subset of MZ-80A "
+                 + "settings. Char-map overrides, key overrides, green-"
+                 + "screen tint and InvertLetterShift live in settings.ini "
+                 + "for now — see the inline comments in that file. "
+                 + "Full GUI coverage is planned for a later release.",
+            AutoSize = true,
+            MaximumSize = new Size(680, 0),
+            ForeColor = Color.FromArgb(0x60, 0x40, 0x00),
+            Dock = DockStyle.Fill,
+        });
+        return panel;
     }
 
     // -- Tab construction -----------------------------------------------
