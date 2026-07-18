@@ -15,7 +15,7 @@
          dialog reads AssemblyInformationalVersion at runtime, so bumping
          this string here is enough; no code change needed at release.
          Use the in-progress version (the one the next git tag will be). -->
-    <Version>1.0.0</Version>
+    <Version>1.0.1-preview.1</Version>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
