@@ -493,6 +493,87 @@ out to be a symptom of a broader pipeline gap, not the actual bug.
   framework-dependent) and `-standalone.zip` (~63 MB, self-contained,
   `EnableCompressionInSingleFile=true`).
 
+### 2026-07-05 to 2026-07-17 — MZ-80A polish (v1.0.1-preview)
+
+Follow-on to the [initial MZ-80A landing](#sharp-mz-80a-support-2026-07-04):
+fill in the mapping-quality gaps that surfaced under real use, get
+sound audible, and add the small UX cues that make the machine feel
+maintained rather than proof-of-concept.
+
+- **Audio input clock fix — Bug 2** (`cbd248b`, 2026-07-05). MZ-80A's
+  PIT counter 1 input was set to 31.5 kHz (best-guess from Phase 5);
+  the actual clock is 2 MHz (the CPU clock). Notes came out at
+  ~1/64 the expected pitch, audible as a low rumble. Fix pinpointed
+  against a MUSIC-tempo reference. Coincidentally reused MZ-700's
+  `Sound.InputClockHz` field via configuration, so no code shape
+  changed.
+- **Canonical MZ-80A matrix reference** (`f6ec627`, 2026-07-05) —
+  `Mz80aMatrixReference.cs` and reference-driven `MapKey` on
+  `Mz80aKeyboard`. Same shape as MZ-700's `Mz700MatrixReference`;
+  same startup-validator pattern to catch drifts. Followed
+  immediately by user-driven audit passes (`1125145`, `33c6cae`,
+  `a9f2b5d`, `4c9e825`) fixing D1/D2 row strobes, swapping MINUS ↔
+  SLASH slots, and pinning down shifted-glyph positions across the
+  punctuation row.
+- **MUSIC audibility — Bug 2b** (`de08e40`, 2026-07-07). SA-5510's
+  MUSIC command opens and closes the `$E008 D0` hard gate within a
+  single frame per note, so the sample loop saw only the *steady*
+  level and produced silence. `Sound.HardGate` grew a "brief pulse
+  observed" latch: any transient rising edge within a frame keeps
+  sound audible for that frame even if the current level is `0`.
+  MZ-700's dual-gate path is unaffected — the pulse-catch layer only
+  fires on a rising edge without a stable window. Pitch is
+  octave-up vs EmuZ-80A — separate deferred item, out of
+  v1.0.1-preview scope.
+- **MZ-80A char-map + special-key layer — Phase A/B/C** (`79cff39`,
+  `afc9370`, `aba74b5`, 2026-07-11 to 2026-07-12). Phase A introduced
+  `Mz80aCharMap` and `Mz80aSpecialKeyMap` alongside the existing
+  `Mz80aKeyboard` shim, so glyph resolution runs through the same
+  three-layer stack (Override → SpecialKey → CharMap) as MZ-700.
+  Phase B was a joint keyboard-cap-vs-glyph audit with the user
+  against Owner's Manual Fig 3.6 — 40+ slot corrections in one pass,
+  covering every shifted-glyph on the letter and punctuation rows.
+  Phase C wired `Mz80aMatrixReference.Validate()` into
+  `MatrixValidation.RunAll` so any future drift surfaces as a
+  boot-time MessageBox.
+- **InvertLetterShift honoured under char-map** (`623a004`,
+  2026-07-12). The Phase A char-map cutover shadowed the earlier
+  `Mz80aInvertLetterShift` toggle. Restored via char-map: default
+  `false` = authentic MZ-80A (unshifted → UPPER, shifted → lower);
+  `true` = PC-familiar (Shift for uppercase). Digits and punctuation
+  stay authentic in either mode.
+- **Green-phosphor screen tint** (`c021868`, 2026-07-12). View →
+  MZ-80A Green Screen toggles the monochrome renderer between white
+  and pure `#00FF00`. Reference-matched against MS Paint's colour
+  picker on the user's reference screenshot. Persists to `[Display]
+  Mz80aGreenScreen=`.
+- **MZ-80A cassette autoload — typed LOAD + RUN** (`0de5195`,
+  2026-07-12). BASIC cassettes on MZ-80A auto-type `LOAD` at the
+  SA-5510 `Ready` prompt, wait for the cassette read to complete,
+  then auto-type `RUN` — matching the MZ-700 workflow. Implemented
+  as a state-machine typer with per-char cooldowns (Idle → ShiftStage
+  → Hold → Release → EnterCooldown) fed by a `Mz80aBasicReady()`
+  VRAM sniffer that scans for the `Ready` glyph sequence at row 10.
+  Drop-handler reset on `.mzf` drag-drop clears the typed-flag
+  latches. An "invisible LOAD" direct-inject path was scaffolded but
+  tripped on SA-5510's post-load state synthesis (Error 16 on
+  `GOSUB` in cricket, `R` dropped on COLDITZ) — parked as dormant
+  follow-up in favour of the pragmatic typed flow.
+- **Status-bar tidy + MZ-80A ALPHA/GRAPH indicator** (`be8ce2f`,
+  2026-07-17). Three-pane layout: left = machine identity (MZ-700 /
+  MZ-80A), centre = transient status message with a ~5s auto-clear,
+  right = ALPHA/GRAPH mode chip. `Mz80aKeyboard.GraphMode` toggles
+  on F11 (SA-1510's GRPH key). JOY chip removed — HID Diagnostic
+  already covers joystick state better than a status-bar summary
+  could. Every `_statusLabel.Text = "…"` assignment sitewide
+  auto-registers via a TextChanged hook; no call site churn.
+- **Settings dialog: MZ-80A partial-coverage notice** (`41c707e`,
+  2026-07-17). Soft-amber banner atop the Settings tabs when
+  `[Machine] Type=MZ80A`, explaining that char-map / key overrides
+  / green-screen / InvertLetterShift live in `settings.ini` for
+  now with a pointer to the file's inline comments. Retires when
+  the future settings-dialog sweep covers MZ-80A UI properly.
+
 ---
 
 ## Architectural decisions worth knowing

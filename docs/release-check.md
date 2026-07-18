@@ -193,10 +193,16 @@ a release, update the checklist before fixing the bug.
 - [ ] Tab order is ROMs / Display / Keyboard / Joystick.
 - [ ] Changing Display Scale and clicking Apply takes effect without
       restart.
-- [ ] `settings.ini` after first run contains `[Display]`, `[Roms]`,
-      `[Joystick]`, `[KeyOverrides]`, `[CharMap]`, `[Window]`,
-      `[Debugger]`, `[MemoryViewer]`, and `[Breakpoints]` sections —
+- [ ] `settings.ini` after first run contains `[Display]`, `[Roms.MZ700]`,
+      `[Roms.MZ80A]`, `[Joystick]`, `[KeyOverrides.MZ700]`,
+      `[KeyOverrides.MZ80A]`, `[CharMap]`, `[Window]`, `[Debugger]`,
+      `[MemoryViewer]`, `[Breakpoints]`, and `[Machine]` sections —
       each with its own inline self-documenting comment.
+- [ ] Launch with `--mz80a` and open Settings → any tab: a soft-amber
+      notice banner is visible above the tabs, explaining that the
+      MZ-80A dialog is partial-coverage and pointing at
+      `settings.ini` for char-map / key overrides / green-screen /
+      InvertLetterShift. Banner is not shown when running MZ-700.
 
 ## Help
 
@@ -236,17 +242,41 @@ a release, update the checklist before fixing the bug.
 
 ## MZ-80A regression canaries
 
-- [ ] `MZRaku.exe --mz80a --basic` boots to the `Ready` prompt.
-      Type `PRINT 1.5` + Enter (may need to Shift for uppercase —
-      known keyboard polish item). Result: `1.5` on the next line
-      (regression canary for the Z80 indexed INC/DEC bug — same as
-      MZ-700's).
-- [ ] `MZRaku.exe --mz80a NEW-INVADERS-80A.mzf` boots the game.
-      Title screen with `SCORE :00000  HI-SCORE :` line, invader
-      sprite grid, and ship formation visible.
-- [ ] `MZRaku.exe --mz80a cricket.mzf` (BASIC game) — currently
-      loads via DirectInject but needs the L-command / auto-type
-      path to fully RUN. Verify no crash on load.
+- [ ] `MZRaku.exe --mz80a` boots the SA-1510 monitor: black screen,
+      `** MONITOR SA-1510 **` on the top row, cursor blinking at the
+      prompt.
+- [ ] `MZRaku.exe --mz80a --basic` boots to the SA-5510 `Ready`
+      prompt. Type `PRINT 1.5` + Enter — result: `1.5` on the next
+      line (Z80 indexed INC/DEC regression canary, same as MZ-700's).
+- [ ] `MZRaku.exe --mz80a cricket.mzf` — BASIC cassette autoloads
+      via typed `LOAD` at the `Ready` prompt, waits for the cassette
+      read to complete, then types `RUN`. Game reaches its title /
+      first playable state without operator intervention.
+- [ ] `MZRaku.exe --mz80a WORLD-CUP-80A.mzf` — same typed-LOAD +
+      auto-RUN path as cricket. Game reaches its title screen.
+- [ ] Drag-drop `cricket.mzf` onto a running `--mz80a` window — the
+      typed-LOAD + auto-RUN flow fires the same way as the CLI path
+      (regression check for the drop-handler reset — before the fix,
+      drop-loading typed `LOAD` but not `RUN`).
+- [ ] `MZRaku.exe --mz80a NEW-INVADERS-80A.mzf` boots the game
+      (machine code, DirectInject path — no autoload typing). Title
+      screen with `SCORE :00000  HI-SCORE :` line, invader sprite
+      grid, and ship formation visible.
+- [ ] At the SA-5510 `Ready` prompt, `MUSIC "CDEFGAB"` + Enter plays
+      seven discrete notes (regression canary for the Bug 2b
+      brief-pulse latch fix). Pitch is currently octave-up vs
+      EmuZ-80A — known limitation, do not block on it, but do
+      regression-check that discrete notes still play.
+- [ ] `View → MZ-80A Green Screen` toggles the monochrome renderer
+      between white and pure `#00FF00`. Toggle persists across
+      restart (written to `[Display] Mz80aGreenScreen=`).
+- [ ] Status bar three-pane layout: left pane shows `MZ-80A`;
+      centre pane displays transient status messages (auto-clear
+      ~5s after last change); right pane shows `ALPHA` at boot.
+      Press F11 → right pane switches to `GRAPH`; press F11 again →
+      back to `ALPHA`. On MZ-700, the same layout shows `MZ-700` in
+      the left pane and the ALPHA/GRAPH indicator continues to work
+      as before via `$0060` mode-flag polling.
 
 ## Release packaging
 
