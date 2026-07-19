@@ -41,6 +41,22 @@ public sealed class MainForm : Form
         Spring = true,
         TextAlign = ContentAlignment.MiddleCenter,
     };
+    // Right pane, LEFT of the mode indicator: TAPE activity chip.
+    // Idle (no cassette queued) → greyed; Steady (queued, awaiting
+    // trap) → pale yellow; Flash (trap fired within the last
+    // TapeFlashFrames frames) → white on orange. Updated per frame
+    // from Timer_Tick via UpdateTapeLabel.
+    private readonly ToolStripStatusLabel _tapeLabel = new()
+    {
+        Spring = false,
+        Text = "TAPE",
+        AutoSize = false,
+        Width = 56,
+        TextAlign = ContentAlignment.MiddleCenter,
+        BorderSides = ToolStripStatusLabelBorderSides.Left,
+        BorderStyle = Border3DStyle.Etched,
+        ForeColor = SystemColors.GrayText,
+    };
     // Right pane: ALPHA/GRAPH mode indicator. Fixed width; classic
     // sunken separator on the left so it reads as a distinct pane.
     private readonly ToolStripStatusLabel _modeLabel = new()
@@ -90,6 +106,7 @@ public sealed class MainForm : Form
     private ToolStripMenuItem? _fullScreenMenuItem;
     private ToolStripMenuItem? _scanlinesMenuItem;
     private ToolStripMenuItem? _mz80aGreenMenuItem;
+    private ToolStripMenuItem? _pauseMenuItem;
     private readonly bool _startFullScreen;
     // Captures the pre-override scanlines value when --scanlines was
     // passed on the CLI. The natural-close FormClosing handler restores
@@ -158,7 +175,7 @@ public sealed class MainForm : Form
         }
         Mz80aCharMap.Overrides = _settings.Mz80aCharMapOverrides;
 
-        Text = "MZRaku";
+        Text = TitleBase;
         Icon = LoadEmbeddedIcon();
         KeyPreview = true;
         AllowDrop = true;
@@ -189,12 +206,14 @@ public sealed class MainForm : Form
         // form (which has KeyPreview = true).
         _display.TabStop = false;
 
-        // Three-pane layout: machine identity (left, fixed) | transient
-        // status (middle, spring, centered) | mode indicator (right,
-        // fixed). Order matters — leftmost item first.
+        // Four-pane layout: machine identity (left, fixed) | transient
+        // status (middle, spring, centered) | TAPE activity chip |
+        // ALPHA/GRAPH mode indicator (right, fixed). Order matters —
+        // leftmost item first.
         _machineLabel.Text = MachineLabel;
         _status.Items.Add(_machineLabel);
         _status.Items.Add(_statusLabel);
+        _status.Items.Add(_tapeLabel);
         _status.Items.Add(_modeLabel);
 
         // SAVE-tape trap surfaces save outcomes via this event. Fires on
@@ -382,6 +401,19 @@ public sealed class MainForm : Form
         menu.Items.Add(view);
 
         var debug = new ToolStripMenuItem("&Debug");
+        // Pause / resume: global shortcut for the same Active.Pause /
+        // Active.Resume toggle the Debugger's pause button drives.
+        // Pause and Scroll Lock are both caught in ProcessCmdKey (menu
+        // ShortcutKeys can't take a bare non-modifier key); bind both
+        // so keyboards without a physical Pause key (e.g. Logitech
+        // MX Keys) can still reach it.
+        _pauseMenuItem = new ToolStripMenuItem("&Pause emulator", null, (_, _) => TogglePause())
+        {
+            ShortcutKeyDisplayString = "Pause / ScrLk",
+            Checked = Active.Paused,
+        };
+        debug.DropDownItems.Add(_pauseMenuItem);
+        debug.DropDownItems.Add(new ToolStripSeparator());
         debug.DropDownItems.Add(new ToolStripMenuItem("&Debugger…", null, (_, _) => OpenDebugger()) { ShortcutKeys = Keys.Control | Keys.D });
         debug.DropDownItems.Add(new ToolStripMenuItem("&Memory Viewer…", null, (_, _) => OpenMemoryViewer()) { ShortcutKeys = Keys.Control | Keys.M });
         debug.DropDownItems.Add(new ToolStripMenuItem("&HID Diagnostic…", null, (_, _) => OpenHidDiag()) { ShortcutKeys = Keys.Control | Keys.H });
@@ -499,7 +531,28 @@ public sealed class MainForm : Form
             Close();
             return true;
         }
+        // Pause / Scroll Lock: global pause toggle. Both bound because
+        // some modern keyboards (Logitech MX Keys, most laptops) drop
+        // one or the other. Caught here rather than via OnKeyDown so
+        // the input doesn't pass through the MZ matrix layer — though
+        // neither key is currently mapped to any MZ slot anyway.
+        if (keyData == Keys.Pause || keyData == Keys.Scroll)
+        {
+            TogglePause();
+            return true;
+        }
         return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    /// <summary>
+    /// Flip Active.Paused. Menu check mark, title-bar suffix, and
+    /// display dim overlay all follow via RefreshPauseIndicator on
+    /// the next frame.
+    /// </summary>
+    private void TogglePause()
+    {
+        if (Active.Paused) Active.Resume();
+        else Active.Pause();
     }
 
     private void ApplyDisplayScale(int scale, bool persist = true)
@@ -606,6 +659,12 @@ public sealed class MainForm : Form
     }
 
     private int _bootFrames;
+    // Tracks the last observed Active.Paused so Timer_Tick can react
+    // only on transitions — title-bar suffix + display overlay flip
+    // together, without either dependency having to know about the
+    // other. See RefreshPauseIndicator.
+    private bool _wasPaused;
+    private const string TitleBase = "MZRaku";
     private bool _monitorReady;
     private int _basicLoadedFrame = -1;
     // MZ-80A cassette autorun (BASIC .mzf loaded at startup): typed
@@ -669,6 +728,102 @@ public sealed class MainForm : Form
             }
         }
         return false;
+    }
+
+    // TAPE chip state tracking. Snapshots of the cassette's trap-hit
+    // counters between frames so a fresh hit (delta) can extend the
+    // flash window; _tapeFlashEndFrame is the deadline in _bootFrames
+    // terms after which the chip decays back to Steady (if a cassette
+    // is still queued) or Idle.
+    private int _tapeFlashEndFrame = -1;
+    private int _tapeLastHeaderHits;
+    private int _tapeLastDataHits;
+    private int _tapeLastWriteHits;
+    private TapeState _tapeState = TapeState.Idle;
+    private const int TapeFlashFrames = 15;   // ~250 ms at 60 Hz
+    private enum TapeState { Idle, Steady, Flash }
+
+    /// <summary>
+    /// Poll the active machine's cassette state and update the TAPE chip.
+    /// Idle = no pending image; Steady = pending queued, awaiting trap;
+    /// Flash = trap fired within the last TapeFlashFrames frames.
+    /// Cheap enough to call every frame from Timer_Tick.
+    /// </summary>
+    private void UpdateTapeLabel()
+    {
+        bool pending;
+        int headerHits, dataHits, writeHits;
+        if (_machine != null)
+        {
+            pending = _machine.Cassette.Pending != null;
+            headerHits = _machine.Cassette.HeaderTrapHits;
+            dataHits   = _machine.Cassette.DataTrapHits;
+            writeHits  = _machine.Cassette.WriteTapeTrapHits;
+        }
+        else if (_mz80a != null)
+        {
+            pending = _mz80a.Cassette.Pending != null;
+            headerHits = _mz80a.Cassette.HeaderTrapHits;
+            dataHits   = _mz80a.Cassette.DataTrapHits;
+            writeHits  = 0;   // SA-1510 SAVE traps not wired yet
+        }
+        else return;
+
+        // Any fresh trap hit extends the flash window. Also handles the
+        // MZ-700 SAVE path (WriteTapeTrapHits) even though it has no
+        // Pending image.
+        if (headerHits != _tapeLastHeaderHits ||
+            dataHits   != _tapeLastDataHits   ||
+            writeHits  != _tapeLastWriteHits)
+        {
+            _tapeFlashEndFrame  = _bootFrames + TapeFlashFrames;
+            _tapeLastHeaderHits = headerHits;
+            _tapeLastDataHits   = dataHits;
+            _tapeLastWriteHits  = writeHits;
+        }
+
+        TapeState want =
+            _bootFrames < _tapeFlashEndFrame ? TapeState.Flash :
+            pending                          ? TapeState.Steady :
+                                               TapeState.Idle;
+        if (want == _tapeState) return;
+        _tapeState = want;
+        switch (want)
+        {
+            case TapeState.Idle:
+                _tapeLabel.ForeColor = SystemColors.GrayText;
+                _tapeLabel.BackColor = SystemColors.Control;
+                break;
+            case TapeState.Steady:
+                _tapeLabel.ForeColor = SystemColors.ControlText;
+                _tapeLabel.BackColor = SystemColors.Info;
+                break;
+            case TapeState.Flash:
+                _tapeLabel.ForeColor = Color.White;
+                _tapeLabel.BackColor = Color.DarkOrange;
+                break;
+        }
+    }
+
+    /// <summary>
+    /// React to Active.Paused changes: title-bar suffix + display
+    /// invalidate so Display_Paint's overlay flips in sync. Runs every
+    /// frame; the transition guard keeps it cheap when the state's
+    /// steady.
+    /// </summary>
+    private void RefreshPauseIndicator()
+    {
+        bool paused = Active.Paused;
+        if (paused == _wasPaused) return;
+        _wasPaused = paused;
+        Text = paused ? TitleBase + " — PAUSED" : TitleBase;
+        if (_pauseMenuItem != null) _pauseMenuItem.Checked = paused;
+        // Silence the wave output on pause. Both machines share the same
+        // Sound class (Mz80a uses it too); the concrete field lives on
+        // MZ700 / MZ80A respectively, not on IMachine.
+        var sound = _machine?.Sound ?? _mz80a?.Sound;
+        if (sound != null) sound.Muted = paused;
+        _display.Invalidate();
     }
 
     /// <summary>
@@ -900,6 +1055,8 @@ public sealed class MainForm : Form
         _debugger?.RefreshIfVisible();
         _memViewer?.RefreshIfVisible();
         RevertStatusIfIdle();
+        UpdateTapeLabel();
+        RefreshPauseIndicator();
 
         // MZ-80A path: skip the MZ-700-flavoured joystick indicator,
         // trace log, and dump path. BASIC / cassette autoload now
@@ -1300,6 +1457,18 @@ public sealed class MainForm : Form
                 for (int row = step - 1; row < h; row += step)
                     e.Graphics.FillRectangle(dim, x, y + row, w, 1);
             }
+        }
+
+        // Pause overlay: dim wash over the whole video area so the
+        // frozen frame reads as "on pause" rather than "did the emulator
+        // crash?" Painted last so it dims the scanlines too. ~40 %
+        // opacity — dark enough to unambiguously signal pause, light
+        // enough that the underlying frame is still legible for
+        // debugging inspection.
+        if (Active.Paused)
+        {
+            using var pauseDim = new SolidBrush(Color.FromArgb(110, 0, 0, 0));
+            e.Graphics.FillRectangle(pauseDim, x, y, w, h);
         }
     }
 

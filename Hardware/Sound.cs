@@ -20,6 +20,27 @@ public sealed class Sound : IDisposable
     private WinmmWaveOut? _wave;
     private System.Threading.Thread? _thread;
     private volatile bool _running;
+    private volatile bool _muted;
+
+    /// <summary>
+    /// When true, FeedLoop stops submitting new PCM chunks and the
+    /// wave-out queue is flushed immediately on transition. Used by
+    /// MainForm to silence the currently-playing tone the instant the
+    /// emulator pauses — without it the ~100 ms of already-queued audio
+    /// keeps sounding for a beat after pause and any continuous tone
+    /// (SA-1510 boot beep, MUSIC held note) sustains indefinitely
+    /// because the PIT state doesn't advance to close its gate.
+    /// </summary>
+    public bool Muted
+    {
+        get => _muted;
+        set
+        {
+            if (_muted == value) return;
+            _muted = value;
+            if (value) _wave?.Reset();
+        }
+    }
 
     public double InputClockHz = 895000.0;
     // The MZ-700 has two independent gates between C0.OUT and the
@@ -72,6 +93,11 @@ public sealed class Sound : IDisposable
         {
             try
             {
+                if (_muted)
+                {
+                    System.Threading.Thread.Sleep(ChunkMs);
+                    continue;
+                }
                 int reload = _reload;
                 bool gate = Enabled && HardGate;
                 // Consume one chunk of the pulse-hold latch, so brief

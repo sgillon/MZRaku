@@ -47,6 +47,12 @@ public sealed class Mz80aCassette
     public bool HeaderDelivered;
     public bool DataDelivered;
 
+    // Counters tick each time OnPreStep injects header / body. Consumed
+    // by MainForm's TAPE activity chip to flash on trap-hit deltas; keep
+    // in step with Cassette.HeaderTrapHits / DataTrapHits on MZ-700.
+    public int HeaderTrapHits;
+    public int DataTrapHits;
+
     public event Action<string>? OnLoaded;
 
     public void Queue(Cassette.MzfImage img)
@@ -120,6 +126,7 @@ public sealed class Mz80aCassette
         ushort pc = Cpu.PC;
         if (pc == TrapRdInf && !HeaderDelivered)
         {
+            HeaderTrapHits++;
             for (int i = 0; i < HeaderSize; i++)
                 Memory.Write((ushort)(HeaderBufferAddr + i), Pending.Header[i]);
             HeaderDelivered = true;
@@ -128,6 +135,7 @@ public sealed class Mz80aCassette
         }
         if (pc == TrapRdDat && HeaderDelivered && !DataDelivered)
         {
+            DataTrapHits++;
             for (int i = 0; i < Pending.Data.Length; i++)
                 Memory.Write((ushort)(Pending.LoadAddr + i), Pending.Data[i]);
             DataDelivered = true;
