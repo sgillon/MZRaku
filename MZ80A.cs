@@ -82,12 +82,9 @@ public sealed class MZ80A : IMachine
 
         // Sound: MZ-80A has no soft gate (no MZ-700-style PC3 stage),
         // so Enabled is pinned. The hard gate at $E008 D0 is wired
-        // via Mz80aIoBus. Input clock is 2 MHz — per Owner's Manual
-        // §2.1.2 MSTA doc "frequency produced is 2 MHz/nn'", where
-        // nn' is the counter division factor. Same value as the CPU
-        // clock; both fed off the 8 MHz crystal / 4.
+        // via Mz80aIoBus. InputClockHz is set per-counter in RunFrame
+        // (C0 = 1 MHz effective, C1 = 2 MHz pending investigation).
         Sound.Enabled = true;
-        Sound.InputClockHz = 2_000_000.0;
         Io.Sound = Sound;
 
         // Timer interrupt from PIT counter 2. On MZ-80A, $E002 D2 is
@@ -186,12 +183,23 @@ public sealed class MZ80A : IMachine
         // rather than counter 0 — probably a period-1 mixing quirk on
         // real hardware. Prefer counter 0 when it's actively running;
         // fall back to counter 1 so those MC games still make sound.
+        //
+        // Per-counter input clock: service manual labels CLK0 as "2M"
+        // and CLK1 as "31.5k", but empirical MUSIC "A" gives reload
+        // 2274 which resolves to 439.8 Hz only if C0's effective clock
+        // is 1 MHz — so there's a hidden ÷2 stage between the "2M" net
+        // and the CLK0 pin. C1 stays at 2 MHz for now: schematic value
+        // 31.5 kHz would drastically change MC-game pitch, and we lack
+        // ground-truth to verify against. See project-mz80a-clk1-rate
+        // for the pending C1 correction.
         var c0 = Pit.Counters[0];
         var c1 = Pit.Counters[1];
         int reload;
-        if (c0.Running && c0.Reload > 0) reload = c0.Reload;
-        else if (c1.Running && c1.Reload > 0) reload = c1.Reload;
-        else reload = 0;
+        double inputHz;
+        if (c0.Running && c0.Reload > 0) { reload = c0.Reload; inputHz = 1_000_000.0; }
+        else if (c1.Running && c1.Reload > 0) { reload = c1.Reload; inputHz = 2_000_000.0; }
+        else { reload = 0; inputHz = 2_000_000.0; }
+        Sound.InputClockHz = inputHz;
         Sound.SetReload(reload);
     }
 
