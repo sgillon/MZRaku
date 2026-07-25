@@ -9,6 +9,8 @@ MZ-700 is the default; MZ-80A (the MZ-700's 1982 sibling) is available via `--mz
 
 This means that the goal is for the emulator to work 'well enough', and with some quality-of-life features to enable the above, without necessarily worrying too much about accurately reproducing how the actual MZ-700 hardware works. A good example of this is that MZRaku **does not** emulate the MZ-1T01 cassette drive. Cassette images (regardless of type) are loaded by directly injecting them into the machine's memory, which meets the objective of loading games quickly and easily.
 
+Having said that, I have a fairly ambitious set of features I'd like to include in the emulator going forward. The current development roadmap can be seen [here](/docs/roadmap.md).
+
 ***
 IMPORTANT NOTE - The emulator code is *entirely* AI generated. Although I have some development experience, how CPUs etc work is outside my skillset so what is here is a result of several weeks of me working with Claude to produce the features and refinements I need for my use case. I chose to use C# as it is a language I know, so I can use how the project has been put together to educate myself on what it takes to create an emulator. The choice to use WinForms, effectively tying the current implementation tightly to Windows, was also made as it suits my specific needs.
 
