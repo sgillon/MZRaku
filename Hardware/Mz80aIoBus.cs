@@ -47,16 +47,13 @@ public sealed class Mz80aIoBus : IIoBus
     public Pit8253 Pit = null!;
     public MZ80AMemory Memory = null!;
     public Sound Sound = null!;
+    public Z80Core.Z80Cpu Cpu = null!;
 
     // Phase 2 will populate this with a video renderer; the video-mode
     // and scroll registers ($E014/$E015/$E200-$E2FF) toggle its state.
     public bool ReverseVideo;
     public int ScrollOffset;
 
-    // Toggles on every $E008 read to unblock the SA-1510 boot polling
-    // loop that reads bit 0 (H-Blank) and RRCAs it into carry. See
-    // the comment in MemIn where it's used.
-    private bool _hblankToggle;
 
 
     public byte MemIn(ushort addr)
@@ -86,23 +83,21 @@ public sealed class Mz80aIoBus : IIoBus
         if (off <= 7) return Pit.Read(off - 4);        // $E004-$E007 PIT
         if (off == 8)
         {
-            // $E008 R: D7 = tempo-timer status, D0 = H-Blank.
-            //
-            // SA-1510 has a tight polling loop at $02DB that reads
-            // $E008 and RRCAs bit 0 into carry, looping while
-            // carry is clear — i.e. waiting for H-Blank to go HIGH.
-            // On real hardware the H-Blank signal is a 15.72 kHz
-            // square-ish pulse; we don't model raster timing at
-            // sub-instruction granularity, so simulate the wait
-            // exiting by toggling H-Blank on every read. The next
-            // read observes the opposite state and the busy-loop
-            // completes within one iteration. Coarse, but enough
-            // for boot polls; real per-scanline modelling can wait
-            // until something needs the accurate rate.
-            _hblankToggle = !_hblankToggle;
+            // $E008 R: D7 = tempo-timer status, D0 = "H-Blank" per the
+            // Owner's Manual — but empirically the signal must toggle
+            // at ~50 Hz (not the 15.72 kHz true horizontal-blank rate)
+            // for SA-5510's MUSIC durations to match real hardware /
+            // EmuZ-80A. SA-5510 calls SA-1510's timer at $02D5 with
+            // B=32 for a default note; each DJNZ iteration waits for
+            // one full period of this signal, so B × period = note
+            // duration. B=32 × 20 ms = 640 ms, matching reference.
+            // The name "H-Blank" in the manual seems misleading; the
+            // signal is at a low-frequency rate (~50 Hz). Derived
+            // from the CPU cycle counter to stay independent of frame
+            // rendering. 20000 cyc/half-period @ 2 MHz = 50 Hz.
             byte v = 0;
             if (Ppi.TempoBit) v |= 0x80;
-            if (_hblankToggle) v |= 0x01;
+            if (((Cpu.TotalCycles / 20000) & 1) != 0) v |= 0x01;
             return v;
         }
         return 0xFF;

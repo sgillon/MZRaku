@@ -66,6 +66,7 @@ public sealed class MZ80A : IMachine
         Io.Ppi = Ppi;
         Io.Pit = Pit;
         Io.Memory = Mem;
+        Io.Cpu = Cpu;
         Mem.IoBus = Io;
         Mem.Cpu = Cpu;
         // PPI Port B reads pull the strobed row bits out of the
@@ -93,8 +94,16 @@ public sealed class MZ80A : IMachine
         // is the OPPOSITE convention to MZ-700 where the same bit
         // (PC2) is "INTMSK" with D2=1 meaning enabled. So we read the
         // raw PortCOut bit and treat 0=not-masked=fire.
-        Pit.Counter2Out += _ =>
+        //
+        // Also mirror C2 OUT to Ppi.TempoBit — that's what $E008 D7
+        // ("tempo-timer status") exposes on real hardware. Not
+        // strictly needed for SA-5510 MUSIC (whose duration timing
+        // goes via $E008 D0, see Mz80aIoBus), but any machine-code
+        // program polling D7 for the RTC output will now see the
+        // right signal instead of a stuck 0.
+        Pit.Counter2Out += o =>
         {
+            Ppi.TempoBit = o;
             bool notMasked = (Ppi.PortCOut & 0x04) == 0;
             if (notMasked) Cpu.RequestInterrupt();
         };
