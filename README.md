@@ -1,5 +1,7 @@
 # MZRaku
 
+https://chatgpt.com/s/m_6a668f76ec7c819193b920c7db4ce56c
+
 A Sharp MZ-700 and MZ-80A emulator written in C# / .NET 8 (WinForms). The aims of this emulator are:
 
 1. Work well enough play the MZ-700 games I remember from my childhood
