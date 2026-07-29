@@ -360,9 +360,23 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
         // Any hold with an explicit MzShift wins. Multiple holds with
         // conflicting explicit shifts is a pathological case (chord)
         // — first-encountered wins, which is fine in practice.
+        //
+        // With no holds at all, returns false unconditionally — PC
+        // Shift held alone does NOT raise the MZ shift bit. Only if
+        // at least one hold is active do we fall through to _pcShift
+        // (lets Shift+arrow etc. assert MZ shift on the arrow's
+        // SpecialKey hold). Without this guard, releasing a shifted
+        // press with PC Shift still held leaves matrix(0,0)=1 in the
+        // window before the next press lands, and the ROM's scan can
+        // catch that stale shift alongside the next asserted key bit
+        // — mis-reading e.g. '@' as backtick. Mirrors the MZ-700 fix.
+        bool anyHold = false;
         foreach (var h in _holds.Values)
+        {
             if (h.ExplicitMzShift.HasValue) return h.ExplicitMzShift.Value;
-        return _pcShift;
+            anyHold = true;
+        }
+        return anyHold && _pcShift;
     }
 
     private static bool IsShiftKey(Keys k) =>
