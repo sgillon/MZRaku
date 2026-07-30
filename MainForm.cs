@@ -1763,7 +1763,26 @@ public sealed class MainForm : Form
             SafeCloseChild(_memViewer);
             SafeCloseChild(_fontSheet);
             SafeCloseChild(_debugger);
-            Application.Restart();
+
+            // Application.Restart() re-uses the ORIGINAL command-line
+            // args verbatim. If the user launched with --mz700 or
+            // --mz80a, that arg overrides Settings.Type in Program.cs
+            // and the menu switch would be silently reverted. Launch
+            // a fresh process manually with those flags stripped so
+            // the settings.ini we just wrote takes effect. Other
+            // flags (--basic, --scanlines, --display, cassette path)
+            // are preserved.
+            var origArgs = Environment.GetCommandLineArgs();
+            var exePath = Environment.ProcessPath ?? Application.ExecutablePath;
+            var psi = new System.Diagnostics.ProcessStartInfo(exePath) { UseShellExecute = false };
+            for (int i = 1; i < origArgs.Length; i++)
+            {
+                var a = origArgs[i];
+                if (a.Equals("--mz700", StringComparison.OrdinalIgnoreCase)) continue;
+                if (a.Equals("--mz80a", StringComparison.OrdinalIgnoreCase)) continue;
+                psi.ArgumentList.Add(a);
+            }
+            System.Diagnostics.Process.Start(psi);
             Environment.Exit(0);
         }
     }
