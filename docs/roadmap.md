@@ -40,9 +40,10 @@ Remaining phases are the current work.
    map editor extended to MZ-80A, green/amber tints promoted from
    menu to Display tab, `[CharMap.MZ80A]` split, the amber "MZ-80A
    partial coverage" banner retired.
-6. **GRAPH click-to-type** (stretch) — finish the Font Sheet bank-1
-   attribute bug from `graph-clicktotype-parked`. Skip if it
-   rabbit-holes; the stretch label is genuine.
+6. **GRAPH click-to-type** (stretch, [#3](https://github.com/sgillon/MZRaku/issues/3))
+   — finish the Font Sheet bank-1 attribute bug from
+   `graph-clicktotype-parked`. Skip if it rabbit-holes; the stretch
+   label is genuine.
 
 ## v1.2.0 — codebase audit + resulting refactors
 
@@ -117,9 +118,19 @@ Everything that isn't a refactor and isn't a new machine.
   presets and reproducible bug reports.
 - **.mzf machine auto-detect** — sniff MZ-700 vs MZ-80A from the
   cassette header; corpus study first.
-- **Scanlines full-screen filter polish** — the per-row FillRectangle
-  approach doesn't scale well to full-screen; likely wants a
-  pre-built overlay bitmap and intensity/thickness knobs.
+- **Scanlines full-screen filter polish**
+  ([#5](https://github.com/sgillon/MZRaku/issues/5)) — the per-row
+  FillRectangle approach doesn't scale well to full-screen; likely
+  wants a pre-built overlay bitmap and intensity/thickness knobs.
+- **MZ-80A cursor blink rate** ([#1](https://github.com/sgillon/MZRaku/issues/1))
+  — currently ~2× slower than real hardware / EmuZ-80A. The Phase 2
+  C1 tick-rate fix didn't affect it, so derivation is likely
+  independent of C1/C2 and needs its own investigation.
+- **MZ-80A BASIC load UX-parity** ([#2](https://github.com/sgillon/MZRaku/issues/2))
+  — SA-5510 has an authentic ~1s post-tone wait for the RTC to
+  tick, exposed as a raw pause by our DirectInject. Switching
+  `AutoLoadBasic` for MZ-80A to the typed-LOAD path (already used
+  for MC cassettes) would hide it in perceived loading time.
 - **Hotkeys for the remaining menu items** — cover what Ctrl+O /
   Ctrl+B / Ctrl+R / Ctrl+S / Ctrl+M / Ctrl+H / Ctrl+G don't.
 - **ROMs-missing modal polish** — clearer per-machine guidance;
