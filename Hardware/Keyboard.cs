@@ -521,24 +521,3 @@ public sealed class Keyboard : IKeyboardMatrix
     }
 }
 
-public enum InputLayer { None, Override, SpecialKey, Character }
-
-public sealed class KeyboardDiagnostics
-{
-    public Keys LastKeyDown;
-    public Keys LastKeyUp;
-    public char LastKeyChar;
-    public InputLayer LastLayer;
-    public int LastRow = -1;
-    public int LastCol = -1;
-    public bool? LastMzShift;
-    public int LastScanRow = -1;
-
-    public void Record(InputLayer layer, int row, int col, bool? mzShift)
-    {
-        LastLayer = layer;
-        LastRow = row;
-        LastCol = col;
-        LastMzShift = mzShift;
-    }
-}

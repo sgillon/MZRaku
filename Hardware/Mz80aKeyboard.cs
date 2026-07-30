@@ -68,6 +68,13 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
     /// </summary>
     public bool GraphMode { get; private set; }
 
+    /// <summary>
+    /// Per-frame telemetry the HID Diagnostic form reads. Same shape
+    /// as the MZ-700 <see cref="Keyboard.Diag"/> field so the
+    /// diagnostic can render both machines through one code path.
+    /// </summary>
+    public readonly KeyboardDiagnostics Diag = new();
+
     public Mz80aKeyboard()
     {
         for (int i = 0; i < 10; i++) _rows[i] = 0xFF;
@@ -76,6 +83,7 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
     public byte ReadRow(int strobe)
     {
         if (strobe < 0 || strobe > 9) return 0xFF;
+        Diag.LastScanRow = strobe;
         return _rows[strobe];
     }
 
@@ -111,6 +119,8 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
         _pcShift = (keyData & Keys.Shift) != 0;
         SetMatrix(0, 7, (keyData & Keys.Control) != 0);
 
+        Diag.LastKeyDown = keyData;
+
         if (_holds.ContainsKey(key)) { ApplyShiftState(); return true; }
 
         // SHIFT alone: don't touch strobe 0 yet — the next press's
@@ -134,6 +144,7 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
             {
                 SetMatrix(sp.Strobe, sp.Bit, true);
             }
+            Diag.Record(InputLayer.SpecialKey, sp.Strobe, sp.Bit, sp.ExplicitMzShift);
             // F11 = GRPH toggle. Track local state so the status bar
             // can reflect ALPHA vs GRAPH.
             if (key == Keys.F11) GraphMode = !GraphMode;
@@ -154,11 +165,16 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
     /// </summary>
     public void OnKeyPress(char ch)
     {
+        Diag.LastKeyChar = ch;
         if (_pendingDownVk == Keys.None) return;
         var vk = _pendingDownVk;
         _pendingDownVk = Keys.None;
 
-        if (!Mz80aCharMap.TryLookup(ch, out var p)) return;
+        if (!Mz80aCharMap.TryLookup(ch, out var p))
+        {
+            Diag.Record(InputLayer.None, -1, -1, null);
+            return;
+        }
 
         // InvertLetterShift = true swaps MZ-side case for letters so
         // PC-style Shift-for-uppercase works. Only letters flip; digits
@@ -185,6 +201,7 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
         {
             SetMatrix(p.Strobe, p.Bit, true);
         }
+        Diag.Record(InputLayer.Character, p.Strobe, p.Bit, mzShift);
     }
 
     public bool OnKeyUp(Keys keyData)
@@ -192,6 +209,7 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
         var key = keyData & Keys.KeyCode;
         _pcShift = (keyData & Keys.Shift) != 0;
         if ((keyData & Keys.Control) == 0) SetMatrix(0, 7, false);
+        Diag.LastKeyUp = keyData;
         if (_pendingDownVk == key) _pendingDownVk = Keys.None;
 
         bool handled = false;

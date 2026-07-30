@@ -1175,6 +1175,10 @@ public sealed class MainForm : Form
                 // about program-driven mode changes not being caught.
                 if (_bootFrames % 10 == 0)
                     UpdateModeLabel(_mz80a.Keyboard.GraphMode);
+                // HID diagnostic supports MZ-80A too (Phase 4, machine-
+                // aware). Sound Diagnostic is still MZ-700-only until
+                // its NAND / dual-gate assumptions can be revisited.
+                _hidDiag?.RefreshIfVisible();
             }
             return;
         }
@@ -1742,6 +1746,23 @@ public sealed class MainForm : Form
         _settings.Save();
         if (result == DialogResult.Yes)
         {
+            // Close any owned diagnostic windows first — Application.Restart
+            // enumerates Application.OpenForms and closing owned forms mid-
+            // enumeration throws InvalidOperationException. Belt-and-braces:
+            // clear each Owner too so WinForms' own owned-form teardown
+            // during Restart's Exit call doesn't hit the same race.
+            void SafeCloseChild(Form? f)
+            {
+                if (f == null || f.IsDisposed) return;
+                f.Owner = null;
+                f.Close();
+                f.Dispose();
+            }
+            SafeCloseChild(_hidDiag);
+            SafeCloseChild(_soundDiag);
+            SafeCloseChild(_memViewer);
+            SafeCloseChild(_fontSheet);
+            SafeCloseChild(_debugger);
             Application.Restart();
             Environment.Exit(0);
         }
@@ -1828,10 +1849,14 @@ public sealed class MainForm : Form
 
     private void OpenHidDiag()
     {
-        if (_machine == null) { NotAvailableOnMz80a("HID Diagnostic"); return; }
+        // Pick whichever machine is active. Both MZ-700 and MZ-80A
+        // support HID Diagnostic since the form was made machine-aware
+        // (v1.1.0 Phase 4).
+        IMachine? active = _machine != null ? _machine : _mz80a;
+        if (active == null) return;
         if (_hidDiag == null || _hidDiag.IsDisposed)
         {
-            _hidDiag = new HidDiagnosticForm(_machine, _joystickInput);
+            _hidDiag = new HidDiagnosticForm(active, _joystickInput);
             // First open: park it to the right of the main window so it
             // doesn't fight the debugger for screen space.
             _hidDiag.Location = new Point(Bounds.Right + 8, Bounds.Top + 240);
