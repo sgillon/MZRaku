@@ -26,11 +26,10 @@ a release, update the checklist before fixing the bug.
 ## Keyboard — Monitor prompt
 
 - [ ] Letters A-Z type correctly (no Shift).
-- [ ] Shift + letter gives uppercase reliably — type `SHIFT+P` x10,
-      expect `PPPPPPPPPP` not `PPpPPPpPPP`. (Known shift-race; called
-      out in the Keyboard tab's known-limitations panel and
-      `docs/usage/keyboard.md`. Cosmetic — don't block on it but do
-      regression-check that the rate hasn't got worse.)
+- [ ] Shift + letter gives uppercase reliably — type `SHIFT+P` x20,
+      expect 20 × `P` with zero lowercase slips. (Shift-race was fixed
+      before v1.0.0; regression canary for the staged-key-bits pattern
+      in `Keyboard.cs`.)
 - [ ] Shift + number gives the symbol reliably (`SHIFT+8` x10 → `**********`).
 - [ ] Cursor keys move the cursor.
 - [ ] Backspace deletes; Insert inserts a space.
@@ -233,9 +232,16 @@ a release, update the checklist before fixing the bug.
       keys from `roms/SA-1510.rom`, `roms/SA-CG.rom`,
       `basic/SA-5510.mzf` respectively.
 - [ ] Diagnostic menu items that are MZ-700-only (Sound Diagnostic,
-      Font Sheet, HID Diagnostic, Keyboard Matrix) each show a
-      friendly "MZ-700 only for now" MessageBox when opened while
-      MZ-80A is active — they do NOT NRE.
+      Font Sheet, Keyboard Matrix) each show a friendly "MZ-700 only
+      for now" MessageBox when opened while MZ-80A is active — they
+      do NOT NRE.
+- [ ] **HID Diagnostic (Ctrl+H)** works on both machines: title bar
+      reads "HID Diagnostic — MZ-700" / "HID Diagnostic — MZ-80A" and
+      the in-form banner names the machine being monitored. Body
+      sections populate live on both. Switching machines while the
+      diagnostic is open (`File → Machine → …`, Yes to restart) does
+      not crash — the child form is closed cleanly before the app
+      restart.
 - [ ] Debugger (Ctrl+D) and Memory Viewer (Ctrl+M) both work on
       MZ-80A. Set a breakpoint inside SA-1510 code, hit it,
       single-step off, resume.
@@ -263,10 +269,12 @@ a release, update the checklist before fixing the bug.
       screen with `SCORE :00000  HI-SCORE :` line, invader sprite
       grid, and ship formation visible.
 - [ ] At the SA-5510 `Ready` prompt, `MUSIC "CDEFGAB"` + Enter plays
-      seven discrete notes (regression canary for the Bug 2b
-      brief-pulse latch fix). Pitch is currently octave-up vs
-      EmuZ-80A — known limitation, do not block on it, but do
-      regression-check that discrete notes still play.
+      seven discrete notes at recognisable musical pitches and
+      durations (matches EmuZ-80A / real hardware within measurement
+      precision). Regression canary for three fixes: brief-pulse
+      latch (`de08e40`), per-counter InputHz for correct pitch
+      (`11f4a04`), and `$E008 D0` signal rate for correct note
+      duration (`7e4cc46`).
 - [ ] `View → MZ-80A Green Screen` toggles the monochrome renderer
       between white and pure `#00FF00`. Toggle persists across
       restart (written to `[Display] Mz80aGreenScreen=`).
@@ -277,6 +285,45 @@ a release, update the checklist before fixing the bug.
       back to `ALPHA`. On MZ-700, the same layout shows `MZ-700` in
       the left pane and the ALPHA/GRAPH indicator continues to work
       as before via `$0060` mode-flag polling.
+
+## MZ-80A keyboard round-2 audit
+
+Regression check for the v1.1.0 Phase 4 audit (2026-07-30) that
+walked all char / key groups against `Mz80aCharMap` /
+`Mz80aKeyboardLayout` / `Mz80aSpecialKeyMap`. All tiers should stay
+100% clean. Type into BASIC READY prompt and verify output matches
+the typed characters unless noted otherwise.
+
+- [ ] Tier 1a — unshifted main-row punctuation `,./;:@[]-\^`
+      all echo identically.
+- [ ] Tier 1b — shifted main-row punctuation `` <>+*{}=~|` ``
+      all echo identically.
+- [ ] Tier 1c — UK-specific + focus items:
+      - `£` (UK Shift+3) → MZ `#` (deliberate fallback — MZ-80A has no £).
+      - `#`, `?` echo identically.
+      - Sharp-specific `←` at slot (6,1) shifted has no PC binding
+        today; typing anything expected to produce it → nothing lands.
+        (User overrides will land in Phase 5's keyboard editor.)
+- [ ] Tier 2a — unshifted digits `0123456789` echo identically.
+- [ ] Tier 2b — shifted digits `!"$%&()_` echo identically.
+      (Skip `£`, `#`, `*` — covered in Tier 1.)
+- [ ] Tier 3 — alphabet case (with default `InvertLetterShift = false`,
+      i.e. authentic MZ-80A convention):
+      - `zsgjm` (unshifted) → MZ `ZSGJM` (unshifted = UPPERCASE).
+      - `ZSGJM` (Shift held) → MZ `zsgjm` (shifted = lowercase).
+- [ ] Tier 4 — control keys:
+      - Cursor Up / Down / Left / Right all move the cursor
+        (Down and Left implemented via force-shift on Up / Right).
+      - Enter, Delete, Backspace all behave. Insert opens a gap.
+        Home moves cursor to top-left; Shift+Home (CLR) clears the
+        screen.
+      - F11 toggles GRPH mode — HID Diagnostic Mode line and status
+        bar right-pane both flip ALPHA ↔ GRAPH.
+      - Shift+Esc = BREAK: aborts a running program back to READY.
+- [ ] Tier 5 — GRAPH mode: press F11, then type a mix of letters /
+      digits / punctuation. Each key produces a graphic glyph (not
+      the alphanumeric character). Press F11 again → back to ALPHA
+      with normal text.
 
 ## Release packaging
 
