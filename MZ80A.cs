@@ -255,14 +255,17 @@ public sealed class MZ80A : IMachine
         int c0 = _pitC0Accum / 2000;
         _pitC0Accum -= c0 * 2000;
 
-        // C1 clocks the display timing tree — per Fig 3.1 on Owner's
-        // Manual p.162 C1's output cascades into C2 to derive the
-        // 1-second interrupt. Without a live C1 tick, C2 never fires
-        // and the SA-1510 monitor's main-loop wait never completes
-        // (the `*` prompt would never print). Best-guess rate for
-        // Phase 3: the horizontal-sync 15.72 kHz frequency, matching
-        // what the MZ-700 does for HBLNK-derived cursor timing.
-        _pitC1Accum += cpuCycles * 157;    // 157/20000 ≈ 15.72 kHz @ 2 MHz
+        // C1 CLK per MZ-80A service manual: 31.5 kHz signal (user
+        // schematic check 2026-07-25). Earlier value of 15.72 kHz
+        // was a Phase 3 best-guess (HBLNK-derived, matching MZ-700
+        // pattern) but visibly wrong — cursor blinked at half real-
+        // hardware rate, and SA-1510's PIT-based delay routine at
+        // $02FA (called by SA-5510 boot) ran 2× too slow, delaying
+        // the "Ready" banner by ~3s after the tone. C1's output at
+        // reload=31500 in mode 2 gives a clean 1 Hz cascade to C2
+        // — a specific value SA-5510 relies on for its 1-second RTC
+        // tick when timing boot init. Fix: double the tick numerator.
+        _pitC1Accum += cpuCycles * 315;    // 315/20000 ≈ 31.5 kHz @ 2 MHz
         int c1 = _pitC1Accum / 20000;
         _pitC1Accum -= c1 * 20000;
 
