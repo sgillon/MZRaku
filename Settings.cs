@@ -26,12 +26,22 @@ public sealed class Settings
     // Display, persisted as [Display] Scanlines=true/false.
     public bool DisplayScanlines { get; set; } = false;
 
-    // Which machine model MZRaku is currently emulating. Persisted at
-    // [Machine] Type=; overridden per-run by the --mz700 / --mz80a
-    // CLI flags. The default (MZ700) matches the historical behaviour
-    // — pre-existing settings.ini files that lack a [Machine] section
-    // stay on MZ-700 automatically.
+    // The machine currently running this session. Set by Load() from
+    // DefaultMachine, then possibly overwritten by the --mz700 /
+    // --mz80a CLI flag in MainForm. NOT persisted — Save() writes
+    // DefaultMachine only. Callers that ask "which machine is active"
+    // (menu check-marks, About dialog, ROM-missing message, etc.)
+    // read this.
     public MachineType Type { get; set; } = MachineType.MZ700;
+
+    // Which machine to boot at startup absent a --mz700 / --mz80a CLI
+    // override. Persisted at [Machine] DefaultMachine=. Menu switches
+    // (File → Machine) do NOT rewrite this value — they trigger a
+    // one-off restart with the target's CLI flag, and the persisted
+    // default stays put. Legacy [Machine] Type= key from pre-Phase
+    // 5.1a INI files reads as a fallback on Load; next Save() rewrites
+    // in the new form.
+    public MachineType DefaultMachine { get; set; } = MachineType.MZ700;
 
     // On real MZ-80A, unshifted letter keys give UPPERCASE and Shift
     // toggles them to lowercase — the opposite of a PC keyboard. We
@@ -42,6 +52,10 @@ public sealed class Settings
     // typing lowercase-heavy content. Digits and punctuation are
     // unaffected either way; their shifted variants (! # $ …) still
     // work via Shift regardless.
+    //
+    // Persisted at [Keyboard.MZ80A] InvertLetterShift= as of Phase
+    // 5.1a; legacy `[Machine] Mz80aInvertLetterShift=` still reads on
+    // load with the new location winning.
     public bool Mz80aInvertLetterShift { get; set; } = false;
 
     // Sharp shipped the MZ-80A with a green-phosphor monochrome monitor
@@ -49,6 +63,10 @@ public sealed class Settings
     // authentic look. Default true; toggle from View → Green screen
     // (MZ-80A) — the setting is MZ-80A-only (MZ-700 has a colour
     // display and ignores this).
+    //
+    // Persisted at [Display.MZ80A] GreenScreen= as of Phase 5.1a;
+    // legacy `[Machine] Mz80aGreenScreen=` still reads on load with
+    // the new location winning.
     public bool Mz80aGreenScreen { get; set; } = true;
 
     // Paths to the system files (monitor ROM, character font, BASIC
@@ -105,10 +123,21 @@ public sealed class Settings
     public int JoyButton1Index { get; set; } = 0;
     public int JoyButton2Index { get; set; } = 1;
 
-    // User-editable physical-key overrides. Empty by default; built-in
-    // defaults (Enter, arrows, GRAPH, ALPHA, ...) live in SpecialKeyMap.
-    // Anything in here is consulted FIRST by Keyboard.OnKeyDown.
+    // User-editable physical-key overrides for MZ-700. Empty by default;
+    // built-in defaults (Enter, arrows, GRAPH, ALPHA, ...) live in
+    // SpecialKeyMap. Anything in here is consulted FIRST by
+    // Keyboard.OnKeyDown. Persisted at [KeyOverrides.MZ700] as of
+    // Phase 5.1a; legacy [KeyOverrides] still reads with the new
+    // location winning.
     public KeyOverride KeyOverrides { get; } = new();
+
+    // User-editable physical-key overrides for MZ-80A. Same KeyOverride
+    // shape as the MZ-700 map above (row 0-9, bit 0-7, MZ shift state);
+    // the MZ-80A matrix has the same 10-strobe × 8-bit topology so
+    // there's nothing machine-specific in the storage. Persisted at
+    // [KeyOverrides.MZ80A] as of Phase 5.1a. Consulted first by
+    // Mz80aKeyboard.OnKeyDown ahead of Mz80aSpecialKeyMap.
+    public KeyOverride Mz80aKeyOverrides { get; } = new();
 
     // User-editable character-map overrides. Empty by default; built-in
     // defaults (letters, digits, common punctuation) live in CharMap.
@@ -119,6 +148,29 @@ public sealed class Settings
     // settings.ini. Consulted FIRST by Mz80aCharMap.TryLookup; defaults
     // sit under it and come from Mz80aMatrixReference.
     public Mz80aCharMapOverrides Mz80aCharMapOverrides { get; } = new();
+
+    // Which debug / diagnostic panes to open automatically on startup.
+    // All default false. Wired at Phase 5.1a; boot-time application
+    // lands in Phase 5.3 alongside the DefaultMachine picker. Panes
+    // that don't apply to the boot machine (Sound Diagnostic +
+    // Keyboard Matrix on MZ-80A) grey out in Settings; their flag
+    // survives so switching machines restores them.
+    public DebugPaneStartupSet DebugPanesAtStartup { get; } = new();
+
+    /// <summary>
+    /// Which diagnostic panes to open with the emulator on startup.
+    /// One bool per pane; INI keys under [DebugPanes] use the same
+    /// names as these properties.
+    /// </summary>
+    public sealed class DebugPaneStartupSet
+    {
+        public bool Debugger { get; set; } = false;
+        public bool MemoryViewer { get; set; } = false;
+        public bool HidDiagnostic { get; set; } = false;
+        public bool FontSheet { get; set; } = false;
+        public bool SoundDiagnostic { get; set; } = false;
+        public bool KeyboardMatrix { get; set; } = false;
+    }
 
     // Persisted main / debugger / memory-viewer state. Values of
     // (0,0,0,0) mean "no saved geometry — fall back to the host's
@@ -155,16 +207,34 @@ public sealed class Settings
                 s.DisplayScale = GetInt(ini, "Display", "Scale", s.DisplayScale);
                 s.DisplayScanlines = GetBool(ini, "Display", "Scanlines", s.DisplayScanlines);
 
-                // [Machine] Type=MZ700|MZ80A. Absent → default MZ700.
-                var typeStr = GetString(ini, "Machine", "Type", "");
+                // [Machine] DefaultMachine=MZ700|MZ80A. Absent → try
+                // legacy [Machine] Type= (pre-Phase 5.1a name); still
+                // absent → default MZ700. Type mirrors DefaultMachine
+                // at this point; MainForm may then override Type from
+                // a --mz700 / --mz80a CLI flag without touching the
+                // persisted DefaultMachine.
+                var typeStr = GetString(ini, "Machine", "DefaultMachine",
+                    GetString(ini, "Machine", "Type", ""));
                 if (typeStr.Equals("MZ80A", StringComparison.OrdinalIgnoreCase))
-                    s.Type = MachineType.MZ80A;
+                    s.DefaultMachine = MachineType.MZ80A;
                 else
-                    s.Type = MachineType.MZ700;
-                s.Mz80aInvertLetterShift = GetBool(ini, "Machine",
-                    "Mz80aInvertLetterShift", s.Mz80aInvertLetterShift);
-                s.Mz80aGreenScreen = GetBool(ini, "Machine",
-                    "Mz80aGreenScreen", s.Mz80aGreenScreen);
+                    s.DefaultMachine = MachineType.MZ700;
+                s.Type = s.DefaultMachine;
+                // MZ-80A InvertLetterShift lives at [Keyboard.MZ80A]
+                // InvertLetterShift= as of Phase 5.1a; fall back to
+                // legacy [Machine] Mz80aInvertLetterShift= so pre-
+                // migration INI files still work. Next Save() rewrites.
+                s.Mz80aInvertLetterShift = GetBool(ini, "Keyboard.MZ80A",
+                    "InvertLetterShift",
+                    GetBool(ini, "Machine",
+                        "Mz80aInvertLetterShift", s.Mz80aInvertLetterShift));
+                // Same treatment for the green-screen toggle: now at
+                // [Display.MZ80A] GreenScreen=, legacy at
+                // [Machine] Mz80aGreenScreen=.
+                s.Mz80aGreenScreen = GetBool(ini, "Display.MZ80A",
+                    "GreenScreen",
+                    GetBool(ini, "Machine",
+                        "Mz80aGreenScreen", s.Mz80aGreenScreen));
 
                 // Per-machine ROM sections. Falls back to the legacy
                 // flat [Roms] section for MZ-700 so pre-split INI files
@@ -180,9 +250,20 @@ public sealed class Settings
                 s.Mz80aRoms.BasicPath = GetString(ini, "Roms.MZ80A", "Basic", "");
                 s.JoyButton1Index = GetInt(ini, "Joystick", "Button1", s.JoyButton1Index);
                 s.JoyButton2Index = GetInt(ini, "Joystick", "Button2", s.JoyButton2Index);
-                if (ini.TryGetValue("KeyOverrides", out var ko))
+                // MZ-700 KeyOverrides — new [KeyOverrides.MZ700] wins
+                // over legacy flat [KeyOverrides] so a hand-edited
+                // pre-Phase-5.1a file still works until the next Save().
+                if (ini.TryGetValue("KeyOverrides.MZ700", out var koMz700))
+                {
+                    foreach (var kv in koMz700) s.KeyOverrides.TryParseLine(kv.Key, kv.Value);
+                }
+                else if (ini.TryGetValue("KeyOverrides", out var ko))
                 {
                     foreach (var kv in ko) s.KeyOverrides.TryParseLine(kv.Key, kv.Value);
+                }
+                if (ini.TryGetValue("KeyOverrides.MZ80A", out var koMz80a))
+                {
+                    foreach (var kv in koMz80a) s.Mz80aKeyOverrides.TryParseLine(kv.Key, kv.Value);
                 }
                 if (ini.TryGetValue("CharMap", out var cm))
                 {
@@ -192,6 +273,16 @@ public sealed class Settings
                 {
                     foreach (var kv in cm80a) s.Mz80aCharMapOverrides.TryParseLine(kv.Key, kv.Value);
                 }
+                // [DebugPanes] — which diagnostic panes open on
+                // startup. All default false. Wired at Phase 5.1a;
+                // boot-time application lands in Phase 5.3.
+                var dp = s.DebugPanesAtStartup;
+                dp.Debugger = GetBool(ini, "DebugPanes", "Debugger", dp.Debugger);
+                dp.MemoryViewer = GetBool(ini, "DebugPanes", "MemoryViewer", dp.MemoryViewer);
+                dp.HidDiagnostic = GetBool(ini, "DebugPanes", "HidDiagnostic", dp.HidDiagnostic);
+                dp.FontSheet = GetBool(ini, "DebugPanes", "FontSheet", dp.FontSheet);
+                dp.SoundDiagnostic = GetBool(ini, "DebugPanes", "SoundDiagnostic", dp.SoundDiagnostic);
+                dp.KeyboardMatrix = GetBool(ini, "DebugPanes", "KeyboardMatrix", dp.KeyboardMatrix);
                 s.MainWindow = ReadWindowState(ini, "MainWindow");
                 s.DebuggerWindow = ReadWindowState(ini, "DebuggerWindow");
                 s.MemoryViewerWindow = ReadWindowState(ini, "MemoryViewerWindow");
@@ -210,7 +301,8 @@ public sealed class Settings
                 // and the user gets a complete, editable file (now with the
                 // retrofitted self-documenting comment blocks).
                 if (!ini.ContainsKey("Joystick")) missingSection = true;
-                if (!ini.ContainsKey("KeyOverrides")) missingSection = true;
+                if (!ini.ContainsKey("KeyOverrides.MZ700")) missingSection = true;
+                if (!ini.ContainsKey("KeyOverrides.MZ80A")) missingSection = true;
                 if (!ini.ContainsKey("CharMap")) missingSection = true;
                 if (!ini.ContainsKey("CharMap.MZ80A")) missingSection = true;
                 if (!ini.ContainsKey("MainWindow")) missingSection = true;
@@ -222,6 +314,17 @@ public sealed class Settings
                 // will have a flat [Roms] section but no [Roms.MZ700] one.
                 // Fold-and-save on next launch so both sub-sections exist.
                 if (!ini.ContainsKey("Roms.MZ700")) missingSection = true;
+                // Phase 5.1a splits: MZ-80A green-screen and
+                // InvertLetterShift out of [Machine] into per-machine
+                // subsections, plus new [DebugPanes] section. Trigger
+                // a rewrite so pre-5.1a files migrate cleanly.
+                if (!ini.ContainsKey("Display.MZ80A")) missingSection = true;
+                if (!ini.ContainsKey("Keyboard.MZ80A")) missingSection = true;
+                if (!ini.ContainsKey("DebugPanes")) missingSection = true;
+                // DefaultMachine key rename (was [Machine] Type=).
+                if (ini.TryGetValue("Machine", out var mSec)
+                    && !mSec.ContainsKey("DefaultMachine")
+                    && mSec.ContainsKey("Type")) missingSection = true;
             }
         }
         catch { /* fall through to defaults */ }
@@ -256,30 +359,36 @@ public sealed class Settings
             sb.AppendLine();
 
             sb.AppendLine("[Machine]");
-            sb.AppendLine("; Which Sharp MZ machine to emulate on next launch. Values:");
-            sb.AppendLine(";   Type=MZ700   Sharp MZ-700 (default; original MZRaku target)");
-            sb.AppendLine(";   Type=MZ80A   Sharp MZ-80A (added later)");
+            sb.AppendLine("; Which Sharp MZ machine to boot into. Values:");
+            sb.AppendLine(";   DefaultMachine=MZ700   Sharp MZ-700 (default; original MZRaku target)");
+            sb.AppendLine(";   DefaultMachine=MZ80A   Sharp MZ-80A");
             sb.AppendLine("; Overridable per-run via the --mz700 / --mz80a CLI flags without");
-            sb.AppendLine("; touching this file. The File → Machine menu writes this value and");
-            sb.AppendLine("; prompts a restart.");
-            sb.AppendLine($"Type={Type}");
-            sb.AppendLine(";");
-            sb.AppendLine("; Mz80aInvertLetterShift  MZ-80A only. Real hardware types UPPERCASE");
-            sb.AppendLine(";                          letters unshifted and lowercase when Shift is");
-            sb.AppendLine(";                          held — opposite of a PC keyboard. Default false");
-            sb.AppendLine(";                          keeps that authentic behaviour (natural for");
-            sb.AppendLine(";                          BASIC keywords: LIST, PRINT, RUN…). Set true if");
-            sb.AppendLine(";                          you prefer PC-style Shift-for-uppercase. Digits");
-            sb.AppendLine(";                          and punctuation are unaffected either way.");
-            sb.AppendLine($"Mz80aInvertLetterShift={(Mz80aInvertLetterShift ? "true" : "false")}");
-            sb.AppendLine(";");
-            sb.AppendLine("; Mz80aGreenScreen         MZ-80A only. Renders the monochrome display");
-            sb.AppendLine(";                          in bright green on black, matching the Sharp-");
-            sb.AppendLine(";                          shipped P1-phosphor monitor. Default true —");
-            sb.AppendLine(";                          the authentic look for the machine. Set false");
-            sb.AppendLine(";                          for plain white-on-black. MZ-700 has a colour");
-            sb.AppendLine(";                          display and ignores this setting.");
-            sb.AppendLine($"Mz80aGreenScreen={(Mz80aGreenScreen ? "true" : "false")}");
+            sb.AppendLine("; touching this file. The File → Machine menu triggers an ad-hoc");
+            sb.AppendLine("; restart in the chosen machine (via a --mz700 / --mz80a arg) and");
+            sb.AppendLine("; does NOT rewrite this value — pick the default here in Settings.");
+            sb.AppendLine($"DefaultMachine={DefaultMachine}");
+            sb.AppendLine();
+
+            sb.AppendLine("[Display.MZ80A]");
+            sb.AppendLine("; MZ-80A-only display settings. Ignored while MZ-700 is active.");
+            sb.AppendLine(";   GreenScreen  true / false (default true). Renders the monochrome");
+            sb.AppendLine(";                display in bright green on black, matching the Sharp-");
+            sb.AppendLine(";                shipped P1-phosphor monitor. Set false for plain");
+            sb.AppendLine(";                white-on-black.");
+            sb.AppendLine($"GreenScreen={(Mz80aGreenScreen ? "true" : "false")}");
+            sb.AppendLine();
+
+            sb.AppendLine("[Keyboard.MZ80A]");
+            sb.AppendLine("; MZ-80A-only keyboard settings. Ignored while MZ-700 is active.");
+            sb.AppendLine(";   InvertLetterShift  true / false (default false). On real hardware");
+            sb.AppendLine(";                       unshifted letter keys give UPPERCASE and Shift");
+            sb.AppendLine(";                       toggles them to lowercase — opposite of a PC");
+            sb.AppendLine(";                       keyboard. Default false keeps that authentic");
+            sb.AppendLine(";                       behaviour (natural for BASIC keywords: LIST,");
+            sb.AppendLine(";                       PRINT, RUN…). Set true if you prefer PC-style");
+            sb.AppendLine(";                       Shift-for-uppercase. Digits and punctuation");
+            sb.AppendLine(";                       are unaffected either way.");
+            sb.AppendLine($"InvertLetterShift={(Mz80aInvertLetterShift ? "true" : "false")}");
             sb.AppendLine();
 
             sb.AppendLine("[Roms.MZ700]");
@@ -317,10 +426,10 @@ public sealed class Settings
             sb.AppendLine($"Button2={JoyButton2Index}");
             sb.AppendLine();
 
-            sb.AppendLine("[KeyOverrides]");
-            sb.AppendLine("; User physical-key bindings. Consulted ahead of the built-in");
-            sb.AppendLine("; SpecialKeyMap defaults (Enter, cursors, GRAPH/ALPHA, F-keys, etc).");
-            sb.AppendLine("; One line per binding:");
+            sb.AppendLine("[KeyOverrides.MZ700]");
+            sb.AppendLine("; User physical-key bindings for MZ-700. Consulted ahead of the");
+            sb.AppendLine("; built-in SpecialKeyMap defaults (Enter, cursors, GRAPH/ALPHA,");
+            sb.AppendLine("; F-keys, etc). One line per binding:");
             sb.AppendLine(";   <KeyName>=<row>,<col>,<shift>");
             sb.AppendLine("; Where:");
             sb.AppendLine(";   <KeyName>  WinForms Keys enum value, e.g. F5, Tab, 'Control, G'.");
@@ -331,6 +440,14 @@ public sealed class Settings
             sb.AppendLine(";                f = force MZ shift off");
             sb.AppendLine(";                - = pass through whatever PC shift is currently held");
             foreach (var line in KeyOverrides.SerialiseLines()) sb.AppendLine(line);
+            sb.AppendLine();
+
+            sb.AppendLine("[KeyOverrides.MZ80A]");
+            sb.AppendLine("; User physical-key bindings for MZ-80A. Same format as");
+            sb.AppendLine("; [KeyOverrides.MZ700] above; coordinates are MZ-80A matrix strobe");
+            sb.AppendLine("; (0-9) + bit (0-7), per Fig 3.6 of the Owner's Manual. Consulted");
+            sb.AppendLine("; ahead of Mz80aSpecialKeyMap in Mz80aKeyboard.OnKeyDown.");
+            foreach (var line in Mz80aKeyOverrides.SerialiseLines()) sb.AppendLine(line);
             sb.AppendLine();
 
             sb.AppendLine("[CharMap]");
@@ -371,6 +488,27 @@ public sealed class Settings
             sb.AppendLine("; Or to suppress a built-in default:");
             sb.AppendLine(";   <hex-codepoint>=-                        ; <glyph> (suppressed)");
             foreach (var line in Mz80aCharMapOverrides.SerialiseLines()) sb.AppendLine(line);
+            sb.AppendLine();
+
+            sb.AppendLine("[DebugPanes]");
+            sb.AppendLine("; Which diagnostic / debug panes to open automatically on startup.");
+            sb.AppendLine("; All values default false. The Debug menu still opens/closes each");
+            sb.AppendLine("; pane at any time; these flags only control the boot-time state.");
+            sb.AppendLine("; Panes that don't apply to DefaultMachine (Sound Diagnostic and");
+            sb.AppendLine("; Keyboard Matrix on MZ-80A) are skipped silently at boot but the");
+            sb.AppendLine("; flag survives — switch the default back and they'll open again.");
+            sb.AppendLine(";   Debugger         Debugger (Ctrl+D)");
+            sb.AppendLine(";   MemoryViewer     Memory Viewer (Ctrl+M)");
+            sb.AppendLine(";   HidDiagnostic    HID Diagnostic (Ctrl+H)");
+            sb.AppendLine(";   FontSheet        Font Sheet (Ctrl+G, MZ-700 only until Phase 5.4)");
+            sb.AppendLine(";   SoundDiagnostic  Sound Diagnostic (MZ-700 only)");
+            sb.AppendLine(";   KeyboardMatrix   Keyboard Matrix (MZ-700 only)");
+            sb.AppendLine($"Debugger={(DebugPanesAtStartup.Debugger ? "true" : "false")}");
+            sb.AppendLine($"MemoryViewer={(DebugPanesAtStartup.MemoryViewer ? "true" : "false")}");
+            sb.AppendLine($"HidDiagnostic={(DebugPanesAtStartup.HidDiagnostic ? "true" : "false")}");
+            sb.AppendLine($"FontSheet={(DebugPanesAtStartup.FontSheet ? "true" : "false")}");
+            sb.AppendLine($"SoundDiagnostic={(DebugPanesAtStartup.SoundDiagnostic ? "true" : "false")}");
+            sb.AppendLine($"KeyboardMatrix={(DebugPanesAtStartup.KeyboardMatrix ? "true" : "false")}");
             sb.AppendLine();
 
             sb.AppendLine("[MainWindow]");

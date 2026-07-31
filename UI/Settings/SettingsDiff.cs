@@ -21,9 +21,15 @@ internal sealed class SettingsSnapshot
 {
     public int DisplayScale { get; init; }
     public bool DisplayScanlines { get; init; }
-    public string MonitorRomPath { get; init; } = "";
-    public string FontPath { get; init; } = "";
-    public string BasicPath { get; init; } = "";
+    // Per-machine ROM paths (Phase 5.1c). Both machines' paths are
+    // editable in the ROMs tab regardless of active machine, so the
+    // diff has to cover both sets independently.
+    public string Mz700MonitorPath { get; init; } = "";
+    public string Mz700FontPath { get; init; } = "";
+    public string Mz700BasicPath { get; init; } = "";
+    public string Mz80aMonitorPath { get; init; } = "";
+    public string Mz80aFontPath { get; init; } = "";
+    public string Mz80aBasicPath { get; init; } = "";
     public int JoyButton1Index { get; init; }
     public int JoyButton2Index { get; init; }
 
@@ -43,9 +49,12 @@ internal sealed class SettingsSnapshot
     {
         DisplayScale = settings.DisplayScale,
         DisplayScanlines = settings.DisplayScanlines,
-        MonitorRomPath = settings.MonitorRomPath ?? "",
-        FontPath = settings.FontPath ?? "",
-        BasicPath = settings.BasicPath ?? "",
+        Mz700MonitorPath = settings.Mz700Roms.MonitorRomPath ?? "",
+        Mz700FontPath = settings.Mz700Roms.FontPath ?? "",
+        Mz700BasicPath = settings.Mz700Roms.BasicPath ?? "",
+        Mz80aMonitorPath = settings.Mz80aRoms.MonitorRomPath ?? "",
+        Mz80aFontPath = settings.Mz80aRoms.FontPath ?? "",
+        Mz80aBasicPath = settings.Mz80aRoms.BasicPath ?? "",
         JoyButton1Index = settings.JoyButton1Index,
         JoyButton2Index = settings.JoyButton2Index,
         CharOverrides = settings.CharMapOverrides.All.ToDictionary(kv => kv.Key, kv => kv.Value),
@@ -63,16 +72,20 @@ internal sealed class SettingsSnapshot
     public static SettingsSnapshot Build(
         int displayScale,
         bool displayScanlines,
-        string monitorPath, string fontPath, string basicPath,
+        string mz700Monitor, string mz700Font, string mz700Basic,
+        string mz80aMonitor, string mz80aFont, string mz80aBasic,
         int joy1, int joy2,
         CharMapOverrides charOverrides,
         KeyOverride keyOverrides) => new()
         {
             DisplayScale = displayScale,
             DisplayScanlines = displayScanlines,
-            MonitorRomPath = monitorPath ?? "",
-            FontPath = fontPath ?? "",
-            BasicPath = basicPath ?? "",
+            Mz700MonitorPath = mz700Monitor ?? "",
+            Mz700FontPath = mz700Font ?? "",
+            Mz700BasicPath = mz700Basic ?? "",
+            Mz80aMonitorPath = mz80aMonitor ?? "",
+            Mz80aFontPath = mz80aFont ?? "",
+            Mz80aBasicPath = mz80aBasic ?? "",
             JoyButton1Index = joy1,
             JoyButton2Index = joy2,
             CharOverrides = charOverrides.All.ToDictionary(kv => kv.Key, kv => kv.Value),
@@ -101,12 +114,18 @@ internal static class SettingsDiff
             lines.Add($"Display scale: {before.DisplayScale}× → {after.DisplayScale}×");
         if (before.DisplayScanlines != after.DisplayScanlines)
             lines.Add($"Scanlines: {(before.DisplayScanlines ? "on" : "off")} → {(after.DisplayScanlines ? "on" : "off")}");
-        if (before.MonitorRomPath != after.MonitorRomPath)
-            lines.Add($"Monitor ROM: \"{before.MonitorRomPath}\" → \"{after.MonitorRomPath}\"");
-        if (before.FontPath != after.FontPath)
-            lines.Add($"Font ROM: \"{before.FontPath}\" → \"{after.FontPath}\"");
-        if (before.BasicPath != after.BasicPath)
-            lines.Add($"BASIC image: \"{before.BasicPath}\" → \"{after.BasicPath}\"");
+        if (before.Mz700MonitorPath != after.Mz700MonitorPath)
+            lines.Add($"MZ-700 Monitor ROM: \"{before.Mz700MonitorPath}\" → \"{after.Mz700MonitorPath}\"");
+        if (before.Mz700FontPath != after.Mz700FontPath)
+            lines.Add($"MZ-700 Font ROM: \"{before.Mz700FontPath}\" → \"{after.Mz700FontPath}\"");
+        if (before.Mz700BasicPath != after.Mz700BasicPath)
+            lines.Add($"MZ-700 BASIC image: \"{before.Mz700BasicPath}\" → \"{after.Mz700BasicPath}\"");
+        if (before.Mz80aMonitorPath != after.Mz80aMonitorPath)
+            lines.Add($"MZ-80A Monitor ROM: \"{before.Mz80aMonitorPath}\" → \"{after.Mz80aMonitorPath}\"");
+        if (before.Mz80aFontPath != after.Mz80aFontPath)
+            lines.Add($"MZ-80A Font ROM: \"{before.Mz80aFontPath}\" → \"{after.Mz80aFontPath}\"");
+        if (before.Mz80aBasicPath != after.Mz80aBasicPath)
+            lines.Add($"MZ-80A BASIC image: \"{before.Mz80aBasicPath}\" → \"{after.Mz80aBasicPath}\"");
         if (before.JoyButton1Index != after.JoyButton1Index)
             lines.Add($"Joystick button 1: index {before.JoyButton1Index} → {after.JoyButton1Index}");
         if (before.JoyButton2Index != after.JoyButton2Index)

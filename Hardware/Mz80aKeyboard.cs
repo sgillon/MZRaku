@@ -75,6 +75,16 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
     /// </summary>
     public readonly KeyboardDiagnostics Diag = new();
 
+    /// <summary>
+    /// User-editable physical-key overrides for MZ-80A, consulted
+    /// before <see cref="Mz80aSpecialKeyMap"/> in <see cref="OnKeyDown"/>.
+    /// Same <see cref="KeyOverride"/> shape as MZ-700 — the matrix is
+    /// the same 10-strobe × 8-bit topology so nothing here is machine-
+    /// specific. Null = no overrides layer wired; behaviour matches
+    /// pre-Phase-5.1a code.
+    /// </summary>
+    public KeyOverride? Overrides;
+
     public Mz80aKeyboard()
     {
         for (int i = 0; i < 10; i++) _rows[i] = 0xFF;
@@ -128,6 +138,22 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
         // EffectiveMzShift resolve at press-time. Mirrors the MZ-700
         // shift-race fix.
         if (IsShiftKey(key)) return false;
+
+        // Layer 1: user overrides. Resolve() checks the combined-
+        // modifier form first (e.g. Control+G) then falls back to the
+        // bare VK, so modifier-aware bindings work. MzShift can be
+        // true / false / null and the ActiveHold honours each — see
+        // EffectiveMzShift's null check.
+        var ov = Overrides?.Resolve(keyData);
+        if (ov.HasValue)
+        {
+            var b = ov.Value;
+            _holds[key] = new ActiveHold(b.Row, b.Col, b.MzShift);
+            ApplyShiftState();
+            SetMatrix(b.Row, b.Col, true);
+            Diag.Record(InputLayer.Override, b.Row, b.Col, b.MzShift);
+            return true;
+        }
 
         if (Mz80aSpecialKeyMap.Map.TryGetValue(key, out var sp))
         {

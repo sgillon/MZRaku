@@ -51,13 +51,22 @@ public sealed class SettingsForm : Form
     private readonly RadioButton _rb3x = new() { Text = "&3× (960×600)", AutoSize = true };
     private readonly CheckBox _chkScanlines = new() { Text = "CRT-style scan&lines", AutoSize = true };
 
-    // ROMs
-    private readonly TextBox _txtMonitor = new() { Width = 280 };
-    private readonly TextBox _txtFont = new() { Width = 280 };
-    private readonly TextBox _txtBasic = new() { Width = 280 };
-    private readonly Label _lblMonitorStatus = new() { AutoSize = true };
-    private readonly Label _lblFontStatus = new() { AutoSize = true };
-    private readonly Label _lblBasicStatus = new() { AutoSize = true };
+    // ROMs — per-machine as of Phase 5.1a. Both machines' rom sets are
+    // shown side-by-side so the user can maintain both without switching
+    // machine first; whichever isn't the active machine renders with a
+    // "(not active)" title and dimmed group heading (D5).
+    private readonly TextBox _txtMz700Monitor = new() { Width = 280 };
+    private readonly TextBox _txtMz700Font = new() { Width = 280 };
+    private readonly TextBox _txtMz700Basic = new() { Width = 280 };
+    private readonly Label _lblMz700MonitorStatus = new() { AutoSize = true };
+    private readonly Label _lblMz700FontStatus = new() { AutoSize = true };
+    private readonly Label _lblMz700BasicStatus = new() { AutoSize = true };
+    private readonly TextBox _txtMz80aMonitor = new() { Width = 280 };
+    private readonly TextBox _txtMz80aFont = new() { Width = 280 };
+    private readonly TextBox _txtMz80aBasic = new() { Width = 280 };
+    private readonly Label _lblMz80aMonitorStatus = new() { AutoSize = true };
+    private readonly Label _lblMz80aFontStatus = new() { AutoSize = true };
+    private readonly Label _lblMz80aBasicStatus = new() { AutoSize = true };
 
     // Joystick
     private readonly NumericUpDown _numButton1 = new() { Minimum = 0, Maximum = 31, Width = 60 };
@@ -206,38 +215,126 @@ public sealed class SettingsForm : Form
         return BuildTabPage("Display", stack);
     }
 
+    /// <summary>
+    /// Which machine a group of settings applies to. Drives the group-box
+    /// title suffix + heading tint per D1/D5 — group whose scope isn't
+    /// currently active renders as "(not active)" in <see cref="SystemColors.GrayText"/>
+    /// but its controls stay fully enabled (edits persist for next boot).
+    /// </summary>
+    private enum MachineScope { Shared, Mz700Only, Mz80aOnly }
+
+    /// <summary>
+    /// Build a <see cref="GroupBox"/> whose title + heading colour reflect
+    /// the given <paramref name="scope"/> relative to the currently active
+    /// machine. Caller docks / adds content into the returned group's
+    /// Controls collection.
+    /// </summary>
+    private GroupBox MakeMachineGroup(string title, MachineScope scope)
+    {
+        bool active = scope switch
+        {
+            MachineScope.Mz700Only => _settings.Type == MachineType.MZ700,
+            MachineScope.Mz80aOnly => _settings.Type == MachineType.MZ80A,
+            _ => true,
+        };
+        string suffix = (scope != MachineScope.Shared && !active) ? " (not active)" : "";
+        return new GroupBox
+        {
+            Text = title + suffix,
+            Dock = DockStyle.Fill,
+            // GroupBox title lands inside the top padding band — 16px
+            // clears the text so first content row doesn't overlap.
+            // Same pattern as the Known limitations group and the HID
+            // Diagnostic pane's own group boxes.
+            Padding = new Padding(8, 16, 8, 8),
+            Margin = new Padding(0, 0, 0, 8),
+            ForeColor = active ? SystemColors.ControlText : SystemColors.GrayText,
+        };
+    }
+
     private TabPage BuildRomsTab()
     {
+        // Two per-machine groups stacked vertically + a hint at the
+        // bottom. Each group hosts a 4×3 grid: label / textbox / status
+        // / browse button per ROM file (Monitor, Font, BASIC).
+        var root = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 3,
+            Padding = new Padding(12),
+        };
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        // 3 ROM rows × 34 px = 102 px of content per group, plus
+        // GroupBox chrome (16 px top-padding for title band + 8 px
+        // bottom padding + a little breathing room). Explicit heights
+        // are needed here — Dock=Fill on the GroupBox doesn't report a
+        // natural size, so AutoSize rows collapse to just the visible
+        // top and clip the BASIC row.
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 150f));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 150f));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+
+        root.Controls.Add(BuildRomGroup(
+            MachineScope.Mz700Only, "MZ-700 ROMs",
+            _txtMz700Monitor, _lblMz700MonitorStatus,
+            "1z-013a.rom",  // monitor
+            _txtMz700Font, _lblMz700FontStatus,
+            "mz700fon.int",  // font
+            "Font files (*.int;*.bin;*.txt)|*.int;*.bin;*.txt|All files|*.*",
+            _txtMz700Basic, _lblMz700BasicStatus,
+            "1Z-013B.mzf"), 0, 0);
+
+        root.Controls.Add(BuildRomGroup(
+            MachineScope.Mz80aOnly, "MZ-80A ROMs",
+            _txtMz80aMonitor, _lblMz80aMonitorStatus,
+            "SA-1510.rom",  // monitor
+            _txtMz80aFont, _lblMz80aFontStatus,
+            "SA-CG.rom",  // font
+            "Font files (*.rom;*.bin)|*.rom;*.bin|All files|*.*",
+            _txtMz80aBasic, _lblMz80aBasicStatus,
+            "SA-5510.mzf"), 0, 1);
+
+        var hint = new Label
+        {
+            Text = "Monitor/Font path changes take effect on next launch.\nBASIC path takes effect on next Load BASIC.\nBoth machines' paths are editable regardless of which is currently active.",
+            AutoSize = true,
+            ForeColor = SystemColors.GrayText,
+            Margin = new Padding(0, 4, 0, 0),
+        };
+        root.Controls.Add(hint, 0, 2);
+
+        return BuildTabPage("ROMs", root);
+    }
+
+    private GroupBox BuildRomGroup(MachineScope scope, string title,
+        TextBox monitor, Label monitorStatus, string monitorHint,
+        TextBox font, Label fontStatus, string fontHint,
+        string fontFilter,
+        TextBox basic, Label basicStatus, string basicHint)
+    {
+        var group = MakeMachineGroup(title, scope);
         var grid = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 4,
-            RowCount = 4,
-            Padding = new Padding(12),
+            RowCount = 3,
         };
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110f));
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 84f));
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90f));
-        for (int i = 0; i < 4; i++) grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
+        for (int i = 0; i < 3; i++) grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
 
-        AddRomRow(grid, 0, "Monitor ROM:", _txtMonitor, _lblMonitorStatus,
-            "Select monitor ROM (1z-013a.rom)", "ROM files (*.rom;*.bin)|*.rom;*.bin|All files|*.*");
-        AddRomRow(grid, 1, "Font ROM:", _txtFont, _lblFontStatus,
-            "Select character ROM (mz700fon.int)", "Font files (*.int;*.bin;*.txt)|*.int;*.bin;*.txt|All files|*.*");
-        AddRomRow(grid, 2, "BASIC:", _txtBasic, _lblBasicStatus,
-            "Select S-BASIC cassette (1Z-013B.mzf)", "Cassette files (*.mzf;*.m12;*.mzt)|*.mzf;*.m12;*.mzt|All files|*.*");
+        AddRomRow(grid, 0, "Monitor ROM:", monitor, monitorStatus,
+            $"Select monitor ROM ({monitorHint})", "ROM files (*.rom;*.bin)|*.rom;*.bin|All files|*.*");
+        AddRomRow(grid, 1, "Font ROM:", font, fontStatus,
+            $"Select character ROM ({fontHint})", fontFilter);
+        AddRomRow(grid, 2, "BASIC:", basic, basicStatus,
+            $"Select S-BASIC cassette ({basicHint})", "Cassette files (*.mzf;*.m12;*.mzt)|*.mzf;*.m12;*.mzt|All files|*.*");
 
-        var hint = new Label
-        {
-            Text = "Monitor/Font path changes take effect on next launch.\nBASIC path takes effect on next Load BASIC.",
-            AutoSize = true,
-            ForeColor = SystemColors.GrayText,
-        };
-        grid.Controls.Add(hint, 0, 3);
-        grid.SetColumnSpan(hint, 4);
-
-        return BuildTabPage("ROMs", grid);
+        group.Controls.Add(grid);
+        return group;
     }
 
     private void AddRomRow(TableLayoutPanel grid, int row, string label, TextBox textBox, Label statusLabel,
@@ -755,9 +852,12 @@ public sealed class SettingsForm : Form
             default: _rb2x.Checked = true; break;
         }
         _chkScanlines.Checked = _settings.DisplayScanlines;
-        _txtMonitor.Text = _settings.MonitorRomPath;
-        _txtFont.Text = _settings.FontPath;
-        _txtBasic.Text = _settings.BasicPath;
+        _txtMz700Monitor.Text = _settings.Mz700Roms.MonitorRomPath;
+        _txtMz700Font.Text = _settings.Mz700Roms.FontPath;
+        _txtMz700Basic.Text = _settings.Mz700Roms.BasicPath;
+        _txtMz80aMonitor.Text = _settings.Mz80aRoms.MonitorRomPath;
+        _txtMz80aFont.Text = _settings.Mz80aRoms.FontPath;
+        _txtMz80aBasic.Text = _settings.Mz80aRoms.BasicPath;
         _numButton1.Value = Clamp(_settings.JoyButton1Index, 0, 31);
         _numButton2.Value = Clamp(_settings.JoyButton2Index, 0, 31);
         RefreshAllRomStatus();
@@ -767,9 +867,12 @@ public sealed class SettingsForm : Form
     {
         _settings.DisplayScale = _rb3x.Checked ? 3 : _rb1x.Checked ? 1 : 2;
         _settings.DisplayScanlines = _chkScanlines.Checked;
-        _settings.MonitorRomPath = _txtMonitor.Text.Trim();
-        _settings.FontPath = _txtFont.Text.Trim();
-        _settings.BasicPath = _txtBasic.Text.Trim();
+        _settings.Mz700Roms.MonitorRomPath = _txtMz700Monitor.Text.Trim();
+        _settings.Mz700Roms.FontPath = _txtMz700Font.Text.Trim();
+        _settings.Mz700Roms.BasicPath = _txtMz700Basic.Text.Trim();
+        _settings.Mz80aRoms.MonitorRomPath = _txtMz80aMonitor.Text.Trim();
+        _settings.Mz80aRoms.FontPath = _txtMz80aFont.Text.Trim();
+        _settings.Mz80aRoms.BasicPath = _txtMz80aBasic.Text.Trim();
         _settings.JoyButton1Index = (int)_numButton1.Value;
         _settings.JoyButton2Index = (int)_numButton2.Value;
         _settings.Save();
@@ -793,9 +896,12 @@ public sealed class SettingsForm : Form
         var candidate = SettingsSnapshot.Build(
             displayScale: _rb3x.Checked ? 3 : _rb1x.Checked ? 1 : 2,
             displayScanlines: _chkScanlines.Checked,
-            monitorPath: _txtMonitor.Text.Trim(),
-            fontPath: _txtFont.Text.Trim(),
-            basicPath: _txtBasic.Text.Trim(),
+            mz700Monitor: _txtMz700Monitor.Text.Trim(),
+            mz700Font: _txtMz700Font.Text.Trim(),
+            mz700Basic: _txtMz700Basic.Text.Trim(),
+            mz80aMonitor: _txtMz80aMonitor.Text.Trim(),
+            mz80aFont: _txtMz80aFont.Text.Trim(),
+            mz80aBasic: _txtMz80aBasic.Text.Trim(),
             joy1: (int)_numButton1.Value,
             joy2: (int)_numButton2.Value,
             charOverrides: _settings.CharMapOverrides,
@@ -872,16 +978,22 @@ public sealed class SettingsForm : Form
 
     private void WireValidation()
     {
-        _txtMonitor.TextChanged += (_, _) => UpdateRomStatus(_txtMonitor, _lblMonitorStatus);
-        _txtFont.TextChanged += (_, _) => UpdateRomStatus(_txtFont, _lblFontStatus);
-        _txtBasic.TextChanged += (_, _) => UpdateRomStatus(_txtBasic, _lblBasicStatus);
+        _txtMz700Monitor.TextChanged += (_, _) => UpdateRomStatus(_txtMz700Monitor, _lblMz700MonitorStatus);
+        _txtMz700Font.TextChanged += (_, _) => UpdateRomStatus(_txtMz700Font, _lblMz700FontStatus);
+        _txtMz700Basic.TextChanged += (_, _) => UpdateRomStatus(_txtMz700Basic, _lblMz700BasicStatus);
+        _txtMz80aMonitor.TextChanged += (_, _) => UpdateRomStatus(_txtMz80aMonitor, _lblMz80aMonitorStatus);
+        _txtMz80aFont.TextChanged += (_, _) => UpdateRomStatus(_txtMz80aFont, _lblMz80aFontStatus);
+        _txtMz80aBasic.TextChanged += (_, _) => UpdateRomStatus(_txtMz80aBasic, _lblMz80aBasicStatus);
     }
 
     private void RefreshAllRomStatus()
     {
-        UpdateRomStatus(_txtMonitor, _lblMonitorStatus);
-        UpdateRomStatus(_txtFont, _lblFontStatus);
-        UpdateRomStatus(_txtBasic, _lblBasicStatus);
+        UpdateRomStatus(_txtMz700Monitor, _lblMz700MonitorStatus);
+        UpdateRomStatus(_txtMz700Font, _lblMz700FontStatus);
+        UpdateRomStatus(_txtMz700Basic, _lblMz700BasicStatus);
+        UpdateRomStatus(_txtMz80aMonitor, _lblMz80aMonitorStatus);
+        UpdateRomStatus(_txtMz80aFont, _lblMz80aFontStatus);
+        UpdateRomStatus(_txtMz80aBasic, _lblMz80aBasicStatus);
     }
 
     private static void UpdateRomStatus(TextBox textBox, Label statusLabel)

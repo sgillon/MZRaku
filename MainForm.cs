@@ -164,14 +164,20 @@ public sealed class MainForm : Form
         var joystickForInput = _machine?.Joystick ?? new Hardware.Joystick();
         _joystickInput = new Hardware.JoystickInput(joystickForInput);
         _joystickInput.SetButtonIndices(_settings.JoyButton1Index, _settings.JoyButton2Index);
-        // Keyboard-override wiring. MZ-700 uses KeyOverrides + CharMap;
-        // MZ-80A uses Mz80aCharMap (Phase A, 2026-07-12). Physical
-        // KeyOverride equivalent for MZ-80A is not yet wired — landed
-        // as part of Phase C polish.
+        // Keyboard-override wiring. Both machines have identical
+        // 10-strobe × 8-bit matrix topology so KeyOverride is shared;
+        // Settings persists two independent instances at
+        // [KeyOverrides.MZ700] / [KeyOverrides.MZ80A] (Phase 5.1a).
+        // Char-map layers are split too: CharMap for MZ-700,
+        // Mz80aCharMap for MZ-80A.
         if (_machine != null)
         {
             _machine!.Keyboard.Overrides = _settings.KeyOverrides;
             CharMap.Overrides = _settings.CharMapOverrides;
+        }
+        if (_mz80a != null)
+        {
+            _mz80a.Keyboard.Overrides = _settings.Mz80aKeyOverrides;
         }
         Mz80aCharMap.Overrides = _settings.Mz80aCharMapOverrides;
 
@@ -1737,54 +1743,49 @@ public sealed class MainForm : Form
         if (target == _settings.Type) return; // already on it — no-op
         var name = target == MachineType.MZ700 ? "MZ-700" : "MZ-80A";
         var result = MessageBox.Show(
-            $"Restart MZRaku to switch to Sharp {name}?\n\n" +
-            "Your settings.ini will record the new choice regardless — pick No to defer the switch until the next launch.",
+            $"Restart MZRaku to run Sharp {name}?\n\n" +
+            "This is a one-off switch for this session. Your default machine on next natural launch (Settings → [Machine] DefaultMachine=) is unchanged.",
             "Switch machine",
-            MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
-        if (result == DialogResult.Cancel) return;
-        _settings.Type = target;
-        _settings.Save();
-        if (result == DialogResult.Yes)
-        {
-            // Close any owned diagnostic windows first — Application.Restart
-            // enumerates Application.OpenForms and closing owned forms mid-
-            // enumeration throws InvalidOperationException. Belt-and-braces:
-            // clear each Owner too so WinForms' own owned-form teardown
-            // during Restart's Exit call doesn't hit the same race.
-            void SafeCloseChild(Form? f)
-            {
-                if (f == null || f.IsDisposed) return;
-                f.Owner = null;
-                f.Close();
-                f.Dispose();
-            }
-            SafeCloseChild(_hidDiag);
-            SafeCloseChild(_soundDiag);
-            SafeCloseChild(_memViewer);
-            SafeCloseChild(_fontSheet);
-            SafeCloseChild(_debugger);
+            MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+        if (result != DialogResult.Yes) return;
 
-            // Application.Restart() re-uses the ORIGINAL command-line
-            // args verbatim. If the user launched with --mz700 or
-            // --mz80a, that arg overrides Settings.Type in Program.cs
-            // and the menu switch would be silently reverted. Launch
-            // a fresh process manually with those flags stripped so
-            // the settings.ini we just wrote takes effect. Other
-            // flags (--basic, --scanlines, --display, cassette path)
-            // are preserved.
-            var origArgs = Environment.GetCommandLineArgs();
-            var exePath = Environment.ProcessPath ?? Application.ExecutablePath;
-            var psi = new System.Diagnostics.ProcessStartInfo(exePath) { UseShellExecute = false };
-            for (int i = 1; i < origArgs.Length; i++)
-            {
-                var a = origArgs[i];
-                if (a.Equals("--mz700", StringComparison.OrdinalIgnoreCase)) continue;
-                if (a.Equals("--mz80a", StringComparison.OrdinalIgnoreCase)) continue;
-                psi.ArgumentList.Add(a);
-            }
-            System.Diagnostics.Process.Start(psi);
-            Environment.Exit(0);
+        // Close any owned diagnostic windows first — WinForms' owned-
+        // form teardown during shutdown enumerates Application.OpenForms
+        // and can hit an InvalidOperationException if forms close mid-
+        // enumeration. Belt-and-braces: clear each Owner then dispose.
+        void SafeCloseChild(Form? f)
+        {
+            if (f == null || f.IsDisposed) return;
+            f.Owner = null;
+            f.Close();
+            f.Dispose();
         }
+        SafeCloseChild(_hidDiag);
+        SafeCloseChild(_soundDiag);
+        SafeCloseChild(_memViewer);
+        SafeCloseChild(_fontSheet);
+        SafeCloseChild(_debugger);
+
+        // Phase 5.1a: menu switches are ad-hoc — they do NOT rewrite
+        // [Machine] DefaultMachine=. Launch a fresh process with the
+        // target's --mz700 / --mz80a CLI flag so this run boots into
+        // the chosen machine while the persisted default stays put.
+        // Any existing --mz700 / --mz80a in our own args is stripped
+        // (target's flag replaces it); other flags (--basic,
+        // --scanlines, --display, cassette path) are preserved.
+        var origArgs = Environment.GetCommandLineArgs();
+        var exePath = Environment.ProcessPath ?? Application.ExecutablePath;
+        var psi = new System.Diagnostics.ProcessStartInfo(exePath) { UseShellExecute = false };
+        for (int i = 1; i < origArgs.Length; i++)
+        {
+            var a = origArgs[i];
+            if (a.Equals("--mz700", StringComparison.OrdinalIgnoreCase)) continue;
+            if (a.Equals("--mz80a", StringComparison.OrdinalIgnoreCase)) continue;
+            psi.ArgumentList.Add(a);
+        }
+        psi.ArgumentList.Add(target == MachineType.MZ700 ? "--mz700" : "--mz80a");
+        System.Diagnostics.Process.Start(psi);
+        Environment.Exit(0);
     }
 
     private void OpenSettings(SettingsForm.Tab tab = SettingsForm.Tab.Roms)
