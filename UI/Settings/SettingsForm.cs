@@ -31,10 +31,11 @@ public sealed class SettingsForm : Form
     /// </summary>
     public enum Tab
     {
-        Roms = 0,
-        Display = 1,
-        Keyboard = 2,
-        Joystick = 3,
+        Startup = 0,
+        Roms = 1,
+        Display = 2,
+        Keyboard = 3,
+        Joystick = 4,
     }
 
     private readonly Settings _settings;
@@ -87,6 +88,24 @@ public sealed class SettingsForm : Form
     private readonly NumericUpDown _numButton1 = new() { Minimum = 0, Maximum = 31, Width = 60 };
     private readonly NumericUpDown _numButton2 = new() { Minimum = 0, Maximum = 31, Width = 60 };
 
+    // Startup — Phase 5.3. DefaultMachine picker + boot-time debug
+    // pane visibility. DefaultMachine is the persisted default; the
+    // --mz700 / --mz80a CLI flag overrides at launch without touching
+    // this value. Debug pane checkboxes for panes that don't apply to
+    // the persisted DefaultMachine grey out with an explanatory tooltip
+    // (their stored value survives — switch the default back and
+    // they'll open again).
+    private readonly RadioButton _rbDefaultMz700 = new() { Text = "MZ-&700", AutoSize = true };
+    private readonly RadioButton _rbDefaultMz80a = new() { Text = "MZ-&80A", AutoSize = true };
+    private readonly Label _lblCliOverrideHint = new() { AutoSize = true, ForeColor = SystemColors.GrayText };
+    private readonly CheckBox _chkDebuggerAtStartup = new() { Text = "&Debugger (Ctrl+D)", AutoSize = true };
+    private readonly CheckBox _chkMemoryViewerAtStartup = new() { Text = "&Memory Viewer (Ctrl+M)", AutoSize = true };
+    private readonly CheckBox _chkHidDiagnosticAtStartup = new() { Text = "&HID Diagnostic (Ctrl+H)", AutoSize = true };
+    private readonly CheckBox _chkFontSheetAtStartup = new() { Text = "&Font Sheet (Ctrl+G)", AutoSize = true };
+    private readonly CheckBox _chkSoundDiagnosticAtStartup = new() { Text = "&Sound Diagnostic", AutoSize = true };
+    private readonly CheckBox _chkKeyboardMatrixAtStartup = new() { Text = "&Keyboard Matrix", AutoSize = true };
+    private ToolTip? _startupTooltips;
+
     // Pre-edit baseline captured when the dialog opens; diffed against
     // the live state at Apply / OK time so the user sees a summary of
     // exactly what's about to be persisted. Refreshed after a successful
@@ -99,7 +118,7 @@ public sealed class SettingsForm : Form
     public event Action? Applied;
 
     public SettingsForm(Settings settings, JoystickInput? joystickInput = null, MZ700? machine = null,
-        Tab initialTab = Tab.Roms)
+        Tab initialTab = Tab.Startup)
     {
         _settings = settings;
         _joystickInput = joystickInput;
@@ -119,6 +138,7 @@ public sealed class SettingsForm : Form
         KeyPreview = true;
 
         var tabs = new TabControl { Dock = DockStyle.Fill };
+        tabs.TabPages.Add(BuildStartupTab());
         tabs.TabPages.Add(BuildRomsTab());
         tabs.TabPages.Add(BuildDisplayTab());
         tabs.TabPages.Add(BuildKeyboardTab());
@@ -201,6 +221,116 @@ public sealed class SettingsForm : Form
     }
 
     // -- Tab construction -----------------------------------------------
+
+    private TabPage BuildStartupTab()
+    {
+        var stack = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.TopDown,
+            Dock = DockStyle.Fill,
+            Padding = new Padding(12),
+            WrapContents = false,
+        };
+
+        // Default machine group.
+        var machineGroup = new GroupBox
+        {
+            Text = "Default machine on startup",
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = new Padding(8, 16, 8, 8),
+            Margin = new Padding(0, 0, 0, 12),
+        };
+        var machineStack = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.TopDown,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            WrapContents = false,
+            Dock = DockStyle.Fill,
+            Margin = new Padding(0),
+        };
+        machineStack.Controls.Add(_rbDefaultMz700);
+        machineStack.Controls.Add(_rbDefaultMz80a);
+        machineStack.Controls.Add(new Label
+        {
+            Text = "Overridable per-run with the --mz700 / --mz80a CLI flag (which does not rewrite this setting).",
+            AutoSize = true,
+            MaximumSize = new Size(650, 0),
+            ForeColor = SystemColors.GrayText,
+            Margin = new Padding(0, 8, 0, 0),
+        });
+        // CLI-override hint — only visible when the current session's
+        // machine differs from the persisted DefaultMachine, i.e. a CLI
+        // flag is overriding right now.
+        _lblCliOverrideHint.Margin = new Padding(0, 6, 0, 0);
+        machineStack.Controls.Add(_lblCliOverrideHint);
+        machineGroup.Controls.Add(machineStack);
+        stack.Controls.Add(machineGroup);
+
+        // Debug panes group.
+        var panesGroup = new GroupBox
+        {
+            Text = "Debug panes on startup",
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = new Padding(8, 16, 8, 8),
+            Margin = new Padding(0),
+        };
+        var panesStack = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.TopDown,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            WrapContents = false,
+            Dock = DockStyle.Fill,
+            Margin = new Padding(0),
+        };
+        panesStack.Controls.Add(_chkDebuggerAtStartup);
+        panesStack.Controls.Add(_chkMemoryViewerAtStartup);
+        panesStack.Controls.Add(_chkHidDiagnosticAtStartup);
+        panesStack.Controls.Add(_chkFontSheetAtStartup);
+        panesStack.Controls.Add(_chkSoundDiagnosticAtStartup);
+        panesStack.Controls.Add(_chkKeyboardMatrixAtStartup);
+        panesStack.Controls.Add(new Label
+        {
+            Text = "Panes that don't apply to the current DefaultMachine grey out; their stored setting still survives, so switching the default back restores them.",
+            AutoSize = true,
+            MaximumSize = new Size(650, 0),
+            ForeColor = SystemColors.GrayText,
+            Margin = new Padding(0, 8, 0, 0),
+        });
+        panesGroup.Controls.Add(panesStack);
+        stack.Controls.Add(panesGroup);
+
+        // Tooltips explain the grey-out reasoning.
+        _startupTooltips = new ToolTip();
+        _startupTooltips.SetToolTip(_chkFontSheetAtStartup,
+            "Currently MZ-700 only. MZ-80A support arrives in Phase 5.4.");
+        _startupTooltips.SetToolTip(_chkSoundDiagnosticAtStartup,
+            "MZ-700 only. Won't open at boot when DefaultMachine=MZ-80A.");
+        _startupTooltips.SetToolTip(_chkKeyboardMatrixAtStartup,
+            "MZ-700 only. Won't open at boot when DefaultMachine=MZ-80A.");
+
+        // Live grey-out on radio change.
+        _rbDefaultMz700.CheckedChanged += (_, _) => RefreshDebugPaneEnabledState();
+        _rbDefaultMz80a.CheckedChanged += (_, _) => RefreshDebugPaneEnabledState();
+
+        return BuildTabPage("Startup", stack);
+    }
+
+    /// <summary>
+    /// Grey out MZ-700-only debug panes when the DefaultMachine radio
+    /// is set to MZ-80A. Stored values survive — disabling only masks
+    /// the checkbox visually, doesn't alter its Checked state.
+    /// </summary>
+    private void RefreshDebugPaneEnabledState()
+    {
+        bool mz80aDefault = _rbDefaultMz80a.Checked;
+        _chkFontSheetAtStartup.Enabled = !mz80aDefault;
+        _chkSoundDiagnosticAtStartup.Enabled = !mz80aDefault;
+        _chkKeyboardMatrixAtStartup.Enabled = !mz80aDefault;
+    }
 
     private TabPage BuildDisplayTab()
     {
@@ -912,6 +1042,31 @@ public sealed class SettingsForm : Form
 
     private void LoadFromSettings()
     {
+        // Startup — DefaultMachine radio + CLI-override hint.
+        if (_settings.DefaultMachine == MachineType.MZ80A)
+            _rbDefaultMz80a.Checked = true;
+        else
+            _rbDefaultMz700.Checked = true;
+        if (_settings.Type != _settings.DefaultMachine)
+        {
+            var flag = _settings.Type == MachineType.MZ700 ? "--mz700" : "--mz80a";
+            var name = _settings.Type == MachineType.MZ700 ? "MZ-700" : "MZ-80A";
+            _lblCliOverrideHint.Text = $"Current session: {name} (via {flag} CLI flag).";
+            _lblCliOverrideHint.Visible = true;
+        }
+        else
+        {
+            _lblCliOverrideHint.Visible = false;
+        }
+        var dp = _settings.DebugPanesAtStartup;
+        _chkDebuggerAtStartup.Checked = dp.Debugger;
+        _chkMemoryViewerAtStartup.Checked = dp.MemoryViewer;
+        _chkHidDiagnosticAtStartup.Checked = dp.HidDiagnostic;
+        _chkFontSheetAtStartup.Checked = dp.FontSheet;
+        _chkSoundDiagnosticAtStartup.Checked = dp.SoundDiagnostic;
+        _chkKeyboardMatrixAtStartup.Checked = dp.KeyboardMatrix;
+        RefreshDebugPaneEnabledState();
+
         switch (_settings.DisplayScale)
         {
             case 1: _rb1x.Checked = true; break;
@@ -934,6 +1089,19 @@ public sealed class SettingsForm : Form
 
     private void ApplyChanges()
     {
+        // Startup — DefaultMachine + debug pane flags. Grey-out on the
+        // checkboxes is UI-only; stored Checked values persist regardless
+        // so switching the default back restores them.
+        _settings.DefaultMachine = _rbDefaultMz80a.Checked
+            ? MachineType.MZ80A : MachineType.MZ700;
+        var dp = _settings.DebugPanesAtStartup;
+        dp.Debugger = _chkDebuggerAtStartup.Checked;
+        dp.MemoryViewer = _chkMemoryViewerAtStartup.Checked;
+        dp.HidDiagnostic = _chkHidDiagnosticAtStartup.Checked;
+        dp.FontSheet = _chkFontSheetAtStartup.Checked;
+        dp.SoundDiagnostic = _chkSoundDiagnosticAtStartup.Checked;
+        dp.KeyboardMatrix = _chkKeyboardMatrixAtStartup.Checked;
+
         _settings.DisplayScale = _rb3x.Checked ? 3 : _rb1x.Checked ? 1 : 2;
         _settings.DisplayScanlines = _chkScanlines.Checked;
         _settings.Mz80aGreenScreen = _chkMz80aGreenScreen.Checked;
@@ -965,6 +1133,13 @@ public sealed class SettingsForm : Form
     private bool ConfirmDiff()
     {
         var candidate = SettingsSnapshot.Build(
+            defaultMachine: _rbDefaultMz80a.Checked ? MachineType.MZ80A : MachineType.MZ700,
+            paneDebugger: _chkDebuggerAtStartup.Checked,
+            paneMemoryViewer: _chkMemoryViewerAtStartup.Checked,
+            paneHidDiagnostic: _chkHidDiagnosticAtStartup.Checked,
+            paneFontSheet: _chkFontSheetAtStartup.Checked,
+            paneSoundDiagnostic: _chkSoundDiagnosticAtStartup.Checked,
+            paneKeyboardMatrix: _chkKeyboardMatrixAtStartup.Checked,
             displayScale: _rb3x.Checked ? 3 : _rb1x.Checked ? 1 : 2,
             displayScanlines: _chkScanlines.Checked,
             mz80aGreenScreen: _chkMz80aGreenScreen.Checked,

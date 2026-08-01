@@ -19,6 +19,17 @@ namespace MZRaku;
 /// </summary>
 internal sealed class SettingsSnapshot
 {
+    // Startup preferences (Phase 5.3). DefaultMachine is the persisted
+    // boot machine; six DebugPanesAtStartup flags govern which debug
+    // panes auto-open at boot.
+    public MachineType DefaultMachine { get; init; } = MachineType.MZ700;
+    public bool PaneDebugger { get; init; }
+    public bool PaneMemoryViewer { get; init; }
+    public bool PaneHidDiagnostic { get; init; }
+    public bool PaneFontSheet { get; init; }
+    public bool PaneSoundDiagnostic { get; init; }
+    public bool PaneKeyboardMatrix { get; init; }
+
     public int DisplayScale { get; init; }
     public bool DisplayScanlines { get; init; }
     // MZ-80A-specific toggles (Phase 5.2). Green-screen tint retires
@@ -52,6 +63,13 @@ internal sealed class SettingsSnapshot
 
     public static SettingsSnapshot Capture(Settings settings) => new()
     {
+        DefaultMachine = settings.DefaultMachine,
+        PaneDebugger = settings.DebugPanesAtStartup.Debugger,
+        PaneMemoryViewer = settings.DebugPanesAtStartup.MemoryViewer,
+        PaneHidDiagnostic = settings.DebugPanesAtStartup.HidDiagnostic,
+        PaneFontSheet = settings.DebugPanesAtStartup.FontSheet,
+        PaneSoundDiagnostic = settings.DebugPanesAtStartup.SoundDiagnostic,
+        PaneKeyboardMatrix = settings.DebugPanesAtStartup.KeyboardMatrix,
         DisplayScale = settings.DisplayScale,
         DisplayScanlines = settings.DisplayScanlines,
         Mz80aGreenScreen = settings.Mz80aGreenScreen,
@@ -77,6 +95,9 @@ internal sealed class SettingsSnapshot
     /// own reads.
     /// </summary>
     public static SettingsSnapshot Build(
+        MachineType defaultMachine,
+        bool paneDebugger, bool paneMemoryViewer, bool paneHidDiagnostic,
+        bool paneFontSheet, bool paneSoundDiagnostic, bool paneKeyboardMatrix,
         int displayScale,
         bool displayScanlines,
         bool mz80aGreenScreen,
@@ -87,6 +108,13 @@ internal sealed class SettingsSnapshot
         CharMapOverrides charOverrides,
         KeyOverride keyOverrides) => new()
         {
+            DefaultMachine = defaultMachine,
+            PaneDebugger = paneDebugger,
+            PaneMemoryViewer = paneMemoryViewer,
+            PaneHidDiagnostic = paneHidDiagnostic,
+            PaneFontSheet = paneFontSheet,
+            PaneSoundDiagnostic = paneSoundDiagnostic,
+            PaneKeyboardMatrix = paneKeyboardMatrix,
             DisplayScale = displayScale,
             DisplayScanlines = displayScanlines,
             Mz80aGreenScreen = mz80aGreenScreen,
@@ -121,6 +149,15 @@ internal static class SettingsDiff
     {
         var lines = new List<string>();
 
+        if (before.DefaultMachine != after.DefaultMachine)
+            lines.Add($"Default machine on startup: {before.DefaultMachine} → {after.DefaultMachine}");
+        DescribePane(before.PaneDebugger, after.PaneDebugger, "Debugger", lines);
+        DescribePane(before.PaneMemoryViewer, after.PaneMemoryViewer, "Memory Viewer", lines);
+        DescribePane(before.PaneHidDiagnostic, after.PaneHidDiagnostic, "HID Diagnostic", lines);
+        DescribePane(before.PaneFontSheet, after.PaneFontSheet, "Font Sheet", lines);
+        DescribePane(before.PaneSoundDiagnostic, after.PaneSoundDiagnostic, "Sound Diagnostic", lines);
+        DescribePane(before.PaneKeyboardMatrix, after.PaneKeyboardMatrix, "Keyboard Matrix", lines);
+
         if (before.DisplayScale != after.DisplayScale)
             lines.Add($"Display scale: {before.DisplayScale}× → {after.DisplayScale}×");
         if (before.DisplayScanlines != after.DisplayScanlines)
@@ -151,6 +188,12 @@ internal static class SettingsDiff
         lines.AddRange(DescribeKeyOverrides(before, after));
 
         return lines;
+    }
+
+    private static void DescribePane(bool before, bool after, string paneName, List<string> lines)
+    {
+        if (before == after) return;
+        lines.Add($"Open {paneName} at startup: {(before ? "on" : "off")} → {(after ? "on" : "off")}");
     }
 
     private static IEnumerable<string> DescribeCharOverrides(SettingsSnapshot before, SettingsSnapshot after)

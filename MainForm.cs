@@ -320,15 +320,18 @@ public sealed class MainForm : Form
         file.DropDownItems.Add(new ToolStripSeparator());
         file.DropDownItems.Add(new ToolStripMenuItem("&Reset", null, (_, _) => ResetMachine()) { ShortcutKeys = Keys.Control | Keys.R });
         file.DropDownItems.Add(new ToolStripSeparator());
-        // Settings: parent expands a submenu of the four tabs. Ctrl+S
-        // stays on the ROMs entry so the existing muscle memory still
-        // lands the user on the dialog's default tab; the other three
-        // tabs each get a Ctrl+Shift+letter shortcut so they can be
-        // reached without a menu walk once the dialog is busier.
+        // Settings: parent expands a submenu of the five tabs. Ctrl+S
+        // opens the dialog on the first tab (Startup); the other tabs
+        // each get a Ctrl+Shift+letter shortcut so they can be reached
+        // without a menu walk. The pattern is consistent: bare Ctrl+S
+        // = first tab, Ctrl+Shift+letter = any other tab.
         var settings = new ToolStripMenuItem("&Settings");
+        settings.DropDownItems.Add(new ToolStripMenuItem("S&tartup…", null,
+            (_, _) => OpenSettings(SettingsForm.Tab.Startup))
+            { ShortcutKeys = Keys.Control | Keys.S });
         settings.DropDownItems.Add(new ToolStripMenuItem("&ROMs…", null,
             (_, _) => OpenSettings(SettingsForm.Tab.Roms))
-            { ShortcutKeys = Keys.Control | Keys.S });
+            { ShortcutKeys = Keys.Control | Keys.Shift | Keys.R });
         settings.DropDownItems.Add(new ToolStripMenuItem("&Display…", null,
             (_, _) => OpenSettings(SettingsForm.Tab.Display))
             { ShortcutKeys = Keys.Control | Keys.Shift | Keys.D });
@@ -1036,6 +1039,30 @@ public sealed class MainForm : Form
         }
         return _monitorReady;
     }
+    /// <summary>
+    /// Phase 5.3: after the main window is first shown, honour the
+    /// [DebugPanes] boot flags by auto-opening each flagged pane via
+    /// its existing open handler. Panes that don't apply to the active
+    /// machine (Sound Diagnostic + Keyboard Matrix on MZ-80A, Font
+    /// Sheet on MZ-80A until 5.4) are silently skipped — the setting
+    /// survives so switching machines restores them next boot.
+    /// </summary>
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        var dp = _settings.DebugPanesAtStartup;
+        bool mz700 = _machine != null;
+        if (dp.Debugger) OpenDebugger();
+        if (dp.MemoryViewer) OpenMemoryViewer();
+        if (dp.HidDiagnostic) OpenHidDiag();
+        if (dp.FontSheet && mz700) OpenFontSheet();
+        if (dp.SoundDiagnostic && mz700) OpenSoundDiag();
+        if (dp.KeyboardMatrix && mz700) OpenKeyboardMatrix();
+        // Return focus to the main window so the emulator gets input
+        // events; the last pane opened would otherwise steal it.
+        Activate();
+    }
+
     private void Timer_Tick(object? s, EventArgs e)
     {
         // Sample real gamepad state once per frame, before the emulated
@@ -1774,7 +1801,7 @@ public sealed class MainForm : Form
         Environment.Exit(0);
     }
 
-    private void OpenSettings(SettingsForm.Tab tab = SettingsForm.Tab.Roms)
+    private void OpenSettings(SettingsForm.Tab tab = SettingsForm.Tab.Startup)
     {
         using var dlg = new SettingsForm(_settings, _joystickInput, _machine, tab);
         dlg.Applied += OnSettingsApplied;
