@@ -21,6 +21,11 @@ internal sealed class SettingsSnapshot
 {
     public int DisplayScale { get; init; }
     public bool DisplayScanlines { get; init; }
+    // MZ-80A-specific toggles (Phase 5.2). Green-screen tint retires
+    // the View menu item; InvertLetterShift retires the INI-only
+    // property.
+    public bool Mz80aGreenScreen { get; init; }
+    public bool Mz80aInvertLetterShift { get; init; }
     // Per-machine ROM paths (Phase 5.1c). Both machines' paths are
     // editable in the ROMs tab regardless of active machine, so the
     // diff has to cover both sets independently.
@@ -49,6 +54,8 @@ internal sealed class SettingsSnapshot
     {
         DisplayScale = settings.DisplayScale,
         DisplayScanlines = settings.DisplayScanlines,
+        Mz80aGreenScreen = settings.Mz80aGreenScreen,
+        Mz80aInvertLetterShift = settings.Mz80aInvertLetterShift,
         Mz700MonitorPath = settings.Mz700Roms.MonitorRomPath ?? "",
         Mz700FontPath = settings.Mz700Roms.FontPath ?? "",
         Mz700BasicPath = settings.Mz700Roms.BasicPath ?? "",
@@ -72,6 +79,8 @@ internal sealed class SettingsSnapshot
     public static SettingsSnapshot Build(
         int displayScale,
         bool displayScanlines,
+        bool mz80aGreenScreen,
+        bool mz80aInvertLetterShift,
         string mz700Monitor, string mz700Font, string mz700Basic,
         string mz80aMonitor, string mz80aFont, string mz80aBasic,
         int joy1, int joy2,
@@ -80,6 +89,8 @@ internal sealed class SettingsSnapshot
         {
             DisplayScale = displayScale,
             DisplayScanlines = displayScanlines,
+            Mz80aGreenScreen = mz80aGreenScreen,
+            Mz80aInvertLetterShift = mz80aInvertLetterShift,
             Mz700MonitorPath = mz700Monitor ?? "",
             Mz700FontPath = mz700Font ?? "",
             Mz700BasicPath = mz700Basic ?? "",
@@ -114,6 +125,10 @@ internal static class SettingsDiff
             lines.Add($"Display scale: {before.DisplayScale}× → {after.DisplayScale}×");
         if (before.DisplayScanlines != after.DisplayScanlines)
             lines.Add($"Scanlines: {(before.DisplayScanlines ? "on" : "off")} → {(after.DisplayScanlines ? "on" : "off")}");
+        if (before.Mz80aGreenScreen != after.Mz80aGreenScreen)
+            lines.Add($"MZ-80A green screen: {(before.Mz80aGreenScreen ? "on" : "off")} → {(after.Mz80aGreenScreen ? "on" : "off")}");
+        if (before.Mz80aInvertLetterShift != after.Mz80aInvertLetterShift)
+            lines.Add($"MZ-80A InvertLetterShift: {(before.Mz80aInvertLetterShift ? "on" : "off")} → {(after.Mz80aInvertLetterShift ? "on" : "off")}");
         if (before.Mz700MonitorPath != after.Mz700MonitorPath)
             lines.Add($"MZ-700 Monitor ROM: \"{before.Mz700MonitorPath}\" → \"{after.Mz700MonitorPath}\"");
         if (before.Mz700FontPath != after.Mz700FontPath)

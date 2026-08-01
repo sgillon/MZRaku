@@ -50,6 +50,21 @@ public sealed class SettingsForm : Form
     private readonly RadioButton _rb2x = new() { Text = "&2× (640×400)", AutoSize = true };
     private readonly RadioButton _rb3x = new() { Text = "&3× (960×600)", AutoSize = true };
     private readonly CheckBox _chkScanlines = new() { Text = "CRT-style scan&lines", AutoSize = true };
+    // MZ-80A only (Phase 5.2). Green phosphor tint on the monochrome
+    // display — retires the previous View → Green screen menu item.
+    private readonly CheckBox _chkMz80aGreenScreen = new()
+    {
+        Text = "&Green phosphor tint (authentic MZ-80A look)",
+        AutoSize = true,
+    };
+    // MZ-80A only (Phase 5.2). Inverts Shift-for-uppercase behaviour
+    // on letter keys — retires the INI-only Mz80aInvertLetterShift
+    // property.
+    private readonly CheckBox _chkMz80aInvertLetterShift = new()
+    {
+        Text = "&Invert letter Shift (PC-style Shift-for-uppercase)",
+        AutoSize = true,
+    };
 
     // ROMs — per-machine as of Phase 5.1a. Both machines' rom sets are
     // shown side-by-side so the user can maintain both without switching
@@ -212,6 +227,32 @@ public sealed class SettingsForm : Form
             Margin = new Padding(0, 14, 0, 6),
         });
         stack.Controls.Add(_chkScanlines);
+
+        // MZ-80A group (Phase 5.2). Green phosphor tint lives here now
+        // — the View → Green screen menu item retired in the same
+        // commit. Live-applies when MZ-80A is active (see MainForm.
+        // OnSettingsApplied); persists silently under the "(not
+        // active)" tint when MZ-700 is running.
+        var mz80aGroup = MakeMachineGroup("MZ-80A display", MachineScope.Mz80aOnly);
+        mz80aGroup.AutoSize = true;
+        mz80aGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        mz80aGroup.Margin = new Padding(0, 14, 0, 0);
+        // GroupBox with AutoSize needs its child docked-top or laid out
+        // by a FlowLayoutPanel so the group measures correctly. Use
+        // the same FlowLayoutPanel-inside-GroupBox pattern.
+        var mz80aStack = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.TopDown,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            WrapContents = false,
+            Dock = DockStyle.Fill,
+            Margin = new Padding(0),
+        };
+        mz80aStack.Controls.Add(_chkMz80aGreenScreen);
+        mz80aGroup.Controls.Add(mz80aStack);
+        stack.Controls.Add(mz80aGroup);
+
         return BuildTabPage("Display", stack);
     }
 
@@ -420,11 +461,16 @@ public sealed class SettingsForm : Form
         // overrides list keeps its place at the bottom. AutoScroll on
         // the tab content covers the matrix grid (~678 tall) when the
         // expander is open, since the dialog itself is fixed-size.
+        //
+        // MZ-80A group at row 4 (Phase 5.2) — the diagram + editor
+        // above are MZ-700-only for now; Phase 5.5 will split them
+        // into an "Edit MZ-700 key mappings…" button + a matching
+        // MZ-80A button and formally scope the tab.
         var layout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 5,
+            RowCount = 6,
             Padding = new Padding(8),
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
@@ -432,6 +478,7 @@ public sealed class SettingsForm : Form
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 210f));  // diagram
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));        // export / import row
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));        // advanced settings button
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));        // MZ-80A group (Phase 5.2)
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));        // known-limitations panel
 
         layout.Controls.Add(new Label
@@ -477,7 +524,27 @@ public sealed class SettingsForm : Form
         advancedBtn.Click += (_, _) => OpenAdvancedKeyboard();
         layout.Controls.Add(advancedBtn, 0, 3);
 
-        layout.Controls.Add(BuildKeyboardLimitationsPanel(), 0, 4);
+        // MZ-80A group (Phase 5.2) — currently just the InvertLetterShift
+        // checkbox. Phase 5.5 extends this into the MZ-80A key mapping
+        // editor and formally scopes the MZ-700 content above.
+        var mz80aGroup = MakeMachineGroup("MZ-80A keyboard", MachineScope.Mz80aOnly);
+        mz80aGroup.AutoSize = true;
+        mz80aGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        mz80aGroup.Margin = new Padding(0, 8, 0, 0);
+        var mz80aStack = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.TopDown,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            WrapContents = false,
+            Dock = DockStyle.Fill,
+            Margin = new Padding(0),
+        };
+        mz80aStack.Controls.Add(_chkMz80aInvertLetterShift);
+        mz80aGroup.Controls.Add(mz80aStack);
+        layout.Controls.Add(mz80aGroup, 0, 4);
+
+        layout.Controls.Add(BuildKeyboardLimitationsPanel(), 0, 5);
 
         return BuildTabPage("Keyboard", layout);
     }
@@ -852,6 +919,8 @@ public sealed class SettingsForm : Form
             default: _rb2x.Checked = true; break;
         }
         _chkScanlines.Checked = _settings.DisplayScanlines;
+        _chkMz80aGreenScreen.Checked = _settings.Mz80aGreenScreen;
+        _chkMz80aInvertLetterShift.Checked = _settings.Mz80aInvertLetterShift;
         _txtMz700Monitor.Text = _settings.Mz700Roms.MonitorRomPath;
         _txtMz700Font.Text = _settings.Mz700Roms.FontPath;
         _txtMz700Basic.Text = _settings.Mz700Roms.BasicPath;
@@ -867,6 +936,8 @@ public sealed class SettingsForm : Form
     {
         _settings.DisplayScale = _rb3x.Checked ? 3 : _rb1x.Checked ? 1 : 2;
         _settings.DisplayScanlines = _chkScanlines.Checked;
+        _settings.Mz80aGreenScreen = _chkMz80aGreenScreen.Checked;
+        _settings.Mz80aInvertLetterShift = _chkMz80aInvertLetterShift.Checked;
         _settings.Mz700Roms.MonitorRomPath = _txtMz700Monitor.Text.Trim();
         _settings.Mz700Roms.FontPath = _txtMz700Font.Text.Trim();
         _settings.Mz700Roms.BasicPath = _txtMz700Basic.Text.Trim();
@@ -896,6 +967,8 @@ public sealed class SettingsForm : Form
         var candidate = SettingsSnapshot.Build(
             displayScale: _rb3x.Checked ? 3 : _rb1x.Checked ? 1 : 2,
             displayScanlines: _chkScanlines.Checked,
+            mz80aGreenScreen: _chkMz80aGreenScreen.Checked,
+            mz80aInvertLetterShift: _chkMz80aInvertLetterShift.Checked,
             mz700Monitor: _txtMz700Monitor.Text.Trim(),
             mz700Font: _txtMz700Font.Text.Trim(),
             mz700Basic: _txtMz700Basic.Text.Trim(),
