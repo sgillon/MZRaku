@@ -1043,9 +1043,9 @@ public sealed class MainForm : Form
     /// Phase 5.3: after the main window is first shown, honour the
     /// [DebugPanes] boot flags by auto-opening each flagged pane via
     /// its existing open handler. Panes that don't apply to the active
-    /// machine (Sound Diagnostic + Keyboard Matrix on MZ-80A, Font
-    /// Sheet on MZ-80A until 5.4) are silently skipped — the setting
-    /// survives so switching machines restores them next boot.
+    /// machine (Sound Diagnostic + Keyboard Matrix on MZ-80A) are
+    /// silently skipped — the setting survives so switching machines
+    /// restores them next boot.
     /// </summary>
     protected override void OnShown(EventArgs e)
     {
@@ -1055,7 +1055,7 @@ public sealed class MainForm : Form
         if (dp.Debugger) OpenDebugger();
         if (dp.MemoryViewer) OpenMemoryViewer();
         if (dp.HidDiagnostic) OpenHidDiag();
-        if (dp.FontSheet && mz700) OpenFontSheet();
+        if (dp.FontSheet) OpenFontSheet();
         if (dp.SoundDiagnostic && mz700) OpenSoundDiag();
         if (dp.KeyboardMatrix && mz700) OpenKeyboardMatrix();
         // Return focus to the main window so the emulator gets input
@@ -1870,9 +1870,8 @@ public sealed class MainForm : Form
 
     private void OpenFontSheet()
     {
-        if (_machine == null) { NotAvailableOnMz80a("Font Sheet"); return; }
         if (_fontSheet == null || _fontSheet.IsDisposed)
-            _fontSheet = new FontSheetForm(_machine);
+            _fontSheet = new FontSheetForm(Active);
         _fontSheet.Owner = this;
         _fontSheet.Show();
         _fontSheet.BringToFront();

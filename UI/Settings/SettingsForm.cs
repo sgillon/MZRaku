@@ -305,8 +305,6 @@ public sealed class SettingsForm : Form
 
         // Tooltips explain the grey-out reasoning.
         _startupTooltips = new ToolTip();
-        _startupTooltips.SetToolTip(_chkFontSheetAtStartup,
-            "Currently MZ-700 only. MZ-80A support arrives in Phase 5.4.");
         _startupTooltips.SetToolTip(_chkSoundDiagnosticAtStartup,
             "MZ-700 only. Won't open at boot when DefaultMachine=MZ-80A.");
         _startupTooltips.SetToolTip(_chkKeyboardMatrixAtStartup,
@@ -327,7 +325,6 @@ public sealed class SettingsForm : Form
     private void RefreshDebugPaneEnabledState()
     {
         bool mz80aDefault = _rbDefaultMz80a.Checked;
-        _chkFontSheetAtStartup.Enabled = !mz80aDefault;
         _chkSoundDiagnosticAtStartup.Enabled = !mz80aDefault;
         _chkKeyboardMatrixAtStartup.Enabled = !mz80aDefault;
     }

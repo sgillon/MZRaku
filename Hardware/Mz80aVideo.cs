@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 
@@ -67,10 +68,81 @@ public sealed class Mz80aVideo
 
     public Bitmap Frame = new(PixelWidth, PixelHeight, PixelFormat.Format32bppArgb);
 
+    // Standalone-glyph cache for the Font Sheet pane, keyed by
+    // (display-code, scale-factor). MZ-80A has a single font bank (no
+    // MZ-700 attribute bit-7 select), so the key omits the bank dimension
+    // that Video.cs threads through its equivalent cache.
+    private readonly Dictionary<(byte code, int scale), Bitmap> _glyphCache = new();
+
     public void LoadFont(byte[] font)
     {
         int n = Math.Min(font.Length, FontRom.Length);
         Array.Copy(font, FontRom, n);
+        InvalidateGlyphCache();
+    }
+
+    /// <summary>
+    /// Render one MZ-80A character-ROM glyph to a standalone Bitmap,
+    /// black-on-white for readability outside the emulator's palette
+    /// (Font Sheet pane). MSB-first pixel decoding matches
+    /// <see cref="Render"/>. Results cached per (code, scale); call
+    /// <see cref="InvalidateGlyphCache"/> if the font ROM changes.
+    /// </summary>
+    public Bitmap GetGlyph(byte code, int scale = 2)
+    {
+        if (scale < 1) scale = 1;
+        var key = (code, scale);
+        if (_glyphCache.TryGetValue(key, out var cached)) return cached;
+        var bmp = RenderGlyph(code, scale);
+        _glyphCache[key] = bmp;
+        return bmp;
+    }
+
+    public void InvalidateGlyphCache()
+    {
+        foreach (var bmp in _glyphCache.Values) bmp.Dispose();
+        _glyphCache.Clear();
+    }
+
+    private Bitmap RenderGlyph(byte code, int scale)
+    {
+        int size = CharWidth * scale;
+        var bmp = new Bitmap(size, size, PixelFormat.Format32bppArgb);
+        int fontOff = code * CharHeight;
+        int fg = unchecked((int)0xFF000000);
+        int bg = unchecked((int)0xFFFFFFFF);
+        var rect = new Rectangle(0, 0, size, size);
+        var data = bmp.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            unsafe
+            {
+                int stride = data.Stride / 4;
+                int* pix = (int*)data.Scan0;
+                for (int r = 0; r < CharHeight; r++)
+                {
+                    byte fb = FontRom[fontOff + r];
+                    // MSB-first per Render(): bit 7 is the leftmost pixel.
+                    // (Contrast Video.cs, which is LSB-first for the
+                    // MZ-700's mz700fon.int.)
+                    for (int sy = 0; sy < scale; sy++)
+                    {
+                        int* dst = pix + (r * scale + sy) * stride;
+                        for (int c = 0; c < CharWidth; c++)
+                        {
+                            int color = ((fb & (0x80 >> c)) != 0) ? fg : bg;
+                            for (int sx = 0; sx < scale; sx++)
+                                dst[c * scale + sx] = color;
+                        }
+                    }
+                }
+            }
+        }
+        finally
+        {
+            bmp.UnlockBits(data);
+        }
+        return bmp;
     }
 
     public void Render(byte[] vram)
