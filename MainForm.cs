@@ -313,13 +313,59 @@ public sealed class MainForm : Form
     private void BuildMenu()
     {
         var menu = new MenuStrip();
+
+        // File — genuine file operations only. Emulator lifecycle and
+        // configuration moved to the System menu (2nd position).
         var file = new ToolStripMenuItem("&File");
         file.DropDownItems.Add(new ToolStripMenuItem("&Load cassette...", null, (_, _) => BrowseAndLoad()) { ShortcutKeys = Keys.Control | Keys.O });
         file.DropDownItems.Add(new ToolStripMenuItem("Load &BASIC", null, (_, _) => LoadBasic()) { ShortcutKeys = Keys.Control | Keys.B });
         file.DropDownItems.Add(new ToolStripMenuItem("Load BASIC &source...", null, (_, _) => BrowseAndLoadBasicSource()) { ShortcutKeys = Keys.Control | Keys.Shift | Keys.B });
         file.DropDownItems.Add(new ToolStripSeparator());
-        file.DropDownItems.Add(new ToolStripMenuItem("&Reset", null, (_, _) => ResetMachine()) { ShortcutKeys = Keys.Control | Keys.R });
-        file.DropDownItems.Add(new ToolStripSeparator());
+        file.DropDownItems.Add(new ToolStripMenuItem("E&xit", null, (_, _) => Close()));
+        menu.Items.Add(file);
+
+        // System — emulator machine management. Grouped as
+        // (Machine + Reset + Pause) for what-machine-and-in-what-state,
+        // separator, Settings for configuration.
+        var system = new ToolStripMenuItem("&System");
+
+        // Machine selection — radio pair. Selecting the non-active
+        // machine writes settings.ini and prompts a restart; no live
+        // switch (the debugger, memory viewer, sound diagnostic all
+        // hold references to the current _machine, so tearing it
+        // down mid-run is messier than an application restart).
+        var machine = new ToolStripMenuItem("&Machine");
+        var mz700Item = new ToolStripMenuItem("MZ-&700")
+        {
+            Checked = _settings.Type == MachineType.MZ700,
+        };
+        var mz80aItem = new ToolStripMenuItem("MZ-&80A")
+        {
+            Checked = _settings.Type == MachineType.MZ80A,
+        };
+        mz700Item.Click += (_, _) => SwitchMachine(MachineType.MZ700);
+        mz80aItem.Click += (_, _) => SwitchMachine(MachineType.MZ80A);
+        machine.DropDownItems.Add(mz700Item);
+        machine.DropDownItems.Add(mz80aItem);
+        system.DropDownItems.Add(machine);
+
+        system.DropDownItems.Add(new ToolStripMenuItem("&Reset", null, (_, _) => ResetMachine()) { ShortcutKeys = Keys.Control | Keys.R });
+
+        // Pause / resume: global shortcut for the same Active.Pause /
+        // Active.Resume toggle the Debugger's pause button drives.
+        // Pause and Scroll Lock are both caught in ProcessCmdKey (menu
+        // ShortcutKeys can't take a bare non-modifier key); bind both
+        // so keyboards without a physical Pause key (e.g. Logitech
+        // MX Keys) can still reach it.
+        _pauseMenuItem = new ToolStripMenuItem("&Pause emulator", null, (_, _) => TogglePause())
+        {
+            ShortcutKeyDisplayString = "Pause / ScrLk",
+            Checked = Active.Paused,
+        };
+        system.DropDownItems.Add(_pauseMenuItem);
+
+        system.DropDownItems.Add(new ToolStripSeparator());
+
         // Settings: parent expands a submenu of the five tabs. Ctrl+S
         // opens the dialog on the first tab (Startup); the other tabs
         // each get a Ctrl+Shift+letter shortcut so they can be reached
@@ -341,30 +387,8 @@ public sealed class MainForm : Form
         settings.DropDownItems.Add(new ToolStripMenuItem("&Joystick…", null,
             (_, _) => OpenSettings(SettingsForm.Tab.Joystick))
             { ShortcutKeys = Keys.Control | Keys.Shift | Keys.J });
-        file.DropDownItems.Add(settings);
-        file.DropDownItems.Add(new ToolStripSeparator());
-        // Machine selection — radio pair. Selecting the non-active
-        // machine writes settings.ini and prompts a restart; no live
-        // switch (the debugger, memory viewer, sound diagnostic all
-        // hold references to the current _machine, so tearing it
-        // down mid-run is messier than an application restart).
-        var machine = new ToolStripMenuItem("&Machine");
-        var mz700Item = new ToolStripMenuItem("MZ-&700")
-        {
-            Checked = _settings.Type == MachineType.MZ700,
-        };
-        var mz80aItem = new ToolStripMenuItem("MZ-&80A")
-        {
-            Checked = _settings.Type == MachineType.MZ80A,
-        };
-        mz700Item.Click += (_, _) => SwitchMachine(MachineType.MZ700);
-        mz80aItem.Click += (_, _) => SwitchMachine(MachineType.MZ80A);
-        machine.DropDownItems.Add(mz700Item);
-        machine.DropDownItems.Add(mz80aItem);
-        file.DropDownItems.Add(machine);
-        file.DropDownItems.Add(new ToolStripSeparator());
-        file.DropDownItems.Add(new ToolStripMenuItem("E&xit", null, (_, _) => Close()));
-        menu.Items.Add(file);
+        system.DropDownItems.Add(settings);
+        menu.Items.Add(system);
 
         var view = new ToolStripMenuItem("&View");
         for (int i = 0; i < 3; i++)
@@ -404,20 +428,10 @@ public sealed class MainForm : Form
         });
         menu.Items.Add(view);
 
+        // Debug — developer / diagnostic tools only. Pause emulator
+        // moved to the System menu; it's a runtime-lifecycle action
+        // rather than a diagnostic.
         var debug = new ToolStripMenuItem("&Debug");
-        // Pause / resume: global shortcut for the same Active.Pause /
-        // Active.Resume toggle the Debugger's pause button drives.
-        // Pause and Scroll Lock are both caught in ProcessCmdKey (menu
-        // ShortcutKeys can't take a bare non-modifier key); bind both
-        // so keyboards without a physical Pause key (e.g. Logitech
-        // MX Keys) can still reach it.
-        _pauseMenuItem = new ToolStripMenuItem("&Pause emulator", null, (_, _) => TogglePause())
-        {
-            ShortcutKeyDisplayString = "Pause / ScrLk",
-            Checked = Active.Paused,
-        };
-        debug.DropDownItems.Add(_pauseMenuItem);
-        debug.DropDownItems.Add(new ToolStripSeparator());
         debug.DropDownItems.Add(new ToolStripMenuItem("&Debugger…", null, (_, _) => OpenDebugger()) { ShortcutKeys = Keys.Control | Keys.D });
         debug.DropDownItems.Add(new ToolStripMenuItem("&Memory Viewer…", null, (_, _) => OpenMemoryViewer()) { ShortcutKeys = Keys.Control | Keys.M });
         debug.DropDownItems.Add(new ToolStripMenuItem("&HID Diagnostic…", null, (_, _) => OpenHidDiag()) { ShortcutKeys = Keys.Control | Keys.H });
