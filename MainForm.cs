@@ -1803,7 +1803,7 @@ public sealed class MainForm : Form
 
     private void OpenSettings(SettingsForm.Tab tab = SettingsForm.Tab.Startup)
     {
-        using var dlg = new SettingsForm(_settings, _joystickInput, _machine, tab);
+        using var dlg = new SettingsForm(_settings, _joystickInput, _machine, tab, _mz80a);
         dlg.Applied += OnSettingsApplied;
         dlg.ShowDialog(this);
     }

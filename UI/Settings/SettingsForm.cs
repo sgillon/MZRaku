@@ -41,6 +41,12 @@ public sealed class SettingsForm : Form
     private readonly Settings _settings;
     private readonly JoystickInput? _joystickInput;
     private readonly MZ700? _machine;
+    // MZ-80A instance for Phase 5.5b Advanced Keyboard editor.
+    // Populated by MainForm.OpenSettings when the active machine is
+    // MZ-80A; null on MZ-700. Enables OpenAdvancedKeyboard to
+    // construct a Mz80aKeyboardEditorContext instead of falling
+    // through to the pre-5.5b "coming soon" fallback.
+    private readonly MZ80A? _mz80a;
 
     // Keyboard tab — diagram is the primary view (P2-7); matrix grid
     // lives behind an Advanced expander.
@@ -118,11 +124,12 @@ public sealed class SettingsForm : Form
     public event Action? Applied;
 
     public SettingsForm(Settings settings, JoystickInput? joystickInput = null, MZ700? machine = null,
-        Tab initialTab = Tab.Startup)
+        Tab initialTab = Tab.Startup, MZ80A? mz80a = null)
     {
         _settings = settings;
         _joystickInput = joystickInput;
         _machine = machine;
+        _mz80a = mz80a;
         Text = "Settings";
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -776,20 +783,19 @@ public sealed class SettingsForm : Form
 
     private void OpenAdvancedKeyboard()
     {
-        // 5.5a: the advanced form now requires an IKeyboardEditorContext,
-        // which needs a live machine. The MZ-80A entry point through this
-        // dialog stays surfaced by the amber banner; 5.5c will wire it to
-        // a Mz80aKeyboardEditorContext.
-        if (_machine == null)
-        {
-            MessageBox.Show(this,
-                "Advanced keyboard editing for MZ-80A isn't wired up yet — "
-              + "it arrives with the MZ-80A keyboard editor in Phase 5.5b/c.",
-                "Advanced Keyboard", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return;
-        }
-        var context = new Mz700KeyboardEditorContext(
-            _machine, _settings.CharMapOverrides, _settings.KeyOverrides);
+        // 5.5b: construct the appropriate editor context per active
+        // machine. Both share the same parameterised AdvancedKeyboardForm
+        // from 5.5a. The Keyboard tab's diagram itself is still MZ-700-
+        // hardcoded — that's 5.5c work. For now, Advanced settings on
+        // MZ-80A opens the MZ-80A matrix grid + editors via the D3
+        // "Advanced" entry point, which is enough to smoke-test the
+        // adapters end-to-end.
+        IKeyboardEditorContext? context =
+            _machine != null ? new Mz700KeyboardEditorContext(_machine, _settings.CharMapOverrides, _settings.KeyOverrides) :
+            _mz80a   != null ? new Mz80aKeyboardEditorContext(_mz80a,  _settings.Mz80aCharMapOverrides, _settings.Mz80aKeyOverrides) :
+            null;
+        if (context == null) return;
+
         using var dlg = new AdvancedKeyboardForm(context);
         dlg.ShowDialog(this);
         // Edits flow into the shared override instances; refresh the
