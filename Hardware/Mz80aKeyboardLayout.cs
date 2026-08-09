@@ -66,13 +66,16 @@ public static class Mz80aKeyboardLayout
 
     // Numeric-pad geometry — sits to the right of the main 16-unit
     // block with a 0.5-unit visual gap. 4 columns × 4 rows, each cell
-    // 1×1 except NP_ENT which spans two rows.
+    // 1×1 except NP_ENT which spans two rows. Vertically the pad
+    // occupies rows 0-3 (aligned with the top four rows of the main
+    // block: digit / QWERTY / ASDF / ZXCV). The main block's bottom
+    // SPACE row has no pad counterpart.
     private const float PadX0     = 16.5f;
     private const float PadColW   = 1f;
-    private const float PadRow1Y  = QwertyRowY;  // 7 8 9 +
-    private const float PadRow2Y  = AsdfRowY;    // 4 5 6 -
-    private const float PadRow3Y  = ZxcvRowY;    // 1 2 3 [ENT top half]
-    private const float PadRow4Y  = SpaceRowY;   // 0 00 . [ENT bottom half]
+    private const float PadRow1Y  = DigitRowY;   // 7 8 9 +
+    private const float PadRow2Y  = QwertyRowY;  // 4 5 6 -
+    private const float PadRow3Y  = AsdfRowY;    // 1 2 3 [ENT top half]
+    private const float PadRow4Y  = ZxcvRowY;    // 0 00 . [ENT bottom half]
 
     private static IReadOnlyList<MzKeyboardLayout.MzKey> BuildKeys()
     {
@@ -191,7 +194,12 @@ public static class Mz80aKeyboardLayout
         list.Add(new("NP_ENT",   7, 3, X: PadX0 + 3*PadColW,  Y: PadRow3Y, W: PadColW, H: 2f,    MzKeyboardLayout.KeyKind.Enter,     "ENT"));
         // Row 4: 0 00 . [ENT bottom half already placed above]
         list.Add(new("NP0",      8, 0, X: PadX0,              Y: PadRow4Y, W: PadColW, H: StdH,  MzKeyboardLayout.KeyKind.Character, null));
-        list.Add(new("NP_00",    9, 1, X: PadX0 + PadColW,    Y: PadRow4Y, W: PadColW, H: StdH,  MzKeyboardLayout.KeyKind.Character, null));
+        // NP_00 label is a two-char string ("00") — set explicitly so
+        // the diagram renders both digits rather than the first char
+        // only (IPhysicalKeyboardLayout.FindGlyphAt returns char?, not
+        // string?, so multi-char glyphs need this override).
+        list.Add(new("NP_00",    9, 1, X: PadX0 + PadColW,    Y: PadRow4Y, W: PadColW, H: StdH,  MzKeyboardLayout.KeyKind.Character, null,
+             UnshiftedLabel: "00"));
         list.Add(new("NP_DOT",   9, 0, X: PadX0 + 2*PadColW,  Y: PadRow4Y, W: PadColW, H: StdH,  MzKeyboardLayout.KeyKind.Character, null));
 
         return list;

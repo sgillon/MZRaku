@@ -231,11 +231,39 @@ public sealed class MzKeyboardDiagram : UserControl
 
         if (!string.IsNullOrEmpty(k.FixedLabel))
         {
-            // Fixed-label keys (CR, GRAPH, ALPHA, BREAK, CTRL, SHIFT,
-            // INST/DEL, cursors) have no shifted/unshifted split. Centre
-            // on the full key — both axes — and shrink the font if the
-            // label is too wide for the cap (GRAPH on the 1-unit cap is
-            // the tightest case). Font size capped to the unshifted-
+            // Dual-function caps — FixedLabel contains a '/' separating
+            // two labels (MZ-80A BREAK/CTRL, INST/DEL, CLR/HOME). Render
+            // as two-band with the pre-slash label on top and the post-
+            // slash label on the bottom, matching how the real hardware
+            // prints them on the physical cap. Bypasses DrawFittingText's
+            // 5pt floor which would otherwise render nothing for long
+            // combined labels on 1.5-unit-wide caps.
+            int slash = k.FixedLabel!.IndexOf('/');
+            if (slash > 0 && slash < k.FixedLabel.Length - 1)
+            {
+                string topLabel = k.FixedLabel[..slash].Trim();
+                string botLabel = k.FixedLabel[(slash + 1)..].Trim();
+                // Use the full key width (not glyphRect's 60 % which
+                // reserves space for a PC-binding badge) — dual-label
+                // caps are VK-editable and never carry char-binding
+                // badges, so the whole cap is available for text.
+                // DrawFittingText auto-shrinks to fit either label
+                // without the EndEllipsis pessimism DrawCentredText
+                // brings.
+                var fullShiftRect = new RectangleF(rect.X, rect.Y + 2,
+                                                   rect.Width, rect.Height * 0.45f);
+                var fullMainRect  = new RectangleF(rect.X, rect.Y + rect.Height * 0.45f,
+                                                   rect.Width, rect.Height * 0.55f - 2);
+                DrawFittingText(g, topLabel, fullShiftRect, FontSizeForLabel(fullShiftRect.Height),
+                                DimColor(textColor), FontStyle.Bold);
+                DrawFittingText(g, botLabel, fullMainRect, FontSizeForLabel(fullMainRect.Height),
+                                textColor, FontStyle.Bold);
+                return;
+            }
+
+            // Single-label fixed caps (CR, GRAPH, ALPHA, SHIFT, cursors,
+            // etc.) — centre on the full key both axes, shrink the font
+            // if too wide for the cap. Font size capped to the unshifted-
             // glyph sizing on the dual-glyph keys so single-char labels
             // stay visually consistent with the 1-9 row.
             float maxFontSize = FontSizeForLabel(rect.Height * 0.55f - 2f);

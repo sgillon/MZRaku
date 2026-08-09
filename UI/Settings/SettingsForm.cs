@@ -625,13 +625,22 @@ public sealed class SettingsForm : Form
             Margin = new Padding(0, 0, 0, 4),
         }, 0, 0);
 
-        _kbdDiagram = new MzKeyboardDiagram(new Mz700PhysicalKeyboardLayout()) { Dock = DockStyle.Fill };
+        // 5.5c: diagram reflects the currently-active machine. On MZ-700
+        // the PC-key labels + unreachable-essential red outline come from
+        // PcKeyIndex + MzKeyboardLayout.EssentialKeys; on MZ-80A neither
+        // has an analogue yet, so the diagram renders label-less. That's
+        // still a major improvement over pre-5.5c, where MZ-80A users saw
+        // the MZ-700 diagram — extending PcKeyIndex to MZ-80A is v1.2
+        // polish per Q3 defer.
+        _kbdDiagram = new MzKeyboardDiagram(BuildActiveLayout()) { Dock = DockStyle.Fill };
         _kbdDiagram.KeyClicked += OnKeyboardDiagramKeyClicked;
         RefreshKeyboardDiagramLabels();
         layout.Controls.Add(_kbdDiagram, 0, 1);
 
-        // Export / Import row — operates on the whole mapping, so it
-        // stays in the primary view rather than under Advanced.
+        // Export / Import row — .mzkbd file format is MZ-700-only for
+        // now. Extending it to carry MZ-80A entries is a separate scope
+        // (deferred). Hide entirely on MZ-80A rather than showing buttons
+        // that operate on the wrong machine's overrides.
         var ioButtons = new FlowLayoutPanel
         {
             FlowDirection = FlowDirection.LeftToRight,
@@ -639,6 +648,7 @@ public sealed class SettingsForm : Form
             WrapContents = false,
             Anchor = AnchorStyles.Right,
             Margin = new Padding(0, 8, 0, 4),
+            Visible = _machine != null,
         };
         var exportBtn = new Button { Text = "Export…", Width = 90 };
         var importBtn = new Button { Text = "Import…", Width = 90 };
@@ -783,25 +793,37 @@ public sealed class SettingsForm : Form
 
     private void OpenAdvancedKeyboard()
     {
-        // 5.5b: construct the appropriate editor context per active
-        // machine. Both share the same parameterised AdvancedKeyboardForm
-        // from 5.5a. The Keyboard tab's diagram itself is still MZ-700-
-        // hardcoded — that's 5.5c work. For now, Advanced settings on
-        // MZ-80A opens the MZ-80A matrix grid + editors via the D3
-        // "Advanced" entry point, which is enough to smoke-test the
-        // adapters end-to-end.
-        IKeyboardEditorContext? context =
-            _machine != null ? new Mz700KeyboardEditorContext(_machine, _settings.CharMapOverrides, _settings.KeyOverrides) :
-            _mz80a   != null ? new Mz80aKeyboardEditorContext(_mz80a,  _settings.Mz80aCharMapOverrides, _settings.Mz80aKeyOverrides) :
-            null;
+        var context = TryBuildActiveEditorContext();
         if (context == null) return;
-
         using var dlg = new AdvancedKeyboardForm(context);
         dlg.ShowDialog(this);
         // Edits flow into the shared override instances; refresh the
         // diagram so any changes made via the matrix grid show through.
         RefreshKeyboardDiagramLabels();
     }
+
+    /// <summary>
+    /// Returns an editor context for the currently-active machine, or
+    /// null if neither <see cref="_machine"/> nor <see cref="_mz80a"/>
+    /// is populated (shouldn't happen in normal use — the host always
+    /// runs one of them). Same pattern for OpenAdvancedKeyboard,
+    /// OnKeyboardDiagramKeyClicked, and any future keyboard entry point.
+    /// </summary>
+    private IKeyboardEditorContext? TryBuildActiveEditorContext() =>
+        _machine != null ? new Mz700KeyboardEditorContext(_machine, _settings.CharMapOverrides, _settings.KeyOverrides) :
+        _mz80a   != null ? new Mz80aKeyboardEditorContext(_mz80a,  _settings.Mz80aCharMapOverrides, _settings.Mz80aKeyOverrides) :
+        null;
+
+    /// <summary>
+    /// Physical-keyboard-layout for the currently-active machine.
+    /// Used by the Keyboard-tab diagram construction. MZ-700 falls
+    /// through as the default so a host that supplies neither machine
+    /// (e.g. Settings opened from a broken state) still renders
+    /// something rather than throwing.
+    /// </summary>
+    private IPhysicalKeyboardLayout BuildActiveLayout() =>
+        _mz80a != null ? new Mz80aPhysicalKeyboardLayout()
+                       : new Mz700PhysicalKeyboardLayout();
 
     private void OnExportMzKbd()
     {
@@ -907,7 +929,11 @@ public sealed class SettingsForm : Form
         // modifier path (concurrent assertion is needed so Shift+1 → '!'
         // produces the character bit and the shift bit simultaneously).
         // Surfacing the editor would imply it's rebindable; explain instead.
-        if (e.Key.Row == 8 && e.Key.Col == 0)
+        // MZ-700 SHIFT sits at (8, 0); MZ-80A SHIFT sits at (0, 0).
+        bool isShiftSlot = _machine != null
+            ? (e.Key.Row == 8 && e.Key.Col == 0)
+            : (e.Key.Row == 0 && e.Key.Col == 0);
+        if (isShiftSlot)
         {
             MessageBox.Show(this,
                 "MZ Shift is permanently bound to your PC Shift key.\n\n" +
@@ -922,16 +948,8 @@ public sealed class SettingsForm : Form
         // Editor mutates the override layers directly — change is live
         // for subsequent emulator keystrokes. Persistence still waits
         // for this dialog's Apply / OK.
-        if (_machine == null)
-        {
-            MessageBox.Show(this,
-                "MZ-80A key-slot editing isn't wired up yet — it arrives with "
-              + "the MZ-80A keyboard editor in Phase 5.5b/c.",
-                "Key editor", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return;
-        }
-        var context = new Mz700KeyboardEditorContext(
-            _machine, _settings.CharMapOverrides, _settings.KeyOverrides);
+        var context = TryBuildActiveEditorContext();
+        if (context == null) return;
         using var editor = new MzKeyEditorForm(e.Key, context);
         editor.ShowDialog(this);
         RefreshKeyboardDiagramLabels();
@@ -940,6 +958,22 @@ public sealed class SettingsForm : Form
     private void RefreshKeyboardDiagramLabels()
     {
         if (_kbdDiagram == null) return;
+
+        // PcKeyIndex + the unreachable-essential safety gate are MZ-700-
+        // specific (both walk MzKeyboardLayout.Keys / EssentialKeys and
+        // MZ-700's CharMap / SpecialKeyMap statics). On MZ-80A the
+        // diagram renders label-less until the equivalent index arrives
+        // as v1.2 polish. Explicit null clears any stale MZ-700 state
+        // if the machine's swapped mid-dialog (not possible today, but
+        // defensive).
+        if (_machine == null)
+        {
+            _kbdDiagram.PcKeyLabels = null;
+            _kbdDiagram.UnreachableKeyIds = null;
+            _kbdDiagram.RefreshLabels();
+            return;
+        }
+
         _kbdDiagram.PcKeyLabels = PcKeyIndex.BuildLabelsByMzKey(
             _settings.CharMapOverrides, _settings.KeyOverrides);
 
