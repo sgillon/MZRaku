@@ -8,17 +8,18 @@ using MZRaku.Hardware;
 namespace MZRaku;
 
 /// <summary>
-/// Owner-drawn read-only view of the MZ-700 10×8 keyboard matrix. Each
-/// cell renders the matrix coordinate, the MZ glyph(s) the slot
-/// produces (or a friendly label for non-printable slots like Enter /
-/// GRAPH / cursors), and the PC keystroke(s) currently mapped to it via
-/// <see cref="CharMap"/> + <see cref="CharMapOverrides"/> +
-/// <see cref="SpecialKeyMap"/> + <see cref="KeyOverride"/>. The slot
-/// last asserted by the keyboard layer is highlighted yellow; slots
-/// carrying an active override are framed in orange.
+/// Owner-drawn read-only view of the 10×8 keyboard matrix (shared by
+/// both MZ-family machines — the shape is the same, only the label /
+/// binding data differs). Each cell renders the matrix coordinate, the
+/// MZ glyph(s) the slot produces (or a friendly label for non-printable
+/// slots like Enter / GRAPH / cursors), and the PC keystroke(s)
+/// currently mapped to it via the char + VK layers surfaced through
+/// <see cref="IKeyboardEditorContext"/>. The slot last asserted by the
+/// keyboard layer is highlighted yellow; slots carrying an active
+/// override are framed in orange.
 ///
-/// Phase A surface — read-only. The cell-click → editor wiring lands
-/// in Phase A8.
+/// Phase 5.5a: parameterised on <see cref="IKeyboardEditorContext"/> so
+/// the same widget serves MZ-700 and MZ-80A.
 /// </summary>
 public sealed class KeyboardMatrixGrid : UserControl
 {
@@ -30,7 +31,7 @@ public sealed class KeyboardMatrixGrid : UserControl
     private const int TopMargin = 22;
     private const int Pad = 8;
 
-    private readonly MZ700 _machine;
+    private readonly IKeyboardEditorContext _context;
     private readonly Font _coordFont;
     private readonly Font _bindFont;
     private readonly Font _glyphFont;
@@ -66,9 +67,9 @@ public sealed class KeyboardMatrixGrid : UserControl
     /// </summary>
     public event EventHandler<CellClickedEventArgs>? CellClicked;
 
-    public KeyboardMatrixGrid(MZ700 machine)
+    public KeyboardMatrixGrid(IKeyboardEditorContext context)
     {
-        _machine = machine;
+        _context = context;
         DoubleBuffered = true;
         BackColor = Color.White;
         _coordFont   = new Font(FontFamily.GenericMonospace, 7f);
@@ -97,34 +98,30 @@ public sealed class KeyboardMatrixGrid : UserControl
                 _slotHasOverride[r, c] = false;
             }
 
-        foreach (var kv in CharMap.Defaults)
+        foreach (var kv in _context.CharDefaults)
             AppendBind(kv.Value.Row, kv.Value.Col, kv.Key.ToString());
 
-        var co = CharMap.Overrides;
-        if (co != null)
-            foreach (var kv in co.All)
-            {
-                _slotHasOverride[kv.Value.Row, kv.Value.Col] = true;
-                AppendBind(kv.Value.Row, kv.Value.Col, kv.Key.ToString());
-            }
-
-        foreach (var kv in SpecialKeyMap.Map)
+        foreach (var kv in _context.CharOverrides.All)
         {
-            var rc = kv.Value;
-            var label = SpecialKeyMap.Labels.TryGetValue(kv.Key, out var lbl)
-                ? lbl : kv.Key.ToString();
-            AppendBind(rc.row, rc.col, label);
+            _slotHasOverride[kv.Value.Row, kv.Value.Col] = true;
+            AppendBind(kv.Value.Row, kv.Value.Col, kv.Key.ToString());
         }
 
-        var ko = _machine.Keyboard.Overrides;
-        if (ko != null)
-            foreach (var kv in ko.All)
-            {
-                _slotHasOverride[kv.Value.Row, kv.Value.Col] = true;
-                var label = SpecialKeyMap.Labels.TryGetValue(kv.Key, out var lbl)
-                    ? lbl : kv.Key.ToString();
-                AppendBind(kv.Value.Row, kv.Value.Col, label);
-            }
+        foreach (var kv in _context.SpecialKeyMap)
+        {
+            var rc = kv.Value;
+            var label = _context.SpecialKeyLabels.TryGetValue(kv.Key, out var lbl)
+                ? lbl : kv.Key.ToString();
+            AppendBind(rc.Row, rc.Col, label);
+        }
+
+        foreach (var kv in _context.KeyOverrides.All)
+        {
+            _slotHasOverride[kv.Value.Row, kv.Value.Col] = true;
+            var label = _context.SpecialKeyLabels.TryGetValue(kv.Key, out var lbl)
+                ? lbl : kv.Key.ToString();
+            AppendBind(kv.Value.Row, kv.Value.Col, label);
+        }
 
         Invalidate();
     }
@@ -168,7 +165,7 @@ public sealed class KeyboardMatrixGrid : UserControl
         // Rising-edge detection feeds the coverage chyron.
         for (int r = 0; r < Rows; r++)
         {
-            byte rowBits = _machine.Keyboard.PeekMatrixRow(r);
+            byte rowBits = _context.PeekMatrixRow(r);
             for (int c = 0; c < Cols; c++)
             {
                 bool pressed = (rowBits & (1 << c)) == 0;
@@ -218,10 +215,10 @@ public sealed class KeyboardMatrixGrid : UserControl
     // wants the shifted side". For shift-only slots, always shifted; for
     // unshifted-only slots (and slots with no printable glyph at all),
     // always unshifted.
-    private static bool DetermineShiftedHalf(int x, int r, int c)
+    private bool DetermineShiftedHalf(int x, int r, int c)
     {
-        var un = MzGlyphCatalog.FindByPrintableSlot(r, c, false);
-        var sh = MzGlyphCatalog.FindByPrintableSlot(r, c, true);
+        var un = _context.FindGlyphAt(r, c, false);
+        var sh = _context.FindGlyphAt(r, c, true);
         if (un.HasValue && sh.HasValue)
         {
             int cellX = Pad + LeftMargin + c * CellW;
@@ -266,7 +263,7 @@ public sealed class KeyboardMatrixGrid : UserControl
             TextFormatFlags.Left | TextFormatFlags.Top);
 
         // Glyph or special label, centre band.
-        var specialLabel = MzGlyphCatalog.FindSpecialLabel(r, c);
+        var specialLabel = _context.FindSpecialLabelAt(r, c);
         if (specialLabel != null)
         {
             TextRenderer.DrawText(g, specialLabel, _specialFont,
@@ -310,12 +307,13 @@ public sealed class KeyboardMatrixGrid : UserControl
 
     private void DrawSlotGlyphs(Graphics g, int r, int c, int x, int y)
     {
-        // Unicode rendering via MzGlyphCatalog — keeps the grid
-        // independent of the font ROM. Authentic-MZ rendering via
-        // Video.GetGlyph + a slot→display-code lookup could replace this
-        // later if visual fidelity matters more than simplicity.
-        char? un = MzGlyphCatalog.FindByPrintableSlot(r, c, false);
-        char? sh = MzGlyphCatalog.FindByPrintableSlot(r, c, true);
+        // Unicode rendering via the glyph catalog — keeps the grid
+        // independent of the font ROM. Authentic-MZ rendering via the
+        // machine's Video.GetGlyph + a slot→display-code lookup could
+        // replace this later if visual fidelity matters more than
+        // simplicity.
+        char? un = _context.FindGlyphAt(r, c, false);
+        char? sh = _context.FindGlyphAt(r, c, true);
         var unRect = new Rectangle(x + 4, y + 12, CellW / 2 - 4, 30);
         var shRect = new Rectangle(x + CellW / 2, y + 12, CellW / 2 - 4, 30);
         var fullRect = new Rectangle(x + 4, y + 12, CellW - 8, 30);

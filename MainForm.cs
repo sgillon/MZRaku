@@ -1881,7 +1881,8 @@ public sealed class MainForm : Form
     {
         if (_machine == null) { NotAvailableOnMz80a("Keyboard Matrix"); return; }
         if (_matrixForm == null || _matrixForm.IsDisposed)
-            _matrixForm = new KeyboardMatrixForm(_machine);
+            _matrixForm = new KeyboardMatrixForm(
+                new Mz700KeyboardEditorContext(_machine, _settings.CharMapOverrides, _settings.KeyOverrides));
         _matrixForm.Owner = this;
         // Deliberately not BringToFront — that activates the window and
         // steals focus from the emulator; we want to watch the highlight

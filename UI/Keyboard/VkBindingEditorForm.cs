@@ -34,6 +34,7 @@ public sealed class VkBindingEditorForm : Form
     public int Col { get; }
 
     private readonly string _targetLabel;
+    private readonly IKeyboardEditorContext _context;
     private readonly KeyOverride _overrides;
 
     private readonly KeyCaptureControl _capture;
@@ -56,12 +57,13 @@ public sealed class VkBindingEditorForm : Form
         bool? Shift,
         bool FromOverride);
 
-    public VkBindingEditorForm(int row, int col, string targetLabel, KeyOverride overrides)
+    public VkBindingEditorForm(int row, int col, string targetLabel, IKeyboardEditorContext context)
     {
         Row = row;
         Col = col;
         _targetLabel = targetLabel;
-        _overrides = overrides;
+        _context = context;
+        _overrides = context.KeyOverrides;
 
         Text = $"Bind PC key to {targetLabel}";
         StartPosition = FormStartPosition.CenterParent;
@@ -249,11 +251,11 @@ public sealed class VkBindingEditorForm : Form
                 newConflict = new ConflictInfo(ex.Row, ex.Col, ex.MzShift, FromOverride: true);
             }
         }
-        else if (SpecialKeyMap.Map.TryGetValue(k, out var def))
+        else if (_context.SpecialKeyMap.TryGetValue(k, out var def))
         {
             // SpecialKeyMap defaults carry no shift state — model them as
             // pass-through for comparison and display.
-            bool sameSlot = def.row == Row && def.col == Col && targetShift == null;
+            bool sameSlot = def.Row == Row && def.Col == Col && targetShift == null;
             if (sameSlot)
             {
                 suffix = " — matches the built-in default.";
@@ -261,8 +263,8 @@ public sealed class VkBindingEditorForm : Form
             else
             {
                 isConflict = true;
-                suffix = $" — ⚠ default maps to ({def.row},{def.col}) shift pass-through.";
-                newConflict = new ConflictInfo(def.row, def.col, null, FromOverride: false);
+                suffix = $" — ⚠ default maps to ({def.Row},{def.Col}) shift pass-through.";
+                newConflict = new ConflictInfo(def.Row, def.Col, null, FromOverride: false);
             }
         }
         else
@@ -272,7 +274,7 @@ public sealed class VkBindingEditorForm : Form
 
         _conflict = newConflict;
 
-        _status.Text = $"Will bind {DescribeKey(k)} → ({Row},{Col}) {_targetLabel}{suffix}";
+        _status.Text = $"Will bind {DescribeKey(k, _context)} → ({Row},{Col}) {_targetLabel}{suffix}";
         _status.ForeColor = isConflict ? Color.DarkOrange : SystemColors.ControlText;
         _ambiguityNote.Text = _ambiguityText ?? "";
         _ambiguityNote.Visible = !string.IsNullOrEmpty(_ambiguityText);
@@ -287,7 +289,7 @@ public sealed class VkBindingEditorForm : Form
         {
             string src = c.FromOverride ? "currently bound (override)" : "currently bound (default)";
             var result = MessageBox.Show(this,
-                $"PC {DescribeKey(k)} is {src} to MZ slot ({c.Row},{c.Col}) {DescribeShift(c.Shift)}.\n\n" +
+                $"PC {DescribeKey(k, _context)} is {src} to MZ slot ({c.Row},{c.Col}) {DescribeShift(c.Shift)}.\n\n" +
                 $"Replace with ({Row},{Col}) {_targetLabel} {DescribeShift(SelectedShift())}?",
                 "Conflict — replace existing binding?",
                 MessageBoxButtons.YesNo,
@@ -314,7 +316,7 @@ public sealed class VkBindingEditorForm : Form
         _ => "shift pass-through",
     };
 
-    private static string DescribeKey(Keys keyData)
+    private static string DescribeKey(Keys keyData, IKeyboardEditorContext context)
     {
         var bare = keyData & Keys.KeyCode;
         string mods = "";
@@ -322,7 +324,7 @@ public sealed class VkBindingEditorForm : Form
         if ((keyData & Keys.Alt) != 0) mods += "Alt+";
         if ((keyData & Keys.Shift) != 0) mods += "Shift+";
 
-        if (SpecialKeyMap.Labels.TryGetValue(bare, out var lbl)) return mods + lbl;
+        if (context.SpecialKeyLabels.TryGetValue(bare, out var lbl)) return mods + lbl;
         return mods + bare.ToString();
     }
 }

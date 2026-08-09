@@ -30,9 +30,10 @@ namespace MZRaku;
 /// </summary>
 public sealed class MzKeyEditorForm : Form
 {
-    private readonly MzKeyboardLayout.MzKey _key;
-    private readonly CharMapOverrides _charOverrides;
-    private readonly KeyOverride? _keyOverrides;
+    private readonly PhysicalKey _key;
+    private readonly IKeyboardEditorContext _context;
+    private readonly ICharMapOverridesView _charOverrides;
+    private readonly KeyOverride _keyOverrides;
 
     // Per-slot binding-text labels, kept so Edit/Reset can refresh them
     // without rebuilding the whole UI.
@@ -40,15 +41,14 @@ public sealed class MzKeyEditorForm : Form
     private Label? _shiftedBindLabel;
     private Label? _vkBindLabel;
 
-    public MzKeyEditorForm(MzKeyboardLayout.MzKey key,
-                           CharMapOverrides charOverrides,
-                           KeyOverride? keyOverrides)
+    public MzKeyEditorForm(PhysicalKey key, IKeyboardEditorContext context)
     {
         _key = key;
-        _charOverrides = charOverrides;
-        _keyOverrides = keyOverrides;
+        _context = context;
+        _charOverrides = context.CharOverrides;
+        _keyOverrides = context.KeyOverrides;
 
-        Text = $"Edit MZ key — {DescribeKey(key)}";
+        Text = $"Edit MZ key — {DescribeKey(key, context)}";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;
@@ -86,7 +86,7 @@ public sealed class MzKeyEditorForm : Form
     private Label BuildHeader()
     {
         var sb = new System.Text.StringBuilder();
-        sb.Append($"Target MZ key: {DescribeKey(_key)}");
+        sb.Append($"Target MZ key: {DescribeKey(_key, _context)}");
         if (_key.Row.HasValue && _key.Col.HasValue)
             sb.Append($"   ·   matrix slot ({_key.Row}, {_key.Col})");
         return new Label
@@ -143,7 +143,7 @@ public sealed class MzKeyEditorForm : Form
             bindText: FormatVkBinding(row, col),
             defaultText: FormatVkDefault(row, col),
             out _vkBindLabel,
-            editEnabled: _keyOverrides != null,
+            editEnabled: true,
             resetEnabled: HasVkOverrideAt(row, col),
             onEdit: OnEditVkSlot,
             onReset: OnResetVkSlot));
@@ -159,11 +159,11 @@ public sealed class MzKeyEditorForm : Form
         // Resolve glyph labels for each side. Honour the layout's
         // explicit overrides first (used by the @/' and £/↓ keys where
         // the CharMap can't represent both sides), then fall back to
-        // MzGlyphCatalog.
+        // the machine's glyph catalog.
         string? unshifted = _key.UnshiftedLabel
-            ?? MzGlyphCatalog.FindByPrintableSlot(row, col, false)?.ToString();
+            ?? _context.FindGlyphAt(row, col, false)?.ToString();
         string? shifted = _key.ShiftedLabel
-            ?? MzGlyphCatalog.FindByPrintableSlot(row, col, true)?.ToString();
+            ?? _context.FindGlyphAt(row, col, true)?.ToString();
 
         var flow = new FlowLayoutPanel
         {
@@ -321,18 +321,16 @@ public sealed class MzKeyEditorForm : Form
 
     private void OnEditVkSlot()
     {
-        if (_keyOverrides == null) return;
         using var editor = new VkBindingEditorForm(
             _key.Row!.Value, _key.Col!.Value,
             _key.FixedLabel ?? "?",
-            _keyOverrides);
+            _context);
         if (editor.ShowDialog(this) == DialogResult.OK)
             RefreshVkSlotLabel();
     }
 
     private void OnResetVkSlot()
     {
-        if (_keyOverrides == null) return;
         int row = _key.Row!.Value;
         int col = _key.Col!.Value;
         var toRemove = _keyOverrides.All
@@ -352,7 +350,6 @@ public sealed class MzKeyEditorForm : Form
 
     private bool HasVkOverrideAt(int row, int col)
     {
-        if (_keyOverrides == null) return false;
         foreach (var kv in _keyOverrides.All)
             if (kv.Value.Row == row && kv.Value.Col == col)
                 return true;
@@ -366,7 +363,7 @@ public sealed class MzKeyEditorForm : Form
     private void OnEditCharSlot(bool mzShift)
     {
         using var editor = new KeyBindingEditorForm(
-            _key.Row!.Value, _key.Col!.Value, mzShift, _charOverrides);
+            _key.Row!.Value, _key.Col!.Value, mzShift, _context);
         if (editor.ShowDialog(this) == DialogResult.OK)
             RefreshCharSlotLabels();
     }
@@ -384,13 +381,13 @@ public sealed class MzKeyEditorForm : Form
         foreach (var c in toRemove)
             _charOverrides.Remove(c);
 
-        // Restore any CharMap.Defaults entries that pointed at this slot
-        // and were suppressed by a previous Save (slot-replace path in
+        // Restore any char-map defaults that pointed at this slot and
+        // were suppressed by a previous Save (slot-replace path in
         // KeyBindingEditorForm.OnSave). Without this, Reset clears the
         // override but the slot stays "unbound" because the original
         // default is still flagged as suppressed.
         var toUnsuppress = new List<char>();
-        foreach (var def in CharMap.Defaults)
+        foreach (var def in _context.CharDefaults)
         {
             if (!_charOverrides.IsSuppressed(def.Key)) continue;
             if (def.Value.Row == row && def.Value.Col == col && def.Value.MzShift == mzShift)
@@ -416,15 +413,15 @@ public sealed class MzKeyEditorForm : Form
     // Helpers
     // ====================================================================
 
-    private static string DescribeKey(MzKeyboardLayout.MzKey k)
+    private static string DescribeKey(PhysicalKey k, IKeyboardEditorContext context)
     {
         if (!string.IsNullOrEmpty(k.FixedLabel)) return k.FixedLabel!;
         if (!string.IsNullOrEmpty(k.UnshiftedLabel) || !string.IsNullOrEmpty(k.ShiftedLabel))
             return $"{k.UnshiftedLabel ?? "·"} / {k.ShiftedLabel ?? "·"}";
         if (k.Row.HasValue && k.Col.HasValue)
         {
-            char? un = MzGlyphCatalog.FindByPrintableSlot(k.Row.Value, k.Col.Value, false);
-            char? sh = MzGlyphCatalog.FindByPrintableSlot(k.Row.Value, k.Col.Value, true);
+            char? un = context.FindGlyphAt(k.Row.Value, k.Col.Value, false);
+            char? sh = context.FindGlyphAt(k.Row.Value, k.Col.Value, true);
             if (un.HasValue && sh.HasValue) return $"{un.Value} / {sh.Value}";
             if (un.HasValue) return un.Value.ToString();
             if (sh.HasValue) return sh.Value.ToString();
@@ -433,14 +430,14 @@ public sealed class MzKeyEditorForm : Form
     }
 
     /// <summary>
-    /// PC chars that map to (row, col, mzShift) via <see cref="CharMap.Defaults"/>
-    /// alone — what the slot reverts to when the user clicks Reset and
-    /// the override layer is cleared.
+    /// PC chars that map to (row, col, mzShift) via the built-in char
+    /// defaults alone — what the slot reverts to when the user clicks
+    /// Reset and the override layer is cleared.
     /// </summary>
-    private static string FormatCharDefault(int row, int col, bool mzShift)
+    private string FormatCharDefault(int row, int col, bool mzShift)
     {
         var labels = new List<string>();
-        foreach (var kv in CharMap.Defaults)
+        foreach (var kv in _context.CharDefaults)
         {
             if (kv.Value.Row == row && kv.Value.Col == col && kv.Value.MzShift == mzShift)
                 labels.Add(PrettyChar(kv.Key));
@@ -450,16 +447,17 @@ public sealed class MzKeyEditorForm : Form
     }
 
     /// <summary>
-    /// PC virtual keys that map to (row, col) via <see cref="SpecialKeyMap.Map"/>
-    /// alone — the VK-side analogue of <see cref="FormatCharDefault"/>.
+    /// PC virtual keys that map to (row, col) via the built-in
+    /// special-key defaults alone — VK-side analogue of
+    /// <see cref="FormatCharDefault"/>.
     /// </summary>
-    private static string FormatVkDefault(int row, int col)
+    private string FormatVkDefault(int row, int col)
     {
         var labels = new List<string>();
-        foreach (var kv in SpecialKeyMap.Map)
+        foreach (var kv in _context.SpecialKeyMap)
         {
-            if (kv.Value.row == row && kv.Value.col == col)
-                labels.Add(VkLabel(kv.Key));
+            if (kv.Value.Row == row && kv.Value.Col == col)
+                labels.Add(VkLabel(kv.Key, _context));
         }
         return labels.Count == 0 ? "(no default — Reset clears the slot)" : string.Join("  ", labels);
     }
@@ -476,7 +474,7 @@ public sealed class MzKeyEditorForm : Form
                 overridden.Add(kv.Key);
             }
         }
-        foreach (var kv in CharMap.Defaults)
+        foreach (var kv in _context.CharDefaults)
         {
             if (overridden.Contains(kv.Key)) continue;
             if (_charOverrides.IsSuppressed(kv.Key)) continue;
@@ -497,21 +495,18 @@ public sealed class MzKeyEditorForm : Form
         // them. Without this, a VK rebound to a different slot would
         // still appear as bound to its original SpecialKeyMap slot.
         var claimedVks = new HashSet<Keys>();
-        if (_keyOverrides != null)
+        foreach (var kv in _keyOverrides.All)
+            claimedVks.Add(kv.Key);
+        foreach (var kv in _keyOverrides.All)
         {
-            foreach (var kv in _keyOverrides.All)
-                claimedVks.Add(kv.Key);
-            foreach (var kv in _keyOverrides.All)
-            {
-                if (kv.Value.Row == row && kv.Value.Col == col)
-                    labels.Add(VkLabel(kv.Key));
-            }
+            if (kv.Value.Row == row && kv.Value.Col == col)
+                labels.Add(VkLabel(kv.Key, _context));
         }
-        foreach (var kv in SpecialKeyMap.Map)
+        foreach (var kv in _context.SpecialKeyMap)
         {
             if (claimedVks.Contains(kv.Key)) continue;
-            if (kv.Value.row == row && kv.Value.col == col)
-                labels.Add(VkLabel(kv.Key));
+            if (kv.Value.Row == row && kv.Value.Col == col)
+                labels.Add(VkLabel(kv.Key, _context));
         }
         return labels.Count == 0 ? "(no PC binding)" : string.Join("  ", labels);
     }
@@ -542,6 +537,6 @@ public sealed class MzKeyEditorForm : Form
         return c.ToString();
     }
 
-    private static string VkLabel(Keys k) =>
-        SpecialKeyMap.Labels.TryGetValue(k, out var s) ? s : k.ToString();
+    private static string VkLabel(Keys k, IKeyboardEditorContext context) =>
+        context.SpecialKeyLabels.TryGetValue(k, out var s) ? s : k.ToString();
 }

@@ -618,7 +618,7 @@ public sealed class SettingsForm : Form
             Margin = new Padding(0, 0, 0, 4),
         }, 0, 0);
 
-        _kbdDiagram = new MzKeyboardDiagram { Dock = DockStyle.Fill };
+        _kbdDiagram = new MzKeyboardDiagram(new Mz700PhysicalKeyboardLayout()) { Dock = DockStyle.Fill };
         _kbdDiagram.KeyClicked += OnKeyboardDiagramKeyClicked;
         RefreshKeyboardDiagramLabels();
         layout.Controls.Add(_kbdDiagram, 0, 1);
@@ -776,8 +776,21 @@ public sealed class SettingsForm : Form
 
     private void OpenAdvancedKeyboard()
     {
-        using var dlg = new AdvancedKeyboardForm(
+        // 5.5a: the advanced form now requires an IKeyboardEditorContext,
+        // which needs a live machine. The MZ-80A entry point through this
+        // dialog stays surfaced by the amber banner; 5.5c will wire it to
+        // a Mz80aKeyboardEditorContext.
+        if (_machine == null)
+        {
+            MessageBox.Show(this,
+                "Advanced keyboard editing for MZ-80A isn't wired up yet — "
+              + "it arrives with the MZ-80A keyboard editor in Phase 5.5b/c.",
+                "Advanced Keyboard", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        var context = new Mz700KeyboardEditorContext(
             _machine, _settings.CharMapOverrides, _settings.KeyOverrides);
+        using var dlg = new AdvancedKeyboardForm(context);
         dlg.ShowDialog(this);
         // Edits flow into the shared override instances; refresh the
         // diagram so any changes made via the matrix grid show through.
@@ -903,8 +916,17 @@ public sealed class SettingsForm : Form
         // Editor mutates the override layers directly — change is live
         // for subsequent emulator keystrokes. Persistence still waits
         // for this dialog's Apply / OK.
-        using var editor = new MzKeyEditorForm(
-            e.Key, _settings.CharMapOverrides, _settings.KeyOverrides);
+        if (_machine == null)
+        {
+            MessageBox.Show(this,
+                "MZ-80A key-slot editing isn't wired up yet — it arrives with "
+              + "the MZ-80A keyboard editor in Phase 5.5b/c.",
+                "Key editor", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        var context = new Mz700KeyboardEditorContext(
+            _machine, _settings.CharMapOverrides, _settings.KeyOverrides);
+        using var editor = new MzKeyEditorForm(e.Key, context);
         editor.ShowDialog(this);
         RefreshKeyboardDiagramLabels();
     }

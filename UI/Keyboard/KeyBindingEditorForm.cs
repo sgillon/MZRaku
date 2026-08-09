@@ -32,7 +32,8 @@ public sealed class KeyBindingEditorForm : Form
     public int Col { get; }
     public bool MzShift => _shiftCheck.Checked;
 
-    private readonly CharMapOverrides _overrides;
+    private readonly IKeyboardEditorContext _context;
+    private readonly ICharMapOverridesView _overrides;
     private readonly KeyCaptureControl _capture;
     private readonly Label _status;
     private readonly Label _phaseBNote;
@@ -49,14 +50,15 @@ public sealed class KeyBindingEditorForm : Form
     private ConflictInfo? _conflict;
 
     private readonly record struct ConflictInfo(
-        CharMap.Press Existing,
+        MatrixPress Existing,
         bool FromOverride);
 
-    public KeyBindingEditorForm(int row, int col, bool defaultMzShift, CharMapOverrides overrides)
+    public KeyBindingEditorForm(int row, int col, bool defaultMzShift, IKeyboardEditorContext context)
     {
         Row = row;
         Col = col;
-        _overrides = overrides;
+        _context = context;
+        _overrides = context.CharOverrides;
 
         Text = "Bind PC key to MZ slot";
         StartPosition = FormStartPosition.CenterParent;
@@ -87,7 +89,7 @@ public sealed class KeyBindingEditorForm : Form
         // Header — describes the target slot.
         var header = new Label
         {
-            Text = BuildHeaderText(row, col, defaultMzShift),
+            Text = BuildHeaderText(row, col, defaultMzShift, context),
             AutoSize = true,
             Font = new Font(Font.FontFamily, 10f, FontStyle.Bold),
             Margin = new Padding(0, 0, 0, 8),
@@ -178,12 +180,12 @@ public sealed class KeyBindingEditorForm : Form
         Shown += (_, _) => _capture.Focus();
     }
 
-    private static string BuildHeaderText(int row, int col, bool mzShift)
+    private static string BuildHeaderText(int row, int col, bool mzShift, IKeyboardEditorContext context)
     {
-        var un = MzGlyphCatalog.FindByPrintableSlot(row, col, false);
-        var sh = MzGlyphCatalog.FindByPrintableSlot(row, col, true);
+        var un = context.FindGlyphAt(row, col, false);
+        var sh = context.FindGlyphAt(row, col, true);
         char? targetGlyph = mzShift ? sh : un;
-        var special = MzGlyphCatalog.FindSpecialLabel(row, col);
+        var special = context.FindSpecialLabelAt(row, col);
 
         var shiftLabel = mzShift ? "shifted" : "unshifted";
         if (targetGlyph.HasValue)
@@ -241,14 +243,14 @@ public sealed class KeyBindingEditorForm : Form
 
         bool targetShift = _shiftCheck.Checked;
 
-        CharMap.Press? existing = null;
+        MatrixPress? existing = null;
         bool fromOverride = false;
         if (_overrides.TryLookup(ch, out var cur))
         {
             existing = cur;
             fromOverride = true;
         }
-        else if (CharMap.Defaults.TryGetValue(ch, out var def))
+        else if (_context.CharDefaults.TryGetValue(ch, out var def))
         {
             existing = def;
             fromOverride = false;
@@ -303,7 +305,7 @@ public sealed class KeyBindingEditorForm : Form
         }
 
         bool mzShift = _shiftCheck.Checked;
-        var target = new CharMap.Press(Row, Col, mzShift);
+        var target = new MatrixPress(Row, Col, mzShift);
 
         // Letters are a case-pair on the MZ side — CharMap.Defaults maps
         // 'A' and 'a' to the same slot, treating the physical PC key as
@@ -325,7 +327,7 @@ public sealed class KeyBindingEditorForm : Form
         // the slot has a single PC binding after Save. Without this the
         // override stacks on top of the default and both PC keys drive
         // the MZ slot, which surprises users editing from the diagram.
-        foreach (var def in CharMap.Defaults)
+        foreach (var def in _context.CharDefaults)
         {
             if (capturedChars.Contains(def.Key)) continue;
             if (def.Value.Row == Row && def.Value.Col == Col && def.Value.MzShift == mzShift)

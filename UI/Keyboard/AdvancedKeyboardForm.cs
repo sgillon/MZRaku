@@ -21,24 +21,17 @@ namespace MZRaku;
 /// </summary>
 public sealed class AdvancedKeyboardForm : Form
 {
-    private readonly MZ700? _machine;
-    private readonly CharMapOverrides _charOverrides;
-    private readonly KeyOverride _keyOverrides;
+    private readonly IKeyboardEditorContext _context;
     private KeyboardMatrixGrid? _kbdGrid;
     private System.Windows.Forms.Timer? _kbdGridTimer;
     private ListView? _overridesList;
     private ListView? _unboundList;
 
-    public AdvancedKeyboardForm(
-        MZ700? machine,
-        CharMapOverrides charOverrides,
-        KeyOverride keyOverrides)
+    public AdvancedKeyboardForm(IKeyboardEditorContext context)
     {
-        _machine = machine;
-        _charOverrides = charOverrides;
-        _keyOverrides = keyOverrides;
+        _context = context;
 
-        Text = "Advanced Keyboard Settings";
+        Text = $"Advanced Keyboard Settings — {context.MachineLabel}";
         FormBorderStyle = FormBorderStyle.Sizable;
         StartPosition = FormStartPosition.CenterParent;
         MinimumSize = new Size(720, 560);
@@ -69,7 +62,7 @@ public sealed class AdvancedKeyboardForm : Form
 
         root.Controls.Add(new Label
         {
-            Text = "Matrix-coord view of the MZ-700 keyboard. Click a cell to edit "
+            Text = $"Matrix-coord view of the {_context.MachineLabel} keyboard. Click a cell to edit "
                  + "its character binding. The overrides list below shows everything "
                  + "currently in effect across both layers.",
             AutoSize = true,
@@ -78,37 +71,25 @@ public sealed class AdvancedKeyboardForm : Form
             Margin = new Padding(0, 0, 0, 8),
         }, 0, 0);
 
-        if (_machine != null)
+        _kbdGrid = new KeyboardMatrixGrid(_context)
         {
-            _kbdGrid = new KeyboardMatrixGrid(_machine)
-            {
-                Anchor = AnchorStyles.Top | AnchorStyles.Left,
-                Margin = new Padding(0, 0, 0, 10),
-            };
-            _kbdGrid.CellClicked += OnCellClicked;
-            root.Controls.Add(_kbdGrid, 0, 1);
+            Anchor = AnchorStyles.Top | AnchorStyles.Left,
+            Margin = new Padding(0, 0, 0, 10),
+        };
+        _kbdGrid.CellClicked += OnCellClicked;
+        root.Controls.Add(_kbdGrid, 0, 1);
 
-            // 10 Hz repaint so the live highlight tracks if anything
-            // happens to assert matrix bits while the dialog is open
-            // (auto-typer mid-sequence, etc.).
-            _kbdGridTimer = new System.Windows.Forms.Timer { Interval = 100 };
-            _kbdGridTimer.Tick += (_, _) => _kbdGrid?.Invalidate();
-            Load += (_, _) => _kbdGridTimer.Start();
-            FormClosed += (_, _) =>
-            {
-                _kbdGridTimer.Stop();
-                _kbdGridTimer.Dispose();
-            };
-        }
-        else
+        // 10 Hz repaint so the live highlight tracks if anything
+        // happens to assert matrix bits while the dialog is open
+        // (auto-typer mid-sequence, etc.).
+        _kbdGridTimer = new System.Windows.Forms.Timer { Interval = 100 };
+        _kbdGridTimer.Tick += (_, _) => _kbdGrid?.Invalidate();
+        Load += (_, _) => _kbdGridTimer.Start();
+        FormClosed += (_, _) =>
         {
-            root.Controls.Add(new Label
-            {
-                Text = "Matrix grid unavailable — emulator instance not provided.",
-                AutoSize = true,
-                ForeColor = SystemColors.GrayText,
-            }, 0, 1);
-        }
+            _kbdGridTimer.Stop();
+            _kbdGridTimer.Dispose();
+        };
 
         root.Controls.Add(BuildUnboundPanel(), 0, 2);
 
@@ -157,7 +138,7 @@ public sealed class AdvancedKeyboardForm : Form
         // (Enter, cursors, SHIFT etc.) are reachable from the diagram
         // editor in the parent dialog.
         using var editor = new KeyBindingEditorForm(
-            e.Row, e.Col, e.MzShift, _charOverrides);
+            e.Row, e.Col, e.MzShift, _context);
         if (editor.ShowDialog(this) != DialogResult.OK) return;
         _kbdGrid?.RefreshBindings();
         PopulateOverridesList();
@@ -209,7 +190,7 @@ public sealed class AdvancedKeyboardForm : Form
     {
         if (_unboundList == null) return;
         _unboundList.Items.Clear();
-        var unbound = MatrixCoverage.FindUnbound(_charOverrides, _keyOverrides);
+        var unbound = _context.FindUnboundSlots();
         foreach (var slot in unbound)
         {
             _unboundList.Items.Add(new ListViewItem(new[]
@@ -234,12 +215,12 @@ public sealed class AdvancedKeyboardForm : Form
         }
     }
 
-    private static string BuildSlotLabel(Mz700MatrixReference.Slot slot)
+    private static string BuildSlotLabel(MatrixReferenceSlot slot)
     {
         // For Char slots prefer the glyph pair (e.g. "1 / !") so the user
         // immediately recognises which key is missing. Non-Char slots use
         // the Id directly (e.g. "F5", "BREAK", "←").
-        if (slot.Kind == Mz700MatrixReference.SlotKind.Char)
+        if (slot.Kind == MatrixSlotKind.Char)
         {
             var unshifted = slot.UnshiftedGlyph ?? "";
             var shifted = slot.ShiftedGlyph;
@@ -255,7 +236,7 @@ public sealed class AdvancedKeyboardForm : Form
         if (_overridesList == null) return;
         _overridesList.Items.Clear();
 
-        foreach (var kv in _charOverrides.All.OrderBy(k => (int)k.Key))
+        foreach (var kv in _context.CharOverrides.All.OrderBy(k => (int)k.Key))
         {
             var p = kv.Value;
             _overridesList.Items.Add(new ListViewItem(new[]
@@ -267,7 +248,7 @@ public sealed class AdvancedKeyboardForm : Form
             }));
         }
 
-        foreach (var kv in _keyOverrides.All.OrderBy(k => k.Key.ToString()))
+        foreach (var kv in _context.KeyOverrides.All.OrderBy(k => k.Key.ToString()))
         {
             var b = kv.Value;
             var shiftLabel = b.MzShift switch

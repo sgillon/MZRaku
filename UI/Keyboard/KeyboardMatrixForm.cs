@@ -21,15 +21,15 @@ public sealed class KeyboardMatrixForm : Form
     // can watch the last-matched highlight pulse as they type.
     protected override bool ShowWithoutActivation => true;
 
-    public KeyboardMatrixForm(MZ700 machine)
+    public KeyboardMatrixForm(IKeyboardEditorContext context)
     {
-        Text = "Keyboard Matrix";
+        Text = $"Keyboard Matrix — {context.MachineLabel}";
         FormBorderStyle = FormBorderStyle.SizableToolWindow;
         StartPosition = FormStartPosition.CenterParent;
         ShowInTaskbar = false;
         AutoScroll = true;
 
-        _grid = new KeyboardMatrixGrid(machine);
+        _grid = new KeyboardMatrixGrid(context);
 
         // Top bar — coverage toggle + reset. Accumulated state lives on
         // the grid and is naturally wiped when the user closes the form

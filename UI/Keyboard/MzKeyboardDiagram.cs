@@ -9,32 +9,37 @@ using MZRaku.Hardware;
 namespace MZRaku;
 
 /// <summary>
-/// Owner-drawn diagram of the MZ-700 physical keyboard, rendered from
-/// <see cref="MzKeyboardLayout"/>. Scales to fit the client area while
-/// preserving aspect; each key is a rounded rect coloured by
-/// <see cref="MzKeyboardLayout.KeyKind"/>, with its MZ labels rendered
-/// from <see cref="MzGlyphCatalog"/> on the left and an optional PC-key
-/// binding label on the right (the latter populated by the host once
-/// the reverse-lookup index lands in P2-3).
+/// Owner-drawn diagram of a Sharp MZ physical keyboard, rendered from
+/// an <see cref="IPhysicalKeyboardLayout"/>. Scales to fit the client
+/// area while preserving aspect; each key is a rounded rect coloured
+/// by <see cref="PhysicalKeyKind"/> via the layout's palette, with its
+/// MZ labels resolved from the layout's glyph catalog on the left and
+/// an optional PC-key binding label on the right (populated by the
+/// host from the reverse-lookup index).
 ///
 /// Cursor changes to a hand when hovering a key — but only when a
 /// <see cref="KeyClicked"/> subscriber is attached, so read-only hosts
-/// (like the temporary diagnostic form) stay visually inert.
+/// stay visually inert.
+///
+/// Phase 5.5a: parameterised on <see cref="IPhysicalKeyboardLayout"/>
+/// so the same widget serves MZ-700 and MZ-80A.
 /// </summary>
 public sealed class MzKeyboardDiagram : UserControl
 {
+    private readonly IPhysicalKeyboardLayout _layout;
+
     /// <summary>
-    /// Optional per-key PC-binding label, keyed by <see cref="MzKeyboardLayout.MzKey.Id"/>.
+    /// Optional per-key PC-binding label, keyed by <see cref="PhysicalKey.Id"/>.
     /// Set by the host after building the reverse-lookup index; null /
     /// missing keys render no PC binding label.
     /// </summary>
     public IReadOnlyDictionary<string, string>? PcKeyLabels { get; set; }
 
     /// <summary>
-    /// Set of <see cref="MzKeyboardLayout.MzKey.Id"/> values that should
-    /// render with a red warning outline — used by the P2-9 safety gate
-    /// to surface keys that have no PC binding (so the user can't press
-    /// them from the host keyboard). null or empty = no highlighting.
+    /// Set of <see cref="PhysicalKey.Id"/> values that should render
+    /// with a red warning outline — used by the safety gate to surface
+    /// keys that have no PC binding (so the user can't press them from
+    /// the host keyboard). null or empty = no highlighting.
     /// </summary>
     public ISet<string>? UnreachableKeyIds { get; set; }
 
@@ -46,8 +51,9 @@ public sealed class MzKeyboardDiagram : UserControl
 
     private string? _hoveredId;
 
-    public MzKeyboardDiagram()
+    public MzKeyboardDiagram(IPhysicalKeyboardLayout layout)
     {
+        _layout = layout;
         DoubleBuffered = true;
         BackColor = Color.FromArgb(245, 245, 247);
         // Default size sized to roughly 1 unit ≈ 50 px (14 × 6 → 700 × 300).
@@ -70,7 +76,7 @@ public sealed class MzKeyboardDiagram : UserControl
         var (scale, ox, oy) = ComputeTransform();
         if (scale <= 0f) return;
 
-        foreach (var k in MzKeyboardLayout.Keys)
+        foreach (var k in _layout.Keys)
             DrawKey(g, k, scale, ox, oy);
     }
 
@@ -120,21 +126,21 @@ public sealed class MzKeyboardDiagram : UserControl
         float availW = ClientSize.Width - pad * 2;
         float availH = ClientSize.Height - pad * 2;
         if (availW <= 0 || availH <= 0) return (0f, pad, pad);
-        float sx = availW / MzKeyboardLayout.Width;
-        float sy = availH / MzKeyboardLayout.Height;
+        float sx = availW / _layout.Width;
+        float sy = availH / _layout.Height;
         float scale = Math.Min(sx, sy);
-        float ox = pad + (availW - MzKeyboardLayout.Width * scale) / 2f;
-        float oy = pad + (availH - MzKeyboardLayout.Height * scale) / 2f;
+        float ox = pad + (availW - _layout.Width * scale) / 2f;
+        float oy = pad + (availH - _layout.Height * scale) / 2f;
         return (scale, ox, oy);
     }
 
-    private MzKeyboardLayout.MzKey? HitTest(int x, int y)
+    private PhysicalKey? HitTest(int x, int y)
     {
         var (scale, ox, oy) = ComputeTransform();
         if (scale <= 0f) return null;
         float lx = (x - ox) / scale;
         float ly = (y - oy) / scale;
-        foreach (var k in MzKeyboardLayout.Keys)
+        foreach (var k in _layout.Keys)
         {
             if (lx >= k.X && lx < k.X + k.W && ly >= k.Y && ly < k.Y + k.H)
                 return k;
@@ -142,7 +148,7 @@ public sealed class MzKeyboardDiagram : UserControl
         return null;
     }
 
-    private void DrawKey(Graphics g, MzKeyboardLayout.MzKey k, float scale, float ox, float oy)
+    private void DrawKey(Graphics g, PhysicalKey k, float scale, float ox, float oy)
     {
         // Pixel rect for the keycap, inset slightly so adjacent keys
         // don't share a border.
@@ -155,7 +161,7 @@ public sealed class MzKeyboardDiagram : UserControl
 
         bool hovered = _hoveredId == k.Id;
         bool unreachable = UnreachableKeyIds != null && UnreachableKeyIds.Contains(k.Id);
-        var (fill, border, text) = ColorsForKind(k.Kind, hovered);
+        var (fill, border, text) = _layout.ColorsForKind(k.Kind, hovered);
         float radius = Math.Min(rect.Width, rect.Height) * 0.12f;
 
         // Unreachable caps get a thick red outline so they stand out at
@@ -194,12 +200,12 @@ public sealed class MzKeyboardDiagram : UserControl
         g.DrawPath(border, path);
     }
 
-    private void DrawKeyLabels(Graphics g, MzKeyboardLayout.MzKey k, RectangleF rect, Color textColor)
+    private void DrawKeyLabels(Graphics g, PhysicalKey k, RectangleF rect, Color textColor)
     {
         // Function keys (F1-F5) — half-height, centred label, smaller
         // font, no shifted/unshifted split. Bypass the standard
         // two-band layout.
-        if (k.Kind == MzKeyboardLayout.KeyKind.Function && !string.IsNullOrEmpty(k.FixedLabel))
+        if (k.Kind == PhysicalKeyKind.Function && !string.IsNullOrEmpty(k.FixedLabel))
         {
             using var fnFont = new Font(FontFamily.GenericSansSerif,
                                         FontSizeForLabel(rect.Height), FontStyle.Bold);
@@ -248,15 +254,15 @@ public sealed class MzKeyboardDiagram : UserControl
         {
             int row = k.Row.Value;
             int col = k.Col.Value;
-            char? un = MzGlyphCatalog.FindByPrintableSlot(row, col, false);
-            char? sh = MzGlyphCatalog.FindByPrintableSlot(row, col, true);
+            char? un = _layout.FindGlyphAt(row, col, false);
+            char? sh = _layout.FindGlyphAt(row, col, true);
             if (un.HasValue)  mainText  = un.Value.ToString();
             if (sh.HasValue)  shiftText = sh.Value.ToString();
 
             if (mainText == null && shiftText == null)
             {
-                // Fall back to a SpecialKeyMap label if the slot has one.
-                var special = MzGlyphCatalog.FindSpecialLabel(row, col);
+                // Fall back to a SpecialKeyMap-style label if the slot has one.
+                var special = _layout.FindSpecialLabelAt(row, col);
                 if (special != null)
                     DrawCentredText(g, special, mainRect, FontSizeForLabel(mainRect.Height),
                                     textColor, FontStyle.Regular);
@@ -299,7 +305,7 @@ public sealed class MzKeyboardDiagram : UserControl
         return Color.FromArgb(c.A, r, gC, b);
     }
 
-    private void DrawPcBindingLabel(Graphics g, MzKeyboardLayout.MzKey k, RectangleF rect)
+    private void DrawPcBindingLabel(Graphics g, PhysicalKey k, RectangleF rect)
     {
         if (PcKeyLabels == null) return;
         if (!PcKeyLabels.TryGetValue(k.Id, out var label) || string.IsNullOrEmpty(label)) return;
@@ -394,56 +400,14 @@ public sealed class MzKeyboardDiagram : UserControl
         return Math.Max(6f, keyHeightPx * 0.45f);
     }
 
-    // Real MZ-700 cap colours:
-    //   Blue  cap + white glyph: function keys.
-    //   Amber cap + white glyph: mode (GRAPH / ALPHA), modifier
-    //                            (CTRL / SHIFT), edit (BREAK / INST /
-    //                            DEL), enter (CR), cursor arrows.
-    //   White cap + black glyph: character keys + space + the BLANK
-    //                            filler.
-    private static readonly Color CapBlue   = Color.FromArgb(38, 68, 144);
-    private static readonly Color CapAmber  = Color.FromArgb(205, 120, 40);
-    private static readonly Color CapWhite  = Color.FromArgb(252, 252, 250);
+    // PC-binding badge colour — shared across machines and independent
+    // of the per-machine cap palette.
+    private static readonly Color CapBlue    = Color.FromArgb(38, 68, 144);
     private static readonly Color GlyphWhite = Color.FromArgb(252, 252, 250);
-    private static readonly Color GlyphBlack = Color.FromArgb(20, 20, 20);
-
-    private static (Color fill, Color border, Color text) ColorsForKind(MzKeyboardLayout.KeyKind kind, bool hovered)
-    {
-        Color fill;
-        Color text;
-        switch (kind)
-        {
-            case MzKeyboardLayout.KeyKind.Function:
-                fill = CapBlue;  text = GlyphWhite; break;
-            case MzKeyboardLayout.KeyKind.Mode:
-            case MzKeyboardLayout.KeyKind.Modifier:
-            case MzKeyboardLayout.KeyKind.Edit:
-            case MzKeyboardLayout.KeyKind.Enter:
-            case MzKeyboardLayout.KeyKind.Cursor:
-            case MzKeyboardLayout.KeyKind.Blank:
-                fill = CapAmber; text = GlyphWhite; break;
-            case MzKeyboardLayout.KeyKind.Character:
-            case MzKeyboardLayout.KeyKind.Space:
-            default:
-                fill = CapWhite; text = GlyphBlack; break;
-        }
-        if (hovered)
-            fill = LightenOrDarken(fill, -18);
-        Color border = hovered ? Color.FromArgb(30, 30, 40) : Color.FromArgb(110, 110, 115);
-        return (fill, border, text);
-    }
-
-    private static Color LightenOrDarken(Color c, int delta)
-    {
-        int r = Math.Clamp(c.R + delta, 0, 255);
-        int gC = Math.Clamp(c.G + delta, 0, 255);
-        int b = Math.Clamp(c.B + delta, 0, 255);
-        return Color.FromArgb(c.A, r, gC, b);
-    }
 }
 
 public sealed class KeyDiagramClickedEventArgs : EventArgs
 {
-    public MzKeyboardLayout.MzKey Key { get; }
-    public KeyDiagramClickedEventArgs(MzKeyboardLayout.MzKey key) { Key = key; }
+    public PhysicalKey Key { get; }
+    public KeyDiagramClickedEventArgs(PhysicalKey key) { Key = key; }
 }
