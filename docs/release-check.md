@@ -184,24 +184,52 @@ a release, update the checklist before fixing the bug.
 
 ## Settings
 
-- [ ] **File → Settings → ROMs…** (Ctrl+S) opens the dialog on the
-      ROMs tab.
-- [ ] **File → Settings → Display…** (Ctrl+Shift+D) opens on Display.
-- [ ] **File → Settings → Keyboard…** (Ctrl+Shift+K) opens on Keyboard.
-- [ ] **File → Settings → Joystick…** (Ctrl+Shift+J) opens on Joystick.
-- [ ] Tab order is ROMs / Display / Keyboard / Joystick.
+- [ ] **System → Settings → Startup…** (Ctrl+S) opens the dialog on
+      the Startup tab (first tab; Ctrl+S is deliberately the "no tab
+      specified" default).
+- [ ] **System → Settings → ROMs…** (Ctrl+Shift+R) opens on ROMs.
+- [ ] **System → Settings → Display…** (Ctrl+Shift+D) opens on Display.
+- [ ] **System → Settings → Keyboard…** (Ctrl+Shift+K) opens on Keyboard.
+- [ ] **System → Settings → Joystick…** (Ctrl+Shift+J) opens on Joystick.
+- [ ] Tab order is Startup / ROMs / Display / Keyboard / Joystick.
 - [ ] Changing Display Scale and clicking Apply takes effect without
       restart.
-- [ ] `settings.ini` after first run contains `[Display]`, `[Roms.MZ700]`,
-      `[Roms.MZ80A]`, `[Joystick]`, `[KeyOverrides.MZ700]`,
-      `[KeyOverrides.MZ80A]`, `[CharMap]`, `[Window]`, `[Debugger]`,
-      `[MemoryViewer]`, `[Breakpoints]`, and `[Machine]` sections —
-      each with its own inline self-documenting comment.
-- [ ] Launch with `--mz80a` and open Settings → any tab: a soft-amber
-      notice banner is visible above the tabs, explaining that the
-      MZ-80A dialog is partial-coverage and pointing at
-      `settings.ini` for char-map / key overrides / green-screen /
-      InvertLetterShift. Banner is not shown when running MZ-700.
+- [ ] `settings.ini` after first run contains `[Startup]`, `[Display]`,
+      `[Display.MZ80A]`, `[Roms.MZ700]`, `[Roms.MZ80A]`, `[Joystick]`,
+      `[Keyboard.MZ80A]`, `[KeyOverrides.MZ700]`, `[KeyOverrides.MZ80A]`,
+      `[CharMap]`, `[CharMap.MZ80A]`, `[DebugPanes]`, `[Window]`,
+      `[Debugger]`, `[MemoryViewer]`, `[Breakpoints]`, and `[Machine]`
+      sections — each with its own inline self-documenting comment.
+
+### MZ-80A GUI coverage (Phase 5)
+
+- [ ] Launch with `--mz80a` and open Settings: no amber "partial
+      coverage" banner (retired in Phase 5.6). Every MZ-80A setting is
+      reachable through the dialog.
+- [ ] **Display tab** shows an "MZ-80A only" group with a Green screen
+      checkbox. Toggle it, Apply — the MZ-80A screen recolours
+      immediately (live-apply). Persisted to `[Display.MZ80A] GreenScreen=`.
+- [ ] **Keyboard tab** on MZ-80A shows the MZ-80A physical keyboard
+      diagram (not MZ-700) with the numeric keypad on the right,
+      BREAK/CTRL + INST/DEL + CLR/HOME as dual-label caps, and the
+      MZ-80A InvertLetterShift checkbox in the "MZ-80A keyboard" group.
+- [ ] Same tab on MZ-700 shows the MZ-700 diagram with PC-binding
+      labels on caps, red outline on any unreachable-essential keys,
+      and the InvertLetterShift group still visible (it's an MZ-80A
+      setting the user can pre-configure while on MZ-700).
+- [ ] Clicking a key on the MZ-80A diagram opens the same MzKeyEditorForm
+      the MZ-700 uses, wired to the MZ-80A char-map / key-override
+      layers. Char bindings persist to `[CharMap.MZ80A]`; VK bindings
+      to `[KeyOverrides.MZ80A]`.
+- [ ] **Font Sheet on MZ-80A** (View → Font Sheet, Ctrl+G) opens
+      view-only — two 16×8 sections labelled Text ($00–$7F) and
+      Graphics ($80–$FF). Click any cell → status bar shows
+      `{section} code $XX`; clicks don't type (view-only for now).
+- [ ] **Startup tab** on both machines: DefaultMachine radio pair
+      persists to `[Machine] DefaultMachine=`; the six DebugPanes
+      checkboxes persist to `[DebugPanes]`. MZ-700-only panes
+      (Sound Diagnostic, Keyboard Matrix) grey out when
+      DefaultMachine=MZ-80A, stored values survive the disable.
 
 ## Help
 
@@ -222,19 +250,22 @@ a release, update the checklist before fixing the bug.
       moment the `BASIC interpreter SA-5510` / `Copyright 1981 by
       SHARP Corp.` / `32492 Bytes` / `Ready` sequence renders — the
       SA-1510 monitor and SA-5510 BASIC both boot cleanly.
-- [ ] `File → Machine → MZ-80A` while running on MZ-700 shows a
+- [ ] `System → Machine → MZ-80A` while running on MZ-700 shows a
       restart prompt; Yes restarts into MZ-80A. Same in reverse.
-      `settings.ini` `[Machine] Type=` reflects the choice after
-      restart.
+      Choice is transient (one-off switch for this session);
+      `settings.ini` `[Machine] DefaultMachine=` is NOT rewritten by
+      this menu — use Settings → Startup to change the persisted
+      default.
 - [ ] `settings.ini` contains both `[Roms.MZ700]` and `[Roms.MZ80A]`
       sub-sections with self-documenting comments; ROM path
       auto-detection populated MZ-80A's `Monitor` / `Font` / `Basic`
       keys from `roms/SA-1510.rom`, `roms/SA-CG.rom`,
       `basic/SA-5510.mzf` respectively.
-- [ ] Diagnostic menu items that are MZ-700-only (Sound Diagnostic,
-      Font Sheet, Keyboard Matrix) each show a friendly "MZ-700 only
-      for now" MessageBox when opened while MZ-80A is active — they
-      do NOT NRE.
+- [ ] Diagnostic menu items still MZ-700-only (Sound Diagnostic,
+      Keyboard Matrix) each show a friendly "MZ-700 only for now"
+      MessageBox when opened while MZ-80A is active — they do NOT NRE.
+      Font Sheet is no longer in this list — it works on both machines
+      as of Phase 5.4 (view-only on MZ-80A).
 - [ ] **HID Diagnostic (Ctrl+H)** works on both machines: title bar
       reads "HID Diagnostic — MZ-700" / "HID Diagnostic — MZ-80A" and
       the in-form banner names the machine being monitored. Body
@@ -275,9 +306,11 @@ a release, update the checklist before fixing the bug.
       latch (`de08e40`), per-counter InputHz for correct pitch
       (`11f4a04`), and `$E008 D0` signal rate for correct note
       duration (`7e4cc46`).
-- [ ] `View → MZ-80A Green Screen` toggles the monochrome renderer
-      between white and pure `#00FF00`. Toggle persists across
-      restart (written to `[Display] Mz80aGreenScreen=`).
+- [ ] Settings → Display → MZ-80A group → "Green screen (P1 phosphor)"
+      checkbox toggles the monochrome renderer between white and pure
+      `#00FF00`. Live-applies on Apply (no restart needed when MZ-80A
+      is active); persisted to `[Display.MZ80A] GreenScreen=`. The
+      old View → MZ-80A Green Screen menu item was retired in Phase 5.2.
 - [ ] Status bar three-pane layout: left pane shows `MZ-80A`;
       centre pane displays transient status messages (auto-clear
       ~5s after last change); right pane shows `ALPHA` at boot.
@@ -324,6 +357,25 @@ the typed characters unless noted otherwise.
       digits / punctuation. Each key produces a graphic glyph (not
       the alphanumeric character). Press F11 again → back to ALPHA
       with normal text.
+
+## Known backlog items
+
+Not blockers — surface here so the release notes / README stay
+honest about what's still open.
+
+- [ ] **Apply-keyboard regression** ([[project-v1-1-apply-keyboard-regression]]):
+      after Settings → Apply/OK following a keyboard remap, no keys
+      type on MZ-700 until Ctrl+R (machine reset). Present since v1.0.0.
+      Workaround is documented; root cause parked pending fix-forward
+      investigation. Verify the workaround still works: rebind a key,
+      Apply, Ctrl+R, confirm typing works with the new mapping.
+- [ ] **MZ-80A diagram PC-key labels + red unreachable outline** —
+      deferred from 5.5c. MZ-700 diagram shows both; MZ-80A diagram
+      renders label-less. Extending `PcKeyIndex` to MZ-80A is v1.2
+      polish.
+- [ ] **.mzkbd export/import on MZ-80A** — deferred. File format
+      is MZ-700-only for now; Export/Import buttons are hidden on
+      MZ-80A in the Keyboard tab.
 
 ## Release packaging
 
