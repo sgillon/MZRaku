@@ -112,20 +112,28 @@ public sealed class AboutForm : Form
             AutoSize = true,
             Margin = new Padding(0),
         });
+        var (versionText, buildText) = ParseInformationalVersion();
         textStack.Controls.Add(new Label
         {
-            Text = $"Version {GetInformationalVersion()}",
+            Text = $"Version {versionText}",
             AutoSize = true,
             ForeColor = SystemColors.ControlDarkDark,
             Margin = new Padding(0, 2, 0, 0),
         });
-        textStack.Controls.Add(new Label
+        // Build line: BuildNumber (+ short git SHA), composed by the
+        // csproj's StampInformationalVersion target. Omitted if the
+        // AssemblyInformationalVersion doesn't carry a build-metadata
+        // suffix (older builds, or a manual '<Version>'-only override).
+        if (!string.IsNullOrEmpty(buildText))
         {
-            Text = $"Built {GetBuildDate():yyyy-MM-dd}",
-            AutoSize = true,
-            ForeColor = SystemColors.ControlDarkDark,
-            Margin = new Padding(0, 1, 0, 0),
-        });
+            textStack.Controls.Add(new Label
+            {
+                Text = $"Build {buildText}",
+                AutoSize = true,
+                ForeColor = SystemColors.ControlDarkDark,
+                Margin = new Padding(0, 1, 0, 0),
+            });
+        }
         var machineLabel = activeMachine == MachineType.MZ700 ? "Sharp MZ-700" : "Sharp MZ-80A";
         textStack.Controls.Add(new Label
         {
@@ -213,33 +221,24 @@ public sealed class AboutForm : Form
         return row;
     }
 
-    private static string GetInformationalVersion()
+    /// <summary>
+    /// Parse the assembly's InformationalVersion — composed by the
+    /// csproj's StampInformationalVersion target as
+    /// <c>Version+BuildNumber.g&lt;sha&gt;</c> — into two display
+    /// strings: the feature version (before '+') and the build
+    /// metadata (after '+'). Returns empty build string if the
+    /// attribute is missing or carries no build metadata.
+    /// </summary>
+    private static (string version, string build) ParseInformationalVersion()
     {
         var asm = typeof(AboutForm).Assembly;
         var info = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-        if (!string.IsNullOrWhiteSpace(info))
-        {
-            // The SDK appends "+<gitsha>" to InformationalVersion when a
-            // source-link / git build is in play; strip it for display.
-            int plus = info.IndexOf('+');
-            return plus >= 0 ? info[..plus] : info;
-        }
-        return asm.GetName().Version?.ToString() ?? "(unknown)";
-    }
+        if (string.IsNullOrWhiteSpace(info))
+            return (asm.GetName().Version?.ToString() ?? "(unknown)", "");
 
-    private static DateTime GetBuildDate()
-    {
-        // Assembly.Location returns "" under PublishSingleFile, so use
-        // the host exe's mtime via AppContext.BaseDirectory. The exe is
-        // re-stamped on every build, so its modified time is a faithful
-        // build-date proxy.
-        try
-        {
-            var exe = Path.Combine(AppContext.BaseDirectory, "MZRaku.exe");
-            if (File.Exists(exe)) return File.GetLastWriteTime(exe);
-        }
-        catch { /* fall through */ }
-        return DateTime.Now;
+        int plus = info.IndexOf('+');
+        if (plus < 0) return (info, "");
+        return (info[..plus], info[(plus + 1)..]);
     }
 
     private static void OpenUrl(string url)

@@ -22,11 +22,11 @@ Another aim was to see whether something like this is even possible using an AI 
 
 ## Status
 
-The emulator runs most MZ-700 software and games, in both BASIC and machine code. MZ-80A support (added at v1.0.1-preview) covers SA-1510 monitor + SA-5510 S-BASIC boot, keyboard, cassette autoload with typed LOAD + RUN, MZ-80A native audio, and an authentic green-phosphor screen tint. There are some [outstanding limitations](#known-limitations) and things that aren't quite right. These are listed further down this file.
+The emulator runs most MZ-700 software and games, in both BASIC and machine code. MZ-80A support (added at v1.0.1-preview, brought to Settings-dialog parity in v1.1) covers SA-1510 monitor + SA-5510 S-BASIC boot, keyboard, cassette autoload with typed LOAD + RUN, MZ-80A native audio at correct pitch and duration, and an authentic green-phosphor screen tint. Every MZ-80A setting is editable via the Settings dialog. There are some [outstanding limitations](#known-limitations) and things that aren't quite right. These are listed further down this file.
 
 - Cassette images in `.mzf`/`.m12`/`.mzt` formats can be loaded via the menu, dragging and dropping them into the emulator window, or by specifying them on the command-line — the emulator will inspect the MZF and load BASIC and type 'RUN' automatically, if that is required to run the program. Machine-code programs are loaded and started directly. This flow works on both MZ-700 and MZ-80A.
 - If your `.mzf`/`.m12`/`.mzt` files are within .zip archives, these can also be used directly in the same way as above. The emulator will automatically extract the .mzf file from the archive and run it.
-- The default keyboard layout maps appropriate PC keys to the target machine's character set - e.g. typing a '+' on the PC keyboard will generate a '+' in the emulator, even though those keys are in relatively-different positions on actual hardware. An editor for the keyboard mappings is available under `File->Settings` (MZ-700 only — MZ-80A key overrides live in `settings.ini` for now).
+- The default keyboard layout maps appropriate PC keys to the target machine's character set - e.g. typing a '+' on the PC keyboard will generate a '+' in the emulator, even though those keys are in relatively-different positions on actual hardware. An editor for the keyboard mappings is available under `System → Settings → Keyboard` for both MZ-700 and MZ-80A.
 - MZRaku emulates the MZ-1X03 joystick via any Windows-recognised game controller. Button mappings can be changed via `File->Settings`. Joystick emulation is MZ-700-only; MZ-80A did not ship with an equivalent add-on.
 - Text files containing BASIC listings can be loaded. These are auto-typed into the emulator at about 6-8 chars per second. (Speeding this up will be a future focus)
 
@@ -128,32 +128,38 @@ MZRaku.exe --mz80a NEW-INVADERS-80A.mzf    # MZ-80A machine-code game
 
 ## Menu and shortcuts
 
-| Action | Shortcut |
-|---|---|
-| Load cassette… | Ctrl+O |
-| Load BASIC | Ctrl+B |
-| Load BASIC source… | Ctrl+Shift+B |
-| Reset | Ctrl+R |
-| File → Machine → MZ-700 / MZ-80A | — |
-| Settings → ROMs… | Ctrl+S |
-| Settings → Display… | Ctrl+Shift+D |
-| Settings → Keyboard… | Ctrl+Shift+K |
-| Settings → Joystick… | Ctrl+Shift+J |
-| Display 1× / 2× / 3× | Ctrl+1 / Ctrl+2 / Ctrl+3 |
-| Full-screen toggle | Alt+Enter |
-| Scanlines toggle | Ctrl+L |
-| Debugger… | Ctrl+D |
-| Memory Viewer… | Ctrl+M |
-| HID Diagnostic… | Ctrl+H |
-| Sound Diagnostic… | — |
+Menu bar is `File / System / View / Debug / Help`.
 
-**Switching machines** — `File → Machine → MZ-700 / MZ-80A` writes the choice to `[Machine] Type=` in `settings.ini` and prompts to restart MZRaku so the new machine boots cleanly. For a one-off run without changing the persisted setting, use `--mz700` / `--mz80a` on the command line.
+| Menu | Action | Shortcut |
+|---|---|---|
+| File | Load cassette… | Ctrl+O |
+| File | Load BASIC | Ctrl+B |
+| File | Load BASIC source… | Ctrl+Shift+B |
+| System | Machine → MZ-700 / MZ-80A | — |
+| System | Reset | Ctrl+R |
+| System | Pause emulator | Pause / ScrLk |
+| System | Settings → Startup… | Ctrl+S |
+| System | Settings → ROMs… | Ctrl+Shift+R |
+| System | Settings → Display… | Ctrl+Shift+D |
+| System | Settings → Keyboard… | Ctrl+Shift+K |
+| System | Settings → Joystick… | Ctrl+Shift+J |
+| View | Display 1× / 2× / 3× | Ctrl+1 / Ctrl+2 / Ctrl+3 |
+| View | Full-screen toggle | Alt+Enter |
+| View | Scanlines toggle | Ctrl+L |
+| View | Font Sheet… | Ctrl+G |
+| Debug | Debugger… | Ctrl+D |
+| Debug | Memory Viewer… | Ctrl+M |
+| Debug | HID Diagnostic… | Ctrl+H |
+| Debug | Sound Diagnostic… | — |
+| Debug | Keyboard Matrix… | — |
+
+**Switching machines** — `System → Machine → MZ-700 / MZ-80A` is a one-off switch for the current session: it prompts to restart so the new machine boots cleanly but does **not** rewrite the persisted default. To change the default machine that starts on next launch, use `System → Settings → Startup → Default machine`. On the command line, `--mz700` / `--mz80a` overrides the default for that run.
 
 You can also drag and drop an `.mzf`/`.m12`/`.mzt` (or a `.zip` containing one) onto the window. Loading a cassette resets the emulator first, so opening a different program mid-execution will work regardless of whether the old or new program is BASIC or machine code.
 
 All settings are stored in `settings.ini`, which is created when the emulator runs for the first time.
 
-**File → Settings…** (Ctrl+S) opens a tabbed dialog covering Display, ROMs, and Joystick — or you can edit the INI by hand if you prefer (notes are included within each section of the created settings.ini file):
+**System → Settings…** (Ctrl+S opens the Startup tab) is a tabbed dialog covering Startup preferences, ROMs, Display, Keyboard, and Joystick — for both machines. You can also edit the INI by hand if you prefer (notes are included within each section of the created settings.ini file).
 
 ROM and BASIC paths are written relative to the executable when possible (so the install stays portable). Absolute paths will be used if the ROM or BASIC file is outside the emulator directory. If a file is moved or deleted, the next emulator launch will re-scan the standard locations.
 
@@ -188,8 +194,9 @@ UI/              All WinForms surfaces, grouped by feature area:
                    capture controls — the diagram-first editing flow
                    in Settings → Keyboard plus the advanced child.
   Debugger/        DebuggerForm, MemoryViewer, Z80 test runner.
-  Diagnostics/     HID Diagnostic + Font Sheet — live observation
-                   windows under the Debug menu.
+  Diagnostics/     HID Diagnostic + Font Sheet + Sound Diagnostic —
+                   live observation windows (Debug menu, plus Font
+                   Sheet under View).
   Settings/        SettingsForm tabs + Joystick button capture
                    dialog.
   AboutForm.cs     Help → About dialog (icon, version, build date).
@@ -207,23 +214,25 @@ games/           Joystick test program (joytest.bas / .mzf).
 
 ## Known limitations
 
-- MZ-only glyphs (graphics blocks, kana) aren't reachable from a PC keystroke in the char-driven model — by design. The **Font Sheet**
-  window (View → Font Sheet…, Ctrl+G) will ultimately bridge most of this gap with a click-to-type feature. However, this is not yet fully-working for all glyphs. MZ-700 only.
-- MUSIC tempo rate is CPU-cycle-derived rather than driven from an emulated oscillator. It's ear-correct on MZ-700, but not precise.
-- MZ-80A MUSIC pitch is currently an octave above the reference (EmuZ-80A / real hardware). Discrete notes are correct in duration and interval; only the absolute frequency is off. Tracked as a post-v1.0.1 calibration item.
-- MZ-80A Settings dialog is partial-coverage: char-map, key overrides, green-screen tint, and `Mz80aInvertLetterShift` live in `settings.ini` for now (each with inline comments). A soft-amber notice inside the Settings dialog itself points this out when MZ-80A is active. Full GUI coverage is planned for a later release.
-- Auto-typed input (BASIC source paste / command auto-load) runs at around 6–8 chars/sec — fine for short snippets, slow for long
-  listings.
-- CRT-style scanlines (Settings → Display) look right in windowed mode but degrade at full-screen scale. A proper filter (with
-  intensity / line-size controls) is required.
-- MZ-80A diagnostic panes (Sound Diagnostic, Font Sheet, HID Diagnostic, Keyboard Matrix) are MZ-700-shaped and show a "MZ-700 only for now" MessageBox when opened while MZ-80A is active. Debugger and Memory Viewer work on both machines.
+- **Apply-keyboard regression** — after using Settings → Keyboard to remap a key and clicking Apply/OK, no keys type on the MZ-700 until the machine is reset via Ctrl+R. Present since v1.0.0; workaround is to press Ctrl+R after any keyboard remap. Root cause parked pending a fix-forward investigation.
+- **MZ-only glyphs on MZ-700** — graphics blocks and kana in the MZ-700's bank-1 font aren't reachable from a PC keystroke in the char-driven model — by design. The **Font Sheet** window (View → Font Sheet…, Ctrl+G) will ultimately bridge most of this gap with a click-to-type feature. Bank-0 (ALPHA) click-to-type already works; bank-1 (GRAPH) is parked pending attribute-byte handling.
+- **MZ-80A Font Sheet is view-only** — the pane renders all 256 glyphs (Text + Graphics halves) but clicks don't type. Click-to-type on MZ-80A will land alongside the MZ-700 bank-1 fix, since both need the same class of display-code → key-slot reverse-map work.
+- **MZ-80A keyboard editor: no PC-key labels or unreachable outline** — the MZ-80A diagram renders keycaps without the PC-binding badges and red unreachable-essential outlines that the MZ-700 diagram shows. Extending the reverse-lookup index to MZ-80A is deferred to the v1.2 audit pass.
+- **`.mzkbd` export / import is MZ-700-only** — the file format doesn't yet carry MZ-80A entries; the Export / Import buttons are hidden on the MZ-80A Keyboard tab.
+- **MUSIC tempo rate** is CPU-cycle-derived rather than driven from an emulated oscillator. Ear-correct on both machines; not measurement-precise.
+- **Auto-typed input** (BASIC source paste / command auto-load) runs at around 6–8 chars/sec — fine for short snippets, slow for long listings.
+- **CRT-style scanlines** (Settings → Display) look right in windowed mode but degrade at full-screen scale. A proper filter (with intensity / line-size controls) is planned.
+- **MZ-80A Sound Diagnostic and Keyboard Matrix panes** are MZ-700-shaped and show a "MZ-700 only for now" MessageBox when opened while MZ-80A is active. Debugger, Memory Viewer, HID Diagnostic, and Font Sheet all work on both machines.
 
 ## Planned future work
 
 Items I'd like to come back to (rough priority order):
 
+- **v1.2 codebase audit** — the next release focuses on refactor / testability rather than user-visible features. Reduces the accumulated debt of ~15 months of prototype-shaped development so subsequent feature arcs (Avalonia, MZ-800, MZ-80K/B) start from a cleaner base. See [`docs/roadmap.md`](docs/roadmap.md).
+- **Apply-keyboard regression fix** — the known bug above. Fix-forward when it re-surfaces during v1.2 audit work.
+- **MZ-80A editor parity with MZ-700** — PC-key labels + unreachable-essential outline on the MZ-80A diagram; extend `.mzkbd` export/import to carry MZ-80A entries.
+- **GRAPH click-to-type on both machines** — MZ-700 bank-1 attribute-byte handling + MZ-80A graphic-glyph click support (same class of work).
 - **BASIC-aware debugger panes** — program lister with de-tokenised output, current-line indicator, variable-table reader.
-- **Current-line highlighting** in the source view once the BASIC line pointer is wired up.
 - **BASIC source editor pane** — read the live BASIC program out of RAM, render it in an editable text pane, and write edits back.
 - **MUSIC tempo re-validation** — stopwatch against a real MZ-700 now that discrete notes make timing comparison meaningful.
 

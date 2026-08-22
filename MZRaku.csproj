@@ -11,11 +11,21 @@
     <AssemblyName>MZRaku</AssemblyName>
     <RootNamespace>MZRaku</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <!-- Version is surfaced in the About dialog (Help → About). The
-         dialog reads AssemblyInformationalVersion at runtime, so bumping
-         this string here is enough; no code change needed at release.
-         Use the in-progress version (the one the next git tag will be). -->
-    <Version>1.0.1-preview.1</Version>
+    <!-- Feature version. Semver, bumped on release. Use the in-progress
+         value (the one the next git tag will carry). Surfaced in the
+         About dialog and read from AssemblyInformationalVersion at
+         runtime — see StampInformationalVersion below for how the full
+         string is composed. -->
+    <Version>1.1.0</Version>
+    <!-- Build number. Manually bumped before each publish; format
+         YYYYMMDD-NNN where NNN is a per-day counter (001, 002, …).
+         Composed with the git short-SHA into InformationalVersion by
+         the StampInformationalVersion target below, so a single About
+         dialog line reads e.g. "Build 20260822-001 (g106280e)". Serves
+         as the tiebreaker when two builds carry the same <Version> —
+         a "which exe am I looking at" indicator distinct from the
+         feature version. -->
+    <BuildNumber>20260822-001</BuildNumber>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
@@ -62,6 +72,32 @@
          GetManifestResourceStream. -->
     <EmbeddedResource Include="docs\mzraku_logo.png" />
   </ItemGroup>
+
+  <!-- Compose the final InformationalVersion at build time from three
+       inputs: <Version> (feature semver), <BuildNumber> (manual per-
+       publish tag), and the current git short-SHA (auto). Result looks
+       like "1.1.0+20260822-001.g106280e" — a valid SemVer 2.0 string
+       (build metadata after the '+') that the About dialog parses back
+       into two display lines. Runs BeforeTargets="GetAssemblyAttributes"
+       so the emitted AssemblyInformationalVersionAttribute picks up
+       the composed value.
+
+       Failure modes handled: if git isn't available or the tree isn't
+       a repo (downloaded zip, etc.) the Exec fails silently
+       (IgnoreExitCode) and the SHA suffix is omitted — string still
+       parses cleanly as "1.1.0+20260822-001". -->
+  <Target Name="StampInformationalVersion" BeforeTargets="GetAssemblyAttributes">
+    <Exec Command="git rev-parse --short=7 HEAD"
+          ConsoleToMSBuild="true"
+          IgnoreExitCode="true"
+          StandardOutputImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="GitShaShort" />
+    </Exec>
+    <PropertyGroup>
+      <InformationalVersion Condition="'$(GitShaShort)' != ''">$(Version)+$(BuildNumber).g$(GitShaShort)</InformationalVersion>
+      <InformationalVersion Condition="'$(GitShaShort)' == ''">$(Version)+$(BuildNumber)</InformationalVersion>
+    </PropertyGroup>
+  </Target>
 
   <!-- Copyrighted ROM / BASIC images are NOT shipped with this project.
        Users must supply their own copies under roms\ and basic\ next to
