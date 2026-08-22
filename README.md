@@ -257,4 +257,5 @@ included here as a git submodule under `Z80Core/`.
     <img src="assets/Beyond_title.png" alt="Beyond title screen" width="400">
     <img src="assets/Beyond_gameplay.png" alt="Beyond gameplay" width="400">
   </p>
+  Beyond - available from Sharpworks
 - **Anthropic Claude** — as noted at the top of this README, the entire codebase was generated through pair-programming with Claude.
