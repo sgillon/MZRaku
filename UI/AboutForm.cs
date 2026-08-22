@@ -46,7 +46,7 @@ public sealed class AboutForm : Form
             BackColor = SystemColors.Window,
         };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));   // header
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));   // header (logo + text stack)
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));   // body labels
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));   // close button
 
@@ -83,15 +83,19 @@ public sealed class AboutForm : Form
         header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
 
-        var iconPic = new PictureBox
+        // Brand logo (Phase 7). Replaces the earlier 48 px window icon
+        // here — the icon still loads for the form's title bar via
+        // Form.Icon in the ctor. 96 px square gives the header proper
+        // brand presence without dominating the dialog.
+        var logoPic = new PictureBox
         {
-            Size = new Size(48, 48),
+            Size = new Size(96, 96),
             SizeMode = PictureBoxSizeMode.Zoom,
             Margin = new Padding(0, 0, 12, 0),
         };
-        using (var ic = LoadEmbeddedIcon())
-            if (ic != null) iconPic.Image = ic.ToBitmap();
-        header.Controls.Add(iconPic, 0, 0);
+        var logo = LoadEmbeddedLogo();
+        if (logo != null) logoPic.Image = logo;
+        header.Controls.Add(logoPic, 0, 0);
 
         var textStack = new FlowLayoutPanel
         {
@@ -261,6 +265,28 @@ public sealed class AboutForm : Form
             if (name == null) return null;
             using var s = asm.GetManifestResourceStream(name);
             return s == null ? null : new Icon(s);
+        }
+        catch { return null; }
+    }
+
+    private static Image? LoadEmbeddedLogo()
+    {
+        try
+        {
+            var asm = typeof(AboutForm).Assembly;
+            var name = asm.GetManifestResourceNames()
+                .FirstOrDefault(n => n.EndsWith("mzraku_logo.png", StringComparison.OrdinalIgnoreCase));
+            if (name == null) return null;
+            using var s = asm.GetManifestResourceStream(name);
+            // Copy into a MemoryStream so the returned Bitmap survives
+            // the manifest stream's disposal — Image.FromStream keeps
+            // the stream alive lazily and disposing it under the
+            // Image's feet corrupts the render.
+            if (s == null) return null;
+            var mem = new MemoryStream();
+            s.CopyTo(mem);
+            mem.Position = 0;
+            return Image.FromStream(mem);
         }
         catch { return null; }
     }

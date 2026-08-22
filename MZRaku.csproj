@@ -56,6 +56,11 @@
          for the window title-bar icon. Source PNG + regen script
          live in assets/. -->
     <EmbeddedResource Include="MZRaku.ico" />
+    <!-- Brand logo shown in the Help → About dialog (Phase 7). Same
+         image as the README header; embedded so the single-file
+         publish stays self-contained. AboutForm loads via
+         GetManifestResourceStream. -->
+    <EmbeddedResource Include="docs\mzraku_logo.png" />
   </ItemGroup>
 
   <!-- Copyrighted ROM / BASIC images are NOT shipped with this project.
