@@ -22,7 +22,7 @@ Another aim was to see whether something like this is even possible using an AI 
 
 ## Status
 
-The emulator runs most MZ-700 software and games, in both BASIC and machine code. MZ-80A support (added at v1.0.1-preview, brought to Settings-dialog parity in v1.1) covers SA-1510 monitor + SA-5510 S-BASIC boot, keyboard, cassette autoload with typed LOAD + RUN, MZ-80A native audio at correct pitch and duration, and an authentic green-phosphor screen tint. Every MZ-80A setting is editable via the Settings dialog. There are some [outstanding limitations](#known-limitations) and things that aren't quite right. These are listed further down this file.
+The emulator runs most MZ-700 and MZ-80A software and games, in both BASIC and machine code. There are some [outstanding limitations](#known-limitations) and things that aren't quite right. These are listed further down this file.
 
 - Cassette images in `.mzf`/`.m12`/`.mzt` formats can be loaded via the menu, dragging and dropping them into the emulator window, or by specifying them on the command-line — the emulator will inspect the MZF and load BASIC and type 'RUN' automatically, if that is required to run the program. Machine-code programs are loaded and started directly. This flow works on both MZ-700 and MZ-80A.
 - If your `.mzf`/`.m12`/`.mzt` files are within .zip archives, these can also be used directly in the same way as above. The emulator will automatically extract the .mzf file from the archive and run it.
