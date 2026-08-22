@@ -253,4 +253,8 @@ included here as a git submodule under `Z80Core/`.
 - The wider **MZ-700 enthusiast community** for the disassemblies, service manuals, and games preservation work that made this project
   possible.
 - Ben at **Sharpworks (https://mz-sharpworks.co.uk/)** - Ben also maintains the Sharp MZ Software Archive (https://mz-archive.co.uk/) which is an invaluable resource for MZ software. Sharpworks also publish brand new MZ titles on cassette and should be supported for that alone.
+  <p>
+    <img src="assets/Beyond_title.png" alt="Beyond title screen" width="400">
+    <img src="assets/Beyond_gameplay.png" alt="Beyond gameplay" width="400">
+  </p>
 - **Anthropic Claude** — as noted at the top of this README, the entire codebase was generated through pair-programming with Claude.
