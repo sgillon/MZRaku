@@ -574,6 +574,221 @@ maintained rather than proof-of-concept.
   now with a pointer to the file's inline comments. Retires when
   the future settings-dialog sweep covers MZ-80A UI properly.
 
+### 2026-07-19 to 2026-08-22 — v1.1.0 development
+
+v1.1.0 was scoped 2026-07-19 the morning after `v1.0.1-preview.1`
+shipped: seven phases, planned as a single release rather than
+interim previews, focused on polishing MZ-80A up to full Settings-
+dialog parity with MZ-700 and closing out the noticed gaps from
+running the machine under real use. Phase 6 (GRAPH click-to-type)
+was explicitly skipped as the phase progressed — it's polish rather
+than table stakes and stays in v1.2+ backlog. The whole arc ran
+from Phase 1 landing on 2026-07-19 to the v1.1.0 tag on 2026-08-22.
+
+- **Phase 1 — Status bar polish + PAUSED overlay + mute-on-pause**
+  (`8b277bd`, 2026-07-19). Three-pane status bar gains a TAPE
+  activity chip (idle / steady / flash on trap-hit delta) between
+  the transient status and the ALPHA/GRAPH mode indicator. Global
+  Pause / Scroll Lock hotkey via `ProcessCmdKey` toggles the same
+  `Active.Pause` / `Active.Resume` the debugger already drives.
+  Muted-on-pause via new `Sound.Muted` + `WinmmWaveOut.Reset()`
+  so the ~100 ms of queued audio flushes on pause rather than
+  droning. Dim-wash overlay on the video area + " — PAUSED"
+  title-bar suffix so the frozen frame reads as paused, not
+  crashed.
+
+- **Phase 2 — MZ-80A MUSIC pitch + duration** (`11f4a04`,
+  `7e4cc46`, 2026-07-25). Two separate defects behind the "MUSIC
+  sounds wrong on MZ-80A" observation. **Pitch**: MZ-80A used a
+  single `Sound.InputClockHz` for both PIT counters; C0 (audio)
+  needs 1 MHz to match SA-5510's reference frequencies, C1 (RTC
+  / tempo) stays at 2 MHz. Split into per-counter InputHz. Boot
+  tone now plays at half the previous pitch — matches EmuZ-80A
+  reference. **Duration**: `$E008 D0` was toggling at 15.72 kHz
+  (borrowed from MZ-700), which meant notes ran together as a
+  blurred continuous tone. Real hardware toggles this at ~50 Hz;
+  fixing that gave discrete audible notes at correct durations.
+  All three MZ-80A MUSIC bugs (silent-boot 2026-07-07, octave-
+  high pitch, blurred duration) now closed.
+
+- **Phase 3 — MZ-80A shift-race fix** (`65c5cc2`, 2026-07-29).
+  `Mz80aKeyboard.EffectiveMzShift` returned `_pcShift`
+  unconditionally when no explicit-shift hold was active,
+  leaving matrix(0,0) = 1 in the window between key releases
+  with PC Shift still held. ROM scans catching that stale shift
+  alongside the next key bit mis-read the press ~60 % of the
+  time (`@` resolving to `` ` `` on UK). Fix brings the fallback
+  in line with `Keyboard.EffectiveMzShift` on MZ-700: require at
+  least one active hold before PC shift can leak through.
+  Verified 4/10 → 10/10 correct on the `@` × 10 canary.
+
+- **Phase 4 — MZ-80A keyboard round-2 audit** (documented in
+  `0e6b885`, 2026-07-30, code-changes across the char-map /
+  matrix ref data). Systematic walk of all char / key groups
+  against `Mz80aCharMap` / `Mz80aKeyboardLayout` /
+  `Mz80aSpecialKeyMap` — five tiers of Type-into-BASIC checks,
+  all now clean. Immediate follow-up **Phase 4a — HID Diagnostic
+  machine-aware for MZ-80A** (`01d6018`, 2026-07-30) extracts
+  `KeyboardDiagnostics` + `InputLayer` into shared `Hardware/`
+  file so both keyboards populate the same `Diag` field; the
+  HID Diagnostic form takes `IMachine` and branches internally
+  for machine-specific values. Title bar + in-form banner name
+  the active machine. Same commit closes GitHub issue #1.
+
+- **Phase 5 — MZ-80A Settings dialog parity** (2026-07-31 to
+  2026-08-09). The big one. Absorbed the shelved settings-
+  dialog-upgrade sweep and Phase D of the MZ-80A keyboard-full-
+  audit plan. Broken into six sub-phases; design conversation
+  locked seven decisions (D1-D7) before touching code —
+  both-machines-visible group-box pattern, DefaultMachine as a
+  hard-set persisted preference, separate keyboard editors per
+  machine (later superseded — see 5.5c), sub-phase order,
+  live-edit UX with subtle "not active" tint, all-six debug-
+  pane checkboxes, INI legacy fallback + migrate-on-save.
+
+  - **5.1 Foundation** (`e51b6ed`, 2026-07-31). INI split:
+    `[KeyOverrides]` → per-machine, `[Machine] Type=` →
+    `DefaultMachine=` (persisted preference, distinct from the
+    transient `Type` set by `--mz80a` CLI override), new
+    `[Display.MZ80A]` / `[Keyboard.MZ80A]` sections for the
+    per-machine toggles moving out of `[Machine]`, new
+    `[DebugPanes]` for the boot-time pane flags. Legacy-fallback
+    reads let old INIs migrate on next save. ROMs tab retrofit
+    as first proof-of-pattern for the both-machines-visible
+    group-box layout — required explicit 150 px row heights on
+    the root `TableLayoutPanel` because a `GroupBox` with
+    `Dock=Fill` doesn't report natural size to `AutoSize`
+    parents (BASIC row was being clipped in the user's first
+    smoke test).
+
+  - **5.2 MZ-80A Display + simple toggles** (`61bb876`,
+    2026-08-01). Green-screen + `InvertLetterShift` checkboxes
+    move into Settings (Display / Keyboard tabs respectively).
+    `View → Green screen (MZ-80A)` menu item retired outright
+    — one-off session toggling wasn't worth the "menu = session,
+    Settings = default" dual-scope mental complexity, and users
+    with a firm phosphor preference set it once and forget it.
+    Live-apply on the currently-active machine via
+    `OnSettingsApplied` guarded on `_mz80a != null`.
+
+  - **5.3 Startup preferences tab** (`bc587a6`, 2026-08-02).
+    New Startup tab, promoted to first-tab position; menu
+    shortcuts reshuffled so **Ctrl+S opens the first tab**
+    (Startup) with other tabs on Ctrl+Shift+letter. DefaultMachine
+    radio-pair with a live "CLI override active" hint that
+    appears only when the running session's `Type` differs from
+    the persisted `DefaultMachine`. Six debug-pane boot flags
+    (Debugger / Memory Viewer / HID Diag / Font Sheet / Sound
+    Diag / Keyboard Matrix) with grey-out on the MZ-80A-
+    incompatible ones (Sound Diag, Keyboard Matrix). Boot-time
+    `MainForm.OnShown` iterates the flags and auto-opens each
+    flagged pane.
+
+  - **5.4 Font Sheet extension to MZ-80A** (`6793af1`,
+    2026-08-02). Font Sheet pane extended from MZ-700-only to
+    both machines. MZ-80A view is a **view-only** glyph browser
+    — click-to-type deferred alongside the parked MZ-700
+    GRAPH click-to-type (both need the same class of display-
+    code → key-slot reverse-map work). Two 16×8 sections
+    labelled "Text" ($00-$7F) and "Graphics" ($80-$FF).
+    `Mz80aVideo` gains `GetGlyph` + `InvalidateGlyphCache`
+    helpers mirroring `Video.cs` (MSB-first, single bank).
+    Reload button retired — font ROM is static. Persistent
+    top-header label replaces the old default-status-text
+    approach so the bottom status label carries short click-
+    feedback without truncating. Closes the view side of
+    GitHub issue #4.
+
+  - **5.5 Keyboard editor extension** (2026-08-08 to 2026-08-09).
+    Broken into a/b/c per a design conversation that landed
+    three decisions: parameterise (not duplicate) the editor
+    forms, parameterise the diagram too (already data-driven
+    enough), 3-cut sub-phase order. `MatrixPress` chosen as the
+    unified shape between `CharMap.Press` and `Mz80aCharMap.Press`
+    (structurally identical). **5.5a** (`610ba1d`) introduced
+    `IKeyboardEditorContext` + `IPhysicalKeyboardLayout`
+    interfaces + supporting shared types + `Mz700` adapters +
+    refactored six MZ-700 editor consumers onto the interfaces.
+    Zero MZ-80A code in that commit — pure MZ-700 refactor
+    behind interfaces. **5.5b** (`98eab5c`) added
+    `Mz80aKeyboardLayout` (physical keycap data built from the
+    Owner's Manual photograph + Fig 3.6 matrix) + adapters +
+    Advanced-settings wiring on MZ-80A. Decided during
+    conversation to read glyphs directly from
+    `Mz80aMatrixReference.All` rather than build a separate
+    glyph catalog (YAGNI-compliant — the data was already in a
+    lookup-friendly shape). **5.5c** (`541b120`) made the
+    Keyboard tab per-active-machine (D3 "two buttons" plan
+    superseded) — diagram + Advanced button + click handler
+    all reflect the currently-running machine. Also enhanced
+    `MzKeyboardDiagram` to render `FixedLabel` containing '/'
+    as two-band (top dim / bottom bold), matching how real
+    MZ-80A hardware prints BREAK/CTRL, INST/DEL, CLR/HOME.
+    Numeric-pad alignment + `NP_00` label fix landed in the
+    same commit after user smoke-test.
+
+  - **Menu reorg** (`d3486c0`, 2026-08-09). Not strictly a
+    5.x sub-phase but landed alongside as pre-release polish.
+    File menu split into File (file ops only) + new **System**
+    menu (Reset, Machine, Pause, Settings). Debug menu narrowed
+    to developer diagnostics only. View untouched.
+
+  - **5.6 Retire amber banner + release-check refresh**
+    (`c84a6be`, 2026-08-09). `BuildMz80aNotice()` and its
+    conditional layout plumbing deleted — every setting the
+    banner used to point at now has a dialog surface.
+    `docs/release-check.md` refreshed for the shipped v1.1
+    shape (menu-path corrections, retired banner row replaced
+    with an MZ-80A GUI coverage sub-section, Font Sheet
+    dropped from MZ-700-only diagnostics list, new Known
+    backlog items tail).
+
+- **Apply-keyboard regression discovered and parked**
+  (2026-08-02 to 2026-08-08). Surfaced during Phase 5.5a smoke
+  test: after Settings-Apply following a keyboard remap, no
+  keys type on MZ-700 until Ctrl+R (machine reset). Reset's
+  `Keyboard.ReleaseAll` clears the stuck state, so the fix is
+  either matrix-bit or CPU-state. Two bisect attempts (first
+  in the v1.0.1-preview.1..HEAD range, then in the wider
+  v0.0.8-preview..v1.0.0 range after user re-checked stored
+  releases) landed on plausible-but-mechanism-less commits;
+  the second attempt's landing on `c702bb7` (Settings tab
+  deep-linking) couldn't be traced to a real cause. Parked
+  as **diagnose-forward-when-it-re-surfaces** rather than
+  continuing the bisect. Documented workaround (Ctrl+R after
+  Apply) shipped in the README and release-check under
+  Known limitations. `[[project-v1-1-apply-keyboard-regression]]`
+  memory captures the ruled-out analysis + suggested
+  instrumentation approach for the eventual fix.
+
+- **Phase 7 — Small polish + build-number infra**
+  (`f9ff88e`, 2026-08-09; `f93ca67`, 2026-08-22). Phase 7
+  covered the About-dialog logo: `docs/mzraku_logo.png`
+  embedded as manifest resource (same pattern as `MZRaku.ico`),
+  swapped in for the 48 px window icon in the About header
+  at 96 × 96 zoomed. Title-bar icon retained via `Form.Icon`.
+  Release-prep on 2026-08-22 added a small build-number
+  infrastructure: new `<BuildNumber>` csproj property
+  (manually bumped before each publish, format `YYYYMMDD-NNN`)
+  + new `StampInformationalVersion` MSBuild target that
+  composes `AssemblyInformationalVersion` from `<Version>` +
+  `<BuildNumber>` + git short-SHA at build time. Result reads
+  as `1.1.0+20260822-001.g149102a` — a valid SemVer 2.0
+  string. About dialog parses the composed value into two
+  display lines. Distinguishes "which exe am I looking at"
+  from "which feature version"; useful for tracing user-
+  reported issues to a specific build.
+
+- **v1.1.0 tagged and released** (2026-08-22). Framework-
+  dependent and self-contained single-file zips both published
+  to `github.com/sgillon/MZRaku/releases/tag/v1.1.0`. README
+  refreshed to reflect what shipped (Known limitations
+  rewritten, Planned future work leads with the v1.2 audit
+  + apply-keyboard-regression fix). Two screenshots of
+  Sharpworks' *Beyond* added under the Sharpworks
+  acknowledgement bullet as a real-world "this is what it
+  runs" showcase.
+
 ---
 
 ## Architectural decisions worth knowing
@@ -849,16 +1064,29 @@ automatically; documented here for human reference.
 
 ## Current status
 
-The project shipped **v1.0.0** as `sgillon/MZRaku` on 2026-06-20 —
-its first stable release, and the moment the project name moved from
-the working-title `MZ700Emul` to its brand `MZRaku` (portmanteau of
-MZ + Japanese 楽 *raku*, "easy / comfortable / relaxed"). The MZ-700
-hardware model has been at "meets the original goals" since the trek
-var-bug arc on 2026-05-23; everything since has been polish, expansion
-and structural tidy-up: settings UI, layered keyboard model, diagram-
-first keyboard editor, diagnostics surfaces, the canonical-reference
-pattern (matrix + sound), debugger / window-geometry persistence,
-full-screen + scanlines, and the speaker-NAND dual-gate audio fix.
+The project shipped **v1.1.0** on 2026-08-22, its second stable
+release. v1.0.0 (2026-06-20) had been the moment the project name
+moved from the working-title `MZ700Emul` to its brand `MZRaku`
+(portmanteau of MZ + Japanese 楽 *raku*, "easy / comfortable /
+relaxed"); v1.1.0 brings MZ-80A up to full Settings-dialog parity
+with MZ-700 — every MZ-80A setting is editable through the GUI,
+the keyboard editor works for both machines, Font Sheet extends
+to MZ-80A as a view-only glyph browser, and the amber "partial
+coverage" banner that flagged the pre-v1.1 gaps is retired.
+MZ-80A audio now matches EmuZ-80A reference in both pitch and
+duration.
+
+The MZ-700 hardware model has been at "meets the original goals"
+since the trek var-bug arc on 2026-05-23; everything since has
+been polish, expansion and structural tidy-up: settings UI,
+layered keyboard model, diagram-first keyboard editor, diagnostics
+surfaces, the canonical-reference pattern (matrix + sound),
+debugger / window-geometry persistence, full-screen + scanlines,
+the speaker-NAND dual-gate audio fix, and v1.1's Settings-parity
+push. One known regression carried through from v1.0.0 —
+apply-keyboard bug requiring Ctrl+R after Settings-Apply — is
+documented as a workaround pending fix-forward investigation
+in v1.2.
 
 Tagged releases:
 - **v0.0.5-preview** (2026-05-16) — first public release.
@@ -876,14 +1104,29 @@ Tagged releases:
 - **Z80Core v1.0.0** (2026-06-28, [sgillon/Z80Core](https://github.com/sgillon/Z80Core))
   — Z80 core split into its own repo, consumed back as a git
   submodule. Comprehensive `docs/`, MIT licensed, ZexHarness sample.
+- **v1.0.1-preview.1** (2026-07-18) — MZ-80A polish pass:
+  MUSIC audibility, char-map + special-key layering, green-
+  phosphor tint, cassette autoload with typed LOAD + RUN, three-
+  pane status bar, partial-coverage banner. Precursor to the
+  v1.1 Settings-parity push.
+- **v1.1.0** (2026-08-22) — MZ-80A Settings-dialog parity, full
+  keyboard editor for both machines, MZ-80A Font Sheet (view-
+  only), Startup preferences tab, MZ-80A MUSIC pitch + duration
+  corrections, status-bar polish + PAUSED overlay + mute-on-
+  pause + global pause hotkey, menu reorg (File split → File +
+  System), brand logo in About, build-number infrastructure.
 
 For the open backlog, see the `project_feature_backlog` memory.
-Highlights queued for post-v1 polish: re-validating the empirical
-`CyclesPerTempoToggle = 35469` against real hardware now that
-discrete MUSIC notes make stopwatching meaningful; a proper
-scanlines filter (with intensity / line-size controls) that holds
-up at full-screen scale; bank-1 click-to-type completion in the
-Font Sheet; auto-typer speed-up; L/R Ctrl distinction.
+**v1.2** is a codebase-audit release focused on refactor and
+testability rather than user-visible features (see the v1.2 audit
+plan memory). Deferred items surfaced during v1.1 that v1.2 will
+weigh: apply-keyboard-regression fix; MZ-80A editor parity
+(PC-key labels + red unreachable-essential outline on the diagram;
+`.mzkbd` export/import extended to carry MZ-80A entries);
+GRAPH click-to-type on both machines (MZ-700 bank-1 attribute-
+byte + MZ-80A graphic-glyph clicks); MUSIC tempo re-validation
+against real hardware; proper scanlines filter for full-screen;
+auto-typer speed-up.
 
 Stretch goals (not committed): cross-platform port (Avalonia +
 Silk.NET evaluation), MZ-80K and MZ-80B support on the same
