@@ -187,7 +187,7 @@ public sealed class MainForm : Form
         Mz80aCharMap.Overrides = _settings.Mz80aCharMapOverrides;
 
         Text = TitleBase;
-        Icon = LoadEmbeddedIcon();
+        Icon = EmbeddedResources.LoadIcon();
         KeyPreview = true;
         AllowDrop = true;
         DoubleBuffered = true;
@@ -1855,20 +1855,6 @@ public sealed class MainForm : Form
         MessageBox.Show(this,
             $"{pane} is currently MZ-700-only. An MZ-80A equivalent will land in a later phase.",
             "MZRaku", MessageBoxButtons.OK, MessageBoxIcon.Information);
-    }
-
-    private static Icon? LoadEmbeddedIcon()
-    {
-        try
-        {
-            var asm = typeof(MainForm).Assembly;
-            var name = asm.GetManifestResourceNames()
-                .FirstOrDefault(n => n.EndsWith("MZRaku.ico", StringComparison.OrdinalIgnoreCase));
-            if (name == null) return null;
-            using var s = asm.GetManifestResourceStream(name);
-            return s == null ? null : new Icon(s);
-        }
-        catch { return null; }
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]

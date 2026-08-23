@@ -31,7 +31,7 @@ public sealed class AboutForm : Form
         MaximizeBox = false;
         ShowInTaskbar = false;
         BackColor = SystemColors.Window;
-        Icon = LoadEmbeddedIcon();
+        Icon = EmbeddedResources.LoadIcon();
         AutoSize = true;
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
 
@@ -93,7 +93,7 @@ public sealed class AboutForm : Form
             SizeMode = PictureBoxSizeMode.Zoom,
             Margin = new Padding(0, 0, 12, 0),
         };
-        var logo = LoadEmbeddedLogo();
+        var logo = EmbeddedResources.LoadImage("mzraku_logo.png");
         if (logo != null) logoPic.Image = logo;
         header.Controls.Add(logoPic, 0, 0);
 
@@ -254,39 +254,4 @@ public sealed class AboutForm : Form
         }
     }
 
-    private static Icon? LoadEmbeddedIcon()
-    {
-        try
-        {
-            var asm = typeof(AboutForm).Assembly;
-            var name = asm.GetManifestResourceNames()
-                .FirstOrDefault(n => n.EndsWith("MZRaku.ico", StringComparison.OrdinalIgnoreCase));
-            if (name == null) return null;
-            using var s = asm.GetManifestResourceStream(name);
-            return s == null ? null : new Icon(s);
-        }
-        catch { return null; }
-    }
-
-    private static Image? LoadEmbeddedLogo()
-    {
-        try
-        {
-            var asm = typeof(AboutForm).Assembly;
-            var name = asm.GetManifestResourceNames()
-                .FirstOrDefault(n => n.EndsWith("mzraku_logo.png", StringComparison.OrdinalIgnoreCase));
-            if (name == null) return null;
-            using var s = asm.GetManifestResourceStream(name);
-            // Copy into a MemoryStream so the returned Bitmap survives
-            // the manifest stream's disposal — Image.FromStream keeps
-            // the stream alive lazily and disposing it under the
-            // Image's feet corrupts the render.
-            if (s == null) return null;
-            var mem = new MemoryStream();
-            s.CopyTo(mem);
-            mem.Position = 0;
-            return Image.FromStream(mem);
-        }
-        catch { return null; }
-    }
 }
