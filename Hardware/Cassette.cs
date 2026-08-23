@@ -29,12 +29,11 @@ namespace MZRaku.Hardware;
 ///   - Clear carry flag (success)
 ///   - Re-enable interrupts (EI state) since tape routines disable them
 /// </summary>
-public sealed class Cassette
+public sealed class Cassette : CassetteTrapBase
 {
     public const ushort TrapReadHeader = 0x0436;
     public const ushort TrapReadData = 0x04D8;
     public const ushort TrapBreakWait = 0x02C8;
-    public const ushort HeaderBufferAddr = 0x10F0;
 
     // S-BASIC's outgoing tape header lives at $0FFC — cleverly tucked
     // into the $0000-$0FFF region that's RAM when BASIC has the monitor
@@ -54,12 +53,7 @@ public sealed class Cassette
     // [load..load+size], and write a .mzf file in one go.
     public const ushort TrapWriteTape = 0x0D47;
 
-    public MzfImage? Pending;
-    public bool HeaderDelivered;
-    public bool DataDelivered;
     public int BreakWaitTrapHits;
-    public int HeaderTrapHits;
-    public int DataTrapHits;
     public int WriteTapeTrapHits;
 
     // Once a SAVE has been committed within an attempt, ignore further
@@ -68,41 +62,23 @@ public sealed class Cassette
     // machine reset and on any new BasicSaveHeaderAddr filename.
     private bool _saveCommittedThisAttempt;
 
-    public MZ700Memory Memory = null!;
-    public Z80Cpu Cpu = null!;
+    // MZ-700-specific typed handle to the memory; the base holds it as
+    // Z80Core.IMemory (Mem) for the shared read/write path, but
+    // RomEnabled + the SAVE trap's raw RAM peek need the concrete type.
+    private MZ700Memory _mem = null!;
+    public MZ700Memory Memory
+    {
+        get => _mem;
+        set { _mem = value; Mem = value; }
+    }
+
     public Keyboard Keyboard = null!;
 
-    public event Action<string>? OnLoaded;
     public event Action<string>? OnSaved;
 
     // Where SAVE'd cassettes land. Set by MainForm at startup.
     public string SaveDirectory { get; set; } =
         Path.Combine(AppContext.BaseDirectory, "saves");
-
-    public void Queue(MzfImage image)
-    {
-        Pending = image;
-        HeaderDelivered = false;
-        DataDelivered = false;
-    }
-
-    /// <summary>
-    /// Directly inject MZF into RAM and jump to its execution address.
-    /// Used for auto-load at startup where we don't want to go through
-    /// the monitor's LOAD command. Must be called while CPU is halted.
-    /// </summary>
-    public void DirectInject(MzfImage img, bool jumpExec = true)
-    {
-        for (int i = 0; i < 128; i++)
-            Memory.Write((ushort)(HeaderBufferAddr + i), img.Header[i]);
-        for (int i = 0; i < img.Data.Length; i++)
-            Memory.Write((ushort)(img.LoadAddr + i), img.Data[i]);
-        if (jumpExec)
-        {
-            Cpu.PC = img.ExecAddr;
-        }
-        OnLoaded?.Invoke($"Injected: {img.Filename} load=${img.LoadAddr:X4} exec=${img.ExecAddr:X4} size={img.Data.Length}");
-    }
 
     /// <summary>
     /// Update S-BASIC's program-area control block after a cassette program
@@ -154,7 +130,7 @@ public sealed class Cassette
     /// instructions (e.g. $0436 is BASIC's keyboard decoder) and corrupt the
     /// stack, breaking the entire interpreter.
     /// </summary>
-    public bool OnPreStep()
+    public override bool OnPreStep()
     {
         ushort pc = Cpu.PC;
 
@@ -188,7 +164,7 @@ public sealed class Cassette
         if (_saveCommittedThisAttempt && Memory.RomEnabled && pc < 0x1000)
             _saveCommittedThisAttempt = false;
 
-        if (!Memory.RomEnabled) return false;
+        if (!_mem.RomEnabled) return false;
         if (pc == TrapBreakWait)
         {
             // Monitor's "press PLAY / check BREAK" wait. With no physical tape
@@ -218,14 +194,13 @@ public sealed class Cassette
         {
             HeaderTrapHits++;
             // $0436: reads 128-byte header into $10F0. Entry has not yet pushed anything.
-            for (int i = 0; i < 128; i++)
-                Memory.Write((ushort)(HeaderBufferAddr + i), Pending.Header[i]);
+            WriteHeaderToBuffer();
             HeaderDelivered = true;
-            // Return with CY=0 (success)
-            Cpu.F &= 0xFE;
-            // Pop return address from stack (the CPU's PC should go to the caller)
-            Cpu.PC = PopFromStack();
-            Cpu.IFF1 = Cpu.IFF2 = true; // tape routines end with EI normally
+            // Return with CY=0 (success) + pop the stack + jump to
+            // the caller. Tape routines end with EI on 1Z-013A, so
+            // also force IFF1/IFF2 back on.
+            SynthesiseSuccess();
+            Cpu.IFF1 = Cpu.IFF2 = true;
             return true;
         }
         if (pc == TrapReadData && !DataDelivered)
@@ -235,21 +210,17 @@ public sealed class Cassette
             // Ensure header is present in memory
             if (!HeaderDelivered)
             {
-                for (int i = 0; i < 128; i++)
-                    Memory.Write((ushort)(HeaderBufferAddr + i), Pending.Header[i]);
+                WriteHeaderToBuffer();
                 HeaderDelivered = true;
             }
-            ushort loadAddr = (ushort)(Memory.Read(HeaderBufferAddr + 0x14) | (Memory.Read(HeaderBufferAddr + 0x15) << 8));
-            ushort size = (ushort)(Memory.Read(HeaderBufferAddr + 0x12) | (Memory.Read(HeaderBufferAddr + 0x13) << 8));
-            int n = Math.Min(size, Pending.Data.Length);
-            for (int i = 0; i < n; i++)
-                Memory.Write((ushort)(loadAddr + i), Pending.Data[i]);
+            ushort loadAddr = (ushort)(Mem.Read(HeaderBufferAddr + 0x14) | (Mem.Read(HeaderBufferAddr + 0x15) << 8));
+            ushort size = (ushort)(Mem.Read(HeaderBufferAddr + 0x12) | (Mem.Read(HeaderBufferAddr + 0x13) << 8));
+            int n = WriteDataToRam(loadAddr, size);
             DataDelivered = true;
-            Cpu.F &= 0xFE;
-            Cpu.PC = PopFromStack();
+            SynthesiseSuccess();
             Cpu.IFF1 = Cpu.IFF2 = true;
 
-            OnLoaded?.Invoke($"Loaded via tape trap: {Pending.Filename} ({n} bytes at ${loadAddr:X4})");
+            RaiseLoaded($"Loaded via tape trap: {Pending!.Filename} ({n} bytes at ${loadAddr:X4})");
 
             // After full load, clear pending (unless it's a BASIC program being LOADed
             // into BASIC - in that case we still clear; next LOAD will queue another MZF).
@@ -275,13 +246,6 @@ public sealed class Cassette
     // helper is what makes the BreakWait trap honour it.
     private bool IsBreakHeld() => (Keyboard.ReadRow(8) & (1 << 7)) == 0;
 
-    private ushort PopFromStack()
-    {
-        byte lo = Memory.Read(Cpu.SP); Cpu.SP++;
-        byte hi = Memory.Read(Cpu.SP); Cpu.SP++;
-        return (ushort)(lo | (hi << 8));
-    }
-
     /// <summary>
     /// Read the 128-byte header BASIC has prepared at $0FFC, snapshot
     /// the data from [load..load+size], and write a .mzf file. Called
@@ -292,7 +256,7 @@ public sealed class Cassette
     {
         var header = new byte[128];
         for (int i = 0; i < 128; i++)
-            header[i] = Memory.Read((ushort)(BasicSaveHeaderAddr + i));
+            header[i] = Mem.Read((ushort)(BasicSaveHeaderAddr + i));
 
         ushort size = (ushort)(header[0x12] | (header[0x13] << 8));
         ushort loadAddr = (ushort)(header[0x14] | (header[0x15] << 8));
@@ -305,7 +269,7 @@ public sealed class Cassette
 
         var data = new byte[size];
         for (int i = 0; i < size; i++)
-            data[i] = Memory.Read((ushort)(loadAddr + i));
+            data[i] = Mem.Read((ushort)(loadAddr + i));
 
         // Header filename: ASCII at byte 1, 0x0D terminator.
         int nameLen = 0;

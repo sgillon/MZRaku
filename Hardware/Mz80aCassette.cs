@@ -1,11 +1,9 @@
-using System;
-using Z80Core;
-
 namespace MZRaku.Hardware;
 
 /// <summary>
-/// Sharp MZ-80A cassette-tape trap harness. SA-1510 exposes tape I/O
-/// via well-defined jump-table entries per Owner's Manual §2.1.2:
+/// Sharp MZ-80A cassette-tape trap harness. SA-1510 exposes tape
+/// I/O via well-defined jump-table entries per Owner's Manual
+/// §2.1.2:
 ///
 ///   $0021 WRINF — write header to tape
 ///   $0024 WRDAT — write data body
@@ -26,75 +24,35 @@ namespace MZRaku.Hardware;
 ///   $1106-$1107  execution address (little-endian)
 ///   $1108-$1163  comment
 ///
-/// The <see cref="MzfImage"/> record from MZ-700 is reused —
-/// .mzf files are Sharp-family shared and the parser is identical.
+/// The <see cref="MzfImage"/> record is Sharp-family shared (v1.2
+/// audit F-001 hoisted it out of Cassette for exactly this reason).
 ///
-/// Phase 4 wires the two READ traps and <see cref="DirectInject"/>
-/// (bypasses the monitor's LOAD entirely). Write traps (SAVE) can
-/// layer on later if needed.
+/// The LOAD-header + LOAD-data trap pattern is shared with MZ-700
+/// via <see cref="CassetteTrapBase"/> (v1.2 audit F-025). This
+/// class provides the SA-1510-specific trap addresses and
+/// FixupBasicProgramPointers. Write traps (SAVE) can layer on
+/// later if needed.
 /// </summary>
-public sealed class Mz80aCassette
+public sealed class Mz80aCassette : CassetteTrapBase
 {
-    public MZ80AMemory Memory = null!;
-    public Z80Cpu Cpu = null!;
-
     public const ushort TrapRdInf = 0x0027;
     public const ushort TrapRdDat = 0x002A;
-    public const ushort HeaderBufferAddr = 0x10F0;
-    public const int HeaderSize = 128;
 
-    public MzfImage? Pending;
-    public bool HeaderDelivered;
-    public bool DataDelivered;
-
-    // Counters tick each time OnPreStep injects header / body. Consumed
-    // by MainForm's TAPE activity chip to flash on trap-hit deltas; keep
-    // in step with Cassette.HeaderTrapHits / DataTrapHits on MZ-700.
-    public int HeaderTrapHits;
-    public int DataTrapHits;
-
-    public event Action<string>? OnLoaded;
-
-    public void Queue(MzfImage img)
+    // Typed field so callers wire Memory as MZ80AMemory; base holds
+    // it as IMemory (Mem) for its read/write path.
+    private MZ80AMemory _mem = null!;
+    public MZ80AMemory Memory
     {
-        Pending = img;
-        HeaderDelivered = false;
-        DataDelivered = false;
-    }
-
-    public void ResetTrapState()
-    {
-        Pending = null;
-        HeaderDelivered = false;
-        DataDelivered = false;
-    }
-
-    /// <summary>
-    /// Write the header + body straight into memory and (optionally)
-    /// jump to the image's exec address. Bypasses the SA-1510 LOAD
-    /// dispatch entirely — useful for auto-loading BASIC before the
-    /// keyboard input path is fully in place, or for machine-code
-    /// programs the user drags onto the window.
-    /// </summary>
-    public void DirectInject(MzfImage img, bool jumpExec = true)
-    {
-        for (int i = 0; i < HeaderSize; i++)
-            Memory.Write((ushort)(HeaderBufferAddr + i), img.Header[i]);
-        for (int i = 0; i < img.Data.Length; i++)
-            Memory.Write((ushort)(img.LoadAddr + i), img.Data[i]);
-        if (jumpExec)
-        {
-            Cpu.PC = img.ExecAddr;
-        }
-        OnLoaded?.Invoke($"Injected: {img.Filename} load=${img.LoadAddr:X4} exec=${img.ExecAddr:X4} size={img.Data.Length}");
+        get => _mem;
+        set { _mem = value; Mem = value; }
     }
 
     /// <summary>
     /// Replicate SA-5510's post-LOAD workspace pointer updates so
     /// DirectInject can stand in for a user-typed LOAD command.
-    /// Discovered empirically 2026-07-12 via pre/post-LOAD RAM diff on
-    /// cricket.mzf: LOAD's only load-bearing change is a 36-entry
-    /// pointer table at $4E4E-$4E95, where entry[i] holds
+    /// Discovered empirically 2026-07-12 via pre/post-LOAD RAM
+    /// diff on cricket.mzf: LOAD's only load-bearing change is a
+    /// 36-entry pointer table at $4E4E-$4E95, where entry[i] holds
     /// ProgramEnd + 2*i (entry 0 at $4E4E is VARTAB itself). Other
     /// diff regions are cosmetic (command-echo buffer, line-input
     /// state, Z80 stack scraps) and can be ignored.
@@ -102,33 +60,29 @@ public sealed class Mz80aCassette
     public void FixupBasicProgramPointers(ushort loadAddr, int dataLen)
     {
         int programEnd = loadAddr + dataLen;
-        // The $4E4E variable-slot table: 36 pointers stepping by 2,
-        // rooted at ProgramEnd (VARTAB). Discovered 2026-07-12 via
-        // pre/post-LOAD RAM diff.
         for (int i = 0; i < 36; i++)
         {
             int addr = 0x4E4E + i * 2;
             int val  = programEnd + i * 2;
-            Memory.Write((ushort)addr, (byte)(val & 0xFF));
-            Memory.Write((ushort)(addr + 1), (byte)((val >> 8) & 0xFF));
+            Mem.Write((ushort)addr, (byte)(val & 0xFF));
+            Mem.Write((ushort)(addr + 1), (byte)((val >> 8) & 0xFF));
         }
     }
 
     /// <summary>
-    /// Traps SA-1510's tape read entry points when a Pending image is
-    /// queued. Injects header / data into RAM, synthesises a
-    /// successful RET (CY=0), then advances state so a follow-up call
-    /// picks up the next stage.
+    /// Traps SA-1510's tape read entry points when a Pending image
+    /// is queued. Injects header / data into RAM, synthesises a
+    /// successful RET (CY=0), then advances state so a follow-up
+    /// call picks up the next stage.
     /// </summary>
-    public bool OnPreStep()
+    public override bool OnPreStep()
     {
         if (Pending == null) return false;
         ushort pc = Cpu.PC;
         if (pc == TrapRdInf && !HeaderDelivered)
         {
             HeaderTrapHits++;
-            for (int i = 0; i < HeaderSize; i++)
-                Memory.Write((ushort)(HeaderBufferAddr + i), Pending.Header[i]);
+            WriteHeaderToBuffer();
             HeaderDelivered = true;
             SynthesiseSuccess();
             return true;
@@ -136,8 +90,7 @@ public sealed class Mz80aCassette
         if (pc == TrapRdDat && HeaderDelivered && !DataDelivered)
         {
             DataTrapHits++;
-            for (int i = 0; i < Pending.Data.Length; i++)
-                Memory.Write((ushort)(Pending.LoadAddr + i), Pending.Data[i]);
+            WriteDataToRam(Pending.LoadAddr, Pending.Data.Length);
             DataDelivered = true;
             SynthesiseSuccess();
             // One-shot — clear pending so a second L command won't
@@ -146,16 +99,5 @@ public sealed class Mz80aCassette
             return true;
         }
         return false;
-    }
-
-    private void SynthesiseSuccess()
-    {
-        // C flag = 0 (bit 0 of F) signals success to the caller.
-        Cpu.F &= 0xFE;
-        // Pop the return address off the stack and jump there.
-        byte lo = Memory.Read(Cpu.SP);
-        byte hi = Memory.Read((ushort)(Cpu.SP + 1));
-        Cpu.SP += 2;
-        Cpu.PC = (ushort)((hi << 8) | lo);
     }
 }
