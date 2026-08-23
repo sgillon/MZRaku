@@ -1159,7 +1159,9 @@ public sealed class SettingsForm : Form
             joy1: (int)_numButton1.Value,
             joy2: (int)_numButton2.Value,
             charOverrides: _settings.CharMapOverrides,
-            keyOverrides: _settings.KeyOverrides);
+            keyOverrides: _settings.KeyOverrides,
+            mz80aCharOverrides: _settings.Mz80aCharMapOverrides,
+            mz80aKeyOverrides: _settings.Mz80aKeyOverrides);
 
         var lines = SettingsDiff.Describe(_baseline, candidate);
         if (lines.Count == 0) return true;

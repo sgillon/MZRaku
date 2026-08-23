@@ -16,9 +16,16 @@ namespace MZRaku;
 /// while the dialog is open (the slot editor commits immediately into
 /// the layer it was handed) — by the time Apply fires we can't recover
 /// the pre-edit state from the live objects.
+///
+/// The keyboard-override fields are normalised to <see cref="MatrixPress"/>
+/// so the diff walker sees the same shape for both machines; the labels
+/// carry the machine tag (see <see cref="Mz80aLabelPrefix"/>).
 /// </summary>
 internal sealed class SettingsSnapshot
 {
+    internal const string Mz700LabelPrefix = "";
+    internal const string Mz80aLabelPrefix = "MZ-80A: ";
+
     // Startup preferences (Phase 5.3). DefaultMachine is the persisted
     // boot machine; six DebugPanesAtStartup flags govern which debug
     // panes auto-open at boot.
@@ -49,16 +56,21 @@ internal sealed class SettingsSnapshot
     public int JoyButton1Index { get; init; }
     public int JoyButton2Index { get; init; }
 
-    /// <summary>Frozen copy of <see cref="CharMapOverrides.All"/>.</summary>
-    public IReadOnlyDictionary<char, CharMap.Press> CharOverrides { get; init; }
-        = new Dictionary<char, CharMap.Press>();
-
-    /// <summary>Frozen copy of <see cref="CharMapOverrides.AllSuppressed"/>.</summary>
+    public IReadOnlyDictionary<char, MatrixPress> CharOverrides { get; init; }
+        = new Dictionary<char, MatrixPress>();
     public IReadOnlyCollection<char> SuppressedChars { get; init; }
         = new HashSet<char>();
-
-    /// <summary>Frozen copy of <see cref="KeyOverride.All"/>.</summary>
     public IReadOnlyDictionary<Keys, KeyOverride.Binding> KeyOverrides { get; init; }
+        = new Dictionary<Keys, KeyOverride.Binding>();
+
+    // MZ-80A parallel fields (Phase 5.5b). Populated even when the
+    // active machine is MZ-700 so a user editing MZ-80A bindings in
+    // the same session's Settings dialog still sees them in the diff.
+    public IReadOnlyDictionary<char, MatrixPress> Mz80aCharOverrides { get; init; }
+        = new Dictionary<char, MatrixPress>();
+    public IReadOnlyCollection<char> Mz80aSuppressedChars { get; init; }
+        = new HashSet<char>();
+    public IReadOnlyDictionary<Keys, KeyOverride.Binding> Mz80aKeyOverrides { get; init; }
         = new Dictionary<Keys, KeyOverride.Binding>();
 
     public static SettingsSnapshot Capture(Settings settings) => new()
@@ -82,9 +94,14 @@ internal sealed class SettingsSnapshot
         Mz80aBasicPath = settings.Mz80aRoms.BasicPath ?? "",
         JoyButton1Index = settings.JoyButton1Index,
         JoyButton2Index = settings.JoyButton2Index,
-        CharOverrides = settings.CharMapOverrides.All.ToDictionary(kv => kv.Key, kv => kv.Value),
+        CharOverrides = settings.CharMapOverrides.All.ToDictionary(
+            kv => kv.Key, kv => new MatrixPress(kv.Value.Row, kv.Value.Col, kv.Value.MzShift)),
         SuppressedChars = new HashSet<char>(settings.CharMapOverrides.AllSuppressed),
         KeyOverrides = settings.KeyOverrides.All.ToDictionary(kv => kv.Key, kv => kv.Value),
+        Mz80aCharOverrides = settings.Mz80aCharMapOverrides.All.ToDictionary(
+            kv => kv.Key, kv => new MatrixPress(kv.Value.Strobe, kv.Value.Bit, kv.Value.MzShift)),
+        Mz80aSuppressedChars = new HashSet<char>(settings.Mz80aCharMapOverrides.AllSuppressed),
+        Mz80aKeyOverrides = settings.Mz80aKeyOverrides.All.ToDictionary(kv => kv.Key, kv => kv.Value),
     };
 
     /// <summary>
@@ -106,7 +123,9 @@ internal sealed class SettingsSnapshot
         string mz80aMonitor, string mz80aFont, string mz80aBasic,
         int joy1, int joy2,
         CharMapOverrides charOverrides,
-        KeyOverride keyOverrides) => new()
+        KeyOverride keyOverrides,
+        Mz80aCharMapOverrides mz80aCharOverrides,
+        KeyOverride mz80aKeyOverrides) => new()
         {
             DefaultMachine = defaultMachine,
             PaneDebugger = paneDebugger,
@@ -127,10 +146,26 @@ internal sealed class SettingsSnapshot
             Mz80aBasicPath = mz80aBasic ?? "",
             JoyButton1Index = joy1,
             JoyButton2Index = joy2,
-            CharOverrides = charOverrides.All.ToDictionary(kv => kv.Key, kv => kv.Value),
+            CharOverrides = charOverrides.All.ToDictionary(
+                kv => kv.Key, kv => new MatrixPress(kv.Value.Row, kv.Value.Col, kv.Value.MzShift)),
             SuppressedChars = new HashSet<char>(charOverrides.AllSuppressed),
             KeyOverrides = keyOverrides.All.ToDictionary(kv => kv.Key, kv => kv.Value),
+            Mz80aCharOverrides = mz80aCharOverrides.All.ToDictionary(
+                kv => kv.Key, kv => new MatrixPress(kv.Value.Strobe, kv.Value.Bit, kv.Value.MzShift)),
+            Mz80aSuppressedChars = new HashSet<char>(mz80aCharOverrides.AllSuppressed),
+            Mz80aKeyOverrides = mz80aKeyOverrides.All.ToDictionary(kv => kv.Key, kv => kv.Value),
         };
+
+    // Both machines' char defaults, normalised to MatrixPress so the
+    // diff walker can quote the restored slot in the "default restored
+    // → (row,col)" line without knowing the native Press type.
+    internal static IReadOnlyDictionary<char, MatrixPress> Mz700CharDefaults { get; } =
+        CharMap.Defaults.ToDictionary(
+            kv => kv.Key, kv => new MatrixPress(kv.Value.Row, kv.Value.Col, kv.Value.MzShift));
+
+    internal static IReadOnlyDictionary<char, MatrixPress> Mz80aCharDefaults { get; } =
+        Mz80aCharMap.Defaults.ToDictionary(
+            kv => kv.Key, kv => new MatrixPress(kv.Value.Strobe, kv.Value.Bit, kv.Value.MzShift));
 }
 
 /// <summary>
@@ -183,9 +218,27 @@ internal static class SettingsDiff
         if (before.JoyButton2Index != after.JoyButton2Index)
             lines.Add($"Joystick button 2: index {before.JoyButton2Index} → {after.JoyButton2Index}");
 
-        lines.AddRange(DescribeCharOverrides(before, after));
-        lines.AddRange(DescribeSuppressed(before, after));
-        lines.AddRange(DescribeKeyOverrides(before, after));
+        lines.AddRange(DescribeCharOverrides(
+            before.CharOverrides, after.CharOverrides,
+            SettingsSnapshot.Mz700LabelPrefix));
+        lines.AddRange(DescribeSuppressed(
+            before.SuppressedChars, after.SuppressedChars,
+            SettingsSnapshot.Mz700CharDefaults,
+            SettingsSnapshot.Mz700LabelPrefix));
+        lines.AddRange(DescribeKeyOverrides(
+            before.KeyOverrides, after.KeyOverrides,
+            SettingsSnapshot.Mz700LabelPrefix));
+
+        lines.AddRange(DescribeCharOverrides(
+            before.Mz80aCharOverrides, after.Mz80aCharOverrides,
+            SettingsSnapshot.Mz80aLabelPrefix));
+        lines.AddRange(DescribeSuppressed(
+            before.Mz80aSuppressedChars, after.Mz80aSuppressedChars,
+            SettingsSnapshot.Mz80aCharDefaults,
+            SettingsSnapshot.Mz80aLabelPrefix));
+        lines.AddRange(DescribeKeyOverrides(
+            before.Mz80aKeyOverrides, after.Mz80aKeyOverrides,
+            SettingsSnapshot.Mz80aLabelPrefix));
 
         return lines;
     }
@@ -196,12 +249,15 @@ internal static class SettingsDiff
         lines.Add($"Open {paneName} at startup: {(before ? "on" : "off")} → {(after ? "on" : "off")}");
     }
 
-    private static IEnumerable<string> DescribeCharOverrides(SettingsSnapshot before, SettingsSnapshot after)
+    private static IEnumerable<string> DescribeCharOverrides(
+        IReadOnlyDictionary<char, MatrixPress> before,
+        IReadOnlyDictionary<char, MatrixPress> after,
+        string prefix)
     {
         // Coalesce letter case-pairs so binding PC 'a' (which auto-pairs
         // 'A') reads as one line, not two.
-        var beforeKeys = new HashSet<char>(before.CharOverrides.Keys);
-        var afterKeys = new HashSet<char>(after.CharOverrides.Keys);
+        var beforeKeys = new HashSet<char>(before.Keys);
+        var afterKeys = new HashSet<char>(after.Keys);
         var emittedPairs = new HashSet<char>();
 
         var allKeys = beforeKeys.Union(afterKeys).OrderBy(c => CanonicalSortKey(c)).ThenBy(c => (int)c);
@@ -209,7 +265,6 @@ internal static class SettingsDiff
         foreach (var c in allKeys)
         {
             if (emittedPairs.Contains(c)) continue;
-            char canon = CanonicalForLabel(c);
             char? paired = CasePair(c);
 
             // If a case-pair exists and both halves have the same
@@ -218,13 +273,13 @@ internal static class SettingsDiff
             if (paired is char p && IsCasePairUnified(p, before, after))
             {
                 emittedPairs.Add(p);
-                var label = BuildCasePairLabel(c);
+                var label = prefix + BuildCasePairLabel(c);
                 foreach (var line in DescribeOneChar(label, c, before, after))
                     yield return line;
                 continue;
             }
 
-            foreach (var line in DescribeOneChar($"PC {Quote(c)}", c, before, after))
+            foreach (var line in DescribeOneChar($"{prefix}PC {Quote(c)}", c, before, after))
                 yield return line;
         }
     }
@@ -241,10 +296,11 @@ internal static class SettingsDiff
     }
 
     private static IEnumerable<string> DescribeOneChar(string label, char c,
-        SettingsSnapshot before, SettingsSnapshot after)
+        IReadOnlyDictionary<char, MatrixPress> before,
+        IReadOnlyDictionary<char, MatrixPress> after)
     {
-        bool wasOverride = before.CharOverrides.TryGetValue(c, out var prev);
-        bool isOverride = after.CharOverrides.TryGetValue(c, out var curr);
+        bool wasOverride = before.TryGetValue(c, out var prev);
+        bool isOverride = after.TryGetValue(c, out var curr);
 
         if (!wasOverride && isOverride)
             yield return $"{label} override added → MZ slot ({curr.Row},{curr.Col}) {ShiftWord(curr.MzShift)}";
@@ -254,21 +310,27 @@ internal static class SettingsDiff
             yield return $"{label} override moved: ({prev.Row},{prev.Col}) {ShiftWord(prev.MzShift)} → ({curr.Row},{curr.Col}) {ShiftWord(curr.MzShift)}";
     }
 
-    private static IEnumerable<string> DescribeSuppressed(SettingsSnapshot before, SettingsSnapshot after)
+    private static IEnumerable<string> DescribeSuppressed(
+        IReadOnlyCollection<char> before,
+        IReadOnlyCollection<char> after,
+        IReadOnlyDictionary<char, MatrixPress> defaults,
+        string prefix)
     {
-        var beforeSet = new HashSet<char>(before.SuppressedChars);
-        var afterSet = new HashSet<char>(after.SuppressedChars);
+        var beforeSet = new HashSet<char>(before);
+        var afterSet = new HashSet<char>(after);
         var addedRaw = afterSet.Except(beforeSet).ToList();
         var removedRaw = beforeSet.Except(afterSet).ToList();
 
         // Case-pair coalescing here too.
-        foreach (var line in CoalescedSuppressionLines(addedRaw, isAdded: true))
+        foreach (var line in CoalescedSuppressionLines(addedRaw, isAdded: true, defaults, prefix))
             yield return line;
-        foreach (var line in CoalescedSuppressionLines(removedRaw, isAdded: false))
+        foreach (var line in CoalescedSuppressionLines(removedRaw, isAdded: false, defaults, prefix))
             yield return line;
     }
 
-    private static IEnumerable<string> CoalescedSuppressionLines(IList<char> chars, bool isAdded)
+    private static IEnumerable<string> CoalescedSuppressionLines(
+        IList<char> chars, bool isAdded,
+        IReadOnlyDictionary<char, MatrixPress> defaults, string prefix)
     {
         var emitted = new HashSet<char>();
         foreach (var c in chars.OrderBy(c => CanonicalSortKey(c)).ThenBy(c => (int)c))
@@ -279,23 +341,23 @@ internal static class SettingsDiff
             if (paired is char p && chars.Contains(p))
             {
                 emitted.Add(p);
-                label = BuildCasePairLabel(c);
+                label = prefix + BuildCasePairLabel(c);
             }
             else
             {
-                label = $"PC {Quote(c)}";
+                label = $"{prefix}PC {Quote(c)}";
             }
 
             if (isAdded)
             {
-                if (CharMap.Defaults.TryGetValue(c, out var def))
+                if (defaults.TryGetValue(c, out var def))
                     yield return $"{label} default suppressed (was → ({def.Row},{def.Col}) {ShiftWord(def.MzShift)})";
                 else
                     yield return $"{label} default suppressed";
             }
             else
             {
-                if (CharMap.Defaults.TryGetValue(c, out var def))
+                if (defaults.TryGetValue(c, out var def))
                     yield return $"{label} default restored → ({def.Row},{def.Col}) {ShiftWord(def.MzShift)}";
                 else
                     yield return $"{label} default restored";
@@ -303,15 +365,17 @@ internal static class SettingsDiff
         }
     }
 
-    private static IEnumerable<string> DescribeKeyOverrides(SettingsSnapshot before, SettingsSnapshot after)
+    private static IEnumerable<string> DescribeKeyOverrides(
+        IReadOnlyDictionary<Keys, KeyOverride.Binding> before,
+        IReadOnlyDictionary<Keys, KeyOverride.Binding> after,
+        string prefix)
     {
-        var allKeys = before.KeyOverrides.Keys.Union(after.KeyOverrides.Keys)
-            .OrderBy(k => k.ToString());
+        var allKeys = before.Keys.Union(after.Keys).OrderBy(k => k.ToString());
         foreach (var k in allKeys)
         {
-            bool wasOverride = before.KeyOverrides.TryGetValue(k, out var prev);
-            bool isOverride = after.KeyOverrides.TryGetValue(k, out var curr);
-            string label = $"PC {VkLabel(k)}";
+            bool wasOverride = before.TryGetValue(k, out var prev);
+            bool isOverride = after.TryGetValue(k, out var curr);
+            string label = $"{prefix}PC {VkLabel(k)}";
 
             if (!wasOverride && isOverride)
                 yield return $"{label} override added → MZ slot ({curr.Row},{curr.Col}) {ShiftWord(curr.MzShift)}";
@@ -322,10 +386,12 @@ internal static class SettingsDiff
         }
     }
 
-    private static bool IsCasePairUnified(char paired, SettingsSnapshot before, SettingsSnapshot after)
+    private static bool IsCasePairUnified(char paired,
+        IReadOnlyDictionary<char, MatrixPress> before,
+        IReadOnlyDictionary<char, MatrixPress> after)
     {
-        bool wasA = before.CharOverrides.TryGetValue(paired, out var pa);
-        bool isA = after.CharOverrides.TryGetValue(paired, out var pb);
+        bool wasA = before.TryGetValue(paired, out var pa);
+        bool isA = after.TryGetValue(paired, out var pb);
         return (wasA == isA) && (!wasA || pa.Equals(pb));
     }
 
@@ -337,7 +403,6 @@ internal static class SettingsDiff
         return null;
     }
 
-    private static char CanonicalForLabel(char c) => char.IsLetter(c) ? char.ToUpperInvariant(c) : c;
     private static char CanonicalSortKey(char c) => char.IsLetter(c) ? char.ToUpperInvariant(c) : c;
 
     private static string Quote(char c) => c == ' ' ? "Space" : $"'{c}'";
