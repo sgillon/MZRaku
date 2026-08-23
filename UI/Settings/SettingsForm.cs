@@ -268,9 +268,6 @@ public sealed class SettingsForm : Form
         _startupTooltips = new ToolTip();
         _startupTooltips.SetToolTip(_chkSoundDiagnosticAtStartup,
             "MZ-700 only. Won't open at boot when DefaultMachine=MZ-80A.");
-        _startupTooltips.SetToolTip(_chkKeyboardMatrixAtStartup,
-            "MZ-700 only. Won't open at boot when DefaultMachine=MZ-80A.");
-
         // Live grey-out on radio change.
         _rbDefaultMz700.CheckedChanged += (_, _) => RefreshDebugPaneEnabledState();
         _rbDefaultMz80a.CheckedChanged += (_, _) => RefreshDebugPaneEnabledState();
@@ -287,7 +284,6 @@ public sealed class SettingsForm : Form
     {
         bool mz80aDefault = _rbDefaultMz80a.Checked;
         _chkSoundDiagnosticAtStartup.Enabled = !mz80aDefault;
-        _chkKeyboardMatrixAtStartup.Enabled = !mz80aDefault;
     }
 
     private TabPage BuildDisplayTab()

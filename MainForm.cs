@@ -921,7 +921,7 @@ public sealed class MainForm : Form
         if (dp.HidDiagnostic) OpenHidDiag();
         if (dp.FontSheet) OpenFontSheet();
         if (dp.SoundDiagnostic && mz700) OpenSoundDiag();
-        if (dp.KeyboardMatrix && mz700) OpenKeyboardMatrix();
+        if (dp.KeyboardMatrix) OpenKeyboardMatrix();
         // Return focus to the main window so the emulator gets input
         // events; the last pane opened would otherwise steal it.
         Activate();
@@ -1747,10 +1747,17 @@ public sealed class MainForm : Form
 
     private void OpenKeyboardMatrix()
     {
-        if (_machine == null) { NotAvailableOnMz80a("Keyboard Matrix"); return; }
+        // Build the editor context for whichever machine is running.
+        // KeyboardMatrixForm itself has been machine-agnostic since it
+        // was ported to IKeyboardEditorContext; the MZ-80A refusal here
+        // was a pre-Phase-5.5a artefact.
+        IKeyboardEditorContext? context =
+            _machine != null ? new Mz700KeyboardEditorContext(_machine, _settings.CharMapOverrides, _settings.KeyOverrides) :
+            _mz80a   != null ? new Mz80aKeyboardEditorContext(_mz80a,  _settings.Mz80aCharMapOverrides, _settings.Mz80aKeyOverrides) :
+            null;
+        if (context == null) return;
         if (_matrixForm == null || _matrixForm.IsDisposed)
-            _matrixForm = new KeyboardMatrixForm(
-                new Mz700KeyboardEditorContext(_machine, _settings.CharMapOverrides, _settings.KeyOverrides));
+            _matrixForm = new KeyboardMatrixForm(context);
         _matrixForm.Owner = this;
         // Deliberately not BringToFront — that activates the window and
         // steals focus from the emulator; we want to watch the highlight
