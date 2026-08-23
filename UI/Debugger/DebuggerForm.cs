@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Windows.Forms;
@@ -25,15 +24,8 @@ namespace MZRaku;
 /// The whole window is laid out inside a single root TableLayoutPanel
 /// (3 columns × 3 rows) so there is no Dock z-order ambiguity.
 /// </summary>
-public sealed class DebuggerForm : Form
+internal sealed class DebuggerForm : DebugToolForm
 {
-    // $E000-$E00F is the MZ-700 PPI/PIT I/O window — reads have hardware
-    // side effects (PIT counter latches, keyboard scan). Disassembly and
-    // raw byte display must never disturb hardware state, so report zero
-    // there. Passed to the (otherwise machine-agnostic) Z80 disassembler.
-    private static readonly Func<ushort, bool> IsMzIoWindow =
-        a => a >= 0xE000 && a <= 0xE00F;
-
     private readonly IMachine _machine;
     private readonly Action _resetMachine;
     private readonly Settings _settings;
@@ -163,7 +155,6 @@ public sealed class DebuggerForm : Form
 
         Controls.Add(root);
 
-        FormClosing += OnFormClosing;
         Shown += (_, _) => { _viewBase = _machine.Cpu.PC; RegenerateDisasm(); };
         UpdateAll();
     }
@@ -326,7 +317,7 @@ public sealed class DebuggerForm : Form
         ushort cursor = _viewBase;
         for (int i = 0; i < n; i++)
         {
-            var res = Z80Disassembler.Disassemble(_machine.Mem, cursor, IsMzIoWindow);
+            var res = Z80Disassembler.Disassemble(_machine.Mem, cursor, DebuggerCommon.IsMzIoWindow);
             string bytes = FormatBytes(cursor, res.Length);
             _lines.Add(new DisasmLine
             {
@@ -426,7 +417,7 @@ public sealed class DebuggerForm : Form
         {
             for (int i = 0; i < delta; i++)
             {
-                var res = Z80Disassembler.Disassemble(_machine.Mem, cursor, IsMzIoWindow);
+                var res = Z80Disassembler.Disassemble(_machine.Mem, cursor, DebuggerCommon.IsMzIoWindow);
                 cursor = (ushort)(cursor + res.Length);
             }
         }
@@ -453,7 +444,7 @@ public sealed class DebuggerForm : Form
 
     private void DoGoto()
     {
-        if (TryParseAddr(_gotoAddr.Text, out ushort addr))
+        if (DebuggerCommon.TryParseAddr(_gotoAddr.Text, out ushort addr))
         {
             _viewBase = addr;
             if (_chkFollow.Checked) _chkFollow.Checked = false;
@@ -490,7 +481,7 @@ public sealed class DebuggerForm : Form
 
     private void AddBreakpoint()
     {
-        if (TryParseAddr(_bpAddr.Text, out ushort addr))
+        if (DebuggerCommon.TryParseAddr(_bpAddr.Text, out ushort addr))
         {
             _machine.Cpu.Breakpoints[addr] = true;
             _bpVersion++;
@@ -506,26 +497,13 @@ public sealed class DebuggerForm : Form
 
     private void RemoveSelectedBreakpoint()
     {
-        if (_bpList.SelectedItem is string sel && TryParseAddr(sel, out ushort addr))
+        if (_bpList.SelectedItem is string sel && DebuggerCommon.TryParseAddr(sel, out ushort addr))
         {
             _machine.Cpu.Breakpoints[addr] = false;
             _bpVersion++;
             UpdateBreakpointList();
             _disasmList.Invalidate();
         }
-    }
-
-    private static bool TryParseAddr(string s, out ushort addr)
-    {
-        addr = 0;
-        s = s.Trim();
-        if (s.StartsWith("$", StringComparison.Ordinal)) s = s[1..];
-        else if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) s = s[2..];
-        if (s.Length == 0) return false;
-        if (!int.TryParse(s, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int v)) return false;
-        if (v < 0 || v > 0xFFFF) return false;
-        addr = (ushort)v;
-        return true;
     }
 
     // --- refresh --------------------------------------------------------
@@ -574,7 +552,7 @@ public sealed class DebuggerForm : Form
 
     private void UpdateButtons()
     {
-        SetTextIfChanged(_btnPause, _machine.Paused ? "Resume (F5)" : "Pause (F5)");
+        DebuggerCommon.SetTextIfChanged(_btnPause, _machine.Paused ? "Resume (F5)" : "Pause (F5)");
     }
 
     private void UpdateRegisters()
@@ -595,7 +573,7 @@ public sealed class DebuggerForm : Form
         sb.AppendLine($"Flags  {DecodeFlags(c.F)}");
         sb.AppendLine();
         sb.Append($"Cycles {c.TotalCycles:N0}");
-        SetTextIfChanged(_regLabel, sb.ToString());
+        DebuggerCommon.SetTextIfChanged(_regLabel, sb.ToString());
     }
 
     private static string DecodeFlags(byte f)
@@ -613,7 +591,7 @@ public sealed class DebuggerForm : Form
         if (_machine.Paused && c.BreakpointTripped) text = $"Stopped — breakpoint at ${c.PC:X4}";
         else if (_machine.Paused) text = $"Paused at ${c.PC:X4}";
         else text = "Running";
-        SetTextIfChanged(_statusLabel, text);
+        DebuggerCommon.SetTextIfChanged(_statusLabel, text);
     }
 
     private void UpdateBreakpointList()
@@ -626,24 +604,7 @@ public sealed class DebuggerForm : Form
         _bpList.EndUpdate();
     }
 
-    private void OnFormClosing(object? sender, FormClosingEventArgs e)
-    {
-        // Snapshot geometry + breakpoints to Settings on every close,
-        // including the user-hides-the-window path, so the state lives
-        // through to the next launch.
-        SaveStateToSettings();
-
-        // Closing the window just hides it — keep breakpoints and the
-        // instance alive so reopening is instant. MainForm disposes it
-        // for real when the emulator shuts down.
-        if (e.CloseReason == CloseReason.UserClosing)
-        {
-            e.Cancel = true;
-            Hide();
-        }
-    }
-
-    private void SaveStateToSettings()
+    protected override void PersistState()
     {
         _settings.DebuggerWindow = new Settings.WindowState(
             Location.X, Location.Y, ClientSize.Width, ClientSize.Height);
@@ -653,15 +614,5 @@ public sealed class DebuggerForm : Form
             if (bps[a]) list.Add(a);
         _settings.DebuggerBreakpoints = list;
         _settings.Save();
-    }
-
-    // --- helpers --------------------------------------------------------
-
-    // Setting Text on a Label/Button is the simplest cause of WinForms
-    // flicker — it forces a full redraw even if the new value equals the
-    // old. Skip the assignment when nothing changed.
-    private static void SetTextIfChanged(Control c, string text)
-    {
-        if (c.Text != text) c.Text = text;
     }
 }

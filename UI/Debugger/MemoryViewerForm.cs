@@ -1,6 +1,5 @@
 using System;
 using System.Drawing;
-using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
@@ -24,7 +23,7 @@ namespace MZRaku;
 /// "hides on close" so reopening is instant and any goto position is
 /// preserved across closes.
 /// </summary>
-public sealed class MemoryViewerForm : Form
+internal sealed class MemoryViewerForm : DebugToolForm
 {
     private readonly IMachine _machine;
     private readonly Settings _settings;
@@ -63,7 +62,7 @@ public sealed class MemoryViewerForm : Form
     // column width — same charW every time, same three pen colors. Now
     // charW is memoised on first draw (invalidated if the list font
     // ever changes), the three pens are constructed once, and both are
-    // disposed alongside the other UI resources in OnFormClosing.
+    // disposed in Dispose(bool disposing) alongside the other UI resources.
     private float _cachedCharW;
     private Font? _cachedCharWFont;
     private readonly Pen _pcPen         = new(Color.OrangeRed,        2f);
@@ -185,7 +184,6 @@ public sealed class MemoryViewerForm : Form
 
         Controls.Add(root);
 
-        FormClosing += OnFormClosing;
         Shown += (_, _) => ScrollTo(_machine.Cpu.PC);
         UpdateStatus();
     }
@@ -210,7 +208,7 @@ public sealed class MemoryViewerForm : Form
 
     private void DoGoto()
     {
-        if (TryParseAddr(_gotoAddr.Text, out ushort addr))
+        if (DebuggerCommon.TryParseAddr(_gotoAddr.Text, out ushort addr))
         {
             ScrollTo(addr);
             _gotoAddr.Clear();
@@ -223,12 +221,12 @@ public sealed class MemoryViewerForm : Form
 
     private void DoDump()
     {
-        if (!TryParseAddr(_dumpStart.Text, out ushort start))
+        if (!DebuggerCommon.TryParseAddr(_dumpStart.Text, out ushort start))
         {
             _statusLabel.Text = "Invalid dump start address.";
             return;
         }
-        if (!TryParseAddr(_dumpEnd.Text, out ushort end))
+        if (!DebuggerCommon.TryParseAddr(_dumpEnd.Text, out ushort end))
         {
             _statusLabel.Text = "Invalid dump end address.";
             return;
@@ -278,7 +276,7 @@ public sealed class MemoryViewerForm : Form
             {
                 int a = row + i;
                 if (a < start || a > end) _rowBuf.Append("   ");
-                else if (IsIoWindow((ushort)a)) _rowBuf.Append("-- ");
+                else if (DebuggerCommon.IsMzIoWindow((ushort)a)) _rowBuf.Append("-- ");
                 else _rowBuf.Append(_machine.Mem.Read((ushort)a).ToString("X2")).Append(' ');
                 if (i == 7) _rowBuf.Append(' ');
             }
@@ -287,26 +285,13 @@ public sealed class MemoryViewerForm : Form
             {
                 int a = row + i;
                 if (a < start || a > end) { _rowBuf.Append(' '); continue; }
-                if (IsIoWindow((ushort)a)) { _rowBuf.Append('.'); continue; }
+                if (DebuggerCommon.IsMzIoWindow((ushort)a)) { _rowBuf.Append('.'); continue; }
                 byte b = _machine.Mem.Read((ushort)a);
                 _rowBuf.Append((b >= 0x20 && b <= 0x7E) ? (char)b : '.');
             }
             w.WriteLine(_rowBuf.ToString());
             if (row + BytesPerRow > 0xFFFF) break;
         }
-    }
-
-    private static bool TryParseAddr(string s, out ushort addr)
-    {
-        addr = 0;
-        s = s.Trim();
-        if (s.StartsWith("$", StringComparison.Ordinal)) s = s[1..];
-        else if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) s = s[2..];
-        if (s.Length == 0) return false;
-        if (!int.TryParse(s, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int v)) return false;
-        if (v < 0 || v > 0xFFFF) return false;
-        addr = (ushort)v;
-        return true;
     }
 
     private void OnDrawRow(object? sender, DrawItemEventArgs e)
@@ -338,7 +323,7 @@ public sealed class MemoryViewerForm : Form
         for (int i = 0; i < BytesPerRow; i++)
         {
             ushort a = (ushort)(rowAddr + i);
-            if (IsIoWindow(a)) _rowBuf.Append("-- ");
+            if (DebuggerCommon.IsMzIoWindow(a)) _rowBuf.Append("-- ");
             else _rowBuf.Append(_rowBytes[i].ToString("X2")).Append(' ');
             if (i == 7) _rowBuf.Append(' ');   // gap between two 8-byte groups
         }
@@ -346,7 +331,7 @@ public sealed class MemoryViewerForm : Form
         for (int i = 0; i < BytesPerRow; i++)
         {
             ushort a = (ushort)(rowAddr + i);
-            if (IsIoWindow(a)) { _rowBuf.Append('.'); continue; }
+            if (DebuggerCommon.IsMzIoWindow(a)) { _rowBuf.Append('.'); continue; }
             byte b = _rowBytes[i];
             _rowBuf.Append((b >= 0x20 && b <= 0x7E) ? (char)b : '.');
         }
@@ -372,7 +357,7 @@ public sealed class MemoryViewerForm : Form
                 for (int i = 0; i < BytesPerRow; i++)
                 {
                     ushort a = (ushort)(rowAddr + i);
-                    if (IsIoWindow(a)) continue;
+                    if (DebuggerCommon.IsMzIoWindow(a)) continue;
                     if (_rowBytes[i] != _snapshot[a])
                         MarkByte(e.Graphics, e.Bounds, i, _snapshotPen);
                 }
@@ -401,48 +386,40 @@ public sealed class MemoryViewerForm : Form
 
     private byte ReadByteSafe(ushort addr)
     {
-        if (IsIoWindow(addr)) return 0;
+        if (DebuggerCommon.IsMzIoWindow(addr)) return 0;
         return _machine.Mem.Read(addr);
     }
-
-    private static bool IsIoWindow(ushort addr) => addr >= 0xE000 && addr <= 0xE00F;
 
     private void UpdateStatus()
     {
         int row = _list.SelectedIndex;
         if (row < 0)
         {
-            SetTextIfChanged(_statusLabel, "");
+            DebuggerCommon.SetTextIfChanged(_statusLabel, "");
             return;
         }
         ushort addr = (ushort)(row * BytesPerRow);
-        SetTextIfChanged(_statusLabel,
+        DebuggerCommon.SetTextIfChanged(_statusLabel,
             $"Row ${addr:X4}–${addr + BytesPerRow - 1:X4}    PC=${_machine.Cpu.PC:X4}  SP=${_machine.Cpu.SP:X4}");
     }
 
-    private static void SetTextIfChanged(Control c, string text)
-    {
-        if (c.Text != text) c.Text = text;
-    }
-
-    private void OnFormClosing(object? sender, FormClosingEventArgs e)
+    protected override void PersistState()
     {
         _settings.MemoryViewerWindow = new Settings.WindowState(
             Location.X, Location.Y, ClientSize.Width, ClientSize.Height);
         _settings.Save();
+    }
 
-        // Same lifecycle as DebuggerForm — hide on user close, real dispose
-        // only at app shutdown.
-        if (e.CloseReason == CloseReason.UserClosing)
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
         {
-            e.Cancel = true;
-            Hide();
-            return;
+            // Release the cached MarkByte pens on real form disposal.
+            _pcPen.Dispose();
+            _spPen.Dispose();
+            _snapshotPen.Dispose();
         }
-        // App shutdown path: release the cached MarkByte pens.
-        _pcPen.Dispose();
-        _spPen.Dispose();
-        _snapshotPen.Dispose();
+        base.Dispose(disposing);
     }
 
     // --- Snapshot / Diff ----------------------------------------------------
@@ -459,11 +436,11 @@ public sealed class MemoryViewerForm : Form
     {
         _snapshot ??= new byte[0x10000];
         for (int a = 0; a < 0x10000; a++)
-            _snapshot[a] = IsIoWindow((ushort)a) ? (byte)0 : _machine.Mem.Read((ushort)a);
+            _snapshot[a] = DebuggerCommon.IsMzIoWindow((ushort)a) ? (byte)0 : _machine.Mem.Read((ushort)a);
         _snapshotTime = DateTime.Now;
         _btnDiff.Enabled = true;
         _btnClearSnap.Enabled = true;
-        SetTextIfChanged(_statusLabel, $"Snapshot taken @ {_snapshotTime:HH:mm:ss}.");
+        DebuggerCommon.SetTextIfChanged(_statusLabel, $"Snapshot taken @ {_snapshotTime:HH:mm:ss}.");
         _list.Invalidate();
     }
 
@@ -472,7 +449,7 @@ public sealed class MemoryViewerForm : Form
         _snapshot = null;
         _btnDiff.Enabled = false;
         _btnClearSnap.Enabled = false;
-        SetTextIfChanged(_statusLabel, "Snapshot cleared.");
+        DebuggerCommon.SetTextIfChanged(_statusLabel, "Snapshot cleared.");
         _list.Invalidate();
     }
 
@@ -482,7 +459,7 @@ public sealed class MemoryViewerForm : Form
         var diffs = new List<(ushort addr, byte snap, byte cur)>();
         for (int a = 0; a < 0x10000; a++)
         {
-            if (IsIoWindow((ushort)a)) continue;
+            if (DebuggerCommon.IsMzIoWindow((ushort)a)) continue;
             byte cur = _machine.Mem.Read((ushort)a);
             if (cur != _snapshot[a]) diffs.Add(((ushort)a, _snapshot[a], cur));
         }
