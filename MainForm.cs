@@ -84,10 +84,9 @@ public sealed class MainForm : Form
     private readonly string? _initialCassette;
     private readonly bool _autoLoadBasic;
     private readonly string? _dumpPath;
+    private DumpTraceRecorder? _dumpTrace;
+    private AutoLoadOrchestrator _autoLoad = null!;   // constructed in Start()
     private bool _started;
-    private bool _pendingLoadBasic;
-    private string? _pendingCassette;
-    private string? _pendingBasicSource;
     private DebuggerForm? _debugger;
     private MemoryViewerForm? _memViewer;
     private HidDiagnosticForm? _hidDiag;
@@ -117,12 +116,10 @@ public sealed class MainForm : Form
     // settings.ini. Cleared the moment the user explicitly toggles
     // (View → Scanlines, Ctrl+L) — that's now their persisted choice.
     private bool? _scanlinesRestoreOnClose;
-    // Tracks the previous GRAPH-mode bit so we can detect ALPHA→GRAPH
-    // transitions and auto-surface the Font Sheet — the only way to
-    // reach MZ-only graphic glyphs (no PC-key equivalent exists). Opens
-    // unconditionally on each transition (if not already visible) since
-    // GRAPH mode is effectively unusable without it.
-    private bool _wasGraphMode;
+    // GRAPH-mode transition tracking (was _wasGraphMode) now lives on
+    // _autoLoad — it triggers the MZ-700 Font Sheet auto-surface, which
+    // is per-frame pipeline work that belongs with the other
+    // per-frame autoload state.
     private KeyboardMatrixForm? _matrixForm;
 
     public MainForm(string? cassettePath, bool autoLoadBasic, string? dumpPath = null,
@@ -635,6 +632,35 @@ public sealed class MainForm : Form
             }
             Active.Sound.Start();
 
+            // Dump-and-trace recorder (v1.2 audit F-055). No-op when
+            // --dump wasn't passed; the trace hooks already gated on
+            // _dumpPath above.
+            if (_dumpPath != null)
+            {
+                _dumpTrace = new DumpTraceRecorder(_dumpPath, _dumpFrame, Active, MachineLabel);
+                _dumpTrace.OnError += msg => _statusLabel.Text = msg;
+                _dumpTrace.OnDumpComplete += Close;
+            }
+
+            // Autoload orchestrator (v1.2 audit F-055). Owns the two
+            // per-machine BASIC + cassette + BASIC-source pipelines.
+            _autoLoad = new AutoLoadOrchestrator(
+                machine: _machine,
+                mz80a: _mz80a,
+                settings: _settings,
+                monitorReady: MonitorReady,
+                mz80aMonitorReady: Mz80aMonitorReady,
+                mz80aBasicReady: Mz80aBasicReady,
+                setStatus: msg => _statusLabel.Text = msg,
+                showFatal: msg => MessageBox.Show(this, msg, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error),
+                openFontSheet: () =>
+                {
+                    if (_fontSheet == null || _fontSheet.IsDisposed || !_fontSheet.Visible)
+                        OpenFontSheet();
+                },
+                typeBasicSource: TypeBasicSource,
+                updateModeLabel: UpdateModeLabel);
+
             // Auto-load BASIC if requested explicitly (--basic) OR if the
             // initial cassette is a BASIC program (type 0x02 / 0x05). The
             // type peek means the user doesn't have to know whether a
@@ -653,7 +679,7 @@ public sealed class MainForm : Form
                     if (img.Type == 0x02 || img.Type == 0x05) { loadBasic = true; cassetteNeedsBasic = true; }
                 }
                 catch { /* let the Timer_Tick load path surface the error with a clearer status */ }
-                _pendingCassette = _initialCassette;
+                _autoLoad.PendingCassette = _initialCassette;
             }
             if (loadBasic)
             {
@@ -665,11 +691,11 @@ public sealed class MainForm : Form
                 if (EnsureBasicAvailable())
                 {
                     // Run a few frames so the monitor boots before injecting BASIC
-                    _pendingLoadBasic = true;
+                    _autoLoad.PendingLoadBasic = true;
                 }
                 else if (cassetteNeedsBasic)
                 {
-                    _pendingCassette = null;
+                    _autoLoad.PendingCassette = null;
                 }
             }
             _timer.Start();
@@ -690,15 +716,9 @@ public sealed class MainForm : Form
     private bool _wasPaused;
     private const string TitleBase = "MZRaku";
     private bool _monitorReady;
-    private int _basicLoadedFrame = -1;
-    // MZ-80A cassette autorun (BASIC .mzf loaded at startup): typed
-    // LOAD via the auto-typer once BASIC is Ready, then wait for the
-    // cassette trap to deliver the body, settle for a moment while
-    // BASIC re-tokenises, then type RUN. Same net UX as MZ-700's
-    // AutoLoadCassette path.
-    private bool _mz80aLoadTyped;
-    private int _mz80aLoadDoneFrame = -1;
-    private bool _mz80aRunTyped;
+    // Autoload state (BASIC pending, cassette pending, BASIC source
+    // pending, _basicLoadedFrame, MZ-80A cassette-autorun tracking,
+    // _wasGraphMode) all live on _autoLoad after v1.2 audit F-055.
 
     /// <summary>
     /// MZ-80A analogue of MonitorReady. SA-1510 draws a block-cursor
@@ -939,400 +959,25 @@ public sealed class MainForm : Form
         UpdateTapeLabel();
         RefreshPauseIndicator();
 
-        // MZ-80A path: skip the MZ-700-flavoured joystick indicator,
-        // trace log, and dump path. BASIC / cassette autoload now
-        // uses dynamic "monitor ready" detection (analogous to
-        // MZ-700's MonitorReady) rather than a fixed 5-second wait,
-        // so cold-boot to Ready feels as snappy on MZ-80A as on
-        // MZ-700.
-        if (_machine == null)
-        {
-            _display.Invalidate();
-            if (_mz80a != null)
-            {
-                // BASIC gets loaded first (as soon as the SA-1510 prompt
-                // is up), THEN the cassette waits 60 frames past
-                // _basicLoadedFrame so SA-5510 has time to reach its
-                // Ready prompt before we overwrite the program area.
-                // Same two-phase shape as MZ-700 uses.
-                if (_pendingLoadBasic && Mz80aMonitorReady())
-                {
-                    try
-                    {
-                        Active.AutoLoadBasic(_settings.BasicFullPath);
-                        _statusLabel.Text = "BASIC loaded.";
-                        _basicLoadedFrame = _bootFrames;
-                    }
-                    catch (Exception ex)
-                    {
-                        _statusLabel.Text = "BASIC load failed: " + ex.Message;
-                    }
-                    _pendingLoadBasic = false;
-                }
-                if (_pendingCassette != null)
-                {
-                    bool viaBasic = _basicLoadedFrame >= 0;
-                    // Cassette-via-BASIC needs SA-5510's "Ready" prompt
-                    // to be on screen — the keyboard input path only
-                    // starts polling after BASIC finishes its ~3.3s
-                    // cold init. Using a fixed frame count here (like
-                    // the MZ-700 path's 60-frame wait) fires too early
-                    // and BASIC eats the LOAD keystrokes into a buffer
-                    // it isn't reading yet.
-                    bool ready = viaBasic
-                        ? Mz80aBasicReady()
-                        : Mz80aMonitorReady();
-                    if (ready)
-                    {
-                        try
-                        {
-                            var img = Hardware.MzfImage.Parse(
-                                Hardware.CassetteFile.ReadBytes(_pendingCassette));
-                            // BASIC-type images: Queue the image so SA-5510's
-                            // LOAD command hits our SA-1510 RDINF/RDDAT
-                            // traps ($0027/$002A) and the ROM's own load
-                            // path maintains BASIC's internal program
-                            // pointers. DirectInject bypasses this and
-                            // produces Error 19 on RUN. Machine-code images
-                            // still DirectInject + jumpExec — SA-1510's
-                            // monitor L command sequence isn't wired yet
-                            // for MZ-80A and the shortcut works cleanly for
-                            // type 01.
-                            bool isBasicType = img.Type == 0x02
-                                || img.Type == 0x03
-                                || img.Type == 0x05;
-                            if (isBasicType)
-                            {
-                                // Queue the image so SA-5510's LOAD hits
-                                // the SA-1510 traps, then auto-type LOAD
-                                // and (once the trap has fired + BASIC
-                                // has settled) RUN. Same shape as the
-                                // MZ-700 autorun path. Attempted a
-                                // DirectInject + pointer-fixup shortcut
-                                // 2026-07-12 to make LOAD invisible; the
-                                // $4E4E variable table was pinned but
-                                // other state SA-5510's RUN depends on
-                                // (Error 16 on GOSUB) resisted synthesis.
-                                // Kept as a future item.
-                                _mz80a.Cassette.Queue(img);
-                                _mz80a.Keyboard.TypeString("LOAD\r");
-                                _mz80aLoadTyped = true;
-                                _statusLabel.Text = $"Loading {img.Filename}…";
-                            }
-                            else
-                            {
-                                _mz80a.Cassette.DirectInject(img,
-                                    jumpExec: img.Type == 0x01);
-                                _statusLabel.Text = $"Loaded: {img.Filename}";
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            _statusLabel.Text = "Cassette load failed: " + ex.Message;
-                        }
-                        _pendingCassette = null;
-                    }
-                }
-                // Cassette-autorun sequencing: LOAD was typed above; once
-                // the RDDAT trap has fired (DataDelivered latches true),
-                // wait 90 frames for BASIC to re-tokenise the loaded
-                // program then auto-type RUN. 90 frames ≈ 1.5s is
-                // conservative — trap injection is instantaneous, so the
-                // window is BASIC's post-load bookkeeping.
-                if (_mz80aLoadTyped && !_mz80aRunTyped)
-                {
-                    if (_mz80aLoadDoneFrame < 0 && _mz80a.Cassette.DataDelivered)
-                        _mz80aLoadDoneFrame = _bootFrames;
-                    if (_mz80aLoadDoneFrame >= 0 &&
-                        _bootFrames - _mz80aLoadDoneFrame >= 60)
-                    {
-                        _mz80a.Keyboard.TypeString("RUN\r");
-                        _mz80aRunTyped = true;
-                        _statusLabel.Text = "Running.";
-                    }
-                }
-                // MZ-80A mode indicator. Tracked locally via F11 press
-                // events in Mz80aKeyboard.GraphMode — see the note there
-                // about program-driven mode changes not being caught.
-                if (_bootFrames % 10 == 0)
-                    UpdateModeLabel(_mz80a.Keyboard.GraphMode);
-                // HID diagnostic supports MZ-80A too (Phase 4, machine-
-                // aware). Sound Diagnostic is still MZ-700-only until
-                // its NAND / dual-gate assumptions can be revisited.
-                _hidDiag?.RefreshIfVisible();
-            }
-            return;
-        }
         _hidDiag?.RefreshIfVisible();
-        _soundDiag?.RefreshIfVisible();
+        if (_machine != null) _soundDiag?.RefreshIfVisible();
 
-        // MZ-700 mode-label update. S-BASIC's keyboard mode flag lives
-        // at $0060 bit 4 (set = GRAPH, clear = ALPHA), discovered
-        // empirically via the memory-viewer snapshot/diff tool
-        // 2026-05-31. Only meaningful while S-BASIC owns the machine
-        // (ROM banked out so $0060 is RAM); before BASIC is loaded,
-        // $0060 reads from ROM and the indicator would be misleading,
-        // so we grey it out. Also surfaces the Font Sheet on
-        // ALPHA→GRAPH — GRAPH mode is unusable without the palette
-        // since graphic glyphs aren't reachable from any PC key.
-        if (_bootFrames % 10 == 0)
-        {
-            if (_basicLoadedFrame < 0)
-            {
-                UpdateModeLabel(null);
-            }
-            else
-            {
-                bool graph = (_machine!.Mem.Read(0x0060) & 0x10) != 0;
-                UpdateModeLabel(graph);
-                if (graph && !_wasGraphMode &&
-                    (_fontSheet == null || _fontSheet.IsDisposed || !_fontSheet.Visible))
-                {
-                    OpenFontSheet();
-                }
-                _wasGraphMode = graph;
-            }
-        }
-
-
-        // Inject pending BASIC as soon as the monitor's input prompt is
-        // visible — the banner-detection signals that init is complete and
-        // the keyboard loop is running, which is what BASIC's startup at
-        // $7D79 needs (it does CALL $0033 into monitor ROM expecting a
-        // clean stack). Replaces a previous fixed 180-frame wait.
-        if (_pendingLoadBasic && MonitorReady())
-        {
-            try
-            {
-                _machine.AutoLoadBasic(_settings.BasicFullPath);
-                _statusLabel.Text = "BASIC loaded.";
-                _pendingLoadBasic = false;
-                _basicLoadedFrame = _bootFrames;
-            }
-            catch (Exception ex)
-            {
-                // Defence-in-depth: entry-point checks should have caught a
-                // missing BASIC, but if the load fails here (file vanished,
-                // unreadable, parse error), behave like the menu's Load
-                // BASIC — modal error, abandon any dependent pending work.
-                _pendingLoadBasic = false;
-                _pendingCassette = null;
-                _pendingBasicSource = null;
-                _statusLabel.Text = "BASIC load failed.";
-                MessageBox.Show(this, "BASIC load failed:\n" + ex.Message,
-                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-        // Cassette injection: wait 60 frames after BASIC was loaded so its
-        // banner displays and READY prompt is reached before we auto-type
-        // commands. (For pure-monitor MC cassettes, fire as soon as the
-        // monitor is ready.) `basicMode` is the runtime answer to "is this
-        // cassette going through BASIC?" — true whether BASIC came from
-        // --basic, the menu, or auto-load triggered by opening a BASIC .mzf.
-        bool basicMode = _pendingLoadBasic || _basicLoadedFrame >= 0;
-        bool readyForCassette = basicMode
-            ? (_basicLoadedFrame >= 0 && _bootFrames - _basicLoadedFrame >= 60)
-            : MonitorReady();
-        if (readyForCassette && _pendingCassette != null)
-        {
-            try
-            {
-                if (basicMode)
-                {
-                    // BASIC is loaded; direct-inject the program into RAM at
-                    // its load address (without jumping) and fix up program
-                    // pointers, mirroring what the menu's LoadCassetteFile
-                    // does. We can't use BASIC's LOAD command because S-BASIC
-                    // bypasses the monitor's tape routines (the ones we trap
-                    // at $0436/$04D8) — its own tape code reads PortC bit 5
-                    // directly and has no real cassette to read from here.
-                    var img = Hardware.MzfImage.Parse(Hardware.CassetteFile.ReadBytes(_pendingCassette));
-                    _machine!.Cassette.DirectInject(img, jumpExec: false);
-                    if (img.Type == 0x02 || img.Type == 0x05)
-                    {
-                        _machine!.Cassette.FixupBasicProgramPointers(img.LoadAddr, img.Data.Length);
-                        // Auto-RUN: with the program injected and pointers
-                        // fixed, BASIC's RUN command preprocesses lengths and
-                        // starts execution. End-to-end automation from CLI.
-                        _machine!.Keyboard.AutoType.TypeString("RUN\r");
-                        _statusLabel.Text = $"Loaded {img.Filename}. Running.";
-                    }
-                    else
-                    {
-                        string usage = img.Type == 0x01 ? $"USR(${img.ExecAddr:X4})" : "RUN";
-                        _statusLabel.Text = $"Loaded {img.Filename} into BASIC. Type {usage}.";
-                    }
-                }
-                else
-                {
-                    // Machine-code cassette at startup: direct-inject into RAM
-                    // and jump to the game's execution address. This bypasses
-                    // the monitor's tape-LOAD flow (which would need a working
-                    // keyboard-driven command prompt).
-                    _machine.DirectInjectCassette(_pendingCassette);
-                    _statusLabel.Text = $"Loaded: {Path.GetFileName(_pendingCassette)}";
-                }
-            }
-            catch (Exception ex)
-            {
-                _statusLabel.Text = "Cassette load failed: " + ex.Message;
-            }
-            _pendingCassette = null;
-        }
-
-        // BASIC source: identical readiness gate as a BASIC cassette —
-        // wait for BASIC's READY prompt then auto-type the file in.
-        if (_pendingBasicSource != null && _basicLoadedFrame >= 0 && _bootFrames - _basicLoadedFrame >= 60)
-        {
-            try
-            {
-                TypeBasicSource(_pendingBasicSource);
-                _statusLabel.Text = $"Typing {Path.GetFileName(_pendingBasicSource)}…";
-            }
-            catch (Exception ex)
-            {
-                _statusLabel.Text = "BASIC source load failed: " + ex.Message;
-            }
-            _pendingBasicSource = null;
-        }
+        // BASIC + cassette + BASIC-source pipelines both machines run
+        // (v1.2 audit F-055 extraction). Also handles the per-frame
+        // GRAPH-mode indicator + Font Sheet auto-surface for MZ-700
+        // and the F11-driven mode indicator for MZ-80A.
+        _autoLoad.OnFrame(_bootFrames);
 
         _display.Invalidate();
 
-        // Trace state every 20 frames to help diagnose boot/load issues.
-        // MZ-700 gets the rich Pit/Ppi/Cassette-flavoured line; MZ-80A
-        // gets a shorter CPU-only line (no PIT sound / cassette-trap
-        // gates to report yet). Guarding also stops the previous NRE
-        // when the CLI passed --mz80a --dump=… — and skips the whole
-        // block entirely for the 99.9 % of runs that never asked for
-        // a dump.
-        if (_dumpPath != null && (_bootFrames <= 10 || _bootFrames % 20 == 0) && _bootFrames <= _dumpFrame)
-        {
-            if (_machine != null)
-            {
-                var c0 = _machine.Pit.Counters[0];
-                var c2 = _machine.Pit.Counters[2];
-                _traceLog.AppendLine($"[F{_bootFrames:D4}] PC=${_machine.Cpu.PC:X4} SP=${_machine.Cpu.SP:X4} IFF1={_machine.Cpu.IFF1} C0.rel={c0.Reload} run={c0.Running} out={c0.Out} C2.rel={c2.Reload} run={c2.Running} out={c2.Out} INTMSK={_machine.Ppi.InterruptMask} hdr={_machine.Cassette.HeaderDelivered} dat={_machine.Cassette.DataDelivered}");
-            }
-            else if (_mz80a != null)
-            {
-                _traceLog.AppendLine($"[F{_bootFrames:D4}] PC=${_mz80a.Cpu.PC:X4} SP=${_mz80a.Cpu.SP:X4} IFF1={_mz80a.Cpu.IFF1}");
-            }
-        }
-
-        if (_dumpPath != null && _bootFrames == _dumpFrame)
-        {
-            try
-            {
-                DumpState(_dumpPath);
-                // _dumpPath != null implies tracing is on (see Start()).
-                {
-                    // Append last 256 PC values (oldest first). Cpu is
-                    // Z80Cpu on both machines, so this works via Active.
-                    var sb = new System.Text.StringBuilder();
-                    sb.AppendLine();
-                    sb.AppendLine("Recent PC trace (oldest first):");
-                    int start = Active.Cpu.PcTraceIdx;
-                    for (int i = 0; i < Active.Cpu.PcTrace.Length; i++)
-                    {
-                        sb.Append($"${Active.Cpu.PcTrace[(start + i) & 0xFF]:X4} ");
-                        if (i % 16 == 15) sb.AppendLine();
-                    }
-                    _traceLog.Append(sb);
-                    // Pit / Mem write logs are MZ-700 concrete-class
-                    // members; MZ-80A doesn't expose analogues yet, so
-                    // these two blocks stay guarded on _machine.
-                    if (_machine != null && _machine.Pit.WriteLog != null)
-                    {
-                        _traceLog.AppendLine();
-                        _traceLog.AppendLine("PIT write log:");
-                        _traceLog.Append(_machine.Pit.WriteLog);
-                    }
-                    if (_machine != null && _machine.Mem.BankSwitchLog != null)
-                    {
-                        _traceLog.AppendLine();
-                        _traceLog.AppendLine("Bank-switch log:");
-                        _traceLog.Append(_machine.Mem.BankSwitchLog);
-                    }
-                    File.WriteAllText(_dumpPath + ".trace", _traceLog.ToString());
-                }
-            }
-            catch (Exception ex) { _statusLabel.Text = "Dump failed: " + ex.Message; }
-            Close();
-        }
+        // Dump-and-trace flow (v1.2 audit F-055 extraction). No-op
+        // when --dump wasn't passed; otherwise emits the periodic
+        // trace line and fires OnDumpComplete → Close() at the
+        // configured frame.
+        _dumpTrace?.OnFrame(_bootFrames);
     }
 
     private readonly int _dumpFrame;
-    private readonly System.Text.StringBuilder _traceLog = new();
-
-    private void DumpState(string path)
-    {
-        using var w = new StreamWriter(path);
-        w.WriteLine($"{MachineLabel} state after {_bootFrames} frames");
-        var cpu = Active.Cpu;
-        w.WriteLine($"CPU: PC=${cpu.PC:X4} SP=${cpu.SP:X4} A=${cpu.A:X2} F=${cpu.F:X2} HL=${cpu.HL:X4} BC=${cpu.BC:X4} DE=${cpu.DE:X4}");
-        w.WriteLine($"IM={cpu.IM} IFF1={cpu.IFF1} Halted={cpu.Halted} Cycles={cpu.TotalCycles}");
-        // The PPI / PIT / cassette-trap counters and the bank-switch
-        // gate are MZ-700 concrete-class members; MZ-80A doesn't expose
-        // matching surfaces yet. Guard so the shared preamble above
-        // still fires on --mz80a --dump=…
-        if (_machine != null)
-        {
-            w.WriteLine($"PPI PortA=${_machine.Ppi.PortA:X2} PortCOut=${_machine.Ppi.PortCOut:X2} PortCIn=${_machine.Ppi.PortCIn:X2}");
-            w.WriteLine($"Mem RomEnabled={_machine.Mem.RomEnabled} VramIoEnabled={_machine.Mem.VramIoEnabled}");
-            w.WriteLine($"PIT C0.Reload={_machine.Pit.Counters[0].Reload} C2.Reload={_machine.Pit.Counters[2].Reload}");
-            var sb0 = new System.Text.StringBuilder("RAM @ $1200: ");
-            for (int i = 0; i < 32; i++) sb0.Append($"{_machine.Mem.Read((ushort)(0x1200 + i)):X2} ");
-            w.WriteLine(sb0.ToString());
-            w.WriteLine($"Tape trap hits: BreakWait={_machine.Cassette.BreakWaitTrapHits} Header={_machine.Cassette.HeaderTrapHits} Data={_machine.Cassette.DataTrapHits} WriteTape={_machine.Cassette.WriteTapeTrapHits}");
-        }
-        // VRAM is 40x25 on both machines; grab it via the machine that's
-        // actually running. Bytes are the raw display codes each machine
-        // renders through its own font ROM.
-        byte[] vram = _machine != null ? _machine.Mem.Vram : _mz80a!.Mem.Vram;
-        w.WriteLine();
-        w.WriteLine("VRAM (40x25 text codes):");
-        for (int row = 0; row < 25; row++)
-        {
-            var sb = new System.Text.StringBuilder();
-            sb.Append($"[{row:D2}] ");
-            for (int col = 0; col < 40; col++)
-                sb.Append($"{vram[row * 40 + col]:X2} ");
-            w.WriteLine(sb.ToString());
-        }
-        // ASCII rendering is a best-effort MZ-700 display-code → ASCII
-        // walk; the MZ-80A display-code mapping isn't identical, so this
-        // block stays MZ-700-only for now.
-        if (_machine != null)
-        {
-            w.WriteLine();
-            w.WriteLine("VRAM as ASCII (best-effort):");
-            for (int row = 0; row < 25; row++)
-            {
-                var sb = new System.Text.StringBuilder();
-                sb.Append($"[{row:D2}] ");
-                for (int col = 0; col < 40; col++)
-                {
-                    byte b = _machine.Mem.Vram[row * 40 + col];
-                    sb.Append(MzDisplayToAscii(b));
-                }
-                w.WriteLine(sb.ToString());
-            }
-        }
-    }
-
-    private static char MzDisplayToAscii(byte b)
-    {
-        // MZ display codes: 0x00=@, 0x01-0x1A=A-Z, 0x20-0x29=0-9 etc. mapping varies
-        // Use the standard MZ-700 display-code to ASCII best-effort
-        if (b == 0x00) return ' ';
-        if (b >= 0x01 && b <= 0x1A) return (char)('A' + (b - 0x01));
-        if (b >= 0x20 && b <= 0x29) return (char)('0' + (b - 0x20));
-        if (b == 0x2A) return ' ';
-        if (b == 0x67) return ' ';
-        if (b == 0xCE) return ' '; // MZ "space" in some sets
-        if (b >= 0x20 && b <= 0x7E) return (char)b;
-        return '.';
-    }
 
     private void Display_Paint(object? sender, PaintEventArgs e)
     {
@@ -1484,7 +1129,7 @@ public sealed class MainForm : Form
             // rest (monitor banner detection, post-BASIC 60-frame wait,
             // direct-inject + auto-RUN for BASIC, jump-to-exec for MC).
             bool needsBasic = img.Type == 0x02 || img.Type == 0x05;
-            bool basicLoaded = _basicLoadedFrame >= 0;
+            bool basicLoaded = _autoLoad.BasicLoadedFrame >= 0;
 
             if (basicLoaded || needsBasic)
             {
@@ -1494,8 +1139,8 @@ public sealed class MainForm : Form
                 // result in junk getting typed into the monitor.
                 if (needsBasic && !EnsureBasicAvailable()) return;
                 ResetMachine();
-                if (needsBasic) _pendingLoadBasic = true;
-                _pendingCassette = path;
+                if (needsBasic) _autoLoad.PendingLoadBasic = true;
+                _autoLoad.PendingCassette = path;
                 _statusLabel.Text = needsBasic
                     ? $"Loading BASIC + {img.Filename}…"
                     : $"Loading {img.Filename}…";
@@ -1541,7 +1186,7 @@ public sealed class MainForm : Form
         try
         {
             Active.AutoLoadBasic(_settings.BasicFullPath);
-            _basicLoadedFrame = _bootFrames;
+            _autoLoad.BasicLoadedFrame = _bootFrames;
             _statusLabel.Text = "BASIC loaded.";
         }
         catch (Exception ex)
@@ -1597,12 +1242,12 @@ public sealed class MainForm : Form
     {
         try
         {
-            if (_basicLoadedFrame < 0)
+            if (_autoLoad.BasicLoadedFrame < 0)
             {
                 if (!EnsureBasicAvailable()) return;
                 ResetMachine();
-                _pendingLoadBasic = true;
-                _pendingBasicSource = path;
+                _autoLoad.PendingLoadBasic = true;
+                _autoLoad.PendingBasicSource = path;
                 _statusLabel.Text = $"Loading BASIC + {Path.GetFileName(path)}…";
                 return;
             }
@@ -1632,14 +1277,9 @@ public sealed class MainForm : Form
         Active.Reset();
         _bootFrames = 0;
         _monitorReady = false;
-        _basicLoadedFrame = -1;
-        // MZ-80A cassette autorun flags — must reset so a second
-        // BASIC cassette load (drag/drop or menu after the first)
-        // gets its LOAD-then-RUN sequence, rather than reading the
-        // previous run's "already ran" state.
-        _mz80aLoadTyped = false;
-        _mz80aLoadDoneFrame = -1;
-        _mz80aRunTyped = false;
+        // Autoload state (basic-loaded / MZ-80A cassette autorun /
+        // GRAPH-mode tracker) all cleared through the orchestrator.
+        _autoLoad.ResetForFreshMachine();
         _statusLabel.Text = "Reset.";
     }
 
