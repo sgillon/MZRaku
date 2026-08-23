@@ -56,6 +56,20 @@ public sealed class MemoryViewerForm : Form
     private readonly StringBuilder _rowBuf = new(80);
     private readonly byte[] _rowBytes = new byte[BytesPerRow];
 
+    // MarkByte hot-path caches: RefreshIfVisible calls Invalidate every
+    // frame, and OnDrawRow may call MarkByte up to 18 times per visible
+    // row when a snapshot diff is active. Previously every call allocated
+    // a fresh Pen and called g.MeasureString to derive a monospace
+    // column width — same charW every time, same three pen colors. Now
+    // charW is memoised on first draw (invalidated if the list font
+    // ever changes), the three pens are constructed once, and both are
+    // disposed alongside the other UI resources in OnFormClosing.
+    private float _cachedCharW;
+    private Font? _cachedCharWFont;
+    private readonly Pen _pcPen         = new(Color.OrangeRed,        2f);
+    private readonly Pen _spPen         = new(Color.RoyalBlue,        2f);
+    private readonly Pen _snapshotPen   = new(Color.MediumVioletRed,  2f);
+
     public MemoryViewerForm(IMachine machine, Settings settings)
     {
         _machine = machine;
@@ -347,8 +361,8 @@ public sealed class MemoryViewerForm : Form
         // PC / SP byte markers — a small dot under the byte's first hex digit.
         if (!selected)
         {
-            if (isPCRow) MarkByte(e.Graphics, e.Bounds, _machine.Cpu.PC - rowAddr, Color.OrangeRed);
-            if (isSPRow) MarkByte(e.Graphics, e.Bounds, _machine.Cpu.SP - rowAddr, Color.RoyalBlue);
+            if (isPCRow) MarkByte(e.Graphics, e.Bounds, _machine.Cpu.PC - rowAddr, _pcPen);
+            if (isSPRow) MarkByte(e.Graphics, e.Bounds, _machine.Cpu.SP - rowAddr, _spPen);
 
             // Diff markers: per-byte underline anywhere a snapshot byte
             // disagrees with the current value. Lets the user spot
@@ -360,25 +374,29 @@ public sealed class MemoryViewerForm : Form
                     ushort a = (ushort)(rowAddr + i);
                     if (IsIoWindow(a)) continue;
                     if (_rowBytes[i] != _snapshot[a])
-                        MarkByte(e.Graphics, e.Bounds, i, Color.MediumVioletRed);
+                        MarkByte(e.Graphics, e.Bounds, i, _snapshotPen);
                 }
             }
         }
     }
 
-    private void MarkByte(Graphics g, Rectangle bounds, int byteIndex, Color color)
+    private void MarkByte(Graphics g, Rectangle bounds, int byteIndex, Pen pen)
     {
-        // Approximate column position of the start of byte `byteIndex` in the
-        // formatted row. Char widths in monospace are fixed but the System.
-        // Drawing measurement is approximate — pick a reasonable factor.
-        float charW = g.MeasureString("00000000", _list.Font).Width / 8f;
+        // Char widths in monospace are fixed but the System.Drawing
+        // measurement is approximate — pick a reasonable factor and
+        // memoise. Recompute only if the list font ever changes.
+        if (!ReferenceEquals(_list.Font, _cachedCharWFont))
+        {
+            _cachedCharW = g.MeasureString("00000000", _list.Font).Width / 8f;
+            _cachedCharWFont = _list.Font;
+        }
+        float charW = _cachedCharW;
         // "XXXX: " = 6 chars, then 3 chars per byte (HH + space), plus 1
         // extra char of gap after byte 7.
         int hexCol = 6 + byteIndex * 3 + (byteIndex >= 8 ? 1 : 0);
         float x = bounds.Left + 4 + hexCol * charW;
         float y = bounds.Bottom - 3;
-        using var p = new Pen(color, 2f);
-        g.DrawLine(p, x, y, x + 2 * charW - 2, y);
+        g.DrawLine(pen, x, y, x + 2 * charW - 2, y);
     }
 
     private byte ReadByteSafe(ushort addr)
@@ -419,7 +437,12 @@ public sealed class MemoryViewerForm : Form
         {
             e.Cancel = true;
             Hide();
+            return;
         }
+        // App shutdown path: release the cached MarkByte pens.
+        _pcPen.Dispose();
+        _spPen.Dispose();
+        _snapshotPen.Dispose();
     }
 
     // --- Snapshot / Diff ----------------------------------------------------
