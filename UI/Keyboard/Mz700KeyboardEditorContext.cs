@@ -46,7 +46,7 @@ public sealed class Mz700KeyboardEditorContext : IKeyboardEditorContext
         Hardware.SpecialKeyMap.Labels;
 
     public IReadOnlyDictionary<(int Row, int Col), string> SlotLabels =>
-        Hardware.SpecialKeyMap.SlotLabels;
+        Mz700MatrixReference.SpecialLabels;
 
     public KeyOverride KeyOverrides { get; }
 

@@ -10,7 +10,7 @@ namespace MZRaku.Hardware;
 ///
 /// Special-slot labels for the non-printable keys (cursors, BREAK,
 /// F-keys, mode keys) come straight from
-/// <see cref="SpecialKeyMap.SlotLabels"/>.
+/// <see cref="Mz700MatrixReference.FindSpecialLabel"/>.
 ///
 /// Limitation: only covers glyphs the host can produce as a Unicode
 /// char (whatever's in CharMap.Defaults). MZ-only graphics blocks /
@@ -43,5 +43,5 @@ public static class MzGlyphCatalog
 
     /// <summary>Returns the friendly label for a non-printable slot, or null if the slot has no special-key label.</summary>
     public static string? FindSpecialLabel(int row, int col) =>
-        SpecialKeyMap.SlotLabels.TryGetValue((row, col), out var s) ? s : null;
+        Mz700MatrixReference.FindSpecialLabel(row, col);
 }

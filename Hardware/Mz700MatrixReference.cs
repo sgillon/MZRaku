@@ -327,6 +327,51 @@ public static class Mz700MatrixReference
         return false;
     }
 
+    // Friendly display labels for non-printable slots — used by the
+    // keyboard-editor matrix grid to label cells that don't have a
+    // glyph. Prior to v1.2 audit F-024 this dictionary lived on
+    // SpecialKeyMap.SlotLabels; moved here so the canonical
+    // matrix reference owns everything a slot displays, matching the
+    // Mz80aMatrixReference.FindSpecialLabel shape from F-039.
+    private static readonly IReadOnlyDictionary<(int row, int col), string> _specialLabels =
+        new Dictionary<(int row, int col), string>
+        {
+            [(0, 0)] = "Enter",
+            [(0, 4)] = "ALPHA",
+            [(0, 6)] = "GRAPH",
+            [(7, 2)] = "←",
+            [(7, 3)] = "→",
+            [(7, 4)] = "↓",
+            [(7, 5)] = "↑",
+            [(7, 6)] = "DEL",
+            [(7, 7)] = "INST",
+            [(8, 0)] = "SHIFT",
+            [(8, 6)] = "CTRL",
+            [(8, 7)] = "BREAK",
+            [(9, 3)] = "F5",
+            [(9, 4)] = "F4",
+            [(9, 5)] = "F3",
+            [(9, 6)] = "F2",
+            [(9, 7)] = "F1",
+        };
+
+    /// <summary>
+    /// Friendly label for a non-printable slot on MZ-700, or null
+    /// when the slot has no such label (Char slots read their label
+    /// from glyphs; empty / unknown cells have none). Mirrors
+    /// <see cref="Mz80aMatrixReference.FindSpecialLabel"/>.
+    /// </summary>
+    public static string? FindSpecialLabel(int row, int col) =>
+        _specialLabels.TryGetValue((row, col), out var s) ? s : null;
+
+    /// <summary>
+    /// Every (row, col) that has a special-slot label. Used by the
+    /// ROM key-table loader to filter out mode/edit/cursor cells
+    /// whose scan bytes are handled by the keyboard ROM, not
+    /// display codes that reach VRAM.
+    /// </summary>
+    public static IReadOnlyDictionary<(int row, int col), string> SpecialLabels => _specialLabels;
+
     /// <summary>All slots of a given kind, in (row, col) order.</summary>
     public static IEnumerable<Slot> OfKind(SlotKind kind)
     {

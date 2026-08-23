@@ -41,7 +41,7 @@ public sealed class RomKeyTables
     /// Safe to call repeatedly; clears any prior state first.
     ///
     /// Skips slots that are mode / control keys (ALPHA, GRAPH, Enter,
-    /// cursors, etc. — see <see cref="SpecialKeyMap.SlotLabels"/>):
+    /// cursors, etc. — see <see cref="Mz700MatrixReference.SpecialLabels"/>):
     /// their bytes in the table are scan-side markers the ROM's
     /// keyboard handler intercepts, not display codes that reach VRAM.
     /// Without this filter the inverse map happily reports e.g. "$C9 is
@@ -62,7 +62,7 @@ public sealed class RomKeyTables
         {
             int row = i / 8;
             int col = 7 - (i % 8);
-            if (SpecialKeyMap.SlotLabels.ContainsKey((row, col))) continue;
+            if (Mz700MatrixReference.SpecialLabels.ContainsKey((row, col))) continue;
             byte code = rom[offset + i];
             var key = (code, bank);
             if (!_byCode.ContainsKey(key)) _byCode[key] = (row, col, mzShift);

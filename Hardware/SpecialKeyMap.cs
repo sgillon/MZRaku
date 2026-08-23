@@ -108,36 +108,13 @@ public static class SpecialKeyMap
     };
 
     /// <summary>
-    /// Friendly labels for non-printable MZ-700 matrix slots — used by the
-    /// keyboard-map editor's matrix grid to label cells that don't have a
-    /// glyph (cursors, BREAK, GRAPH/ALPHA, MZ Ctrl, F1-F4, MZ Shift).
-    /// </summary>
-    public static readonly IReadOnlyDictionary<(int row, int col), string> SlotLabels = new Dictionary<(int row, int col), string>
-    {
-        [(0, 0)] = "Enter",
-        [(0, 4)] = "ALPHA",
-        [(0, 6)] = "GRAPH",
-        [(7, 2)] = "←",
-        [(7, 3)] = "→",
-        [(7, 4)] = "↓",
-        [(7, 5)] = "↑",
-        [(7, 6)] = "DEL",
-        [(7, 7)] = "INST",
-        [(8, 0)] = "SHIFT",
-        [(8, 6)] = "CTRL",
-        [(8, 7)] = "BREAK",
-        [(9, 3)] = "F5",
-        [(9, 4)] = "F4",
-        [(9, 5)] = "F3",
-        [(9, 6)] = "F2",
-        [(9, 7)] = "F1",
-    };
-
-    /// <summary>
-    /// Cross-checks <see cref="Map"/> and <see cref="SlotLabels"/> against
-    /// <see cref="Mz700MatrixReference"/>. Returns a list of human-readable
-    /// complaints; an empty list means SpecialKeyMap is consistent with
-    /// the canonical matrix.
+    /// Cross-checks <see cref="Map"/> against
+    /// <see cref="Mz700MatrixReference"/>. Returns a list of
+    /// human-readable complaints; an empty list means the map
+    /// points only at non-printable slots the reference agrees
+    /// exist. Slot-label validity is now covered by
+    /// <see cref="Mz700MatrixReference.SpecialLabels"/> living
+    /// alongside the reference itself — see v1.2 audit F-024.
     /// </summary>
     public static IReadOnlyList<string> Validate()
     {
@@ -157,19 +134,6 @@ public static class SpecialKeyMap
                 k == Mz700MatrixReference.SlotKind.Unknown)
             {
                 complaints.Add($"Map[{kv.Key}] → ({kv.Value.row}, {kv.Value.col}) is {k} in the reference; SpecialKeyMap is for non-printable slots only");
-            }
-        }
-        foreach (var kv in SlotLabels)
-        {
-            var slot = Mz700MatrixReference.Get(kv.Key.row, kv.Key.col);
-            if (slot is null)
-            {
-                complaints.Add($"SlotLabels[({kv.Key.row}, {kv.Key.col})] = '{kv.Value}' is out of matrix range");
-                continue;
-            }
-            if (slot.Value.Kind == Mz700MatrixReference.SlotKind.Char)
-            {
-                complaints.Add($"SlotLabels[({kv.Key.row}, {kv.Key.col})] = '{kv.Value}' labels a Char slot; Char slots get their labels from glyphs, not SlotLabels");
             }
         }
         return complaints;
