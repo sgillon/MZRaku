@@ -358,8 +358,8 @@ public sealed class SettingsForm : Form
     {
         bool active = scope switch
         {
-            MachineScope.Mz700Only => _settings.Type == MachineType.MZ700,
-            MachineScope.Mz80aOnly => _settings.Type == MachineType.MZ80A,
+            MachineScope.Mz700Only => _settings.CurrentMachine == MachineType.MZ700,
+            MachineScope.Mz80aOnly => _settings.CurrentMachine == MachineType.MZ80A,
             _ => true,
         };
         string suffix = (scope != MachineScope.Shared && !active) ? " (not active)" : "";
@@ -1053,10 +1053,10 @@ public sealed class SettingsForm : Form
             _rbDefaultMz80a.Checked = true;
         else
             _rbDefaultMz700.Checked = true;
-        if (_settings.Type != _settings.DefaultMachine)
+        if (_settings.CurrentMachine != _settings.DefaultMachine)
         {
-            var flag = _settings.Type == MachineType.MZ700 ? "--mz700" : "--mz80a";
-            var name = _settings.Type == MachineType.MZ700 ? "MZ-700" : "MZ-80A";
+            var flag = _settings.CurrentMachine == MachineType.MZ700 ? "--mz700" : "--mz80a";
+            var name = _settings.CurrentMachine == MachineType.MZ700 ? "MZ-700" : "MZ-80A";
             _lblCliOverrideHint.Text = $"Current session: {name} (via {flag} CLI flag).";
             _lblCliOverrideHint.Visible = true;
         }

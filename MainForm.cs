@@ -11,7 +11,7 @@ namespace MZRaku;
 public sealed class MainForm : Form
 {
     // Exactly one of these is populated at construction based on
-    // Settings.Type. MZ-700-specific accesses (Sound, Ppi, Pit,
+    // Settings.CurrentMachine. MZ-700-specific accesses (Sound, Ppi, Pit,
     // Joystick, Cassette, Keyboard, Video, KeyTables) use _machine!.
     // and are gated by _machine != null. IMachine-surface calls
     // (Cpu, Mem, RunFrame, Reset, LoadRoms, AutoLoad*, debugger
@@ -145,14 +145,14 @@ public sealed class MainForm : Form
         // Machine selection: --mz700/--mz80a CLI wins for this run
         // over the persisted [Machine] Type. Not written back to
         // settings.ini (the File → Machine menu is the persist path).
-        if (machineOverride.HasValue) _settings.Type = machineOverride.Value;
+        if (machineOverride.HasValue) _settings.CurrentMachine = machineOverride.Value;
         // EnsureRomPaths scans for both machines' ROMs, so the CLI
         // override finding e.g. SA-1510.rom under roms/ works even
         // when settings.ini had never seen an MZ-80A launch before.
         // No-op if the previous Load() already populated both sides.
         if (_settings.EnsureRomPaths()) _settings.Save();
         // Construct exactly one of the two machines.
-        if (_settings.Type == MachineType.MZ700)
+        if (_settings.CurrentMachine == MachineType.MZ700)
             _machine = new MZ700();
         else
         {
@@ -347,11 +347,11 @@ public sealed class MainForm : Form
         var machine = new ToolStripMenuItem("&Machine");
         var mz700Item = new ToolStripMenuItem("MZ-&700")
         {
-            Checked = _settings.Type == MachineType.MZ700,
+            Checked = _settings.CurrentMachine == MachineType.MZ700,
         };
         var mz80aItem = new ToolStripMenuItem("MZ-&80A")
         {
-            Checked = _settings.Type == MachineType.MZ80A,
+            Checked = _settings.CurrentMachine == MachineType.MZ80A,
         };
         mz700Item.Click += (_, _) => SwitchMachine(MachineType.MZ700);
         mz80aItem.Click += (_, _) => SwitchMachine(MachineType.MZ80A);
@@ -452,7 +452,7 @@ public sealed class MainForm : Form
         var help = new ToolStripMenuItem("&Help");
         help.DropDownItems.Add(new ToolStripMenuItem("&About…", null, (_, _) =>
         {
-            using var dlg = new AboutForm(_settings.Type);
+            using var dlg = new AboutForm(_settings.CurrentMachine);
             dlg.ShowDialog(this);
         }));
         menu.Items.Add(help);
@@ -605,7 +605,7 @@ public sealed class MainForm : Form
         {
             if (string.IsNullOrEmpty(_settings.MonitorRomFullPath) || !File.Exists(_settings.MonitorRomFullPath))
             {
-                var expected = _settings.Type == MachineType.MZ700
+                var expected = _settings.CurrentMachine == MachineType.MZ700
                     ? "1z-013a.rom"
                     : "SA-1510.rom";
                 var configured = string.IsNullOrEmpty(_settings.MonitorRomPath)
@@ -615,7 +615,7 @@ public sealed class MainForm : Form
                     $"Monitor ROM ({expected}) not found.\n\n" +
                     $"Configured path: {configured}\n\n" +
                     $"Place {expected} under a 'roms' folder next to the executable, " +
-                    $"or set [Roms.{_settings.Type}] Monitor= in {Path.Combine(AppContext.BaseDirectory, "settings.ini")}.");
+                    $"or set [Roms.{_settings.CurrentMachine}] Monitor= in {Path.Combine(AppContext.BaseDirectory, "settings.ini")}.");
             }
             Active.LoadRoms(_settings.MonitorRomFullPath, _settings.FontFullPath);
             Active.Reset();
@@ -1655,7 +1655,7 @@ public sealed class MainForm : Form
 
     private void SwitchMachine(MachineType target)
     {
-        if (target == _settings.Type) return; // already on it — no-op
+        if (target == _settings.CurrentMachine) return; // already on it — no-op
         var name = target == MachineType.MZ700 ? "MZ-700" : "MZ-80A";
         var result = MessageBox.Show(
             $"Restart MZRaku to run Sharp {name}?\n\n" +

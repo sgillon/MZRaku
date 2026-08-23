@@ -31,8 +31,9 @@ public sealed class Settings
     // --mz80a CLI flag in MainForm. NOT persisted — Save() writes
     // DefaultMachine only. Callers that ask "which machine is active"
     // (menu check-marks, About dialog, ROM-missing message, etc.)
-    // read this.
-    public MachineType Type { get; set; } = MachineType.MZ700;
+    // read this. Named CurrentMachine (not Type) to avoid clashing
+    // with the .NET convention that `.Type` means the CLR type object.
+    public MachineType CurrentMachine { get; set; } = MachineType.MZ700;
 
     // Which machine to boot at startup absent a --mz700 / --mz80a CLI
     // override. Persisted at [Machine] DefaultMachine=. Menu switches
@@ -82,8 +83,8 @@ public sealed class Settings
     public RomPathSet Mz700Roms { get; } = new();
     public RomPathSet Mz80aRoms { get; } = new();
 
-    /// <summary>The ROM paths for the currently-selected <see cref="Type"/>.</summary>
-    public RomPathSet ActiveRoms => Type == MachineType.MZ700 ? Mz700Roms : Mz80aRoms;
+    /// <summary>The ROM paths for the currently-selected <see cref="CurrentMachine"/>.</summary>
+    public RomPathSet ActiveRoms => CurrentMachine == MachineType.MZ700 ? Mz700Roms : Mz80aRoms;
 
     // Convenience passthrough properties: read the ACTIVE machine's
     // ROM paths, so callers that don't care which machine (MainForm's
@@ -219,7 +220,7 @@ public sealed class Settings
                     s.DefaultMachine = MachineType.MZ80A;
                 else
                     s.DefaultMachine = MachineType.MZ700;
-                s.Type = s.DefaultMachine;
+                s.CurrentMachine = s.DefaultMachine;
                 // MZ-80A InvertLetterShift lives at [Keyboard.MZ80A]
                 // InvertLetterShift= as of Phase 5.1a; fall back to
                 // legacy [Machine] Mz80aInvertLetterShift= so pre-
