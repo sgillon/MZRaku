@@ -273,7 +273,7 @@ public sealed class MZ700 : IMachine
     public void AutoLoadBasic(string basicPath)
     {
         if (!File.Exists(basicPath)) throw new FileNotFoundException("BASIC cassette image not found", basicPath);
-        var img = Cassette.Parse(File.ReadAllBytes(basicPath));
+        var img = MzfImage.Parse(File.ReadAllBytes(basicPath));
         // Direct-inject: write the full image to its load address and jump to
         // its exec entry. This bypasses the monitor's LOAD dispatch, which is
         // unreliable in our emulation (keyboard-scan ISR doesn't run because
@@ -284,7 +284,7 @@ public sealed class MZ700 : IMachine
     public void AutoLoadCassette(string path, bool autoRun)
     {
         if (!File.Exists(path)) throw new FileNotFoundException("Cassette image not found", path);
-        var img = Cassette.Parse(CassetteFile.ReadBytes(path));
+        var img = MzfImage.Parse(CassetteFile.ReadBytes(path));
         Cassette.Queue(img);
         if (autoRun)
         {
@@ -295,7 +295,7 @@ public sealed class MZ700 : IMachine
 
     public void DirectInjectCassette(string path)
     {
-        var img = Cassette.Parse(CassetteFile.ReadBytes(path));
+        var img = MzfImage.Parse(CassetteFile.ReadBytes(path));
         Cassette.DirectInject(img, jumpExec: true);
     }
 }

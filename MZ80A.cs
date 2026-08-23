@@ -285,7 +285,7 @@ public sealed class MZ80A : IMachine
     {
         if (!File.Exists(basicPath))
             throw new FileNotFoundException("BASIC cassette image not found", basicPath);
-        var img = Hardware.Cassette.Parse(File.ReadAllBytes(basicPath));
+        var img = Hardware.MzfImage.Parse(File.ReadAllBytes(basicPath));
         // Direct-inject rather than dispatch through SA-1510's LOAD —
         // the L command needs a keyboard input path that isn't fully
         // wired yet (auto-typer is MZ-700 only). Once the auto-typer
@@ -298,7 +298,7 @@ public sealed class MZ80A : IMachine
     {
         if (!File.Exists(path))
             throw new FileNotFoundException("Cassette image not found", path);
-        var img = Hardware.Cassette.Parse(CassetteFile.ReadBytes(path));
+        var img = Hardware.MzfImage.Parse(CassetteFile.ReadBytes(path));
         // Same direct-inject shortcut as AutoLoadBasic — bypasses the
         // monitor's L command until a keyboard auto-typer exists.
         Cassette.DirectInject(img, jumpExec: ShouldJumpExecForType(img.Type));
@@ -306,7 +306,7 @@ public sealed class MZ80A : IMachine
 
     public void DirectInjectCassette(string path)
     {
-        var img = Hardware.Cassette.Parse(CassetteFile.ReadBytes(path));
+        var img = Hardware.MzfImage.Parse(CassetteFile.ReadBytes(path));
         Cassette.DirectInject(img, jumpExec: ShouldJumpExecForType(img.Type));
     }
 

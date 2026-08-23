@@ -6,7 +6,7 @@ namespace MZRaku.Hardware;
 
 /// <summary>
 /// File-level loader for cassette images. Reads the bytes that
-/// <see cref="Cassette.Parse"/> expects, transparently extracting the
+/// <see cref="MzfImage.Parse"/> expects, transparently extracting the
 /// first <c>.mzf</c>/<c>.m12</c>/<c>.mzt</c> entry when handed a zip
 /// archive. Multi-cassette archives pick the first match (alphabetical
 /// by entry name) — covers the common case of an .mzf bundled with a

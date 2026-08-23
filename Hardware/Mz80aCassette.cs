@@ -26,7 +26,7 @@ namespace MZRaku.Hardware;
 ///   $1106-$1107  execution address (little-endian)
 ///   $1108-$1163  comment
 ///
-/// The <see cref="Cassette.MzfImage"/> record from MZ-700 is reused —
+/// The <see cref="MzfImage"/> record from MZ-700 is reused —
 /// .mzf files are Sharp-family shared and the parser is identical.
 ///
 /// Phase 4 wires the two READ traps and <see cref="DirectInject"/>
@@ -43,7 +43,7 @@ public sealed class Mz80aCassette
     public const ushort HeaderBufferAddr = 0x10F0;
     public const int HeaderSize = 128;
 
-    public Cassette.MzfImage? Pending;
+    public MzfImage? Pending;
     public bool HeaderDelivered;
     public bool DataDelivered;
 
@@ -55,7 +55,7 @@ public sealed class Mz80aCassette
 
     public event Action<string>? OnLoaded;
 
-    public void Queue(Cassette.MzfImage img)
+    public void Queue(MzfImage img)
     {
         Pending = img;
         HeaderDelivered = false;
@@ -76,7 +76,7 @@ public sealed class Mz80aCassette
     /// keyboard input path is fully in place, or for machine-code
     /// programs the user drags onto the window.
     /// </summary>
-    public void DirectInject(Cassette.MzfImage img, bool jumpExec = true)
+    public void DirectInject(MzfImage img, bool jumpExec = true)
     {
         for (int i = 0; i < HeaderSize; i++)
             Memory.Write((ushort)(HeaderBufferAddr + i), img.Header[i]);

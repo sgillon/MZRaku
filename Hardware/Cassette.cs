@@ -54,17 +54,6 @@ public sealed class Cassette
     // [load..load+size], and write a .mzf file in one go.
     public const ushort TrapWriteTape = 0x0D47;
 
-    public sealed class MzfImage
-    {
-        public byte[] Header = new byte[128];
-        public byte[] Data = Array.Empty<byte>();
-        public string Filename = "";
-        public ushort Size;
-        public ushort LoadAddr;
-        public ushort ExecAddr;
-        public byte Type;
-    }
-
     public MzfImage? Pending;
     public bool HeaderDelivered;
     public bool DataDelivered;
@@ -89,28 +78,6 @@ public sealed class Cassette
     // Where SAVE'd cassettes land. Set by MainForm at startup.
     public string SaveDirectory { get; set; } =
         Path.Combine(AppContext.BaseDirectory, "saves");
-
-    public static MzfImage Parse(byte[] bytes)
-    {
-        if (bytes.Length < 128) throw new InvalidDataException("MZF too short (<128 bytes)");
-        var img = new MzfImage();
-        Array.Copy(bytes, img.Header, 128);
-        img.Type = img.Header[0];
-        img.Size = (ushort)(img.Header[0x12] | (img.Header[0x13] << 8));
-        img.LoadAddr = (ushort)(img.Header[0x14] | (img.Header[0x15] << 8));
-        img.ExecAddr = (ushort)(img.Header[0x16] | (img.Header[0x17] << 8));
-        int nameLen = 0;
-        while (nameLen < 16 && img.Header[1 + nameLen] != 0x0D && img.Header[1 + nameLen] != 0x00) nameLen++;
-        // MZF filenames are stored as plain ASCII (verified by inspection of
-        // multiple commercial images). Non-ASCII bytes — typically Japanese
-        // katakana on Sharp's original Japanese-language software — show as
-        // '?' from the ASCII encoding's default fallback.
-        img.Filename = System.Text.Encoding.ASCII.GetString(img.Header, 1, nameLen);
-        int dataLen = Math.Min(img.Size, Math.Max(0, bytes.Length - 128));
-        img.Data = new byte[dataLen];
-        if (dataLen > 0) Array.Copy(bytes, 128, img.Data, 0, dataLen);
-        return img;
-    }
 
     public void Queue(MzfImage image)
     {

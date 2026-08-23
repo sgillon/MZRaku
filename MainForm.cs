@@ -650,7 +650,7 @@ public sealed class MainForm : Form
             {
                 try
                 {
-                    var img = Hardware.Cassette.Parse(Hardware.CassetteFile.ReadBytes(_initialCassette));
+                    var img = Hardware.MzfImage.Parse(Hardware.CassetteFile.ReadBytes(_initialCassette));
                     if (img.Type == 0x02 || img.Type == 0x05) { loadBasic = true; cassetteNeedsBasic = true; }
                 }
                 catch { /* let the Timer_Tick load path surface the error with a clearer status */ }
@@ -996,7 +996,7 @@ public sealed class MainForm : Form
                     {
                         try
                         {
-                            var img = Hardware.Cassette.Parse(
+                            var img = Hardware.MzfImage.Parse(
                                 Hardware.CassetteFile.ReadBytes(_pendingCassette));
                             // BASIC-type images: Queue the image so SA-5510's
                             // LOAD command hits our SA-1510 RDINF/RDDAT
@@ -1156,7 +1156,7 @@ public sealed class MainForm : Form
                     // bypasses the monitor's tape routines (the ones we trap
                     // at $0436/$04D8) — its own tape code reads PortC bit 5
                     // directly and has no real cassette to read from here.
-                    var img = Hardware.Cassette.Parse(Hardware.CassetteFile.ReadBytes(_pendingCassette));
+                    var img = Hardware.MzfImage.Parse(Hardware.CassetteFile.ReadBytes(_pendingCassette));
                     _machine!.Cassette.DirectInject(img, jumpExec: false);
                     if (img.Type == 0x02 || img.Type == 0x05)
                     {
@@ -1480,7 +1480,7 @@ public sealed class MainForm : Form
     {
         try
         {
-            var img = Hardware.Cassette.Parse(Hardware.CassetteFile.ReadBytes(path));
+            var img = Hardware.MzfImage.Parse(Hardware.CassetteFile.ReadBytes(path));
 
             // Loading any cassette is treated as a fresh-state operation,
             // mirroring the CLI launch path. If the previous run was BASIC
