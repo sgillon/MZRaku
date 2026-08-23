@@ -39,9 +39,7 @@ public sealed class Settings
     // override. Persisted at [Machine] DefaultMachine=. Menu switches
     // (File → Machine) do NOT rewrite this value — they trigger a
     // one-off restart with the target's CLI flag, and the persisted
-    // default stays put. Legacy [Machine] Type= key from pre-Phase
-    // 5.1a INI files reads as a fallback on Load; next Save() rewrites
-    // in the new form.
+    // default stays put.
     public MachineType DefaultMachine { get; set; } = MachineType.MZ700;
 
     // On real MZ-80A, unshifted letter keys give UPPERCASE and Shift
@@ -54,9 +52,7 @@ public sealed class Settings
     // unaffected either way; their shifted variants (! # $ …) still
     // work via Shift regardless.
     //
-    // Persisted at [Keyboard.MZ80A] InvertLetterShift= as of Phase
-    // 5.1a; legacy `[Machine] Mz80aInvertLetterShift=` still reads on
-    // load with the new location winning.
+    // Persisted at [Keyboard.MZ80A] InvertLetterShift=.
     public bool Mz80aInvertLetterShift { get; set; } = false;
 
     // Sharp shipped the MZ-80A with a green-phosphor monochrome monitor
@@ -65,9 +61,7 @@ public sealed class Settings
     // (MZ-80A) — the setting is MZ-80A-only (MZ-700 has a colour
     // display and ignores this).
     //
-    // Persisted at [Display.MZ80A] GreenScreen= as of Phase 5.1a;
-    // legacy `[Machine] Mz80aGreenScreen=` still reads on load with
-    // the new location winning.
+    // Persisted at [Display.MZ80A] GreenScreen=.
     public bool Mz80aGreenScreen { get; set; } = true;
 
     // Paths to the system files (monitor ROM, character font, BASIC
@@ -127,9 +121,7 @@ public sealed class Settings
     // User-editable physical-key overrides for MZ-700. Empty by default;
     // built-in defaults (Enter, arrows, GRAPH, ALPHA, ...) live in
     // SpecialKeyMap. Anything in here is consulted FIRST by
-    // Keyboard.OnKeyDown. Persisted at [KeyOverrides.MZ700] as of
-    // Phase 5.1a; legacy [KeyOverrides] still reads with the new
-    // location winning.
+    // Keyboard.OnKeyDown. Persisted at [KeyOverrides.MZ700].
     public KeyOverride KeyOverrides { get; } = new();
 
     // User-editable physical-key overrides for MZ-80A. Same KeyOverride
@@ -195,6 +187,29 @@ public sealed class Settings
     private static string FilePath =>
         Path.Combine(AppContext.BaseDirectory, "settings.ini");
 
+    // Every section a current-shape settings.ini is expected to carry.
+    // Load() flips missingSection on absent-any so Save() rewrites the
+    // file with the full self-documenting layout — this is how older
+    // INIs get retrofitted with the comment blocks that arrived in a
+    // later version. Keep the list current with every section added.
+    private static readonly string[] RequiredSections = new[]
+    {
+        "Machine",
+        "Display.MZ80A",
+        "Keyboard.MZ80A",
+        "DebugPanes",
+        "Joystick",
+        "Roms.MZ700",
+        "KeyOverrides.MZ700",
+        "KeyOverrides.MZ80A",
+        "CharMap",
+        "CharMap.MZ80A",
+        "MainWindow",
+        "DebuggerWindow",
+        "MemoryViewerWindow",
+        "DebuggerBreakpoints",
+    };
+
     public static Settings Load()
     {
         var s = new Settings();
@@ -208,59 +223,33 @@ public sealed class Settings
                 s.DisplayScale = GetInt(ini, "Display", "Scale", s.DisplayScale);
                 s.DisplayScanlines = GetBool(ini, "Display", "Scanlines", s.DisplayScanlines);
 
-                // [Machine] DefaultMachine=MZ700|MZ80A. Absent → try
-                // legacy [Machine] Type= (pre-Phase 5.1a name); still
-                // absent → default MZ700. Type mirrors DefaultMachine
-                // at this point; MainForm may then override Type from
-                // a --mz700 / --mz80a CLI flag without touching the
-                // persisted DefaultMachine.
-                var typeStr = GetString(ini, "Machine", "DefaultMachine",
-                    GetString(ini, "Machine", "Type", ""));
+                // [Machine] DefaultMachine=MZ700|MZ80A. Absent → default
+                // MZ700. CurrentMachine mirrors DefaultMachine at this
+                // point; MainForm may then override it from a --mz700 /
+                // --mz80a CLI flag without touching the persisted
+                // DefaultMachine.
+                var typeStr = GetString(ini, "Machine", "DefaultMachine", "");
                 if (typeStr.Equals("MZ80A", StringComparison.OrdinalIgnoreCase))
                     s.DefaultMachine = MachineType.MZ80A;
                 else
                     s.DefaultMachine = MachineType.MZ700;
                 s.CurrentMachine = s.DefaultMachine;
-                // MZ-80A InvertLetterShift lives at [Keyboard.MZ80A]
-                // InvertLetterShift= as of Phase 5.1a; fall back to
-                // legacy [Machine] Mz80aInvertLetterShift= so pre-
-                // migration INI files still work. Next Save() rewrites.
                 s.Mz80aInvertLetterShift = GetBool(ini, "Keyboard.MZ80A",
-                    "InvertLetterShift",
-                    GetBool(ini, "Machine",
-                        "Mz80aInvertLetterShift", s.Mz80aInvertLetterShift));
-                // Same treatment for the green-screen toggle: now at
-                // [Display.MZ80A] GreenScreen=, legacy at
-                // [Machine] Mz80aGreenScreen=.
+                    "InvertLetterShift", s.Mz80aInvertLetterShift);
                 s.Mz80aGreenScreen = GetBool(ini, "Display.MZ80A",
-                    "GreenScreen",
-                    GetBool(ini, "Machine",
-                        "Mz80aGreenScreen", s.Mz80aGreenScreen));
+                    "GreenScreen", s.Mz80aGreenScreen);
 
-                // Per-machine ROM sections. Falls back to the legacy
-                // flat [Roms] section for MZ-700 so pre-split INI files
-                // still work; the next Save() rewrites in the new form.
-                s.Mz700Roms.MonitorRomPath = GetString(ini, "Roms.MZ700", "Monitor",
-                    GetString(ini, "Roms", "Monitor", ""));
-                s.Mz700Roms.FontPath = GetString(ini, "Roms.MZ700", "Font",
-                    GetString(ini, "Roms", "Font", ""));
-                s.Mz700Roms.BasicPath = GetString(ini, "Roms.MZ700", "Basic",
-                    GetString(ini, "Roms", "Basic", ""));
+                s.Mz700Roms.MonitorRomPath = GetString(ini, "Roms.MZ700", "Monitor", "");
+                s.Mz700Roms.FontPath = GetString(ini, "Roms.MZ700", "Font", "");
+                s.Mz700Roms.BasicPath = GetString(ini, "Roms.MZ700", "Basic", "");
                 s.Mz80aRoms.MonitorRomPath = GetString(ini, "Roms.MZ80A", "Monitor", "");
                 s.Mz80aRoms.FontPath = GetString(ini, "Roms.MZ80A", "Font", "");
                 s.Mz80aRoms.BasicPath = GetString(ini, "Roms.MZ80A", "Basic", "");
                 s.JoyButton1Index = GetInt(ini, "Joystick", "Button1", s.JoyButton1Index);
                 s.JoyButton2Index = GetInt(ini, "Joystick", "Button2", s.JoyButton2Index);
-                // MZ-700 KeyOverrides — new [KeyOverrides.MZ700] wins
-                // over legacy flat [KeyOverrides] so a hand-edited
-                // pre-Phase-5.1a file still works until the next Save().
                 if (ini.TryGetValue("KeyOverrides.MZ700", out var koMz700))
                 {
                     foreach (var kv in koMz700) s.KeyOverrides.TryParseLine(kv.Key, kv.Value);
-                }
-                else if (ini.TryGetValue("KeyOverrides", out var ko))
-                {
-                    foreach (var kv in ko) s.KeyOverrides.TryParseLine(kv.Key, kv.Value);
                 }
                 if (ini.TryGetValue("KeyOverrides.MZ80A", out var koMz80a))
                 {
@@ -298,34 +287,13 @@ public sealed class Settings
                     s.DebuggerBreakpoints.Sort();
                 }
                 // Older settings.ini files predate sections added in later
-                // versions. Flag any missing section so Save() runs once
-                // and the user gets a complete, editable file (now with the
-                // retrofitted self-documenting comment blocks).
-                if (!ini.ContainsKey("Joystick")) missingSection = true;
-                if (!ini.ContainsKey("KeyOverrides.MZ700")) missingSection = true;
-                if (!ini.ContainsKey("KeyOverrides.MZ80A")) missingSection = true;
-                if (!ini.ContainsKey("CharMap")) missingSection = true;
-                if (!ini.ContainsKey("CharMap.MZ80A")) missingSection = true;
-                if (!ini.ContainsKey("MainWindow")) missingSection = true;
-                if (!ini.ContainsKey("DebuggerWindow")) missingSection = true;
-                if (!ini.ContainsKey("MemoryViewerWindow")) missingSection = true;
-                if (!ini.ContainsKey("DebuggerBreakpoints")) missingSection = true;
-                if (!ini.ContainsKey("Machine")) missingSection = true;
-                // Split-Roms upgrade: an INI written before MZ-80A support
-                // will have a flat [Roms] section but no [Roms.MZ700] one.
-                // Fold-and-save on next launch so both sub-sections exist.
-                if (!ini.ContainsKey("Roms.MZ700")) missingSection = true;
-                // Phase 5.1a splits: MZ-80A green-screen and
-                // InvertLetterShift out of [Machine] into per-machine
-                // subsections, plus new [DebugPanes] section. Trigger
-                // a rewrite so pre-5.1a files migrate cleanly.
-                if (!ini.ContainsKey("Display.MZ80A")) missingSection = true;
-                if (!ini.ContainsKey("Keyboard.MZ80A")) missingSection = true;
-                if (!ini.ContainsKey("DebugPanes")) missingSection = true;
-                // DefaultMachine key rename (was [Machine] Type=).
-                if (ini.TryGetValue("Machine", out var mSec)
-                    && !mSec.ContainsKey("DefaultMachine")
-                    && mSec.ContainsKey("Type")) missingSection = true;
+                // versions. Flag any missing required section so Save()
+                // runs once and the user gets a complete, editable file
+                // (with the retrofitted self-documenting comment blocks).
+                foreach (var section in RequiredSections)
+                {
+                    if (!ini.ContainsKey(section)) { missingSection = true; break; }
+                }
             }
         }
         catch { /* fall through to defaults */ }
