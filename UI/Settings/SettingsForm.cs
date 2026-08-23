@@ -1088,8 +1088,8 @@ public sealed class SettingsForm : Form
         _txtMz80aMonitor.Text = _settings.Mz80aRoms.MonitorRomPath;
         _txtMz80aFont.Text = _settings.Mz80aRoms.FontPath;
         _txtMz80aBasic.Text = _settings.Mz80aRoms.BasicPath;
-        _numButton1.Value = Clamp(_settings.JoyButton1Index, 0, 31);
-        _numButton2.Value = Clamp(_settings.JoyButton2Index, 0, 31);
+        _numButton1.Value = Math.Clamp(_settings.JoyButton1Index, 0, 31);
+        _numButton2.Value = Math.Clamp(_settings.JoyButton2Index, 0, 31);
         RefreshAllRomStatus();
     }
 
@@ -1314,8 +1314,4 @@ public sealed class SettingsForm : Form
             ? full.Substring(prefix.Length)
             : full;
     }
-
-
-    private static int Clamp(int value, int min, int max) =>
-        value < min ? min : value > max ? max : value;
 }
