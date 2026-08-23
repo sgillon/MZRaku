@@ -126,12 +126,14 @@ public sealed class MainForm : Form
     private KeyboardMatrixForm? _matrixForm;
 
     public MainForm(string? cassettePath, bool autoLoadBasic, string? dumpPath = null,
+        int dumpFrame = 120,
         int? displayScaleOverride = null, bool startFullScreen = false,
         bool? scanlinesOverride = null, MachineType? machineOverride = null)
     {
         _initialCassette = cassettePath;
         _autoLoadBasic = autoLoadBasic;
         _dumpPath = dumpPath;
+        _dumpFrame = dumpFrame;
         _startFullScreen = startFullScreen;
         // CLI --scanlines on/off wins for this session. Snapshot the
         // persisted value so the natural-close path can restore it.
@@ -617,14 +619,20 @@ public sealed class MainForm : Form
             }
             Active.LoadRoms(_settings.MonitorRomFullPath, _settings.FontFullPath);
             Active.Reset();
-            Active.Cpu.PcTraceEnabled = _traceEnabled;
+            // PC-trace ring + PIT / bank-switch write logs only exist
+            // to feed the --dump=<file> report. Off unless --dump was
+            // asked for — otherwise we'd allocate and grow those
+            // StringBuilders forever on the hot CPU / PIT-write path
+            // (see [[project-feature-backlog]]).
+            bool tracing = _dumpPath != null;
+            Active.Cpu.PcTraceEnabled = tracing;
             // Pit / Mem / Sound diagnostic hooks are MZ-700-specific
             // for now — MZ-80A equivalents arrive with Phase 2/5.
             if (_machine != null)
             {
-                _machine!.Pit.WriteLog = _traceEnabled ? new System.Text.StringBuilder() : null;
-                _machine!.Mem.BankSwitchLog = _traceEnabled ? new System.Text.StringBuilder() : null;
-                _machine!.Sound.Start();
+                _machine.Pit.WriteLog = tracing ? new System.Text.StringBuilder() : null;
+                _machine.Mem.BankSwitchLog = tracing ? new System.Text.StringBuilder() : null;
+                _machine.Sound.Start();
             }
             _mz80a?.Sound.Start();
 
@@ -1204,8 +1212,10 @@ public sealed class MainForm : Form
         // MZ-700 gets the rich Pit/Ppi/Cassette-flavoured line; MZ-80A
         // gets a shorter CPU-only line (no PIT sound / cassette-trap
         // gates to report yet). Guarding also stops the previous NRE
-        // when the CLI passed --mz80a --dump=…
-        if (_traceEnabled && (_bootFrames <= 10 || _bootFrames % 20 == 0) && _bootFrames <= _dumpFrame)
+        // when the CLI passed --mz80a --dump=… — and skips the whole
+        // block entirely for the 99.9 % of runs that never asked for
+        // a dump.
+        if (_dumpPath != null && (_bootFrames <= 10 || _bootFrames % 20 == 0) && _bootFrames <= _dumpFrame)
         {
             if (_machine != null)
             {
@@ -1224,7 +1234,7 @@ public sealed class MainForm : Form
             try
             {
                 DumpState(_dumpPath);
-                if (_traceEnabled)
+                // _dumpPath != null implies tracing is on (see Start()).
                 {
                     // Append last 256 PC values (oldest first). Cpu is
                     // Z80Cpu on both machines, so this works via Active.
@@ -1261,8 +1271,7 @@ public sealed class MainForm : Form
         }
     }
 
-    public int _dumpFrame = 120;
-    public bool _traceEnabled = true;
+    private readonly int _dumpFrame;
     private readonly System.Text.StringBuilder _traceLog = new();
 
     private void DumpState(string path)

@@ -132,8 +132,8 @@ internal static class Program
         MatrixValidation.RunAndLog();
 
         ApplicationConfiguration.Initialize();
-        var form = new MainForm(cassettePath, autoLoadBasic, dumpPath, displayScaleOverride, startFullScreen, scanlinesOverride, machineOverride);
-        form._dumpFrame = dumpFrame;
+        var form = new MainForm(cassettePath, autoLoadBasic, dumpPath, dumpFrame,
+            displayScaleOverride, startFullScreen, scanlinesOverride, machineOverride);
         Application.Run(form);
     }
 }
