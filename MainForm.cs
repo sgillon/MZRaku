@@ -1164,7 +1164,7 @@ public sealed class MainForm : Form
                         // Auto-RUN: with the program injected and pointers
                         // fixed, BASIC's RUN command preprocesses lengths and
                         // starts execution. End-to-end automation from CLI.
-                        _machine!.Keyboard.TypeString("RUN\r");
+                        _machine!.Keyboard.AutoType.TypeString("RUN\r");
                         _statusLabel.Text = $"Loaded {img.Filename}. Running.";
                     }
                     else
@@ -1633,7 +1633,7 @@ public sealed class MainForm : Form
             if (line.Length == 0) continue;
             var trimmed = line.TrimStart();
             if (trimmed.StartsWith(';') || trimmed.StartsWith('\'')) continue;
-            _machine!.Keyboard.TypeString(line + "\r");
+            _machine!.Keyboard.AutoType.TypeString(line + "\r");
         }
     }
 

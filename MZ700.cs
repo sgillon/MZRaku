@@ -161,7 +161,7 @@ public sealed class MZ700 : IMachine
         int cyclesToVBlank = (int)(CyclesPerFrame * 0.85);
 
         // Type-ahead (auto-typed commands) tick.
-        Keyboard.TickAutoType();
+        Keyboard.AutoType.Tick();
         // Live-typing staged key bits: presses whose MzShift requirement
         // forced a $1170 transition land their key bit a couple of frames
         // after shift was set, so the ROM scan sees a consistent
@@ -289,7 +289,7 @@ public sealed class MZ700 : IMachine
         if (autoRun)
         {
             // Trigger the monitor's LOAD command (the trap will inject data and monitor auto-runs)
-            Keyboard.TypeString("L\r");
+            Keyboard.AutoType.TypeString("L\r");
         }
     }
 

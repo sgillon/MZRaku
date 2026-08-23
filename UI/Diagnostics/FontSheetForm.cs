@@ -228,7 +228,7 @@ public sealed class FontSheetForm : Form
             return;
         }
 
-        _mz700.Keyboard.TypePress(new CharMap.Press(slot.Value.Row, slot.Value.Col, slot.Value.MzShift));
+        _mz700.Keyboard.AutoType.TypePress(new CharMap.Press(slot.Value.Row, slot.Value.Col, slot.Value.MzShift));
         string shiftTxt = slot.Value.MzShift ? "shift+" : "";
         _statusLabel.Text =
             $"Typed bank {bank} code ${code:X2} via {shiftTxt}({slot.Value.Row},{slot.Value.Col}).";

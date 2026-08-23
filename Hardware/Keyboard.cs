@@ -80,6 +80,7 @@ public sealed class Keyboard : IKeyboardMatrix
     public Keyboard()
     {
         for (int i = 0; i < 10; i++) _rows[i] = 0xFF;
+        AutoType = new KeyboardAutoTyper(this);
     }
 
     // Bit N set means the OS has scanned row N since the auto-typer last
@@ -355,156 +356,21 @@ public sealed class Keyboard : IKeyboardMatrix
         return handled;
     }
 
-    // ---- Auto-typing (used by CLI auto-load to send "RUN\r" etc.) -------
-    //
-    // Re-uses the same CharMap so the live and auto-typed paths agree on
-    // every glyph mapping. Driven by detection rather than blind hold
-    // counts (see _scanMask above). TickAutoType is polled per frame by
-    // MZ700.RunFrame.
-    //
-    // Shifted keys are staged: shift bit is asserted first, we wait for
-    // the OS to actually scan row 8 (so it has the shift state on file),
-    // THEN we assert the key. Without this, the OS can capture a key-down
-    // observation before its first scan of row 8 with our bit set, and
-    // permanently mis-classify the press as unshifted.
-    private readonly Queue<CharMap.Press> _typeQueue = new();
-    private CharMap.Press? _current;
-    private enum AutoPhase
-    {
-        Idle,
-        AwaitShiftScan,   // shifted keys only — wait for OS to see shift
-        AwaitKeyScan,     // wait for OS to see the key (with shift if any)
-        AwaitRelease,     // wait for OS to see key-up
-        EnterCooldown     // BASIC line-parse delay after Enter
-    }
-    private AutoPhase _phase;
-    private int _phaseFramesLeft;
-
-    // Safety net: if the OS isn't scanning the keyboard (e.g. interrupts
-    // masked, mid-routine), don't wait forever. ~10 host frames (~167ms)
-    // is well under the old 12-frame fixed hold but generous enough to
-    // cover any realistic gap between scan bursts.
-    private const int ScanTimeoutFrames = 10;
-    // After Enter, BASIC tokenises and inserts the line; the scan-loop
-    // pauses during that work. Hold this fixed cooldown to give BASIC
-    // headroom before the next press lands. Empirical, same as before.
-    private const int EnterCooldownFrames = 30;
-
-    public void TypeString(string s)
-    {
-        foreach (char ch in s) TypeChar(ch);
-    }
-
-    public void TypeChar(char ch)
-    {
-        // CR/LF aren't in CharMap (Enter is a special key); translate here.
-        if (ch == '\r' || ch == '\n')
-        {
-            _typeQueue.Enqueue(new CharMap.Press(0, 0, false));
-            return;
-        }
-        if (CharMap.TryLookup(ch, out var p)) _typeQueue.Enqueue(p);
-    }
-
     /// <summary>
-    /// Queue a raw matrix-position press for the auto-typer. Used to drive
-    /// the keyboard from sources that don't go through a Unicode char —
-    /// e.g. the Font Sheet's click-to-input flow, which knows the MZ
-    /// display code but not necessarily its host-keyboard glyph.
+    /// Auto-typer companion (v1.2 audit F-016 extraction). Owns the
+    /// press queue + phased state machine that drives the matrix
+    /// from scripted input (CLI --basic autorun, Font Sheet
+    /// click-to-type). Constructed here so it can reach
+    /// <see cref="SetMatrix"/> / <see cref="Memory"/> / the
+    /// scan-observation helpers directly.
     /// </summary>
-    public void TypePress(CharMap.Press p) => _typeQueue.Enqueue(p);
+    public readonly KeyboardAutoTyper AutoType;
 
-    public void TickAutoType()
-    {
-        switch (_phase)
-        {
-            case AutoPhase.Idle:
-            {
-                if (_typeQueue.Count == 0) return;
-                var p = _typeQueue.Dequeue();
-                _current = p;
-                // Set shift / $1170 to the press's required state in both
-                // cases — false explicitly clears any stale state left by
-                // a prior shifted press.
-                SetMatrix(8, 0, p.MzShift);
-                if (Memory != null) Memory.Ram[0x1170] = (byte)(p.MzShift ? 0x01 : 0x00);
-                _scanMask = 0;
-                if (p.MzShift)
-                {
-                    // Stage shift first; key follows once OS has scanned row 8.
-                    _phase = AutoPhase.AwaitShiftScan;
-                }
-                else
-                {
-                    SetMatrix(p.Row, p.Col, true);
-                    _phase = AutoPhase.AwaitKeyScan;
-                }
-                _phaseFramesLeft = ScanTimeoutFrames;
-                break;
-            }
-
-            case AutoPhase.AwaitShiftScan:
-            {
-                bool observed = (_scanMask & (1 << 8)) != 0;
-                if (observed || --_phaseFramesLeft <= 0)
-                {
-                    var pa = _current!.Value;
-                    SetMatrix(pa.Row, pa.Col, true);
-                    _scanMask = 0;
-                    _phase = AutoPhase.AwaitKeyScan;
-                    _phaseFramesLeft = ScanTimeoutFrames;
-                }
-                break;
-            }
-
-            case AutoPhase.AwaitKeyScan:
-            {
-                var pa = _current!.Value;
-                bool observed = (_scanMask & (1 << pa.Row)) != 0;
-                if (observed || --_phaseFramesLeft <= 0)
-                {
-                    // Release both key and (any) shift together.
-                    SetMatrix(pa.Row, pa.Col, false);
-                    if (pa.MzShift)
-                    {
-                        SetMatrix(8, 0, false);
-                        if (Memory != null) Memory.Ram[0x1170] = 0x00;
-                    }
-                    _scanMask = 0;
-                    _phase = AutoPhase.AwaitRelease;
-                    _phaseFramesLeft = ScanTimeoutFrames;
-                }
-                break;
-            }
-
-            case AutoPhase.AwaitRelease:
-            {
-                var pa = _current!.Value;
-                bool observed = (_scanMask & (1 << pa.Row)) != 0;
-                if (observed || --_phaseFramesLeft <= 0)
-                {
-                    if (pa.Row == 0 && pa.Col == 0)
-                    {
-                        _phase = AutoPhase.EnterCooldown;
-                        _phaseFramesLeft = EnterCooldownFrames;
-                    }
-                    else
-                    {
-                        _current = null;
-                        _phase = AutoPhase.Idle;
-                    }
-                }
-                break;
-            }
-
-            case AutoPhase.EnterCooldown:
-                if (--_phaseFramesLeft <= 0)
-                {
-                    _current = null;
-                    _phase = AutoPhase.Idle;
-                }
-                break;
-        }
-    }
+    // Two thin scan-observation accessors used by the auto-typer to
+    // detect whether the ROM's scan loop has actually read the row a
+    // press was asserted on. Internal so external callers can't peek
+    // at raw scan state — it's a KeyboardAutoTyper-internal concern.
+    internal bool WasStrobeScanned(int strobe) => (_scanMask & (1 << strobe)) != 0;
+    internal void ClearScanObservation() => _scanMask = 0;
 }
 
