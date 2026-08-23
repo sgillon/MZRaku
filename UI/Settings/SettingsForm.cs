@@ -1266,9 +1266,7 @@ public sealed class SettingsForm : Form
             statusLabel.ForeColor = SystemColors.GrayText;
             return;
         }
-        var resolved = Path.IsPathRooted(path)
-            ? path
-            : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, path));
+        var resolved = Settings.Resolve(path);
         if (File.Exists(resolved))
         {
             statusLabel.Text = "✓ found";
@@ -1292,9 +1290,7 @@ public sealed class SettingsForm : Form
         var current = target.Text.Trim();
         if (!string.IsNullOrEmpty(current))
         {
-            var resolved = Path.IsPathRooted(current)
-                ? current
-                : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, current));
+            var resolved = Settings.Resolve(current);
             if (File.Exists(resolved))
             {
                 dlg.InitialDirectory = Path.GetDirectoryName(resolved);
@@ -1302,16 +1298,6 @@ public sealed class SettingsForm : Form
             }
         }
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
-        target.Text = MakeRelativeToBase(dlg.FileName);
-    }
-
-    private static string MakeRelativeToBase(string absolutePath)
-    {
-        var baseDir = Path.GetFullPath(AppContext.BaseDirectory).TrimEnd(Path.DirectorySeparatorChar);
-        var full = Path.GetFullPath(absolutePath);
-        var prefix = baseDir + Path.DirectorySeparatorChar;
-        return full.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-            ? full.Substring(prefix.Length)
-            : full;
+        target.Text = Settings.MakeStorable(dlg.FileName);
     }
 }
