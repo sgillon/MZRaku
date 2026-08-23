@@ -76,63 +76,34 @@ public sealed class Mz80aKeyboardEditorContext : IKeyboardEditorContext
     public string? FindSpecialLabelAt(int row, int col) =>
         _slotLabels.TryGetValue((row, col), out var s) ? s : null;
 
-    /// <summary>
-    /// Reference cells nothing currently reaches. Mirrors the MZ-700
-    /// <see cref="MatrixCoverage.FindUnbound"/> approach but built
-    /// inline against MZ-80A data — <see cref="MatrixCoverage"/>
-    /// itself is MZ-700-specific and can't be reused. Considers a
-    /// slot "bound" if it appears in <see cref="Mz80aCharMap.Defaults"/>
-    /// (minus suppressed chars), the char-override layer, the
-    /// special-key map, or the VK-override layer.
-    /// </summary>
     public IReadOnlyList<MatrixReferenceSlot> FindUnboundSlots()
     {
-        var bound = new HashSet<(int, int)>();
-        // MZ SHIFT (0, 0) is driven directly by Mz80aKeyboard.OnKeyDown's
-        // ApplyShiftState in response to PC shift — no explicit
-        // SpecialKeyMap entry, but always reachable while PC Shift is held.
-        bound.Add((0, 0));
+        var bound = CollectBoundSlots();
+        var unbound = MatrixCoverage.FindUnbound(Mz80aMatrixReference.View, bound);
+        // MatrixReferenceCell doesn't carry Kind — look each cell's Kind
+        // up in the native reference so the AdvancedKeyboardForm's
+        // grouped rendering keeps working.
+        return unbound.Select(c =>
+        {
+            var kind = Mz80aMatrixReference.All[(c.Row, c.Col)].Kind;
+            return new MatrixReferenceSlot(c.Row, c.Col, MapKind(kind), c.Id, c.UnshiftedGlyph, c.ShiftedGlyph);
+        }).ToList();
+    }
+
+    private IEnumerable<(int Row, int Col)> CollectBoundSlots()
+    {
         foreach (var kv in Mz80aSpecialKeyMap.Map)
-            bound.Add((kv.Value.Strobe, kv.Value.Bit));
+            yield return (kv.Value.Strobe, kv.Value.Bit);
         foreach (var kv in Mz80aCharMap.Defaults)
         {
             if (_charOverrides.IsSuppressed(kv.Key)) continue;
-            bound.Add((kv.Value.Strobe, kv.Value.Bit));
+            yield return (kv.Value.Strobe, kv.Value.Bit);
         }
         foreach (var kv in _charOverrides.All)
-            bound.Add((kv.Value.Strobe, kv.Value.Bit));
+            yield return (kv.Value.Strobe, kv.Value.Bit);
         foreach (var kv in KeyOverrides.All)
-            bound.Add((kv.Value.Row, kv.Value.Col));
-
-        var unbound = new List<MatrixReferenceSlot>();
-        for (int r = 0; r < Mz80aMatrixReference.Strobes; r++)
-        {
-            for (int c = 0; c < Mz80aMatrixReference.Bits; c++)
-            {
-                var slot = Mz80aMatrixReference.All[(r, c)];
-                if (!IsBindable(slot.Kind)) continue;
-                if (!bound.Contains((r, c)))
-                    unbound.Add(new MatrixReferenceSlot(
-                        r, c, MapKind(slot.Kind), slot.Id, slot.UnshiftedGlyph, slot.ShiftedGlyph));
-            }
-        }
-        return unbound;
+            yield return (kv.Value.Row, kv.Value.Col);
     }
-
-    // Bindability rule — mirrors the MZ-700 MatrixCoverage.IsBindable
-    // logic. Unused / Unknown cells are excluded (Unused has no wired
-    // key; Unknown is surfaced by the reference's own Validate).
-    private static bool IsBindable(Mz80aMatrixReference.SlotKind kind) => kind switch
-    {
-        Mz80aMatrixReference.SlotKind.Char     => true,
-        Mz80aMatrixReference.SlotKind.Modifier => true,
-        Mz80aMatrixReference.SlotKind.Mode     => true,
-        Mz80aMatrixReference.SlotKind.Edit     => true,
-        Mz80aMatrixReference.SlotKind.Cursor   => true,
-        Mz80aMatrixReference.SlotKind.Enter    => true,
-        Mz80aMatrixReference.SlotKind.Space    => true,
-        _ => false,
-    };
 
     private static MatrixSlotKind MapKind(Mz80aMatrixReference.SlotKind k) => k switch
     {

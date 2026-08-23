@@ -1,90 +1,47 @@
 using System.Collections.Generic;
-using System.Linq;
 
 namespace MZRaku.Hardware;
 
 /// <summary>
-/// Cross-references the canonical <see cref="Mz700MatrixReference"/>
-/// against everything that can put a PC key on a matrix slot
-/// (<see cref="SpecialKeyMap"/>, <see cref="CharMap.Defaults"/>, plus the
-/// user's live <see cref="KeyOverride"/> and <see cref="CharMapOverrides"/>
-/// layers) so we can surface bindable reference cells that nothing
-/// currently reaches.
+/// Given a machine's <see cref="IMatrixReference"/> and the set of
+/// matrix slots that already have at least one PC-side binding,
+/// returns the reference cells that no PC key currently reaches.
+/// Feeds the "unbound slots" panel in the keyboard editor plus the
+/// safety-gate check on Apply.
 ///
 /// Motivation: F5 was unbound for months because nothing forced a
 /// reachability check from the reference side. The reverse question
-/// ("is every PC binding pointing at a real slot?") is asked at startup
-/// by the per-consumer Validate() methods; this is its mirror.
+/// ("is every PC binding pointing at a real slot?") is asked at
+/// startup by the per-consumer Validate() methods; this is its mirror.
+///
+/// Bindability is decided by the machine's own reference (via
+/// <see cref="IMatrixReference.BindableCells"/>) — unused / blank /
+/// unknown cells never appear in the search space.
 /// </summary>
 public static class MatrixCoverage
 {
     /// <summary>
-    /// Slot kinds we consider "bindable" — every cell of one of these
-    /// kinds is expected to be reachable from at least one PC binding.
-    /// Unused / Blank / Unknown are excluded: Unused has no key cap,
-    /// Blank is the filler dummy at (0, 7), and Unknown cells are
-    /// already surfaced by <see cref="Mz700MatrixReference.Validate"/>.
+    /// Reference cells that no member of <paramref name="boundSlots"/>
+    /// reaches. The reference's <see cref="IMatrixReference.ShiftSlot"/>
+    /// is always considered bound (MZ SHIFT is wired via the modifier
+    /// path, not through override layers). Result is emitted in the
+    /// reference's iteration order so the caller can render it as a
+    /// stable list.
     /// </summary>
-    public static bool IsBindable(Mz700MatrixReference.SlotKind kind) => kind switch
-    {
-        Mz700MatrixReference.SlotKind.Char     => true,
-        Mz700MatrixReference.SlotKind.Function => true,
-        Mz700MatrixReference.SlotKind.Modifier => true,
-        Mz700MatrixReference.SlotKind.Mode     => true,
-        Mz700MatrixReference.SlotKind.Edit     => true,
-        Mz700MatrixReference.SlotKind.Cursor   => true,
-        Mz700MatrixReference.SlotKind.Enter    => true,
-        Mz700MatrixReference.SlotKind.Space    => true,
-        _ => false,
-    };
-
-    /// <summary>
-    /// Returns every reference cell that is bindable but has no incoming
-    /// PC binding from any of the four layers. Result is in (row, col)
-    /// order so the caller can render it as a stable list.
-    /// </summary>
-    public static IReadOnlyList<Mz700MatrixReference.Slot> FindUnbound(
-        CharMapOverrides? charOverrides,
-        KeyOverride? keyOverrides)
-    {
-        var bound = CollectBoundSlots(charOverrides, keyOverrides);
-        var unbound = new List<Mz700MatrixReference.Slot>();
-        for (int r = 0; r < Mz700MatrixReference.Rows; r++)
-        {
-            for (int c = 0; c < Mz700MatrixReference.Cols; c++)
-            {
-                var slot = Mz700MatrixReference.All[(r, c)];
-                if (!IsBindable(slot.Kind)) continue;
-                if (!bound.Contains((r, c))) unbound.Add(slot);
-            }
-        }
-        return unbound;
-    }
-
-    private static HashSet<(int row, int col)> CollectBoundSlots(
-        CharMapOverrides? charOverrides,
-        KeyOverride? keyOverrides)
+    public static IReadOnlyList<MatrixReferenceCell> FindUnbound(
+        IMatrixReference reference,
+        IEnumerable<(int Row, int Col)> boundSlots)
     {
         var bound = new HashSet<(int, int)>();
-        // MZ SHIFT (8, 0) is driven from PC Shift through
-        // Keyboard.OnKeyDown / OnKeyUp updating _pcShift, then
-        // ApplyShiftState() writing the effective bit. It doesn't have
-        // an entry in SpecialKeyMap, but it is always reachable while
-        // the user holds PC Shift.
-        bound.Add((8, 0));
-        foreach (var rc in SpecialKeyMap.Map.Values) bound.Add(rc);
-        foreach (var kv in CharMap.Defaults)
-        {
-            // Suppressed defaults don't fire at runtime; treating them as
-            // "bound" would hide a slot the user has deliberately
-            // unwired via the slot editor.
-            if (charOverrides != null && charOverrides.IsSuppressed(kv.Key)) continue;
-            bound.Add((kv.Value.Row, kv.Value.Col));
-        }
-        if (charOverrides != null)
-            foreach (var kv in charOverrides.All) bound.Add((kv.Value.Row, kv.Value.Col));
-        if (keyOverrides != null)
-            foreach (var kv in keyOverrides.All) bound.Add((kv.Value.Row, kv.Value.Col));
-        return bound;
+        // MZ SHIFT: driven directly by PC Shift through the keyboard
+        // modifier path, no override entry. Always reachable while the
+        // user holds PC Shift.
+        bound.Add(reference.ShiftSlot);
+        foreach (var rc in boundSlots) bound.Add(rc);
+
+        var unbound = new List<MatrixReferenceCell>();
+        foreach (var cell in reference.BindableCells)
+            if (!bound.Contains((cell.Row, cell.Col))) unbound.Add(cell);
+        return unbound;
     }
 }

@@ -79,6 +79,51 @@ public static class Mz700MatrixReference
     // grid without worrying about missing keys.
     public static readonly IReadOnlyDictionary<(int row, int col), Slot> All = BuildAll();
 
+    /// <summary>
+    /// Machine-agnostic view for the shared <see cref="MatrixCoverage"/>
+    /// and diagram helpers. Static classes can't implement interfaces
+    /// directly, so this singleton delegates back to
+    /// <see cref="Mz700MatrixReference"/>'s statics.
+    /// </summary>
+    public static IMatrixReference View { get; } = new ViewImpl();
+
+    private sealed class ViewImpl : IMatrixReference
+    {
+        public int Rows => Mz700MatrixReference.Rows;
+        public int Cols => Mz700MatrixReference.Cols;
+        public (int Row, int Col) ShiftSlot => (8, 0);
+
+        public IEnumerable<MatrixReferenceCell> BindableCells
+        {
+            get
+            {
+                foreach (var s in All.Values)
+                {
+                    if (!IsBindable(s.Kind)) continue;
+                    yield return new MatrixReferenceCell(s.Row, s.Col, s.Id, s.UnshiftedGlyph, s.ShiftedGlyph);
+                }
+            }
+        }
+
+        // Slot kinds we consider "bindable" — every cell of one of these
+        // kinds is expected to be reachable from at least one PC binding.
+        // Unused / Blank / Unknown are excluded (no key cap; the filler
+        // dummy at (0,7); the audit path handles Unknown separately via
+        // Validate).
+        private static bool IsBindable(SlotKind kind) => kind switch
+        {
+            SlotKind.Char     => true,
+            SlotKind.Function => true,
+            SlotKind.Modifier => true,
+            SlotKind.Mode     => true,
+            SlotKind.Edit     => true,
+            SlotKind.Cursor   => true,
+            SlotKind.Enter    => true,
+            SlotKind.Space    => true,
+            _ => false,
+        };
+    }
+
     private static Dictionary<(int row, int col), Slot> BuildAll()
     {
         var m = new Dictionary<(int, int), Slot>(Rows * Cols);

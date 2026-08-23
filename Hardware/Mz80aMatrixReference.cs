@@ -79,6 +79,50 @@ public static class Mz80aMatrixReference
 
     public static readonly IReadOnlyDictionary<(int strobe, int bit), Slot> All = BuildAll();
 
+    /// <summary>
+    /// Machine-agnostic view for the shared <see cref="MatrixCoverage"/>
+    /// and diagram helpers. Static classes can't implement interfaces
+    /// directly, so this singleton delegates back to
+    /// <see cref="Mz80aMatrixReference"/>'s statics. Rows/Cols on the
+    /// interface map to Strobes/Bits here — same shape, different
+    /// vocabulary.
+    /// </summary>
+    public static IMatrixReference View { get; } = new ViewImpl();
+
+    private sealed class ViewImpl : IMatrixReference
+    {
+        public int Rows => Mz80aMatrixReference.Strobes;
+        public int Cols => Mz80aMatrixReference.Bits;
+        public (int Row, int Col) ShiftSlot => (0, 0);
+
+        public IEnumerable<MatrixReferenceCell> BindableCells
+        {
+            get
+            {
+                foreach (var s in All.Values)
+                {
+                    if (!IsBindable(s.Kind)) continue;
+                    yield return new MatrixReferenceCell(s.Strobe, s.Bit, s.Id, s.UnshiftedGlyph, s.ShiftedGlyph);
+                }
+            }
+        }
+
+        // Bindability rule — mirrors the MZ-700 side. Unused / Unknown
+        // stay out (no wired key; audit reports Unknown via Validate).
+        // MZ-80A has no Function or Blank kinds.
+        private static bool IsBindable(SlotKind kind) => kind switch
+        {
+            SlotKind.Char     => true,
+            SlotKind.Modifier => true,
+            SlotKind.Mode     => true,
+            SlotKind.Edit     => true,
+            SlotKind.Cursor   => true,
+            SlotKind.Enter    => true,
+            SlotKind.Space    => true,
+            _ => false,
+        };
+    }
+
     private static Dictionary<(int strobe, int bit), Slot> BuildAll()
     {
         var m = new Dictionary<(int, int), Slot>(Strobes * Bits);

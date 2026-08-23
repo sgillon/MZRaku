@@ -60,9 +60,34 @@ public sealed class Mz700KeyboardEditorContext : IKeyboardEditorContext
 
     public IReadOnlyList<MatrixReferenceSlot> FindUnboundSlots()
     {
-        var native = MatrixCoverage.FindUnbound(_charOverrides, KeyOverrides);
-        return native.Select(s => new MatrixReferenceSlot(
-            s.Row, s.Col, MapKind(s.Kind), s.Id, s.UnshiftedGlyph, s.ShiftedGlyph)).ToList();
+        var bound = CollectBoundSlots();
+        var unbound = MatrixCoverage.FindUnbound(Mz700MatrixReference.View, bound);
+        // MatrixReferenceCell doesn't carry Kind — look each cell's Kind
+        // up in the native reference so the AdvancedKeyboardForm's
+        // grouped rendering keeps working.
+        return unbound.Select(c =>
+        {
+            var kind = Mz700MatrixReference.All[(c.Row, c.Col)].Kind;
+            return new MatrixReferenceSlot(c.Row, c.Col, MapKind(kind), c.Id, c.UnshiftedGlyph, c.ShiftedGlyph);
+        }).ToList();
+    }
+
+    private IEnumerable<(int Row, int Col)> CollectBoundSlots()
+    {
+        foreach (var kv in Hardware.SpecialKeyMap.Map)
+            yield return (kv.Value.row, kv.Value.col);
+        foreach (var kv in CharMap.Defaults)
+        {
+            // Suppressed defaults don't fire at runtime; treating them as
+            // "bound" would hide a slot the user has deliberately
+            // unwired via the slot editor.
+            if (_charOverrides.IsSuppressed(kv.Key)) continue;
+            yield return (kv.Value.Row, kv.Value.Col);
+        }
+        foreach (var kv in _charOverrides.All)
+            yield return (kv.Value.Row, kv.Value.Col);
+        foreach (var kv in KeyOverrides.All)
+            yield return (kv.Value.Row, kv.Value.Col);
     }
 
     // SpecialKeyMap in Hardware is Dictionary<Keys,(int row,int col)>;
