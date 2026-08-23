@@ -24,18 +24,20 @@ public sealed class MZ80A : MzMachineBase, IMachine
     public Ppi8255 Ppi = new();
     public Pit8253 Pit = new();
     public Mz80aIoBus Io = new();
-    public Mz80aVideo Video = new();
+    public Mz80aVideo Video { get; } = new();
     public Mz80aKeyboard Keyboard = new();
-    public Mz80aCassette Cassette = new();
+    public Mz80aCassette Cassette { get; } = new();
     // MZ-80A sound path is simpler than MZ-700's dual-gate NAND — a
     // single hard gate at $E008 D0 in front of the audio amplifier,
     // fed by PIT counter 1's OUT (per Owner's Manual p.163 text). We
     // reuse the MZ-700 Sound class with Enabled pinned true (no soft
     // gate exists on MZ-80A) and a different input-clock rate.
-    public Sound Sound = new();
+    public Sound Sound { get; } = new();
 
     public MachineType Kind => MachineType.MZ80A;
     Z80Core.IMemory IMachine.Mem => Mem;
+    CassetteTrapBase IMachine.Cassette => Cassette;
+    System.Drawing.Bitmap? IMachine.VideoFrame => Video.Frame;
 
     // MZ-80A crystal is 8 MHz divided down; CPU runs at 2 MHz per the
     // Owner's Manual §3.1 text. PIT input clock rates are best-guess

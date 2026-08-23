@@ -1,16 +1,22 @@
+using System.Drawing;
 using Z80Core;
 
 namespace MZRaku.Hardware;
 
 /// <summary>
-/// The minimum surface a MainForm-style host needs to drive a Sharp MZ
-/// machine — CPU, memory (via Z80Core's <see cref="IMemory"/> so the
-/// debugger/memory viewer see machine-agnostic bytes), the debugger
-/// controls, and the frame loop. Machine-specific hardware surfaces
-/// (PPI, PIT, sound generator, joystick multiplex, video renderer,
-/// keyboard, cassette, ROM key tables) stay off this interface — panes
-/// that need them cast to the concrete machine class and gate their
-/// menu items on <see cref="Kind"/>.
+/// The surface a MainForm-style host needs to drive a Sharp MZ
+/// machine — CPU, memory, the debugger controls, the frame loop,
+/// plus the small subset of hardware that BOTH machines have AND
+/// MainForm accesses uniformly (sound output, the rendered video
+/// frame, cassette-trap state). Machine-specific hardware
+/// (PPI, PIT, joystick multiplex, ROM key tables) stays off this
+/// interface — panes that need those cast to the concrete class
+/// and gate their menu items on <see cref="Kind"/>.
+///
+/// v1.2 audit F-061 widened this from CPU/Mem/debugger-only to
+/// include the three converged surfaces above, so MainForm's
+/// _machine/_mz80a-null branching (F-056) can collapse against
+/// one interface.
 /// </summary>
 public interface IMachine
 {
@@ -26,6 +32,36 @@ public interface IMachine
     /// work identically across machines.
     /// </summary>
     IMemory Mem { get; }
+
+    /// <summary>
+    /// The machine's speaker output. Both machines drive the same
+    /// <see cref="Hardware.Sound"/> class — MZ-700 uses its
+    /// two-gate NAND (PC3 + $E008 D0), MZ-80A pins Enabled=true
+    /// and uses only the hard gate. MainForm's mute-on-pause /
+    /// Dispose-on-close paths run through this getter.
+    /// </summary>
+    Sound Sound { get; }
+
+    /// <summary>
+    /// The most recently rendered video frame. Null if the
+    /// machine hasn't rendered yet (first frame not drawn). Both
+    /// machines render into a <see cref="Bitmap"/> at their native
+    /// 320×200 (MZ-700) or 320×200 (MZ-80A) resolution — MainForm
+    /// paints whichever is non-null.
+    /// </summary>
+    Bitmap? VideoFrame { get; }
+
+    /// <summary>
+    /// The machine's cassette-trap state. Exposed at the shared
+    /// <see cref="CassetteTrapBase"/> level so MainForm's TAPE
+    /// activity chip + auto-load orchestrator can poll Pending +
+    /// HeaderTrapHits + DataTrapHits + DataDelivered uniformly.
+    /// MZ-700-specific fields (WriteTapeTrapHits, BreakWaitTrapHits,
+    /// SAVE-tape machinery) live on the concrete
+    /// <see cref="Hardware.Cassette"/> class and callers that need
+    /// them cast.
+    /// </summary>
+    CassetteTrapBase Cassette { get; }
 
     /// <summary>
     /// When true, <see cref="RunFrame"/> renders the display but does

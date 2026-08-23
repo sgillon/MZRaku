@@ -20,14 +20,23 @@ public sealed class MZ700 : MzMachineBase, IMachine
     public Pit8253 Pit = new();
     public IoBus Io = new();
     public Keyboard Keyboard = new();
-    public Video Video = new();
-    public Cassette Cassette = new();
-    public Sound Sound = new();
+    public Video Video { get; } = new();
+    public Cassette Cassette { get; } = new();
+    public Sound Sound { get; } = new();
     public Joystick Joystick = new();
     public RomKeyTables KeyTables = new();
 
     public MachineType Kind => MachineType.MZ700;
     Z80Core.IMemory IMachine.Mem => Mem;
+    // IMachine.Cassette upcasts to CassetteTrapBase for the interface
+    // consumers; MZ-700-typed callers keep the concrete Cassette
+    // property above (with WriteTapeTrapHits, BreakWaitTrapHits, and
+    // the SAVE-tape surface).
+    CassetteTrapBase IMachine.Cassette => Cassette;
+    // MainForm's paint reads whichever machine's rendered bitmap is
+    // non-null; the concrete Video property stays for callers that
+    // need MZ-700-specific renderer knobs.
+    System.Drawing.Bitmap? IMachine.VideoFrame => Video.Frame;
 
     public const double CpuClockHz = 3546900.0;             // MZ-700 master clock ~3.5MHz
     public const double PitC0InputHz = 895000.0;            // counter 0 input clock
