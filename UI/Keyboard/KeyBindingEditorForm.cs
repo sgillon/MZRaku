@@ -107,6 +107,7 @@ public sealed class KeyBindingEditorForm : Form
             Dock = DockStyle.Top,
             Height = 110,
             Margin = new Padding(0, 0, 0, 8),
+            SpecialKeyLabels = context.SpecialKeyLabels,
         };
         _capture.Captured += OnCaptured;
         root.Controls.Add(_capture, 0, 1);

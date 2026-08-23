@@ -37,6 +37,16 @@ public sealed class KeyCaptureControl : UserControl
     private bool _interveningPress;
     private bool _capturing = true;
 
+    /// <summary>
+    /// Per-machine friendly labels for non-printable VKs the control's
+    /// own <see cref="FriendlyNames"/> table doesn't cover — set by
+    /// the hosting editor form so a captured F5 (or any other slot-
+    /// labelled key) displays as the machine's own label in the
+    /// captured-key banner. Falls back to the raw enum name when the
+    /// source is null or the VK isn't present.
+    /// </summary>
+    public IReadOnlyDictionary<Keys, string>? SpecialKeyLabels { get; set; }
+
     private static readonly Dictionary<Keys, string> FriendlyNames = new()
     {
         // WinForms exposes PageUp / PageDown as Keys.Prior / Keys.Next
@@ -381,7 +391,7 @@ public sealed class KeyCaptureControl : UserControl
         }
     }
 
-    private static string DescribeKey(Keys keyData)
+    private string DescribeKey(Keys keyData)
     {
         var bare = keyData & Keys.KeyCode;
         string mods = "";
@@ -390,7 +400,7 @@ public sealed class KeyCaptureControl : UserControl
         if ((keyData & Keys.Shift)   != 0) mods += "Shift+";
 
         if (FriendlyNames.TryGetValue(bare, out var friendly)) return mods + friendly;
-        if (SpecialKeyMap.Labels.TryGetValue(bare, out var lbl)) return mods + lbl;
+        if (SpecialKeyLabels != null && SpecialKeyLabels.TryGetValue(bare, out var lbl)) return mods + lbl;
         return mods + bare.ToString();
     }
 
