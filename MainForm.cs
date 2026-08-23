@@ -1200,12 +1200,23 @@ public sealed class MainForm : Form
 
         _display.Invalidate();
 
-        // Trace state every 20 frames to help diagnose boot/load issues
+        // Trace state every 20 frames to help diagnose boot/load issues.
+        // MZ-700 gets the rich Pit/Ppi/Cassette-flavoured line; MZ-80A
+        // gets a shorter CPU-only line (no PIT sound / cassette-trap
+        // gates to report yet). Guarding also stops the previous NRE
+        // when the CLI passed --mz80a --dump=…
         if (_traceEnabled && (_bootFrames <= 10 || _bootFrames % 20 == 0) && _bootFrames <= _dumpFrame)
         {
-            var c0 = _machine!.Pit.Counters[0];
-            var c2 = _machine!.Pit.Counters[2];
-            _traceLog.AppendLine($"[F{_bootFrames:D4}] PC=${_machine!.Cpu.PC:X4} SP=${_machine!.Cpu.SP:X4} IFF1={_machine!.Cpu.IFF1} C0.rel={c0.Reload} run={c0.Running} out={c0.Out} C2.rel={c2.Reload} run={c2.Running} out={c2.Out} INTMSK={_machine!.Ppi.InterruptMask} hdr={_machine!.Cassette.HeaderDelivered} dat={_machine!.Cassette.DataDelivered}");
+            if (_machine != null)
+            {
+                var c0 = _machine.Pit.Counters[0];
+                var c2 = _machine.Pit.Counters[2];
+                _traceLog.AppendLine($"[F{_bootFrames:D4}] PC=${_machine.Cpu.PC:X4} SP=${_machine.Cpu.SP:X4} IFF1={_machine.Cpu.IFF1} C0.rel={c0.Reload} run={c0.Running} out={c0.Out} C2.rel={c2.Reload} run={c2.Running} out={c2.Out} INTMSK={_machine.Ppi.InterruptMask} hdr={_machine.Cassette.HeaderDelivered} dat={_machine.Cassette.DataDelivered}");
+            }
+            else if (_mz80a != null)
+            {
+                _traceLog.AppendLine($"[F{_bootFrames:D4}] PC=${_mz80a.Cpu.PC:X4} SP=${_mz80a.Cpu.SP:X4} IFF1={_mz80a.Cpu.IFF1}");
+            }
         }
 
         if (_dumpPath != null && _bootFrames == _dumpFrame)
@@ -1215,28 +1226,32 @@ public sealed class MainForm : Form
                 DumpState(_dumpPath);
                 if (_traceEnabled)
                 {
-                    // Append last 256 PC values (oldest first)
+                    // Append last 256 PC values (oldest first). Cpu is
+                    // Z80Cpu on both machines, so this works via Active.
                     var sb = new System.Text.StringBuilder();
                     sb.AppendLine();
                     sb.AppendLine("Recent PC trace (oldest first):");
-                    int start = _machine!.Cpu.PcTraceIdx;
-                    for (int i = 0; i < _machine!.Cpu.PcTrace.Length; i++)
+                    int start = Active.Cpu.PcTraceIdx;
+                    for (int i = 0; i < Active.Cpu.PcTrace.Length; i++)
                     {
-                        sb.Append($"${_machine!.Cpu.PcTrace[(start + i) & 0xFF]:X4} ");
+                        sb.Append($"${Active.Cpu.PcTrace[(start + i) & 0xFF]:X4} ");
                         if (i % 16 == 15) sb.AppendLine();
                     }
                     _traceLog.Append(sb);
-                    if (_machine!.Pit.WriteLog != null)
+                    // Pit / Mem write logs are MZ-700 concrete-class
+                    // members; MZ-80A doesn't expose analogues yet, so
+                    // these two blocks stay guarded on _machine.
+                    if (_machine != null && _machine.Pit.WriteLog != null)
                     {
                         _traceLog.AppendLine();
                         _traceLog.AppendLine("PIT write log:");
-                        _traceLog.Append(_machine!.Pit.WriteLog);
+                        _traceLog.Append(_machine.Pit.WriteLog);
                     }
-                    if (_machine!.Mem.BankSwitchLog != null)
+                    if (_machine != null && _machine.Mem.BankSwitchLog != null)
                     {
                         _traceLog.AppendLine();
                         _traceLog.AppendLine("Bank-switch log:");
-                        _traceLog.Append(_machine!.Mem.BankSwitchLog);
+                        _traceLog.Append(_machine.Mem.BankSwitchLog);
                     }
                     File.WriteAllText(_dumpPath + ".trace", _traceLog.ToString());
                 }
@@ -1253,16 +1268,28 @@ public sealed class MainForm : Form
     private void DumpState(string path)
     {
         using var w = new StreamWriter(path);
-        w.WriteLine($"MZ700 state after {_bootFrames} frames");
-        w.WriteLine($"CPU: PC=${_machine!.Cpu.PC:X4} SP=${_machine!.Cpu.SP:X4} A=${_machine!.Cpu.A:X2} F=${_machine!.Cpu.F:X2} HL=${_machine!.Cpu.HL:X4} BC=${_machine!.Cpu.BC:X4} DE=${_machine!.Cpu.DE:X4}");
-        w.WriteLine($"IM={_machine!.Cpu.IM} IFF1={_machine!.Cpu.IFF1} Halted={_machine!.Cpu.Halted} Cycles={_machine!.Cpu.TotalCycles}");
-        w.WriteLine($"PPI PortA=${_machine!.Ppi.PortA:X2} PortCOut=${_machine!.Ppi.PortCOut:X2} PortCIn=${_machine!.Ppi.PortCIn:X2}");
-        w.WriteLine($"Mem RomEnabled={_machine!.Mem.RomEnabled} VramIoEnabled={_machine!.Mem.VramIoEnabled}");
-        w.WriteLine($"PIT C0.Reload={_machine!.Pit.Counters[0].Reload} C2.Reload={_machine!.Pit.Counters[2].Reload}");
-        var sb0 = new System.Text.StringBuilder("RAM @ $1200: ");
-        for (int i = 0; i < 32; i++) sb0.Append($"{_machine!.Mem.Read((ushort)(0x1200 + i)):X2} ");
-        w.WriteLine(sb0.ToString());
-        w.WriteLine($"Tape trap hits: BreakWait={_machine!.Cassette.BreakWaitTrapHits} Header={_machine!.Cassette.HeaderTrapHits} Data={_machine!.Cassette.DataTrapHits} WriteTape={_machine!.Cassette.WriteTapeTrapHits}");
+        w.WriteLine($"{MachineLabel} state after {_bootFrames} frames");
+        var cpu = Active.Cpu;
+        w.WriteLine($"CPU: PC=${cpu.PC:X4} SP=${cpu.SP:X4} A=${cpu.A:X2} F=${cpu.F:X2} HL=${cpu.HL:X4} BC=${cpu.BC:X4} DE=${cpu.DE:X4}");
+        w.WriteLine($"IM={cpu.IM} IFF1={cpu.IFF1} Halted={cpu.Halted} Cycles={cpu.TotalCycles}");
+        // The PPI / PIT / cassette-trap counters and the bank-switch
+        // gate are MZ-700 concrete-class members; MZ-80A doesn't expose
+        // matching surfaces yet. Guard so the shared preamble above
+        // still fires on --mz80a --dump=…
+        if (_machine != null)
+        {
+            w.WriteLine($"PPI PortA=${_machine.Ppi.PortA:X2} PortCOut=${_machine.Ppi.PortCOut:X2} PortCIn=${_machine.Ppi.PortCIn:X2}");
+            w.WriteLine($"Mem RomEnabled={_machine.Mem.RomEnabled} VramIoEnabled={_machine.Mem.VramIoEnabled}");
+            w.WriteLine($"PIT C0.Reload={_machine.Pit.Counters[0].Reload} C2.Reload={_machine.Pit.Counters[2].Reload}");
+            var sb0 = new System.Text.StringBuilder("RAM @ $1200: ");
+            for (int i = 0; i < 32; i++) sb0.Append($"{_machine.Mem.Read((ushort)(0x1200 + i)):X2} ");
+            w.WriteLine(sb0.ToString());
+            w.WriteLine($"Tape trap hits: BreakWait={_machine.Cassette.BreakWaitTrapHits} Header={_machine.Cassette.HeaderTrapHits} Data={_machine.Cassette.DataTrapHits} WriteTape={_machine.Cassette.WriteTapeTrapHits}");
+        }
+        // VRAM is 40x25 on both machines; grab it via the machine that's
+        // actually running. Bytes are the raw display codes each machine
+        // renders through its own font ROM.
+        byte[] vram = _machine != null ? _machine.Mem.Vram : _mz80a!.Mem.Vram;
         w.WriteLine();
         w.WriteLine("VRAM (40x25 text codes):");
         for (int row = 0; row < 25; row++)
@@ -1270,25 +1297,27 @@ public sealed class MainForm : Form
             var sb = new System.Text.StringBuilder();
             sb.Append($"[{row:D2}] ");
             for (int col = 0; col < 40; col++)
-            {
-                byte b = _machine!.Mem.Vram[row * 40 + col];
-                sb.Append($"{b:X2} ");
-            }
+                sb.Append($"{vram[row * 40 + col]:X2} ");
             w.WriteLine(sb.ToString());
         }
-        w.WriteLine();
-        w.WriteLine("VRAM as ASCII (best-effort):");
-        for (int row = 0; row < 25; row++)
+        // ASCII rendering is a best-effort MZ-700 display-code → ASCII
+        // walk; the MZ-80A display-code mapping isn't identical, so this
+        // block stays MZ-700-only for now.
+        if (_machine != null)
         {
-            var sb = new System.Text.StringBuilder();
-            sb.Append($"[{row:D2}] ");
-            for (int col = 0; col < 40; col++)
+            w.WriteLine();
+            w.WriteLine("VRAM as ASCII (best-effort):");
+            for (int row = 0; row < 25; row++)
             {
-                byte b = _machine!.Mem.Vram[row * 40 + col];
-                char c = MzDisplayToAscii(b);
-                sb.Append(c);
+                var sb = new System.Text.StringBuilder();
+                sb.Append($"[{row:D2}] ");
+                for (int col = 0; col < 40; col++)
+                {
+                    byte b = _machine.Mem.Vram[row * 40 + col];
+                    sb.Append(MzDisplayToAscii(b));
+                }
+                w.WriteLine(sb.ToString());
             }
-            w.WriteLine(sb.ToString());
         }
     }
 
