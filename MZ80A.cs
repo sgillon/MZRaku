@@ -123,6 +123,15 @@ public sealed class MZ80A : IMachine
         Cpu.Reset();
         Cpu.IM = 1;
         Mem.RomSwapped = false;
+        // Clear any queued cassette image so a Pending .mzf doesn't get
+        // served to the SA-1510 trap after reset. Mirror of MZ700.Reset.
+        Cassette.ResetTrapState();
+        // Drop any matrix bits a host KeyDown asserted but hasn't yet
+        // released. Ctrl+R is the canonical case: PC Ctrl down asserts
+        // MZ CTRL (0,7) via Mz80aKeyboard.OnKeyDown's Ctrl branch, the
+        // menu shortcut then fires Reset, and without this the monitor
+        // would boot with CTRL still held until the user lifted PC Ctrl.
+        Keyboard.ReleaseAll();
         // Clear VRAM so the screen starts blank rather than showing
         // whatever noise came out of the .NET Array allocator.
         Array.Clear(Mem.Vram, 0, Mem.Vram.Length);
