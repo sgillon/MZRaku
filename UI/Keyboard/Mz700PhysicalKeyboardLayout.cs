@@ -23,7 +23,7 @@ public sealed class Mz700PhysicalKeyboardLayout : IPhysicalKeyboardLayout
                 Row: k.Row,
                 Col: k.Col,
                 X: k.X, Y: k.Y, W: k.W, H: k.H,
-                Kind: MapKind(k.Kind),
+                Kind: PhysicalKeyboardLayoutHelpers.MapKind(k.Kind),
                 FixedLabel: k.FixedLabel,
                 UnshiftedLabel: k.UnshiftedLabel,
                 ShiftedLabel: k.ShiftedLabel))
@@ -70,30 +70,8 @@ public sealed class Mz700PhysicalKeyboardLayout : IPhysicalKeyboardLayout
             default:
                 fill = CapWhite; text = GlyphBlack; break;
         }
-        if (hovered) fill = LightenOrDarken(fill, -18);
+        if (hovered) fill = PhysicalKeyboardLayoutHelpers.LightenOrDarken(fill, -18);
         Color border = hovered ? Color.FromArgb(30, 30, 40) : Color.FromArgb(110, 110, 115);
         return (fill, border, text);
-    }
-
-    private static PhysicalKeyKind MapKind(MzKeyboardLayout.KeyKind k) => k switch
-    {
-        MzKeyboardLayout.KeyKind.Character => PhysicalKeyKind.Character,
-        MzKeyboardLayout.KeyKind.Modifier  => PhysicalKeyKind.Modifier,
-        MzKeyboardLayout.KeyKind.Mode      => PhysicalKeyKind.Mode,
-        MzKeyboardLayout.KeyKind.Function  => PhysicalKeyKind.Function,
-        MzKeyboardLayout.KeyKind.Cursor    => PhysicalKeyKind.Cursor,
-        MzKeyboardLayout.KeyKind.Edit      => PhysicalKeyKind.Edit,
-        MzKeyboardLayout.KeyKind.Enter     => PhysicalKeyKind.Enter,
-        MzKeyboardLayout.KeyKind.Space     => PhysicalKeyKind.Space,
-        MzKeyboardLayout.KeyKind.Blank     => PhysicalKeyKind.Blank,
-        _                                  => PhysicalKeyKind.Character,
-    };
-
-    private static Color LightenOrDarken(Color c, int delta)
-    {
-        int r = Math.Clamp(c.R + delta, 0, 255);
-        int gC = Math.Clamp(c.G + delta, 0, 255);
-        int b = Math.Clamp(c.B + delta, 0, 255);
-        return Color.FromArgb(c.A, r, gC, b);
     }
 }
