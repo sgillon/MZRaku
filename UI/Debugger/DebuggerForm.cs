@@ -11,10 +11,10 @@ using Z80Core;
 namespace MZRaku;
 
 /// <summary>
-/// Debugger window. Phase 1 — execution control (pause/resume/single-step/
-/// step-frame), live Z80 register view, address-based breakpoints. Phase 2
-/// adds a disassembly pane with PC highlight, breakpoint markers, and
-/// double-click breakpoint toggle.
+/// Debugger window. Execution control (pause/resume/single-step/
+/// step-frame), live Z80 register view, address-based breakpoints,
+/// and a disassembly pane with PC highlight, breakpoint markers,
+/// and double-click breakpoint toggle.
 ///
 /// Opened from MainForm's Debug menu; MainForm pumps
 /// <see cref="RefreshIfVisible"/> once per frame. Everything runs on the

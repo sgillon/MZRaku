@@ -4,10 +4,12 @@ using System.Windows.Forms;
 namespace MZRaku;
 
 /// <summary>
-/// Temporary host for <see cref="KeyboardMatrixGrid"/> during Phase A
-/// of the keyboard-editor build. Once the grid is wired into Settings →
-/// Keyboard at A7, this form goes away (it stays for now as a quick
-/// look at the matrix without opening Settings).
+/// Standalone view of the shared <see cref="KeyboardMatrixGrid"/> —
+/// the Debug → Keyboard Matrix pane. Not modal; opens without
+/// activating the main window so the user can watch the last-matched
+/// highlight pulse as they type. The grid itself also lives inside
+/// Settings → Keyboard → Advanced settings; this form is the
+/// standalone-observation variant.
 /// </summary>
 public sealed class KeyboardMatrixForm : Form
 {

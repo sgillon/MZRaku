@@ -24,10 +24,10 @@ namespace MZRaku.Hardware;
 /// places S at strobe 1 D2 (S is in the second-from-left column, whose
 /// label is "1"). The manual's prose example ("strobe is 2H, key data
 /// is FBH") disagrees by one — likely a typo, or a 1-based interpretation
-/// of the strobe number in the accompanying text. Empirical verification
-/// against the ROM's scan behaviour will settle this; cells marked
-/// <see cref="SlotKind.Unknown"/> or with a comment flag are candidates
-/// for that verification pass.
+/// of the strobe number in the accompanying text. Confirmed empirically
+/// 2026-07-05 against a running SA-1510 monitor (S sits at strobe 2 D2
+/// per the figure's visual layout, not strobe 1). Further edits to this
+/// table are gated by re-verification against Fig 3.6.
 ///
 /// COMPARISON TO MZ-700: same 10×8 shape but the physical key placement
 /// differs. MZ-700 groups QWERTYUVWX on a single strobe (2), whereas
@@ -100,9 +100,10 @@ public static class Mz80aMatrixReference
         Put(m, 0, 7, SlotKind.Edit,     "BREAK_CTRL");  // BREAK shifted / CTRL unshifted
 
         // ============================================================
-        // Strobe 1 — Q, W, A column confirmed working by user. D2 slot
-        // in this strobe is NOT S (user confirmed S sits in strobe 2);
-        // the actual key here is TBC pending empirical check.
+        // Strobe 1 — Q, W, A column confirmed. INST/DEL sits at D2
+        // (user-confirmed 2026-07-12, polarity: unshifted = DELETE,
+        // shifted = INSERT). D1 = X was later shifted to (2, 1)
+        // when the D-row layout settled.
         // ============================================================
         Put(m, 1, 0, SlotKind.Char,   "Z",  "Z");
         Put(m, 1, 1, SlotKind.Unused,  "s1b1");         // X shifted to (2,1) 2026-07-05
@@ -118,9 +119,9 @@ public static class Mz80aMatrixReference
 
         // ============================================================
         // Strobe 2 — S confirmed at D2 (user 2026-07-05, matches the
-        // manual's "strobe 2H, key data FBH ⇒ S" example). Other slots
-        // TBC empirically; the D-row assignments below are the working
-        // hypothesis pending verification.
+        // manual's "strobe 2H, key data FBH ⇒ S" example). Full row
+        // confirmed empirically in the same session; D1 = X was
+        // shifted here from (1, 1) once the D-row layout settled.
         // ============================================================
         Put(m, 2, 0, SlotKind.Char,   "C",  "C");
         Put(m, 2, 1, SlotKind.Char,   "X",  "X");        // shifted from (1,1) 2026-07-05
@@ -172,10 +173,11 @@ public static class Mz80aMatrixReference
         Put(m, 5, 7, SlotKind.Char,   "D0",        "0", "_");     // shifted '_' user-confirmed 2026-07-08
 
         // ============================================================
-        // Strobe 6 — DOT confirmed. D1/D2 slots hold MINUS and SEMI
-        // (also shifted right one strobe from initial read). Other
-        // slots retain the initial hypothesis pending more empirical
-        // data.
+        // Strobe 6 — DOT confirmed. D1/D2 slots hold SLASH and SEMI
+        // (shifted right one strobe from the initial read). Full row
+        // empirically confirmed 2026-07-05/08 — SLASH's shifted glyph
+        // is the Sharp-specific '←' arrow, AT's shifted glyph is '`'
+        // (backtick), MINUS's shifted is '=' per the '-=' keycap.
         // ============================================================
         Put(m, 6, 0, SlotKind.Char,   "DOT",     ".", ">");     // user-confirmed 2026-07-05
         // (6, 1) is the SLASH key. Shifted glyph is a Sharp-specific

@@ -33,9 +33,10 @@ public static class Mz80aCharMap
 
         // Walk the canonical matrix. Every Char slot contributes up to
         // two entries: one for its unshifted glyph, one for its shifted
-        // glyph. Numeric-pad slots are skipped — they collide with the
-        // main-row digits and need a separate PC-keypad wiring pass
-        // (Phase B).
+        // glyph. Numeric-pad slots are skipped from the char-map defaults
+        // — they alias the main-row digits, and PC-keypad users get the
+        // main-row entries. Dedicated PC-keypad → NP-slot routing is
+        // future work; no roadmap slot yet.
         foreach (var slot in Mz80aMatrixReference.All.Values)
         {
             if (slot.Kind != Mz80aMatrixReference.SlotKind.Char) continue;
@@ -131,10 +132,11 @@ public static class Mz80aCharMap
     /// Slot → char (coverage gap): every Char slot in the reference with
     /// a non-empty UnshiftedGlyph is reachable via at least one default
     /// unshifted press, and same for ShiftedGlyph via a shifted press.
-    /// Numeric-pad slots (Id starts with "NP") are excluded — they alias
-    /// the main-row digits and are wired separately (Phase B note).
-    /// A gap here means the user can see a glyph on the keycap that PC
-    /// typing cannot reach without a manual [CharMap.MZ80A] override.
+    /// Numeric-pad slots (Id starts with "NP") are excluded from this
+    /// walk — they alias the main-row digits and don't need dedicated
+    /// PC-key routes. A gap in the main-row slots here means the user
+    /// can see a glyph on the keycap that PC typing cannot reach
+    /// without a manual [CharMap.MZ80A] override.
     /// </summary>
     public static IReadOnlyList<string> Validate()
     {

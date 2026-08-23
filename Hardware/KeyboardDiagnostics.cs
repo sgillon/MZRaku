@@ -4,11 +4,13 @@ namespace MZRaku.Hardware;
 
 /// <summary>
 /// Which mapping layer resolved the last PC keystroke. Shared across
-/// both machines' keyboards so the HID Diagnostic pane can render a
+/// both machines' keyboards so the HID Diagnostic pane renders a
 /// single consistent view regardless of which machine is monitored.
-/// <see cref="Override"/> is currently MZ-700-only (MZ-80A doesn't
-/// yet ship a KeyOverride layer — coming with the v1.1.0 Phase 5
-/// settings-dialog work), but the enum tolerates that gracefully.
+/// <see cref="Override"/> is populated by both
+/// <see cref="Keyboard.OnKeyDown"/> and
+/// <see cref="Mz80aKeyboard.OnKeyDown"/> — each carries its own
+/// <see cref="KeyOverride"/> field, wired via the Settings dialog
+/// per machine.
 /// </summary>
 public enum InputLayer { None, Override, SpecialKey, Character }
 

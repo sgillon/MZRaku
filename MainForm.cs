@@ -686,14 +686,6 @@ public sealed class MainForm : Form
     private bool _mz80aRunTyped;
 
     /// <summary>
-    /// Detect "monitor finished booting" by spotting the "MONITOR 1Z*"
-    /// banner the 1Z-013A ROM writes to VRAM row 0 once init is complete
-    /// and the keyboard input loop is active. This is exactly the state
-    /// BASIC's startup at $7D79 needs — the call into monitor at $0033
-    /// works cleanly only after the monitor has set up its stack and
-    /// stopped clearing RAM around $1200.
-    /// </summary>
-    /// <summary>
     /// MZ-80A analogue of MonitorReady. SA-1510 draws a block-cursor
     /// glyph ($6B) at VRAM row 1 col 0 ($D028 → Vram[40]) once its
     /// boot init is complete and the main-loop cursor blink starts.
@@ -1040,6 +1032,14 @@ public sealed class MainForm : Form
         _statusLabel.Text = $"Pointer report → {path}";
     }
 
+    /// <summary>
+    /// Detect "monitor finished booting" by spotting the "MONITOR 1Z*"
+    /// banner the 1Z-013A ROM writes to VRAM row 0 once init is complete
+    /// and the keyboard input loop is active. This is exactly the state
+    /// BASIC's startup at $7D79 needs — the call into monitor at $0033
+    /// works cleanly only after the monitor has set up its stack and
+    /// stopped clearing RAM around $1200.
+    /// </summary>
     private bool MonitorReady()
     {
         if (_monitorReady) return true;

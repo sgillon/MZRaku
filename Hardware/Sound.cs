@@ -3,10 +3,17 @@ using System;
 namespace MZRaku.Hardware;
 
 /// <summary>
-/// Square-wave sound driven by 8253 counter-0 reload value and 8255 PC3 gate.
-/// The PIT input clock on MZ-700 is approximately 895KHz (895031 Hz exactly in
-/// some references, derived from the video system). Output frequency in mode 3
-/// is inputHz / reload.
+/// Square-wave sound generator shared by both machines. Output
+/// frequency = <see cref="InputClockHz"/> / reload value when both
+/// gates are open. Two AND-gated inputs, polled per audio chunk:
+///   <see cref="Enabled"/> — soft gate. MZ-700 drives this from PPI
+///     PC3 (speaker gate); MZ-80A has no soft gate and pins it true.
+///   <see cref="HardGate"/> — hard gate. MZ-700 uses this as one half
+///     of its dual-gate topology ($E011/$E012 pulse + $E008 D0
+///     latch, ANDed via the speaker NAND). MZ-80A uses it alone as
+///     the single hard gate at $E008 D0.
+/// <see cref="InputClockHz"/> is set by the host machine: ~895 kHz
+/// for MZ-700's PIT counter 0, 1 MHz for MZ-80A's counter 0.
 /// </summary>
 public sealed class Sound : IDisposable
 {

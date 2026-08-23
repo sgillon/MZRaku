@@ -3,22 +3,18 @@ using System;
 namespace MZRaku.Hardware;
 
 /// <summary>
-/// Intel 8253 PIT emulation for MZ-700.
+/// Intel 8253 PIT emulation. Generic three-counter implementation
+/// shared by both machines — per-machine counter wiring (which
+/// counter drives sound vs tempo vs interrupt, what input clocks
+/// they see) lives with the consumers. See <see cref="IoBus"/> and
+/// <see cref="MZ700"/> for MZ-700 wiring (C0 → sound, C1 → MUSIC
+/// duration cascaded off C0, C2 → cursor blink / interrupt); see
+/// <see cref="Mz80aIoBus"/> and <see cref="MZ80A"/> for MZ-80A
+/// wiring (different input clocks per counter).
 ///
-/// Counter 0 (0xE004): sound frequency generator. Input clock = ~895kHz
-///                     (derived from video master clock). Output feeds
-///                     speaker gate (AND with PPI PC3 = speaker gate),
-///                     and physically cascades to Counter 1's CLK pin.
-/// Counter 1 (0xE005): input clock = Counter 0 output. Used by S-BASIC's
-///                     MUSIC command as the note-duration timer — without
-///                     the cascade, MUSIC hangs waiting for C1 to time out.
-/// Counter 2 (0xE006): input clock = 15.7kHz (horizontal sync); output
-///                     is cursor blink signal into PPI PC4. Also (when
-///                     enabled via PPI PC2) triggers Z80 interrupt.
-/// Control  (0xE007): mode/latch commands.
-///
-/// We implement mode 3 (square wave) for counter 0 and mode 2/3 for
-/// counters 1 and 2. Latching of counters for readback is supported.
+/// Modes: mode 3 (square wave) is fully implemented; modes 0 and 2
+/// are supported to the level their observed uses require. Latching
+/// counters for readback is supported.
 /// </summary>
 public sealed class Pit8253
 {

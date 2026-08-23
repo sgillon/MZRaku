@@ -10,7 +10,7 @@ namespace MZRaku.Hardware;
 ///   0xD000-0xD7FF : VRAM (character codes) or RAM
 ///   0xD800-0xDFFF : Color/attribute RAM or RAM
 ///   0xE000-0xE00F : Memory-mapped I/O (8255 PPI + 8253 PIT + misc)
-///   0xE010-0xFFFF : RAM (extended) or RAM when banked
+///   0xE010-0xFFFF : RAM (extended, unbanked)
 ///
 /// Memory banking is triggered ONLY via port I/O on MZ-700 (OUT ($E0..$E5),A).
 /// The memory region 0xE010-0xFFFF is plain RAM — writes there must NOT trigger

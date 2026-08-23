@@ -3,25 +3,22 @@ using System;
 namespace MZRaku.Hardware;
 
 /// <summary>
-/// Intel 8255 PPI emulation for MZ-700.
+/// Intel 8255 PPI emulation. Generic three-port implementation shared
+/// by both machines — per-machine bit wiring lives with the port
+/// consumers, not here. See <see cref="IoBus"/> for MZ-700's Port C
+/// bit map (cassette motor, speaker gate, INTMSK, cursor blink,
+/// VBLANK) and <see cref="Mz80aIoBus"/> for the MZ-80A's simpler use.
 ///
-/// Port A (0xE000, output): low nibble selects keyboard row strobe (0-9).
-/// Port B (0xE001, input):  reads 8 bits of the selected keyboard row.
-/// Port C (0xE002):
-///   Output (low nibble):
-///     PC0: cassette motor (0 = on)
-///     PC1: cassette write data
-///     PC2: INTMSK (1 = interrupt enabled - actually resets the 8253 OUT2 latch)
-///     PC3: speaker gate (1 = enable speaker output from PIT counter 0)
-///   Input (high nibble):
-///     PC4: cursor-blink signal (~3 Hz period; mirrors PC6)
-///     PC5: cassette read data
-///     PC6: cursor-blink signal (~3 Hz period; per service manual)
-///     PC7: VBLANK (1 = in vertical blank)
-/// Separately, the fast TEMPO signal (~30 Hz) is exposed via TempoBit
-/// for IoBus to read on $E008 bit 0. S-BASIC's MUSIC polls there for
-/// note-duration timing; cursor display polls PortC for visible blink.
-/// Control (0xE003): 8255 control word (we accept writes, ignore semantics).
+/// One shared surface exposed here: the keyboard-matrix strobe path
+/// (<see cref="Keyboard"/> = <see cref="IKeyboardMatrix"/>) both
+/// machines wire the same way, and a separate fast TEMPO signal
+/// (~50 Hz signal, 100 toggles per second — driven from MZ700's
+/// <c>CyclesPerTempoToggle</c> empirical fit of 35469 CPU cycles per
+/// toggle at 3.5469 MHz) exposed via <see cref="TempoBit"/> for
+/// MZ-700's IoBus to read on $E008 bit 0.
+///
+/// Control (0xE003 on MZ-700): 8255 control word (writes accepted,
+/// mode semantics ignored — no consumer depends on mode setup).
 /// </summary>
 public sealed class Ppi8255
 {

@@ -114,8 +114,9 @@ public sealed class MemoryViewerForm : Form
         var btnSP = new Button { Text = "SP", Width = 40, Height = 28, TabStop = false };
         btnSP.Click += (_, _) => ScrollTo(_machine.Cpu.SP);
 
-        // Range-dump controls. Defaults to BASIC's working area
-        // ($6A00–$7800) which is the focus of Phase 3a snapshot work.
+        // Range-dump controls. Defaults to MZ-700 BASIC's working area
+        // ($6A00–$7800) — the address range most useful for BASIC
+        // debugging sessions.
         var sep = new Label { Text = "  Dump $", AutoSize = true, Margin = new Padding(8, 7, 0, 0) };
         _dumpStart.Width = 50;
         _dumpStart.Font = _mono;

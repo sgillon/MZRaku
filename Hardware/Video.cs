@@ -10,7 +10,7 @@ namespace MZRaku.Hardware;
 ///   40 cols x 25 rows, 8x8 cells -> 320x200 logical pixels.
 ///   VRAM (2KB) holds 8-bit display codes at 0xD000..0xD7FF.
 ///   Attribute RAM (2KB) at 0xD800..0xDFFF: bit 7 = char-set bank (0/1),
-///     bits 6..4 = background color (3 bits), bits 2..0 = foreground color.
+///     bits 6..4 = foreground color (3 bits), bits 2..0 = background color.
 ///   Font ROM is 4KB (2 banks x 256 chars x 8 rows/char).
 /// </summary>
 public sealed class VideoRenderer

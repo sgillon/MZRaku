@@ -6,25 +6,30 @@ using MZRaku.Hardware;
 namespace MZRaku;
 
 /// <summary>
-/// Modal editor that binds a PC keystroke to a single MZ-700 matrix slot.
-/// Phase A: writes only into the <see cref="CharMapOverrides"/> layer —
-/// captures that resolve to a Unicode char are saved; non-character VKs
-/// (modifiers, function keys, cursors, Enter, Esc, Tab) are politely
-/// refused with a "Phase B coming" note.
+/// Modal editor that binds a PC keystroke to a single matrix slot on
+/// the active machine's char-map layer. Scoped intrinsically to
+/// character bindings: captures that resolve to a Unicode char are
+/// saved via <see cref="ICharMapOverridesView"/>; non-character VKs
+/// (modifiers, function keys, cursors, Enter, Esc, Tab) are refused
+/// with a note directing the user to click the target key on the
+/// diagram instead (that path opens <see cref="VkBindingEditorForm"/>,
+/// which handles the VK layer).
 ///
-/// The target slot is fixed at construction (cell-clicked in the matrix
-/// grid). The MzShift checkbox under the Advanced expander lets the user
-/// flip the shift assertion away from the default the cell-click implied.
+/// The target slot is fixed at construction (cell-clicked in the
+/// matrix grid). The MzShift checkbox under the Advanced expander
+/// lets the user flip the shift assertion away from the default the
+/// cell-click implied.
 ///
-/// Conflict detection (P2-5): if the captured PC char already produces a
+/// Conflict detection: if the captured PC char already produces a
 /// different MZ slot — either via an existing override or a built-in
 /// default — the status line flips to a warning, and Save prompts for
 /// confirmation before clobbering the prior binding.
 ///
-/// Mutations are live: <see cref="CharMapOverrides.Set"/> is called from
-/// Save and immediately affects subsequent keystrokes. Persistence to
-/// <c>settings.ini</c> still waits for the parent <see cref="SettingsForm"/>'s
-/// Apply / OK — consistent with the rest of the dialog.
+/// Mutations are live: <see cref="ICharMapOverridesView.Set"/> is
+/// called from Save and immediately affects subsequent keystrokes.
+/// Persistence to <c>settings.ini</c> still waits for the parent
+/// <see cref="SettingsForm"/>'s Apply / OK — consistent with the
+/// rest of the dialog.
 /// </summary>
 public sealed class KeyBindingEditorForm : Form
 {
@@ -207,12 +212,16 @@ public sealed class KeyBindingEditorForm : Form
 
         if (!e.Char.HasValue)
         {
-            // Non-character VK: defer to Phase B (P2-6).
+            // Non-character VK: this dialog only edits character
+            // bindings. VK bindings (modifiers, function keys, cursors,
+            // Enter, Esc, Tab) go through VkBindingEditorForm — reached
+            // by clicking the target key on the diagram rather than a
+            // matrix cell.
             _status.Text = "";
             _phaseBNote.Text =
-                "Non-character keys (modifiers, function keys, cursors, Enter, Esc, Tab) edit " +
-                "the Key Overrides layer, which arrives in Phase B. For now, hand-edit the " +
-                "[KeyOverrides] section in settings.ini.";
+                "Non-character keys (modifiers, function keys, cursors, Enter, Esc, Tab) " +
+                "bind through the VK-override layer. Close this dialog and click the target " +
+                "key directly on the keyboard diagram to edit its VK binding.";
             _phaseBNote.Visible = true;
             _conflict = null;
             _saveBtn.Enabled = false;
