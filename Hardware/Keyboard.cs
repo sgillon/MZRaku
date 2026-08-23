@@ -39,7 +39,7 @@ public sealed class Keyboard : IKeyboardMatrix
     // Live telemetry the HID diagnostic window reads each frame. Populated
     // here so the diagnostic doesn't need to subscribe to events or duplicate
     // mapping logic.
-    public readonly KeyboardDiagnostics Diag = new();
+    public KeyboardDiagnostics Diag { get; } = new();
 
     // True PC shift state; tracked so KeyUp can recompute the MZ shift
     // bit after a char-driven hold ends.

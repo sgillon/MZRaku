@@ -28,10 +28,11 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
     private readonly IMachine _machine;
     private readonly JoystickInput _joystick;
 
-    // Concrete keyboard references — machine-specific but needed for
-    // Diag + matrix reads. Populated per Kind at construction.
-    private readonly Keyboard? _mz700Kb;
-    private readonly Mz80aKeyboard? _mz80aKb;
+    // The active machine's keyboard, accessed through the shared
+    // IKeyboardMatrix surface (Diag / PeekMatrixRow / ReadRow). The
+    // form only casts to a concrete type where the labelling truly
+    // differs — Mz80aKeyboard.GraphMode below is the one such site.
+    private readonly IKeyboardMatrix _kb;
 
     private readonly Label _machineBanner = new()
     {
@@ -49,8 +50,13 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
     {
         _machine = machine;
         _joystick = joystick;
-        _mz700Kb = machine as MZ700 is { } mz7 ? mz7.Keyboard : null;
-        _mz80aKb = machine as MZ80A is { } mz8 ? mz8.Keyboard : null;
+        _kb = machine switch
+        {
+            MZ700 mz7  => mz7.Keyboard,
+            MZ80A mz8a => mz8a.Keyboard,
+            _          => throw new System.ArgumentException(
+                $"HidDiagnosticForm doesn't know how to reach the keyboard on {machine.GetType().Name}"),
+        };
 
         Text = $"HID Diagnostic — {MachineName(machine.Kind)}";
         _machineBanner.Text = $"Monitoring: {MachineName(machine.Kind)}";
@@ -139,11 +145,9 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
         _mzLabel.Text = BuildMzText();
     }
 
-    private KeyboardDiagnostics Diag => _mz700Kb?.Diag ?? _mz80aKb!.Diag;
-
     private string BuildHostText()
     {
-        var d = Diag;
+        var d = _kb.Diag;
         var sb = new StringBuilder();
         sb.AppendLine($"Last KeyDown : {FormatKeyData(d.LastKeyDown)}");
         sb.AppendLine($"Last KeyPress: {FormatChar(d.LastKeyChar)}");
@@ -178,7 +182,7 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
 
     private string BuildMappingText()
     {
-        var d = Diag;
+        var d = _kb.Diag;
         string shift = d.LastMzShift switch
         {
             true => "shift=ON",
@@ -206,7 +210,7 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
         sb.AppendLine("       7 6 5 4 3 2 1 0");
         for (int row = 0; row < 10; row++)
         {
-            byte b = PeekMatrixRow(row);
+            byte b = _kb.PeekMatrixRow(row);
             var bits = new StringBuilder(15);
             for (int bit = 7; bit >= 0; bit--)
             {
@@ -217,7 +221,7 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
         }
         sb.AppendLine();
 
-        var lastScan = Diag.LastScanRow;
+        var lastScan = _kb.Diag.LastScanRow;
         sb.AppendLine($"Last {LabelRow()} scanned by ROM: {(lastScan < 0 ? "-" : lastScan.ToString())}");
 
         // Shift-bit + mode: source varies per machine, values labelled
@@ -232,10 +236,12 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
         }
         else
         {
-            byte strobe0 = PeekMatrixRow(0);
+            byte strobe0 = _kb.PeekMatrixRow(0);
             bool shiftPressed = (strobe0 & 0x01) == 0; // active-low
             sb.AppendLine($"MZ shift bit: {Bit(shiftPressed)}  (source: matrix strobe 0 bit 0 = ${strobe0:X2}, active-low)");
-            string mode = _mz80aKb!.GraphMode ? "GRAPH" : "ALPHA";
+            // GraphMode is MZ-80A-specific state; not in IKeyboardMatrix
+            // since MZ-700 has no equivalent local tracker.
+            string mode = ((Mz80aKeyboard)_kb).GraphMode ? "GRAPH" : "ALPHA";
             sb.AppendLine($"Mode: {mode}  (source: F11-driven local tracker)");
         }
 
@@ -263,12 +269,6 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
         return sb.ToString();
     }
 
-    private byte PeekMatrixRow(int row)
-    {
-        if (_mz700Kb != null) return _mz700Kb.PeekMatrixRow(row);
-        if (_mz80aKb != null) return _mz80aKb.PeekMatrixRow(row);
-        return 0xFF;
-    }
 
     private static string FormatKeyData(Keys k) =>
         k == Keys.None ? "(none)" : $"{k}  (0x{(int)k:X4})";

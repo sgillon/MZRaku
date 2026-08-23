@@ -73,7 +73,7 @@ public sealed class Mz80aKeyboard : IKeyboardMatrix
     /// as the MZ-700 <see cref="Keyboard.Diag"/> field so the
     /// diagnostic can render both machines through one code path.
     /// </summary>
-    public readonly KeyboardDiagnostics Diag = new();
+    public KeyboardDiagnostics Diag { get; } = new();
 
     /// <summary>
     /// User-editable physical-key overrides for MZ-80A, consulted

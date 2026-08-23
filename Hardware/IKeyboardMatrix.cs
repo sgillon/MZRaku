@@ -18,4 +18,22 @@ public interface IKeyboardMatrix
     /// $FF (nothing pressed).
     /// </summary>
     byte ReadRow(int strobe);
+
+    /// <summary>
+    /// Per-frame telemetry surface consumed by HidDiagnosticForm.
+    /// Same shape on both machines — last KeyDown / KeyPress / KeyUp,
+    /// last-matched input layer, last scanned row. Kept separate
+    /// from <see cref="ReadRow"/> because it's diagnostic scaffolding,
+    /// not part of the PPI wiring.
+    /// </summary>
+    KeyboardDiagnostics Diag { get; }
+
+    /// <summary>
+    /// Return the current 8-bit matrix row without registering a
+    /// scan on the machine (unlike <see cref="ReadRow"/>, which
+    /// updates <see cref="KeyboardDiagnostics.LastScanRow"/>).
+    /// Used by the HID Diagnostic pane and the matrix grid highlight
+    /// to peek at held-key state without falsifying the scan log.
+    /// </summary>
+    byte PeekMatrixRow(int row);
 }
