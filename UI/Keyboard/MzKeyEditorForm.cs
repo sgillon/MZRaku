@@ -520,8 +520,11 @@ public sealed class MzKeyEditorForm : Form
         // slot without leaving a matching positive override (e.g. the
         // user moved the binding elsewhere, then opened the slot fresh).
         // Reset should restore those — so the button needs to be active
-        // whenever any restorable suppression exists at the slot.
-        foreach (var def in CharMap.Defaults)
+        // whenever any restorable suppression exists at the slot. The
+        // per-machine default set lives on the editor context; reading
+        // CharMap.Defaults here would silently walk the MZ-700 table on
+        // MZ-80A and leave the Reset button greyed out for a live slot.
+        foreach (var def in _context.CharDefaults)
         {
             if (!_charOverrides.IsSuppressed(def.Key)) continue;
             if (def.Value.Row == row && def.Value.Col == col && def.Value.MzShift == mzShift)
