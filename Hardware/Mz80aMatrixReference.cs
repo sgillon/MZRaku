@@ -254,6 +254,41 @@ public static class Mz80aMatrixReference
     }
 
     /// <summary>
+    /// Canonical printable glyph at (strobe, bit, mzShift), or null if
+    /// the slot has no printable glyph on MZ-80A. Reads the first
+    /// character of the reference's UnshiftedGlyph / ShiftedGlyph
+    /// string (both are stored as strings for two-char slots like
+    /// NP_00's "00"; the diagram / editor only ever wants one char).
+    /// Mirrors <see cref="MzGlyphCatalog.FindByPrintableSlot"/> on
+    /// the MZ-700 side.
+    /// </summary>
+    public static char? FindGlyph(int strobe, int bit, bool mzShift)
+    {
+        if (!All.TryGetValue((strobe, bit), out var slot)) return null;
+        var g = mzShift ? slot.ShiftedGlyph : slot.UnshiftedGlyph;
+        return string.IsNullOrEmpty(g) ? null : g![0];
+    }
+
+    /// <summary>
+    /// Friendly label for a non-printable slot on MZ-80A, or null when
+    /// the slot has no such label. Derived from
+    /// <see cref="Slot.Id"/> for kinds other than Char / Unused /
+    /// Unknown. Mirrors <see cref="MzGlyphCatalog.FindSpecialLabel"/>
+    /// on the MZ-700 side (which reads SpecialKeyMap.SlotLabels).
+    /// </summary>
+    public static string? FindSpecialLabel(int strobe, int bit)
+    {
+        if (!All.TryGetValue((strobe, bit), out var slot)) return null;
+        return slot.Kind switch
+        {
+            SlotKind.Char    => null,
+            SlotKind.Unused  => null,
+            SlotKind.Unknown => null,
+            _                => slot.Id,
+        };
+    }
+
+    /// <summary>
     /// Self-check: every cell present, no duplicate Ids, and a report of
     /// any <see cref="SlotKind.Unknown"/> cells still awaiting empirical
     /// confirmation. Returns human-readable complaints; an empty list

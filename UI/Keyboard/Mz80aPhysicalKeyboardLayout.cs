@@ -40,37 +40,11 @@ public sealed class Mz80aPhysicalKeyboardLayout : IPhysicalKeyboardLayout
     public float Height => Mz80aKeyboardLayout.Height;
     public IReadOnlyList<PhysicalKey> Keys { get; }
 
-    /// <summary>
-    /// Look up the printable glyph at (row, col, mzShift) via
-    /// <see cref="Mz80aMatrixReference"/>. Returns the first character
-    /// of the slot's UnshiftedGlyph / ShiftedGlyph (both are stored as
-    /// strings in the reference for cases like "00" on the NP_00 slot;
-    /// the diagram's per-cell rendering only ever wants one char).
-    /// </summary>
-    public char? FindGlyphAt(int row, int col, bool mzShift)
-    {
-        if (!Mz80aMatrixReference.All.TryGetValue((row, col), out var slot)) return null;
-        var g = mzShift ? slot.ShiftedGlyph : slot.UnshiftedGlyph;
-        return string.IsNullOrEmpty(g) ? null : g![0];
-    }
+    public char? FindGlyphAt(int row, int col, bool mzShift) =>
+        Mz80aMatrixReference.FindGlyph(row, col, mzShift);
 
-    /// <summary>
-    /// Friendly label for a non-printable slot on MZ-80A. Derived from
-    /// the reference's <see cref="Mz80aMatrixReference.Slot.Id"/> for
-    /// slots whose Kind isn't Char / Unused / Unknown. Char slots
-    /// return null so the diagram falls back to the glyph render.
-    /// </summary>
-    public string? FindSpecialLabelAt(int row, int col)
-    {
-        if (!Mz80aMatrixReference.All.TryGetValue((row, col), out var slot)) return null;
-        return slot.Kind switch
-        {
-            Mz80aMatrixReference.SlotKind.Char    => null,
-            Mz80aMatrixReference.SlotKind.Unused  => null,
-            Mz80aMatrixReference.SlotKind.Unknown => null,
-            _                                     => slot.Id,
-        };
-    }
+    public string? FindSpecialLabelAt(int row, int col) =>
+        Mz80aMatrixReference.FindSpecialLabel(row, col);
 
     // Cream monochrome palette matching real MZ-80A caps. Character
     // keys stay pure cream; modifier/mode/edit/enter/cursor/space

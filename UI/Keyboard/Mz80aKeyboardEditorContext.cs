@@ -70,18 +70,8 @@ public sealed class Mz80aKeyboardEditorContext : IKeyboardEditorContext
 
     public (int Row, int Col) ShiftSlot => (0, 0);
 
-    /// <summary>
-    /// Canonical printable glyph at (row, col, mzShift) via
-    /// <see cref="Mz80aMatrixReference"/>. First char of the slot's
-    /// glyph string; null if the slot has no printable glyph on this
-    /// side (unshifted-only slots, non-Char slots, etc.).
-    /// </summary>
-    public char? FindGlyphAt(int row, int col, bool mzShift)
-    {
-        if (!Mz80aMatrixReference.All.TryGetValue((row, col), out var slot)) return null;
-        var g = mzShift ? slot.ShiftedGlyph : slot.UnshiftedGlyph;
-        return string.IsNullOrEmpty(g) ? null : g![0];
-    }
+    public char? FindGlyphAt(int row, int col, bool mzShift) =>
+        Mz80aMatrixReference.FindGlyph(row, col, mzShift);
 
     public string? FindSpecialLabelAt(int row, int col) =>
         _slotLabels.TryGetValue((row, col), out var s) ? s : null;
