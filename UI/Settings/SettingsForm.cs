@@ -928,57 +928,12 @@ public sealed class SettingsForm : Form
         var unreachable = new HashSet<string>();
         foreach (var k in context.EssentialLayoutKeys)
         {
-            if (!IsKeyFullyReachable(k, slotShiftLabels, context))
+            if (!KeyboardReachability.IsKeyFullyReachable(k, slotShiftLabels, context))
                 unreachable.Add(k.Id);
         }
         _kbdDiagram.UnreachableKeyIds = unreachable.Count > 0 ? unreachable : null;
 
         _kbdDiagram.RefreshLabels();
-    }
-
-    /// <summary>
-    /// A character key with both unshifted and shifted glyphs is
-    /// "fully reachable" only if both halves can be produced from the
-    /// host keyboard — losing just the shifted half (e.g. PC '1'
-    /// rebound but Shift+1 still maps to MZ '!') still leaves the
-    /// unshifted half unreachable, which the gate must surface.
-    ///
-    /// Fixed-label keys (CR, GRAPH, ALPHA, CTRL, SHIFT, BREAK, INST,
-    /// DEL, cursors) are shift-agnostic — any binding in either shift
-    /// state is enough.
-    ///
-    /// Glyphs flagged by
-    /// <see cref="IMatrixReference.IsKnownUnreachableFromPc"/> (MZ-700
-    /// reverse-apostrophe at AT-shifted, ↓ and £ at POUND; MZ-80A has
-    /// no such exemptions) count as reachable here — they're not on a
-    /// PC keyboard by design, so the gate shouldn't nag every Apply.
-    /// </summary>
-    private static bool IsKeyFullyReachable(
-        MzKeyboardLayout.MzKey k,
-        IReadOnlyDictionary<(int row, int col, bool shift), IReadOnlyList<string>> labels,
-        IKeyboardEditorContext context)
-    {
-        if (!k.Row.HasValue || !k.Col.HasValue) return true;
-        int row = k.Row.Value, col = k.Col.Value;
-
-        if (!string.IsNullOrEmpty(k.FixedLabel))
-            return labels.ContainsKey((row, col, false))
-                || labels.ContainsKey((row, col, true));
-
-        bool hasUnshifted = !string.IsNullOrEmpty(k.UnshiftedLabel)
-            || context.FindGlyphAt(row, col, false).HasValue;
-        bool hasShifted = !string.IsNullOrEmpty(k.ShiftedLabel)
-            || context.FindGlyphAt(row, col, true).HasValue;
-
-        if (hasUnshifted
-            && !labels.ContainsKey((row, col, false))
-            && !context.MatrixReference.IsKnownUnreachableFromPc(row, col, false))
-            return false;
-        if (hasShifted
-            && !labels.ContainsKey((row, col, true))
-            && !context.MatrixReference.IsKnownUnreachableFromPc(row, col, true))
-            return false;
-        return true;
     }
 
     private void CaptureButtonFor(NumericUpDown target)
@@ -1201,7 +1156,7 @@ public sealed class SettingsForm : Form
             tabs.SelectedTab = page;
 
         const int previewMax = 10;
-        var names = string.Join(", ", unreachable.Take(previewMax).Select(k => DescribeKeyForGate(k, context)));
+        var names = string.Join(", ", unreachable.Take(previewMax).Select(k => KeyboardReachability.DescribeKeyForGate(k, context)));
         if (unreachable.Count > previewMax)
             names += $", … (+{unreachable.Count - previewMax} more)";
 
@@ -1214,20 +1169,6 @@ public sealed class SettingsForm : Form
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Warning);
         return result == DialogResult.Yes;
-    }
-
-    private static string DescribeKeyForGate(MzKeyboardLayout.MzKey k, IKeyboardEditorContext context)
-    {
-        if (!string.IsNullOrEmpty(k.FixedLabel)) return k.FixedLabel!;
-        if (!string.IsNullOrEmpty(k.UnshiftedLabel)) return k.UnshiftedLabel!;
-        if (!string.IsNullOrEmpty(k.ShiftedLabel)) return k.ShiftedLabel!;
-        if (k.Row.HasValue && k.Col.HasValue)
-        {
-            var c = context.FindGlyphAt(k.Row.Value, k.Col.Value, false)
-                  ?? context.FindGlyphAt(k.Row.Value, k.Col.Value, true);
-            if (c.HasValue) return c.Value.ToString();
-        }
-        return k.Id;
     }
 
     // -- ROM browse + path-status indicator -----------------------------
