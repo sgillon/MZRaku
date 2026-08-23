@@ -17,9 +17,9 @@ namespace MZRaku;
 /// work via the shared IMachine interface — set a breakpoint at $0100
 /// in the SA-1510 disassembly and it will hit.
 /// </summary>
-public sealed class MZ80A : IMachine
+public sealed class MZ80A : MzMachineBase, IMachine
 {
-    public Z80Cpu Cpu { get; } = new();
+    // Cpu is inherited from MzMachineBase (v1.2 audit F-060).
     public MZ80AMemory Mem { get; } = new();
     public Ppi8255 Ppi = new();
     public Pit8253 Pit = new();
@@ -53,8 +53,9 @@ public sealed class MZ80A : IMachine
     // reference in Phase 5.
     public const double PitC0InputHz = 895_000.0;
 
-    public bool Paused { get; set; }
-    private bool _stepFrameRequested;
+    // Debugger control (Paused, _stepFrameRequested, Pause/Resume/
+    // StepInstruction/StepFrame) is inherited from MzMachineBase
+    // (v1.2 audit F-060).
 
     private int _pitC0Accum;
     private int _pitC1Accum;
@@ -232,32 +233,7 @@ public sealed class MZ80A : IMachine
         Video.Render(Mem.Vram);
     }
 
-    public void Pause() => Paused = true;
-
-    public void Resume()
-    {
-        Cpu.IgnoreBreakpointOnce = true;
-        Cpu.BreakpointTripped = false;
-        Paused = false;
-    }
-
-    public void StepInstruction()
-    {
-        Cpu.IgnoreBreakpointOnce = true;
-        Cpu.BreakpointTripped = false;
-        int cyc = Cpu.Step();
-        AccumulatePit(cyc);
-        Paused = true;
-    }
-
-    public void StepFrame()
-    {
-        Cpu.IgnoreBreakpointOnce = true;
-        Cpu.BreakpointTripped = false;
-        _stepFrameRequested = true;
-    }
-
-    private void AccumulatePit(int cpuCycles)
+    protected override void AccumulatePit(int cpuCycles)
     {
         // C0 (audio input) coarse rate 895 kHz — refined in Phase 5.
         _pitC0Accum += cpuCycles * 895;

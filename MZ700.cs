@@ -8,14 +8,13 @@ namespace MZRaku;
 /// <summary>
 /// Assembled Sharp MZ-700 machine: Z80 + memory + I/O devices + cassette.
 /// </summary>
-public sealed class MZ700 : IMachine
+public sealed class MZ700 : MzMachineBase, IMachine
 {
-    // Cpu / Mem are auto-properties (not fields) so this class can
-    // satisfy IMachine's read-only property requirements. The Mem
-    // property's declared type stays MZ700Memory so MZ-700-typed
-    // callers can still reach VRAM/ARAM/Ram directly; IMachine.Mem
-    // is exposed as Z80Core.IMemory via explicit interface impl below.
-    public Z80Cpu Cpu { get; } = new();
+    // Mem is an auto-property (not a field) so this class can satisfy
+    // IMachine's read-only property requirement. Declared type stays
+    // MZ700Memory so MZ-700-typed callers can still reach VRAM/ARAM/Ram
+    // directly; IMachine.Mem is exposed as Z80Core.IMemory via explicit
+    // interface impl below. Cpu is inherited from MzMachineBase (F-060).
     public MZ700Memory Mem { get; } = new();
     public Ppi8255 Ppi = new();
     public Pit8253 Pit = new();
@@ -46,12 +45,9 @@ public sealed class MZ700 : IMachine
     // real MZ-700 plays at ~13 sec with this rate.
     private const int CyclesPerTempoToggle = 35469;
 
-    // --- Debugger control ---
-    // When Paused, RunFrame renders the screen but does not advance the
-    // CPU. _stepFrameRequested is a one-shot that lets a single frame
-    // run while still Paused (the "step frame" debugger action).
-    public bool Paused { get; set; }
-    private bool _stepFrameRequested;
+    // Debugger control (Paused, _stepFrameRequested, Pause/Resume/
+    // StepInstruction/StepFrame) is inherited from MzMachineBase
+    // (v1.2 audit F-060).
 
     public MZ700()
     {
@@ -205,48 +201,7 @@ public sealed class MZ700 : IMachine
         Sound.SetReload(Pit.Counters[0].Running ? Pit.Counters[0].Reload : 0);
     }
 
-    // --- Debugger control surface ---------------------------------------
-
-    /// <summary>Freeze the CPU; RunFrame keeps rendering but won't step.</summary>
-    public void Pause() => Paused = true;
-
-    /// <summary>
-    /// Un-freeze the CPU. Arms a one-shot breakpoint bypass so execution
-    /// can move off an instruction the debugger is parked on.
-    /// </summary>
-    public void Resume()
-    {
-        Cpu.IgnoreBreakpointOnce = true;
-        Cpu.BreakpointTripped = false;
-        Paused = false;
-    }
-
-    /// <summary>
-    /// Execute exactly one Z80 instruction, with the PIT/tempo bookkeeping
-    /// RunFrame's loop normally does so timing devices stay coherent.
-    /// Leaves the machine paused.
-    /// </summary>
-    public void StepInstruction()
-    {
-        Cpu.IgnoreBreakpointOnce = true;
-        Cpu.BreakpointTripped = false;
-        int cyc = Cpu.Step();
-        AccumulatePit(cyc);
-        Paused = true;
-    }
-
-    /// <summary>
-    /// Run one full frame's worth of cycles, then re-pause. Honoured by
-    /// the next RunFrame call even though the machine is paused.
-    /// </summary>
-    public void StepFrame()
-    {
-        Cpu.IgnoreBreakpointOnce = true;
-        Cpu.BreakpointTripped = false;
-        _stepFrameRequested = true;
-    }
-
-    private void AccumulatePit(int cpuCycles)
+    protected override void AccumulatePit(int cpuCycles)
     {
         // C0 ticks at 895kHz (audio); C1 ticks at 15.6kHz (HBLNK).
         // C2 is cascaded from C1.OUT inside the PIT (not clocked here).
