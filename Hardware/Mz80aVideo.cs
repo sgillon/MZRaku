@@ -26,7 +26,7 @@ namespace MZRaku.Hardware;
 ///       visible 25 rows walk through VRAM as the offset advances,
 ///       instead of the CPU copying rows the way MZ-700 code has to.
 ///
-/// The MZ-700's <c>VideoRenderer</c> is a close sibling. Reused idioms
+/// The MZ-700's <c>Video</c> is a close sibling. Reused idioms
 /// (font ROM layout, LSB-first pixel decoding, 32bppArgb backing
 /// bitmap) are called out inline.
 /// </summary>

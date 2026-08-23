@@ -404,7 +404,7 @@ public sealed class MainForm : Form
         for (int i = 0; i < 3; i++)
         {
             int scale = i + 1;
-            var item = new ToolStripMenuItem($"&{scale}× ({VideoRenderer.PixelWidth * scale}×{VideoRenderer.PixelHeight * scale})",
+            var item = new ToolStripMenuItem($"&{scale}× ({Video.PixelWidth * scale}×{Video.PixelHeight * scale})",
                 null, (_, _) => ApplyDisplayScale(scale))
             {
                 ShortcutKeys = Keys.Control | (Keys.D0 + scale),
@@ -580,8 +580,8 @@ public sealed class MainForm : Form
         if (scale > 3) scale = 3;
         int chrome = (MainMenuStrip?.Height ?? 0) + _status.Height;
         ClientSize = new Size(
-            VideoRenderer.PixelWidth * scale,
-            VideoRenderer.PixelHeight * scale + chrome);
+            Video.PixelWidth * scale,
+            Video.PixelHeight * scale + chrome);
         for (int i = 0; i < _scaleMenuItems.Length; i++)
         {
             if (_scaleMenuItems[i] != null)
@@ -1360,11 +1360,11 @@ public sealed class MainForm : Form
         e.Graphics.SmoothingMode = SmoothingMode.None;
 
         var cr = _display.ClientRectangle;
-        float sx = (float)cr.Width / VideoRenderer.PixelWidth;
-        float sy = (float)cr.Height / VideoRenderer.PixelHeight;
+        float sx = (float)cr.Width / Video.PixelWidth;
+        float sy = (float)cr.Height / Video.PixelHeight;
         float scale = Math.Min(sx, sy);
-        int w = (int)(VideoRenderer.PixelWidth * scale);
-        int h = (int)(VideoRenderer.PixelHeight * scale);
+        int w = (int)(Video.PixelWidth * scale);
+        int h = (int)(Video.PixelHeight * scale);
         int x = (cr.Width - w) / 2;
         int y = (cr.Height - h) / 2;
         e.Graphics.DrawImage(frame, new Rectangle(x, y, w, h));

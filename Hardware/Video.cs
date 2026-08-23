@@ -13,7 +13,7 @@ namespace MZRaku.Hardware;
 ///     bits 6..4 = foreground color (3 bits), bits 2..0 = background color.
 ///   Font ROM is 4KB (2 banks x 256 chars x 8 rows/char).
 /// </summary>
-public sealed class VideoRenderer
+public sealed class Video
 {
     public const int CharCols = 40;
     public const int CharRows = 25;

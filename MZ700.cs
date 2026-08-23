@@ -21,7 +21,7 @@ public sealed class MZ700 : IMachine
     public Pit8253 Pit = new();
     public IoBus Io = new();
     public Keyboard Keyboard = new();
-    public VideoRenderer Video = new();
+    public Video Video = new();
     public Cassette Cassette = new();
     public Sound Sound = new();
     public Joystick Joystick = new();
