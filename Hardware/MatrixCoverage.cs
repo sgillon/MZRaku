@@ -66,10 +66,11 @@ public static class MatrixCoverage
         KeyOverride? keyOverrides)
     {
         var bound = new HashSet<(int, int)>();
-        // MZ SHIFT (8, 0) is driven directly by Keyboard.SetShift in
-        // response to the PC shift modifier — it doesn't have an entry
-        // in SpecialKeyMap, but it is always reachable while the user
-        // holds PC Shift.
+        // MZ SHIFT (8, 0) is driven from PC Shift through
+        // Keyboard.OnKeyDown / OnKeyUp updating _pcShift, then
+        // ApplyShiftState() writing the effective bit. It doesn't have
+        // an entry in SpecialKeyMap, but it is always reachable while
+        // the user holds PC Shift.
         bound.Add((8, 0));
         foreach (var rc in SpecialKeyMap.Map.Values) bound.Add(rc);
         foreach (var kv in CharMap.Defaults)

@@ -32,10 +32,11 @@ public static class PcKeyIndex
         var slotLabels = new Dictionary<(int row, int col), List<string>>();
         AccumulateChars(slotLabels, charOverrides);
         AccumulateVks(slotLabels, keyOverrides);
-        // MZ Shift (8, 0) is driven directly from PC Shift through the
-        // Keyboard.SetShift() modifier path, not via SpecialKeyMap or the
-        // override layer. Inject a synthetic label so the diagram badge
-        // and the safety gate both reflect that the slot is reachable.
+        // MZ Shift (8, 0) is driven from PC Shift through
+        // Keyboard.OnKeyDown / OnKeyUp + ApplyShiftState(), not via
+        // SpecialKeyMap or the override layer. Inject a synthetic label
+        // so the diagram badge and the safety gate both reflect that
+        // the slot is reachable.
         AddLabel(slotLabels, 8, 0, "Shift");
 
         var result = new Dictionary<string, string>();

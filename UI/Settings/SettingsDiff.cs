@@ -218,7 +218,7 @@ internal static class SettingsDiff
             if (paired is char p && IsCasePairUnified(p, before, after))
             {
                 emittedPairs.Add(p);
-                var label = $"PC '{(char.IsLower(c) ? char.ToUpperInvariant(c) : c)}/{(char.IsLower(c) ? c : char.ToLowerInvariant(c))}'";
+                var label = BuildCasePairLabel(c);
                 foreach (var line in DescribeOneChar(label, c, before, after))
                     yield return line;
                 continue;
@@ -227,6 +227,17 @@ internal static class SettingsDiff
             foreach (var line in DescribeOneChar($"PC {Quote(c)}", c, before, after))
                 yield return line;
         }
+    }
+
+    // Formats an "upper/lower" case pair as "PC 'A/a'", accepting either
+    // half of the pair as input. Both DescribeCharOverrides and
+    // DescribeSuppressed coalesce case-pairs into a single line and were
+    // spelling the label inline — factored so the two stay in step.
+    private static string BuildCasePairLabel(char c)
+    {
+        char upper = char.IsLower(c) ? char.ToUpperInvariant(c) : c;
+        char lower = char.IsLower(c) ? c : char.ToLowerInvariant(c);
+        return $"PC '{upper}/{lower}'";
     }
 
     private static IEnumerable<string> DescribeOneChar(string label, char c,
@@ -268,7 +279,7 @@ internal static class SettingsDiff
             if (paired is char p && chars.Contains(p))
             {
                 emitted.Add(p);
-                label = $"PC '{(char.IsLower(c) ? char.ToUpperInvariant(c) : c)}/{(char.IsLower(c) ? c : char.ToLowerInvariant(c))}'";
+                label = BuildCasePairLabel(c);
             }
             else
             {

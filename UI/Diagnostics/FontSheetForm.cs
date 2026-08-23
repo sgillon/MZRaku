@@ -32,7 +32,6 @@ public sealed class FontSheetForm : Form
     private const int MarginPx = 24;
     private const int BankGapPx = 16;
 
-    private readonly IMachine _machine;
     private readonly MZ700? _mz700;
     private readonly MZ80A? _mz80a;
 
@@ -65,7 +64,6 @@ public sealed class FontSheetForm : Form
 
     public FontSheetForm(IMachine machine)
     {
-        _machine = machine;
         _mz700 = machine as MZ700;
         _mz80a = machine as MZ80A;
 

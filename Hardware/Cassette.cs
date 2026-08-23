@@ -308,49 +308,6 @@ public sealed class Cassette
     // helper is what makes the BreakWait trap honour it.
     private bool IsBreakHeld() => (Keyboard.ReadRow(8) & (1 << 7)) == 0;
 
-    /// <summary>
-    /// One-shot diagnostic that writes the bytes at $0D40-$0D7F (BASIC's
-    /// wait code, since ROM is banked out when this is called) into a
-    /// text file in the save directory. Used to figure out the proper
-    /// exit address for the SAVE wait loop.
-    /// </summary>
-    private void DumpBasicWaitCode()
-    {
-        try
-        {
-            Directory.CreateDirectory(SaveDirectory);
-            var path = Path.Combine(SaveDirectory, "basic_wait_code.txt");
-            using var w = new StreamWriter(path);
-            w.WriteLine("; BASIC code at $0D40-$0D7F captured at SAVE-trap time (ROM banked out).");
-            w.WriteLine($"; PC=${Cpu.PC:X4} SP=${Cpu.SP:X4} AF=${Cpu.AF:X4} BC=${Cpu.BC:X4} DE=${Cpu.DE:X4} HL=${Cpu.HL:X4}");
-            w.WriteLine();
-            for (int row = 0x0D40; row < 0x0D80; row += 16)
-            {
-                var sb = new System.Text.StringBuilder();
-                sb.Append($"{row:X4}: ");
-                for (int i = 0; i < 16; i++)
-                    sb.Append($"{Memory.Read((ushort)(row + i)):X2} ");
-                sb.Append("  ");
-                for (int i = 0; i < 16; i++)
-                {
-                    byte b = Memory.Read((ushort)(row + i));
-                    sb.Append(b >= 0x20 && b < 0x7F ? (char)b : '.');
-                }
-                w.WriteLine(sb.ToString());
-            }
-            // Also capture a wider stack snapshot so we can spot the real
-            // return address in there.
-            w.WriteLine();
-            w.WriteLine($"; Stack contents at SP=${Cpu.SP:X4} (16 bytes):");
-            var sbs = new System.Text.StringBuilder();
-            sbs.Append($"{Cpu.SP:X4}: ");
-            for (int i = 0; i < 16; i++)
-                sbs.Append($"{Memory.Read((ushort)(Cpu.SP + i)):X2} ");
-            w.WriteLine(sbs.ToString());
-        }
-        catch { /* non-fatal */ }
-    }
-
     private ushort PopFromStack()
     {
         byte lo = Memory.Read(Cpu.SP); Cpu.SP++;

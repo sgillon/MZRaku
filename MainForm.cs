@@ -225,12 +225,20 @@ public sealed class MainForm : Form
         _status.Items.Add(_tapeLabel);
         _status.Items.Add(_modeLabel);
 
-        // SAVE-tape trap surfaces save outcomes via this event. Fires on
-        // the UI thread (OnPreStep is called from Timer_Tick → RunFrame),
-        // so we can touch the status label directly. MZ-700 only for
-        // Phase 1 — MZ-80A cassette lands in Phase 4.
+        // Cassette trap events surface load / save outcomes via the
+        // status label. Fire on the UI thread (OnPreStep is called from
+        // Timer_Tick → RunFrame), so we can touch the label directly.
+        // OnSaved is MZ-700-only for now — Mz80aCassette doesn't yet
+        // expose SAVE traps. OnLoaded fires on both machines.
         if (_machine != null)
-            _machine!.Cassette.OnSaved += msg => _statusLabel.Text = msg;
+        {
+            _machine.Cassette.OnSaved += msg => _statusLabel.Text = msg;
+            _machine.Cassette.OnLoaded += msg => _statusLabel.Text = msg;
+        }
+        if (_mz80a != null)
+        {
+            _mz80a.Cassette.OnLoaded += msg => _statusLabel.Text = msg;
+        }
 
         // Every direct assignment to _statusLabel.Text starts the
         // idle-clear timer, so every call site sitewide participates
@@ -872,164 +880,6 @@ public sealed class MainForm : Form
         if (_statusLastSetFrame < 0) return;
         if (_bootFrames - _statusLastSetFrame < StatusIdleFrames) return;
         _statusLabel.Text = "";   // TextChanged resets _statusLastSetFrame
-    }
-
-    /// <summary>
-    /// Phase D pointer-hunt diagnostic (2026-07-12): dumps a report of
-    /// candidate SA-5510 TXTTAB / VARTAB pointer positions to a text
-    /// file next to MZRaku.exe. The $4E4E variable-slot table was
-    /// pinned via this — see Mz80aCassette.FixupBasicProgramPointers.
-    /// Other post-LOAD state SA-5510 needs for RUN resisted synthesis
-    /// (Error 16 on GOSUB); kept dormant for future iteration on the
-    /// invisible-LOAD path. Wire in from Timer_Tick when needed.
-    /// </summary>
-    private void DumpMz80aBasicPointerCandidates(Hardware.Cassette.MzfImage img, byte[] preLoadRam)
-    {
-        if (_mz80a == null) return;
-        var ram = _mz80a.Mem.Ram;
-        int loadAddr = img.LoadAddr;
-        int endAddr  = loadAddr + img.Data.Length;
-
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine("SA-5510 BASIC pointer-hunt diagnostic");
-        sb.AppendLine($"Image: {img.Filename}");
-        sb.AppendLine($"Type=${img.Type:X2}  LoadAddr=${loadAddr:X4}  ExecAddr=${img.ExecAddr:X4}  DataLen={img.Data.Length}");
-        sb.AppendLine($"ProgramEnd = LoadAddr+DataLen = ${endAddr:X4}");
-        sb.AppendLine();
-
-        // Scan the whole 64 KiB RAM backing (though only $1000-$CFFF is
-        // real user RAM). Report every LE 16-bit pair equal to any of
-        // the target values, plus a few pointers into the program body.
-        var targets = new (string label, int value)[]
-        {
-            ("LoadAddr           (TXTTAB?)  ", loadAddr),
-            ("LoadAddr+1         (TXTTAB+1?)", loadAddr + 1),
-            ("ProgramEnd         (VARTAB?)  ", endAddr),
-            ("ProgramEnd+1       (VARTAB?)  ", endAddr + 1),
-            ("ProgramEnd+2       (ARRTAB?)  ", endAddr + 2),
-            ("ProgramEnd+3       (STREND?)  ", endAddr + 3),
-        };
-        foreach (var t in targets)
-        {
-            byte lo = (byte)(t.value & 0xFF);
-            byte hi = (byte)((t.value >> 8) & 0xFF);
-            sb.AppendLine($"Scan for ${t.value:X4} ({t.label}):");
-            int hits = 0;
-            for (int a = 0x1000; a < 0xF000; a++)
-            {
-                if (ram[a] == lo && ram[a + 1] == hi)
-                {
-                    sb.AppendLine($"  ${a:X4}");
-                    hits++;
-                    if (hits >= 32) { sb.AppendLine("  …(cutoff at 32 hits)"); break; }
-                }
-            }
-            if (hits == 0) sb.AppendLine("  (no hits)");
-            sb.AppendLine();
-        }
-
-        // Hex dump the first few bytes at LoadAddr — sanity check that
-        // the program body actually landed where the header claimed.
-        sb.AppendLine($"RAM[${loadAddr:X4}..${loadAddr + 31:X4}]:");
-        sb.Append("  ");
-        for (int i = 0; i < 32; i++)
-            sb.Append($"{ram[loadAddr + i]:X2} ");
-        sb.AppendLine();
-        sb.AppendLine();
-
-        // Hex dump the region right after the program end — that's
-        // where a "0 0 0" empty-array marker typically follows the
-        // program-text terminator on Sharp BASICs.
-        sb.AppendLine($"RAM[${endAddr:X4}..${endAddr + 31:X4}]:");
-        sb.Append("  ");
-        for (int i = 0; i < 32; i++)
-            sb.Append($"{ram[endAddr + i]:X2} ");
-        sb.AppendLine();
-        sb.AppendLine();
-
-        // Also scan for LoadAddr-1: some Sharp BASICs (following MSBASIC)
-        // store TXTTAB as start-of-text-minus-one so the link-follow
-        // loop can pre-increment.
-        int loadMinus1 = loadAddr - 1;
-        {
-            byte lo = (byte)(loadMinus1 & 0xFF);
-            byte hi = (byte)((loadMinus1 >> 8) & 0xFF);
-            sb.AppendLine($"Scan for ${loadMinus1:X4} (LoadAddr-1, TXTTAB MSBASIC-style):");
-            int hits = 0;
-            for (int a = 0x1000; a < 0xF000; a++)
-            {
-                if (ram[a] == lo && ram[a + 1] == hi)
-                {
-                    sb.AppendLine($"  ${a:X4}");
-                    hits++;
-                    if (hits >= 32) { sb.AppendLine("  …(cutoff at 32 hits)"); break; }
-                }
-            }
-            if (hits == 0) sb.AppendLine("  (no hits)");
-            sb.AppendLine();
-        }
-
-        // Focused hex dumps: the VARTAB cluster at ~$4E4E, and the
-        // suspicious LoadAddr low-RAM cluster ~$1AC0-$1B30. TXTTAB
-        // almost certainly sits in one of these regions.
-        void DumpRange(int start, int end)
-        {
-            sb.AppendLine($"RAM[${start:X4}..${end:X4}]:");
-            for (int a = start; a <= end; a += 16)
-            {
-                sb.Append($"  ${a:X4}: ");
-                for (int j = 0; j < 16 && a + j <= end; j++)
-                    sb.Append($"{ram[a + j]:X2} ");
-                sb.AppendLine();
-            }
-            sb.AppendLine();
-        }
-        DumpRange(0x4E40, 0x4E7F);
-        DumpRange(0x1AC0, 0x1B3F);
-        DumpRange(0x18A0, 0x18DF);
-
-        // The killer diff: bytes that changed between pre-LOAD and
-        // post-LOAD, EXCLUDING the program body (LoadAddr..ProgramEnd-1)
-        // and the header buffer at $10F0-$113F (Cassette trap injection).
-        // What remains is BASIC's own post-LOAD bookkeeping — this is
-        // exactly the set of writes DirectInject needs to replicate.
-        {
-            sb.AppendLine("Diff: RAM bytes changed by LOAD (excluding program body + header buffer):");
-            var changed = new List<int>();
-            for (int a = 0x1000; a < 0xF000; a++)
-            {
-                bool inBody = a >= loadAddr && a < endAddr;
-                bool inHeader = a >= 0x10F0 && a < 0x1170;
-                if (inBody || inHeader) continue;
-                if (preLoadRam[a] != ram[a]) changed.Add(a);
-            }
-            sb.AppendLine($"  {changed.Count} address(es) changed");
-            // Cluster consecutive changes for readability.
-            int idx = 0;
-            while (idx < changed.Count && idx < 512)
-            {
-                int start = changed[idx];
-                int end = start;
-                while (idx + 1 < changed.Count && changed[idx + 1] == end + 1)
-                {
-                    idx++;
-                    end = changed[idx];
-                }
-                idx++;
-                sb.Append($"  ${start:X4}-${end:X4}: ");
-                for (int a = start; a <= end; a++)
-                {
-                    sb.Append($"{preLoadRam[a]:X2}→{ram[a]:X2} ");
-                }
-                sb.AppendLine();
-            }
-            if (idx < changed.Count) sb.AppendLine($"  …(cutoff at 512 clusters)");
-        }
-
-        var path = System.IO.Path.Combine(AppContext.BaseDirectory,
-            "mz80a_basic_pointers.txt");
-        System.IO.File.WriteAllText(path, sb.ToString());
-        _statusLabel.Text = $"Pointer report → {path}";
     }
 
     /// <summary>

@@ -31,13 +31,14 @@ public sealed class Ppi8255
     // Mz80aKeyboard can feed the strobed row bits into Port B.
     public IKeyboardMatrix? Keyboard;
 
-    public bool CassetteMotorOn => (PortCOut & 0x01) == 0; // MZ uses active-low; 0 = motor on... docs vary. We'll use: bit = 1 means motor on
-    public bool SpeakerGate => (PortCOut & 0x08) != 0;
     public bool InterruptMask => (PortCOut & 0x04) != 0;
 
+    // Read by the Sound Diagnostic pane for its live "soft gate" gauge.
+    // The change event below is what drives the log line; the diagnostic
+    // needs the current level too, so we expose it as a computed getter.
+    public bool SpeakerGate => (PortCOut & 0x08) != 0;
+
     public event Action<bool>? SpeakerGateChanged;
-    public event Action<bool>? MotorChanged;
-    public event Action<bool>? IntMaskChanged;
 
     public byte Read(int reg)
     {
@@ -72,8 +73,6 @@ public sealed class Ppi8255
                 byte old = PortCOut;
                 PortCOut = (byte)(val & 0x0F);
                 if (((old ^ PortCOut) & 0x08) != 0) SpeakerGateChanged?.Invoke((PortCOut & 0x08) != 0);
-                if (((old ^ PortCOut) & 0x01) != 0) MotorChanged?.Invoke((PortCOut & 0x01) != 0);
-                if (((old ^ PortCOut) & 0x04) != 0) IntMaskChanged?.Invoke((PortCOut & 0x04) != 0);
                 break;
             }
             case 3:
@@ -88,8 +87,6 @@ public sealed class Ppi8255
                     {
                         if (set) PortCOut |= mask; else PortCOut &= (byte)~mask;
                         if (((old ^ PortCOut) & 0x08) != 0) SpeakerGateChanged?.Invoke((PortCOut & 0x08) != 0);
-                        if (((old ^ PortCOut) & 0x01) != 0) MotorChanged?.Invoke((PortCOut & 0x01) != 0);
-                        if (((old ^ PortCOut) & 0x04) != 0) IntMaskChanged?.Invoke((PortCOut & 0x04) != 0);
                     }
                     else
                     {
@@ -98,11 +95,6 @@ public sealed class Ppi8255
                 }
                 break;
         }
-    }
-
-    public void SetCassetteRead(bool bit)
-    {
-        if (bit) PortCIn |= 0x20; else PortCIn &= 0xDF;
     }
 
     public void SetCursorBlink(bool bit)

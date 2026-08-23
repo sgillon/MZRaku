@@ -77,34 +77,10 @@ public static class Mz700SoundReference
         /// emulation purposes the simplification "GATE0 follows PC3"
         /// holds: the counter is allowed to count once the speaker
         /// is enabled and stays counting; the actual on/off of the
-        /// audible tone is controlled by the speaker-NAND hard gate
-        /// (see <see cref="SpeakerNandGate"/>), not by GATE0.</summary>
+        /// audible tone is controlled by the speaker-amp NAND's
+        /// second input (Q of IC7E FF1, latched from $E008 D0),
+        /// not by GATE0.</summary>
         FlipFlopGate0FromPc3,
-    }
-
-    /// <summary>
-    /// What controls the speaker-amp NAND's second input — the "hard"
-    /// gate that decides whether C0.OUT actually reaches the audio
-    /// amplifier. This is distinct from <see cref="GateSource"/>
-    /// (which controls whether C0 *counts*); a counter that's
-    /// counting still produces silence if the speaker NAND is shut.
-    /// </summary>
-    public enum SpeakerNandGate
-    {
-        /// <summary>Driven by Q of IC7E LS74 FF1 (lower flip-flop).
-        /// FF1 has D=D0 (data-bus bit 0), CK=IC6F LS02 NOR(MW, CSE2)
-        /// — a rising edge on every write to the CSE2-decoded
-        /// address ($E008), CL=RESET (cleared at power-on),
-        /// PR=+5V (unused). The output NAND(C0.OUT, FF1.Q) drives
-        /// the speaker amp (TR2/TR1 transistor pair through R103/VR).
-        /// So writing D0=1 to $E008 enables audible sound; D0=0 to
-        /// $E008 silences it regardless of C0's state. The MZ-700
-        /// boot tone and S-BASIC MUSIC notes both rely on this — our
-        /// emulator previously dropped $E008 writes, which is why
-        /// boot tone never stopped and MUSIC produced one
-        /// continuous re-pitched tone instead of discrete notes.
-        /// </summary>
-        E008Bit0Latch,
     }
 
     public enum ConfidenceLevel
@@ -144,7 +120,7 @@ public static class Mz700SoundReference
             895_000.0,
             GateSource.FlipFlopGate0FromPc3,
             PitMode.Mode3SquareWave,
-            "Buzzer tone generator. Reload value = 895000 / target Hz; OUT0 feeds the speaker NAND (the other input is the $E008-D0 hard gate — see SpeakerNandGate).",
+            "Buzzer tone generator. Reload value = 895000 / target Hz; OUT0 feeds the speaker NAND (the other input is the $E008-D0 hard gate: FF1.Q latched on every write to $E008, cleared by RESET).",
             ConfidenceLevel.ServiceManual),
 
         new CounterSpec(
@@ -169,53 +145,4 @@ public static class Mz700SoundReference
             ConfidenceLevel.ServiceManual),
     };
 
-    /// <summary>
-    /// A sound event the system is expected to produce — used by the
-    /// diagnostic walkthrough to anchor "is this thing actually
-    /// happening?" Each entry carries enough metadata for the
-    /// diagnostic to recognise it (frequency band, duration) without
-    /// needing exact match. Empirical entries should be tightened
-    /// when real-hardware measurements are available.
-    /// </summary>
-    public readonly record struct ExpectedEvent(
-        string Name,
-        double FrequencyHz,
-        double DurationMs,
-        string Trigger,
-        ConfidenceLevel Confidence,
-        string Notes);
-
-    /// <summary>
-    /// Known audible system events. Light to start with — anything
-    /// not yet characterised against the manual or real hardware is
-    /// marked Empirical with a sensible default so the diagnostic
-    /// has something to compare against.
-    /// </summary>
-    public static readonly IReadOnlyList<ExpectedEvent> ExpectedEvents = new[]
-    {
-        new ExpectedEvent(
-            Name: "Boot tone (Monitor ready beep)",
-            FrequencyHz: 0,    // TBD — needs real-hardware measurement
-            DurationMs: 0,     // TBD — anecdotally short (~50-100 ms)
-            Trigger: "Fires once shortly after Reset, before the monitor prompt appears.",
-            Confidence: ConfidenceLevel.Empirical,
-            Notes: "On real hardware: ROM writes D0=1 to $E008 to enable the speaker NAND, " +
-                   "C0 produces its 710 Hz square wave, then ROM writes D0=0 to $E008 to " +
-                   "silence. Diagnosed from schematic 2026-06-19: silencing happens at the " +
-                   "speaker-NAND hard gate (FF1.Q), not at GATE0 — C0 keeps counting through " +
-                   "the silence."),
-
-        new ExpectedEvent(
-            Name: "S-BASIC MUSIC note",
-            FrequencyHz: 0,    // Variable — driven by note value
-            DurationMs: 0,     // Variable — driven by tempo + duration
-            Trigger: "PLAY / MUSIC commands in S-BASIC.",
-            Confidence: ConfidenceLevel.Empirical,
-            Notes: "Same speaker-NAND mechanism as the boot tone. Each note: program C0's " +
-                   "reload to the pitch, write D0=1 to $E008 to open the NAND, wait for the " +
-                   "TEMPO-derived note duration, write D0=0 to $E008 to close. The TEMPO bit " +
-                   "at $E008.0 is currently driven by a CPU-cycle-derived 50 Hz toggle " +
-                   "(MZ700.CyclesPerTempoToggle) rather than C1.OUT1 directly. Worth " +
-                   "characterising once boot tone is verified working."),
-    };
 }

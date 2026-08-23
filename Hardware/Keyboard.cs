@@ -120,19 +120,6 @@ public sealed class Keyboard : IKeyboardMatrix
     }
 
     /// <summary>
-    /// Reflect the PC's shift-modifier state into the MZ-700.
-    /// Retained as a public API for callers that need to force a sync
-    /// outside the OnKeyDown / OnKeyUp flow (none in-tree right now).
-    /// The form no longer calls this on every key event — see the
-    /// "shift-race" notes on <see cref="OnKeyDown"/>.
-    /// </summary>
-    public void SetShift(bool held)
-    {
-        _pcShift = held;
-        ApplyShiftState();
-    }
-
-    /// <summary>
     /// Write the current <see cref="EffectiveMzShift"/> value to both
     /// the matrix bit (8,0) and the RAM mirror at $1170. Consolidates
     /// the two writes so any caller that updates <c>_pcShift</c> or

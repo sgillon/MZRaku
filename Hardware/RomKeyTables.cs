@@ -77,8 +77,4 @@ public sealed class RomKeyTables
     /// </summary>
     public (int Row, int Col, bool MzShift)? FindByDisplayCode(byte code, int bank = AlphaBank) =>
         _byCode.TryGetValue((code, bank), out var slot) ? slot : null;
-
-    public int Count => _byCode.Count;
-
-    public IEnumerable<KeyValuePair<(byte Code, int Bank), (int Row, int Col, bool MzShift)>> All => _byCode;
 }

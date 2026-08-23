@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Windows.Forms;
 using MZRaku.Hardware;
 
@@ -1238,24 +1237,29 @@ public sealed class SettingsForm : Form
 
     // -- ROM browse + path-status indicator -----------------------------
 
+    // Every ROM textbox + its status label, in the same order the tab
+    // displays them. WireValidation and RefreshAllRomStatus fan out over
+    // this list — add a new row here rather than editing both methods.
+    private (TextBox Box, Label Status)[] RomRows() => new[]
+    {
+        (_txtMz700Monitor, _lblMz700MonitorStatus),
+        (_txtMz700Font,    _lblMz700FontStatus),
+        (_txtMz700Basic,   _lblMz700BasicStatus),
+        (_txtMz80aMonitor, _lblMz80aMonitorStatus),
+        (_txtMz80aFont,    _lblMz80aFontStatus),
+        (_txtMz80aBasic,   _lblMz80aBasicStatus),
+    };
+
     private void WireValidation()
     {
-        _txtMz700Monitor.TextChanged += (_, _) => UpdateRomStatus(_txtMz700Monitor, _lblMz700MonitorStatus);
-        _txtMz700Font.TextChanged += (_, _) => UpdateRomStatus(_txtMz700Font, _lblMz700FontStatus);
-        _txtMz700Basic.TextChanged += (_, _) => UpdateRomStatus(_txtMz700Basic, _lblMz700BasicStatus);
-        _txtMz80aMonitor.TextChanged += (_, _) => UpdateRomStatus(_txtMz80aMonitor, _lblMz80aMonitorStatus);
-        _txtMz80aFont.TextChanged += (_, _) => UpdateRomStatus(_txtMz80aFont, _lblMz80aFontStatus);
-        _txtMz80aBasic.TextChanged += (_, _) => UpdateRomStatus(_txtMz80aBasic, _lblMz80aBasicStatus);
+        foreach (var (box, status) in RomRows())
+            box.TextChanged += (_, _) => UpdateRomStatus(box, status);
     }
 
     private void RefreshAllRomStatus()
     {
-        UpdateRomStatus(_txtMz700Monitor, _lblMz700MonitorStatus);
-        UpdateRomStatus(_txtMz700Font, _lblMz700FontStatus);
-        UpdateRomStatus(_txtMz700Basic, _lblMz700BasicStatus);
-        UpdateRomStatus(_txtMz80aMonitor, _lblMz80aMonitorStatus);
-        UpdateRomStatus(_txtMz80aFont, _lblMz80aFontStatus);
-        UpdateRomStatus(_txtMz80aBasic, _lblMz80aBasicStatus);
+        foreach (var (box, status) in RomRows())
+            UpdateRomStatus(box, status);
     }
 
     private static void UpdateRomStatus(TextBox textBox, Label statusLabel)

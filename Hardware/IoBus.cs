@@ -60,7 +60,7 @@ public sealed class IoBus : IIoBus
             // amplifier, D0=0 forces silence regardless of C0. This
             // is how the ROM's boot tone ends and how S-BASIC's
             // MUSIC produces discrete notes. See Mz700SoundReference
-            // (SpeakerNandGate enum) for the schematic citation.
+            // for the schematic citation of the speaker-NAND hard gate.
             Sound.HardGate = (value & 0x01) != 0;
             OnE008Write?.Invoke(value);
             return;

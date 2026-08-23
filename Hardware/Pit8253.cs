@@ -153,8 +153,8 @@ public sealed class Pit8253
                 // 2026-06-18 via Sound Diagnostic; service-manual
                 // schematic re-read 2026-06-19 confirmed that audible
                 // silencing happens at the speaker-amp NAND via the
-                // $E008-D0 hard gate, not by halting C0 — see
-                // Mz700SoundReference.SpeakerNandGate).
+                // $E008-D0 hard gate, not by halting C0 — see the
+                // $E008 hard-gate notes in Mz700SoundReference).
                 //
                 // Writing a control word forces OUT to its initial state
                 // for the new mode. Mode 0 → OUT low; modes 2/3 → OUT
@@ -274,14 +274,5 @@ public sealed class Pit8253
                 }
             }
         }
-    }
-
-    // Helper: get approximate output frequency for counter 0 (Hz), given input clock.
-    public double Counter0FrequencyHz(double inputHz)
-    {
-        var c = Counters[0];
-        if (c.Reload < 2) return 0;
-        // Mode 3: square wave; period = reload / inputHz
-        return inputHz / c.Reload;
     }
 }

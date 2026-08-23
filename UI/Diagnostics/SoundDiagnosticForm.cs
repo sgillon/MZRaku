@@ -111,14 +111,6 @@ public sealed class SoundDiagnosticForm : Form
         Margin = new Padding(2),
     };
 
-    private static SmoothLabel FillMonoLabel() => new()
-    {
-        AutoSize = false,
-        Dock = DockStyle.Fill,
-        Font = new Font(FontFamily.GenericMonospace, 9f),
-        Margin = new Padding(2),
-    };
-
     private static GroupBox AutoGroup(string title, Control content)
     {
         var gb = new GroupBox
