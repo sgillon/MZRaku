@@ -1662,7 +1662,11 @@ public sealed class MainForm : Form
         }
         psi.ArgumentList.Add(target == MachineType.MZ700 ? "--mz700" : "--mz80a");
         System.Diagnostics.Process.Start(psi);
-        Environment.Exit(0);
+        // Close() runs the FormClosing handler that snapshots the window
+        // rectangle into _settings.MainWindow and persists via Save().
+        // Previously Environment.Exit(0) here bypassed that handler and
+        // the switched-into machine's window jumped to the default spot.
+        Close();
     }
 
     private void OpenSettings(SettingsForm.Tab tab = SettingsForm.Tab.Startup)
