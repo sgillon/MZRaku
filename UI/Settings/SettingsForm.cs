@@ -775,147 +775,15 @@ public sealed class SettingsForm : Form
         _mz80a != null ? new Mz80aPhysicalKeyboardLayout()
                        : new Mz700PhysicalKeyboardLayout();
 
-    private void OnExportMzKbd()
-    {
-        // Dispatch on active machine. Both machines have the same file
-        // shape (v1.2 audit F-037 introduced .mzkbd v2 with a machine
-        // tag); we just pick the right override store's serialised
-        // lines to feed the writer.
-        bool isMz80a = _mz80a != null;
-        var activeMachine = isMz80a ? MachineType.MZ80A : MachineType.MZ700;
-        int charCount = isMz80a ? _settings.Mz80aCharMapOverrides.Count : _settings.CharMapOverrides.Count;
-        int keyCount  = isMz80a ? _settings.Mz80aKeyOverrides.Count      : _settings.KeyOverrides.Count;
-        var charLines = isMz80a
-            ? _settings.Mz80aCharMapOverrides.SerialiseLines()
-            : _settings.CharMapOverrides.SerialiseLines();
-        var keyOverrides = isMz80a ? _settings.Mz80aKeyOverrides : _settings.KeyOverrides;
-        string defaultFileName = isMz80a ? "mz80a-keyboard.mzkbd" : "mz700-keyboard.mzkbd";
+    private MachineType ActiveMachine =>
+        _mz80a != null ? MachineType.MZ80A : MachineType.MZ700;
 
-        using var dlg = new SaveFileDialog
-        {
-            Title = $"Export {(isMz80a ? "MZ-80A" : "MZ-700")} keyboard mapping",
-            Filter = KeyboardMapFile.FileFilter,
-            DefaultExt = "mzkbd",
-            AddExtension = true,
-            FileName = defaultFileName,
-            InitialDirectory = AppContext.BaseDirectory,
-            OverwritePrompt = true,
-        };
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
-        try
-        {
-            KeyboardMapFile.Save(dlg.FileName, activeMachine, charLines, keyOverrides);
-            MessageBox.Show(this,
-                $"Exported {charCount} CharMap and {keyCount} KeyOverride entries to:\n{dlg.FileName}",
-                "Export complete",
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(this,
-                $"Failed to save the file:\n\n{ex.Message}",
-                "Export failed",
-                MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
-    }
+    private void OnExportMzKbd() =>
+        MzKbdIoCoordinator.PromptAndExport(this, _settings, ActiveMachine);
 
-    private void OnImportMzKbd()
-    {
-        using var dlg = new OpenFileDialog
-        {
-            Title = "Import keyboard mapping",
-            Filter = KeyboardMapFile.FileFilter,
-            InitialDirectory = AppContext.BaseDirectory,
-            CheckFileExists = true,
-        };
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
-
-        KeyboardMapFile.LoadResult loaded;
-        try
-        {
-            loaded = KeyboardMapFile.Load(dlg.FileName);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(this,
-                $"Failed to read the file:\n\n{ex.Message}",
-                "Import failed",
-                MessageBoxButtons.OK, MessageBoxIcon.Error);
-            return;
-        }
-
-        // File-machine vs active-machine check. Matrix coords aren't
-        // compatible across the two machines' keyboards, so a mismatched
-        // import would land bindings on the wrong slots. Refuse rather
-        // than silently misroute.
-        bool isMz80a = _mz80a != null;
-        var activeMachine = isMz80a ? MachineType.MZ80A : MachineType.MZ700;
-        if (loaded.Machine != activeMachine)
-        {
-            MessageBox.Show(this,
-                $"This file is a {loaded.Machine} keyboard mapping, but the current session is running {activeMachine}.\n\n" +
-                "Matrix coordinates don't align between the two machines, so importing here would land bindings on the wrong slots.\n\n" +
-                $"Switch machines (File → Machine → {loaded.Machine}) first, then import.",
-                "Machine mismatch",
-                MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
-
-        // Empty file = nothing actionable; bail with a friendly note
-        // rather than silently no-op.
-        if (loaded.CharEntries.Count == 0 && loaded.KeyEntries.Count == 0)
-        {
-            MessageBox.Show(this,
-                "The file didn't contain any overrides to import.",
-                "Nothing to import",
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return;
-        }
-
-        // Merge / Replace / Cancel via a three-button prompt.
-        // Yes = Merge (apply on top of current overrides),
-        // No  = Replace (clear current first).
-        var choice = MessageBox.Show(this,
-            $"Import contains {loaded.CharEntries.Count} CharMap and " +
-            $"{loaded.KeyEntries.Count} KeyOverride entries.\n\n" +
-            "Yes  = Merge into current overrides (imported entries win on conflict).\n" +
-            "No   = Replace current overrides entirely.\n" +
-            "Cancel = abort import.",
-            "Import keyboard mapping",
-            MessageBoxButtons.YesNoCancel,
-            MessageBoxIcon.Question);
-        if (choice == DialogResult.Cancel) return;
-
-        // Route into the active machine's override stores.
-        if (isMz80a)
-        {
-            if (choice == DialogResult.No)
-            {
-                _settings.Mz80aCharMapOverrides.Clear();
-                _settings.Mz80aKeyOverrides.Clear();
-            }
-            foreach (var (k, v) in loaded.CharEntries)
-                _settings.Mz80aCharMapOverrides.TryParseLine(k, v);
-            foreach (var (k, v) in loaded.KeyEntries)
-                _settings.Mz80aKeyOverrides.TryParseLine(k, v);
-        }
-        else
-        {
-            if (choice == DialogResult.No)
-            {
-                _settings.CharMapOverrides.Clear();
-                _settings.KeyOverrides.Clear();
-            }
-            foreach (var (k, v) in loaded.CharEntries)
-                _settings.CharMapOverrides.TryParseLine(k, v);
-            foreach (var (k, v) in loaded.KeyEntries)
-                _settings.KeyOverrides.TryParseLine(k, v);
-        }
-
-        // Refresh the surface controls so the change is visible
-        // immediately. Persistence still waits for Apply / OK.
-        RefreshKeyboardDiagramLabels();
-    }
+    private void OnImportMzKbd() =>
+        MzKbdIoCoordinator.PromptAndImport(this, _settings, ActiveMachine,
+            onImportApplied: RefreshKeyboardDiagramLabels);
 
     private void OnKeyboardDiagramKeyClicked(object? sender, KeyDiagramClickedEventArgs e)
     {
