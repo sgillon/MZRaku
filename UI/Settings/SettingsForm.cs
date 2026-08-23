@@ -875,15 +875,14 @@ public sealed class SettingsForm : Form
 
     private void OnKeyboardDiagramKeyClicked(object? sender, KeyDiagramClickedEventArgs e)
     {
+        var context = TryBuildActiveEditorContext();
+        if (context == null) return;
+
         // MZ Shift is permanently wired to PC Shift via the Keyboard
         // modifier path (concurrent assertion is needed so Shift+1 → '!'
         // produces the character bit and the shift bit simultaneously).
         // Surfacing the editor would imply it's rebindable; explain instead.
-        // MZ-700 SHIFT sits at (8, 0); MZ-80A SHIFT sits at (0, 0).
-        bool isShiftSlot = _machine != null
-            ? (e.Key.Row == 8 && e.Key.Col == 0)
-            : (e.Key.Row == 0 && e.Key.Col == 0);
-        if (isShiftSlot)
+        if (e.Key.Row == context.ShiftSlot.Row && e.Key.Col == context.ShiftSlot.Col)
         {
             MessageBox.Show(this,
                 "MZ Shift is permanently bound to your PC Shift key.\n\n" +
@@ -898,8 +897,6 @@ public sealed class SettingsForm : Form
         // Editor mutates the override layers directly — change is live
         // for subsequent emulator keystrokes. Persistence still waits
         // for this dialog's Apply / OK.
-        var context = TryBuildActiveEditorContext();
-        if (context == null) return;
         using var editor = new MzKeyEditorForm(e.Key, context);
         editor.ShowDialog(this);
         RefreshKeyboardDiagramLabels();

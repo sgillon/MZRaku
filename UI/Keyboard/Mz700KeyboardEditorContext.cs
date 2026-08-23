@@ -50,6 +50,8 @@ public sealed class Mz700KeyboardEditorContext : IKeyboardEditorContext
 
     public KeyOverride KeyOverrides { get; }
 
+    public (int Row, int Col) ShiftSlot => (8, 0);
+
     public char? FindGlyphAt(int row, int col, bool mzShift) =>
         MzGlyphCatalog.FindByPrintableSlot(row, col, mzShift);
 

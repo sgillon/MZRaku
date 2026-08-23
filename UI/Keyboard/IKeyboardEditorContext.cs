@@ -59,6 +59,15 @@ public interface IKeyboardEditorContext
     /// machines (matrix coords are the only thing it stores).</summary>
     KeyOverride KeyOverrides { get; }
 
+    /// <summary>
+    /// Matrix coordinates of the MZ SHIFT key on this machine. MZ-700
+    /// is (8, 0); MZ-80A is (0, 0). Used by the shift-slot check that
+    /// intercepts diagram clicks on Shift before opening the per-slot
+    /// editor (Shift is permanently wired to PC Shift and shouldn't
+    /// look rebindable).
+    /// </summary>
+    (int Row, int Col) ShiftSlot { get; }
+
     /// <summary>Canonical printable glyph at (row, col, mzShift), or null
     /// if the slot has no printable glyph on this machine.</summary>
     char? FindGlyphAt(int row, int col, bool mzShift);

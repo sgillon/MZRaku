@@ -68,6 +68,8 @@ public sealed class Mz80aKeyboardEditorContext : IKeyboardEditorContext
 
     public KeyOverride KeyOverrides { get; }
 
+    public (int Row, int Col) ShiftSlot => (0, 0);
+
     /// <summary>
     /// Canonical printable glyph at (row, col, mzShift) via
     /// <see cref="Mz80aMatrixReference"/>. First char of the slot's
