@@ -52,6 +52,10 @@ public sealed class Mz700KeyboardEditorContext : IKeyboardEditorContext
 
     public (int Row, int Col) ShiftSlot => (8, 0);
 
+    public IMatrixReference MatrixReference => Mz700MatrixReference.View;
+    public IReadOnlyList<MzKeyboardLayout.MzKey> LayoutKeys => MzKeyboardLayout.Keys;
+    public IEnumerable<MzKeyboardLayout.MzKey> EssentialLayoutKeys => MzKeyboardLayout.EssentialKeys;
+
     public char? FindGlyphAt(int row, int col, bool mzShift) =>
         MzGlyphCatalog.FindByPrintableSlot(row, col, mzShift);
 

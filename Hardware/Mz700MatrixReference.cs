@@ -93,6 +93,9 @@ public static class Mz700MatrixReference
         public int Cols => Mz700MatrixReference.Cols;
         public (int Row, int Col) ShiftSlot => (8, 0);
 
+        public bool IsKnownUnreachableFromPc(int row, int col, bool mzShift) =>
+            Mz700MatrixReference.IsKnownUnreachableFromPc(row, col, mzShift);
+
         public IEnumerable<MatrixReferenceCell> BindableCells
         {
             get

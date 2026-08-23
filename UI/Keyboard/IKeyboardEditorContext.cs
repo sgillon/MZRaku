@@ -68,6 +68,32 @@ public interface IKeyboardEditorContext
     /// </summary>
     (int Row, int Col) ShiftSlot { get; }
 
+    /// <summary>
+    /// The machine's matrix reference view — same
+    /// <see cref="IMatrixReference"/> the unbound-slot walk uses.
+    /// Exposed here so <see cref="PcKeyIndex"/> and the reachability
+    /// helpers can reach ShiftSlot / IsKnownUnreachableFromPc without
+    /// having to re-plumb every call site.
+    /// </summary>
+    IMatrixReference MatrixReference { get; }
+
+    /// <summary>
+    /// Physical-layout keys for this machine
+    /// (<see cref="MzKeyboardLayout.Keys"/> for MZ-700,
+    /// <see cref="Mz80aKeyboardLayout.Keys"/> for MZ-80A). Feeds
+    /// <see cref="PcKeyIndex.BuildLabelsByMzKey"/> so the diagram
+    /// can label per-cap.
+    /// </summary>
+    IReadOnlyList<MzKeyboardLayout.MzKey> LayoutKeys { get; }
+
+    /// <summary>
+    /// Layout keys the safety gate treats as essential — every one
+    /// must be reachable from at least one PC binding for Apply to
+    /// pass without warning. Both machines currently emit every
+    /// non-Blank layout key with real matrix coordinates.
+    /// </summary>
+    IEnumerable<MzKeyboardLayout.MzKey> EssentialLayoutKeys { get; }
+
     /// <summary>Canonical printable glyph at (row, col, mzShift), or null
     /// if the slot has no printable glyph on this machine.</summary>
     char? FindGlyphAt(int row, int col, bool mzShift);

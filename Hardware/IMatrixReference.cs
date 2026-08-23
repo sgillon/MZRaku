@@ -41,6 +41,17 @@ public interface IMatrixReference
     /// treat it as reachable. MZ-700 is (8, 0); MZ-80A is (0, 0).
     /// </summary>
     (int Row, int Col) ShiftSlot { get; }
+
+    /// <summary>
+    /// MZ glyph positions the safety gate should treat as reachable
+    /// even when no PC binding produces them — glyphs that have no
+    /// equivalent on a PC keyboard by design (MZ-700 reverse-apostrophe
+    /// at AT-shifted, ↓ and £ at POUND). Returns false for machines
+    /// with no such exemptions (MZ-80A currently). The information
+    /// isn't lost — the Advanced unbound-slot panel still surfaces
+    /// these as separate slot-level rows.
+    /// </summary>
+    bool IsKnownUnreachableFromPc(int row, int col, bool mzShift);
 }
 
 /// <summary>

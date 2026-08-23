@@ -206,6 +206,22 @@ public static class Mz80aKeyboardLayout
     }
 
     /// <summary>
+    /// Keys the safety gate should confirm are reachable from the PC
+    /// keyboard before Apply. Every layout key with real (Row, Col)
+    /// coordinates qualifies — MZ-80A has no Blank filler kind so
+    /// nothing is excluded. Mirrors <see cref="MzKeyboardLayout.EssentialKeys"/>.
+    /// </summary>
+    public static IEnumerable<MzKeyboardLayout.MzKey> EssentialKeys
+    {
+        get
+        {
+            foreach (var k in Keys)
+                if (k.Row.HasValue && k.Col.HasValue)
+                    yield return k;
+        }
+    }
+
+    /// <summary>
     /// Cross-checks every key against <see cref="Mz80aMatrixReference"/>.
     /// Returns a list of complaints; empty means every (Row, Col)
     /// lands on a slot of the matching kind.

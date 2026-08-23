@@ -70,6 +70,10 @@ public sealed class Mz80aKeyboardEditorContext : IKeyboardEditorContext
 
     public (int Row, int Col) ShiftSlot => (0, 0);
 
+    public IMatrixReference MatrixReference => Mz80aMatrixReference.View;
+    public IReadOnlyList<MzKeyboardLayout.MzKey> LayoutKeys => Mz80aKeyboardLayout.Keys;
+    public IEnumerable<MzKeyboardLayout.MzKey> EssentialLayoutKeys => Mz80aKeyboardLayout.EssentialKeys;
+
     public char? FindGlyphAt(int row, int col, bool mzShift) =>
         Mz80aMatrixReference.FindGlyph(row, col, mzShift);
 

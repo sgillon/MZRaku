@@ -906,14 +906,11 @@ public sealed class SettingsForm : Form
     {
         if (_kbdDiagram == null) return;
 
-        // PcKeyIndex + the unreachable-essential safety gate are MZ-700-
-        // specific (both walk MzKeyboardLayout.Keys / EssentialKeys and
-        // MZ-700's CharMap / SpecialKeyMap statics). On MZ-80A the
-        // diagram renders label-less until the equivalent index arrives
-        // as v1.2 polish. Explicit null clears any stale MZ-700 state
-        // if the machine's swapped mid-dialog (not possible today, but
-        // defensive).
-        if (_machine == null)
+        // Both machines route through the same parameterised PcKeyIndex
+        // (v1.2 audit F-036). Null context = neither machine held,
+        // shouldn't happen in normal use — clear labels defensively.
+        var context = TryBuildActiveEditorContext();
+        if (context == null)
         {
             _kbdDiagram.PcKeyLabels = null;
             _kbdDiagram.UnreachableKeyIds = null;
@@ -921,19 +918,17 @@ public sealed class SettingsForm : Form
             return;
         }
 
-        _kbdDiagram.PcKeyLabels = PcKeyIndex.BuildLabelsByMzKey(
-            _settings.CharMapOverrides, _settings.KeyOverrides);
+        _kbdDiagram.PcKeyLabels = PcKeyIndex.BuildLabelsByMzKey(context.LayoutKeys, context);
 
         // Recompute the unreachable-essential set so the red outline on
         // affected caps tracks live with edits — Apply's safety gate
         // reads the same set, so what you see on the diagram before
         // Apply is what the confirm dialog will mention.
-        var slotShiftLabels = PcKeyIndex.BuildLabelsBySlotShift(
-            _settings.CharMapOverrides, _settings.KeyOverrides);
+        var slotShiftLabels = PcKeyIndex.BuildLabelsBySlotShift(context);
         var unreachable = new HashSet<string>();
-        foreach (var k in MzKeyboardLayout.EssentialKeys)
+        foreach (var k in context.EssentialLayoutKeys)
         {
-            if (!IsKeyFullyReachable(k, slotShiftLabels))
+            if (!IsKeyFullyReachable(k, slotShiftLabels, context))
                 unreachable.Add(k.Id);
         }
         _kbdDiagram.UnreachableKeyIds = unreachable.Count > 0 ? unreachable : null;
@@ -953,14 +948,15 @@ public sealed class SettingsForm : Form
     /// state is enough.
     ///
     /// Glyphs flagged by
-    /// <see cref="Mz700MatrixReference.IsKnownUnreachableFromPc"/>
-    /// (reverse-apostrophe at AT, ↓ and £ at POUND) count as reachable
-    /// here — they're not on a PC keyboard by design, so the gate
-    /// shouldn't nag every Apply.
+    /// <see cref="IMatrixReference.IsKnownUnreachableFromPc"/> (MZ-700
+    /// reverse-apostrophe at AT-shifted, ↓ and £ at POUND; MZ-80A has
+    /// no such exemptions) count as reachable here — they're not on a
+    /// PC keyboard by design, so the gate shouldn't nag every Apply.
     /// </summary>
     private static bool IsKeyFullyReachable(
         MzKeyboardLayout.MzKey k,
-        IReadOnlyDictionary<(int row, int col, bool shift), IReadOnlyList<string>> labels)
+        IReadOnlyDictionary<(int row, int col, bool shift), IReadOnlyList<string>> labels,
+        IKeyboardEditorContext context)
     {
         if (!k.Row.HasValue || !k.Col.HasValue) return true;
         int row = k.Row.Value, col = k.Col.Value;
@@ -970,17 +966,17 @@ public sealed class SettingsForm : Form
                 || labels.ContainsKey((row, col, true));
 
         bool hasUnshifted = !string.IsNullOrEmpty(k.UnshiftedLabel)
-            || MzGlyphCatalog.FindByPrintableSlot(row, col, false).HasValue;
+            || context.FindGlyphAt(row, col, false).HasValue;
         bool hasShifted = !string.IsNullOrEmpty(k.ShiftedLabel)
-            || MzGlyphCatalog.FindByPrintableSlot(row, col, true).HasValue;
+            || context.FindGlyphAt(row, col, true).HasValue;
 
         if (hasUnshifted
             && !labels.ContainsKey((row, col, false))
-            && !Mz700MatrixReference.IsKnownUnreachableFromPc(row, col, false))
+            && !context.MatrixReference.IsKnownUnreachableFromPc(row, col, false))
             return false;
         if (hasShifted
             && !labels.ContainsKey((row, col, true))
-            && !Mz700MatrixReference.IsKnownUnreachableFromPc(row, col, true))
+            && !context.MatrixReference.IsKnownUnreachableFromPc(row, col, true))
             return false;
         return true;
     }
@@ -1191,7 +1187,11 @@ public sealed class SettingsForm : Form
         var unreachableIds = _kbdDiagram?.UnreachableKeyIds;
         if (unreachableIds == null || unreachableIds.Count == 0) return true;
 
-        var unreachable = MzKeyboardLayout.Keys
+        // Walk the active machine's layout keys — MZ-700 = MzKeyboardLayout,
+        // MZ-80A = Mz80aKeyboardLayout — via the editor context.
+        var context = TryBuildActiveEditorContext();
+        if (context == null) return true;
+        var unreachable = context.LayoutKeys
             .Where(k => unreachableIds.Contains(k.Id))
             .ToList();
 
@@ -1201,7 +1201,7 @@ public sealed class SettingsForm : Form
             tabs.SelectedTab = page;
 
         const int previewMax = 10;
-        var names = string.Join(", ", unreachable.Take(previewMax).Select(DescribeKeyForGate));
+        var names = string.Join(", ", unreachable.Take(previewMax).Select(k => DescribeKeyForGate(k, context)));
         if (unreachable.Count > previewMax)
             names += $", … (+{unreachable.Count - previewMax} more)";
 
@@ -1216,15 +1216,15 @@ public sealed class SettingsForm : Form
         return result == DialogResult.Yes;
     }
 
-    private static string DescribeKeyForGate(MzKeyboardLayout.MzKey k)
+    private static string DescribeKeyForGate(MzKeyboardLayout.MzKey k, IKeyboardEditorContext context)
     {
         if (!string.IsNullOrEmpty(k.FixedLabel)) return k.FixedLabel!;
         if (!string.IsNullOrEmpty(k.UnshiftedLabel)) return k.UnshiftedLabel!;
         if (!string.IsNullOrEmpty(k.ShiftedLabel)) return k.ShiftedLabel!;
         if (k.Row.HasValue && k.Col.HasValue)
         {
-            var c = MzGlyphCatalog.FindByPrintableSlot(k.Row.Value, k.Col.Value, false)
-                  ?? MzGlyphCatalog.FindByPrintableSlot(k.Row.Value, k.Col.Value, true);
+            var c = context.FindGlyphAt(k.Row.Value, k.Col.Value, false)
+                  ?? context.FindGlyphAt(k.Row.Value, k.Col.Value, true);
             if (c.HasValue) return c.Value.ToString();
         }
         return k.Id;

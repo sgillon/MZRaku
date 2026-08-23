@@ -95,6 +95,9 @@ public static class Mz80aMatrixReference
         public int Cols => Mz80aMatrixReference.Bits;
         public (int Row, int Col) ShiftSlot => (0, 0);
 
+        public bool IsKnownUnreachableFromPc(int row, int col, bool mzShift) =>
+            Mz80aMatrixReference.IsKnownUnreachableFromPc(row, col, mzShift);
+
         public IEnumerable<MatrixReferenceCell> BindableCells
         {
             get
@@ -296,6 +299,22 @@ public static class Mz80aMatrixReference
     {
         m[(strobe, bit)] = new Slot(strobe, bit, kind, id, unshifted, shifted);
     }
+
+    /// <summary>
+    /// MZ glyph positions that have no equivalent on a PC keyboard by
+    /// design — the safety gate treats them as reachable so it doesn't
+    /// nag every Apply. Mirrors
+    /// <see cref="Mz700MatrixReference.IsKnownUnreachableFromPc"/>.
+    ///
+    /// MZ-80A currently has no such exemptions catalogued: every
+    /// glyph in the reference is either bindable via the PC layout
+    /// or produced through a Shift-modifier chain. If future audits
+    /// surface an unreachable-by-design glyph (e.g. a display-only
+    /// symbol that lives on GRPH but has no PC-side counterpart),
+    /// add its (strobe, bit, shift) here so the safety gate stays
+    /// quiet about it.
+    /// </summary>
+    public static bool IsKnownUnreachableFromPc(int strobe, int bit, bool mzShift) => false;
 
     /// <summary>
     /// Canonical printable glyph at (strobe, bit, mzShift), or null if
