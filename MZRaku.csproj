@@ -109,7 +109,7 @@
        (bin/) so 'dotnet run' works, but never into a release bundle. -->
   <ItemGroup>
     <None Include="roms\*.rom;roms\*.int;roms\*.txt;basic\*.mzf"
-          Condition="Exists('roms\1z-013a.rom') or Exists('roms\mz700fon.int') or Exists('basic\1Z-013B.mzf')">
+          Condition="Exists('roms') or Exists('basic')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>Never</CopyToPublishDirectory>
     </None>
