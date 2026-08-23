@@ -1,37 +1,55 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace MZRaku.Hardware;
 
 /// <summary>
-/// Save / load helpers for the <c>.mzkbd</c> keyboard-mapping exchange
-/// file. The file is a small INI: two sections (<c>[CharMap]</c> and
+/// Save / load helpers for the <c>.mzkbd</c> keyboard-mapping
+/// exchange file. Two sections (<c>[CharMap]</c> and
 /// <c>[KeyOverrides]</c>) using the same line formats
-/// <see cref="CharMapOverrides.SerialiseLines"/> and
+/// <see cref="CharMapOverrides.SerialiseLines"/> /
+/// <see cref="Mz80aCharMapOverrides.SerialiseLines"/> /
 /// <see cref="KeyOverride.SerialiseLines"/> already write into
 /// <c>settings.ini</c>, plus a header comment block documenting the
 /// shape for hand-editors.
 ///
-/// Only user overrides are persisted — built-in defaults are applied at
-/// runtime and don't need to round-trip through the file. Import
+/// v2 file format (v1.2 audit F-037): adds a <c>[Meta]</c> section
+/// with <c>machine=MZ-700</c> / <c>machine=MZ-80A</c> at the top so
+/// import can route the entries into the right machine's override
+/// store. v1 files (no <c>[Meta]</c>) still load — they're treated
+/// as MZ-700, matching the historical assumption. New saves are
+/// always v2.
+///
+/// Only user overrides are persisted — built-in defaults are applied
+/// at runtime and don't need to round-trip through the file. Import
 /// offers <i>merge</i> (apply on top of current overrides) and
-/// <i>replace</i> (clear current first); the caller drives that prompt.
+/// <i>replace</i> (clear current first); the caller drives that
+/// prompt.
 /// </summary>
 public static class KeyboardMapFile
 {
     public const string FileExtension = ".mzkbd";
     public const string FileFilter =
-        "MZ-700 keyboard mapping (*.mzkbd)|*.mzkbd|All files|*.*";
+        "MZ keyboard mapping (*.mzkbd)|*.mzkbd|All files|*.*";
 
     /// <summary>
-    /// Writes the contents of <paramref name="charOverrides"/> and
-    /// <paramref name="keyOverrides"/> to <paramref name="path"/>. The
-    /// built-in defaults are not included.
+    /// Writes the machine-tagged file at <paramref name="path"/>.
+    /// <paramref name="charSerialisedLines"/> feeds the [CharMap]
+    /// section (MZ-700 CharMapOverrides.SerialiseLines() or MZ-80A
+    /// Mz80aCharMapOverrides.SerialiseLines() — same wire format
+    /// both sides). <paramref name="keyOverrides"/> is the shared
+    /// KeyOverride type. Built-in defaults are never included.
     /// </summary>
-    public static void Save(string path, CharMapOverrides charOverrides, KeyOverride keyOverrides)
+    public static void Save(
+        string path,
+        MachineType machine,
+        IEnumerable<string> charSerialisedLines,
+        KeyOverride keyOverrides)
     {
+        string machineTag = machine == MachineType.MZ80A ? "MZ-80A" : "MZ-700";
         using var w = new StreamWriter(path);
-        w.WriteLine("; MZ-700 Keyboard mapping file");
+        w.WriteLine($"; {machineTag} Keyboard mapping file (v.mzkbd v2)");
         w.WriteLine($"; Saved {DateTime.Now:yyyy-MM-dd HH:mm:ss} by MZRaku.");
         w.WriteLine(";");
         w.WriteLine("; Contains user-customised PC-keyboard bindings only — the");
@@ -39,10 +57,14 @@ public static class KeyboardMapFile
         w.WriteLine("; need to be listed here. Load via Settings -> Keyboard ->");
         w.WriteLine("; Import...");
         w.WriteLine();
+        w.WriteLine("[Meta]");
+        w.WriteLine("; machine = MZ-700 or MZ-80A. Absent = MZ-700 (v1 file).");
+        w.WriteLine($"machine={machineTag}");
+        w.WriteLine();
         w.WriteLine("[CharMap]");
         w.WriteLine("; PC character (4-digit hex Unicode codepoint) = Row,Col,Shift");
         w.WriteLine("; Shift: t = MZ shift forced ON, f = forced OFF");
-        foreach (var line in charOverrides.SerialiseLines())
+        foreach (var line in charSerialisedLines)
             w.WriteLine(line);
         w.WriteLine();
         w.WriteLine("[KeyOverrides]");
@@ -53,15 +75,32 @@ public static class KeyboardMapFile
     }
 
     /// <summary>
-    /// Parses <paramref name="path"/> into fresh override layers — the
-    /// caller decides whether to merge them into the live settings or
-    /// replace what's there. Returns the count of entries actually
-    /// loaded into each layer so the caller can confirm with the user.
+    /// The parts a caller needs after Load(): which machine the file
+    /// is for, plus the raw (key, value) pairs from each section so
+    /// the caller can feed them into the right override store's
+    /// TryParseLine.
     /// </summary>
-    public static (CharMapOverrides chars, KeyOverride vks) Load(string path)
+    public sealed class LoadResult
     {
-        var chars = new CharMapOverrides();
-        var vks = new KeyOverride();
+        public MachineType Machine { get; init; }
+        public IReadOnlyList<(string Key, string Value)> CharEntries { get; init; }
+            = System.Array.Empty<(string, string)>();
+        public IReadOnlyList<(string Key, string Value)> KeyEntries { get; init; }
+            = System.Array.Empty<(string, string)>();
+    }
+
+    /// <summary>
+    /// Parses <paramref name="path"/>. Returns the machine tag (v1
+    /// files default to MZ-700) plus the raw section entries. The
+    /// caller applies them to the appropriate machine's override
+    /// store via TryParseLine — this keeps KeyboardMapFile from
+    /// needing to know about either concrete CharMap type.
+    /// </summary>
+    public static LoadResult Load(string path)
+    {
+        var chars = new List<(string, string)>();
+        var vks = new List<(string, string)>();
+        var machine = MachineType.MZ700;   // v1-file default
 
         string? section = null;
         foreach (var raw in File.ReadAllLines(path))
@@ -84,10 +123,25 @@ public static class KeyboardMapFile
             string val = line.Substring(eq + 1).Trim();
             switch (section)
             {
-                case "CharMap":      chars.TryParseLine(key, val); break;
-                case "KeyOverrides": vks.TryParseLine(key, val);   break;
+                case "Meta":
+                    if (key.Equals("machine", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (val.Equals("MZ-80A", StringComparison.OrdinalIgnoreCase)
+                            || val.Equals("MZ80A", StringComparison.OrdinalIgnoreCase))
+                            machine = MachineType.MZ80A;
+                        else
+                            machine = MachineType.MZ700;
+                    }
+                    break;
+                case "CharMap":      chars.Add((key, val)); break;
+                case "KeyOverrides": vks.Add((key, val));   break;
             }
         }
-        return (chars, vks);
+        return new LoadResult
+        {
+            Machine = machine,
+            CharEntries = chars,
+            KeyEntries = vks,
+        };
     }
 }
