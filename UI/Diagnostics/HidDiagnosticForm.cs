@@ -1,6 +1,5 @@
 using System;
 using System.Drawing;
-using System.IO;
 using System.Text;
 using System.Windows.Forms;
 using MZRaku.Hardware;
@@ -24,7 +23,7 @@ namespace MZRaku;
 /// in full each frame. Allocations are tiny (a few short strings) and
 /// SmoothLabel suppresses the WM_ERASEBKGND flash.
 /// </summary>
-public sealed class HidDiagnosticForm : Form
+internal sealed class HidDiagnosticForm : DiagnosticFormBase
 {
     private readonly IMachine _machine;
     private readonly JoystickInput _joystick;
@@ -45,18 +44,6 @@ public sealed class HidDiagnosticForm : Form
     private readonly SmoothLabel _hostLabel = AutoSizeMonoLabel();
     private readonly SmoothLabel _mappingLabel = AutoSizeMonoLabel();
     private readonly SmoothLabel _mzLabel = FillMonoLabel();
-    private readonly Label _statusLabel = new()
-    {
-        AutoSize = false,
-        Dock = DockStyle.Fill,
-        TextAlign = ContentAlignment.MiddleLeft,
-        Font = new Font(FontFamily.GenericSansSerif, 8.5f),
-        ForeColor = SystemColors.GrayText,
-    };
-
-    // Keep focus on the main window when this diagnostic is opened —
-    // the whole point is to watch the main window's input flow.
-    protected override bool ShowWithoutActivation => true;
 
     public HidDiagnosticForm(IMachine machine, JoystickInput joystick)
     {
@@ -67,14 +54,9 @@ public sealed class HidDiagnosticForm : Form
 
         Text = $"HID Diagnostic — {MachineName(machine.Kind)}";
         _machineBanner.Text = $"Monitoring: {MachineName(machine.Kind)}";
-        FormBorderStyle = FormBorderStyle.SizableToolWindow;
         StartPosition = FormStartPosition.Manual;
         ClientSize = new Size(460, 580);
         MinimumSize = new Size(380, 480);
-        ShowInTaskbar = false;
-        // Don't steal keystrokes from the main window — the whole point of
-        // the diagnostic is to watch the main window's input flow.
-        KeyPreview = false;
 
         var root = new TableLayoutPanel
         {
@@ -108,9 +90,11 @@ public sealed class HidDiagnosticForm : Form
     private Control BuildButtonRow()
     {
         var copyBtn = new Button { Text = "Copy", AutoSize = true, Margin = new Padding(3) };
-        copyBtn.Click += (_, _) => CopyToClipboard();
+        copyBtn.Click += (_, _) => CopyDumpToClipboard();
         var saveBtn = new Button { Text = "Save…", AutoSize = true, Margin = new Padding(3) };
-        saveBtn.Click += (_, _) => SaveToFile();
+        saveBtn.Click += (_, _) => SaveDumpToFile(
+            $"hid-diag-{DateTime.Now:yyyyMMdd-HHmmss}.txt",
+            "Save HID diagnostic snapshot");
 
         var row = new TableLayoutPanel
         {
@@ -125,47 +109,13 @@ public sealed class HidDiagnosticForm : Form
         row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         row.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        row.Controls.Add(_statusLabel, 0, 0);
+        row.Controls.Add(StatusLabel, 0, 0);
         row.Controls.Add(copyBtn, 1, 0);
         row.Controls.Add(saveBtn, 2, 0);
         return row;
     }
 
-    private void CopyToClipboard()
-    {
-        try
-        {
-            Clipboard.SetText(BuildFullDump());
-            _statusLabel.Text = "Copied current view to clipboard.";
-        }
-        catch (Exception ex)
-        {
-            _statusLabel.Text = $"Copy failed: {ex.Message}";
-        }
-    }
-
-    private void SaveToFile()
-    {
-        using var dlg = new SaveFileDialog
-        {
-            Title = "Save HID diagnostic snapshot",
-            Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*",
-            FileName = $"hid-diag-{DateTime.Now:yyyyMMdd-HHmmss}.txt",
-        };
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
-
-        try
-        {
-            File.WriteAllText(dlg.FileName, BuildFullDump());
-            _statusLabel.Text = $"Saved to {Path.GetFileName(dlg.FileName)}.";
-        }
-        catch (Exception ex)
-        {
-            _statusLabel.Text = $"Save failed: {ex.Message}";
-        }
-    }
-
-    private string BuildFullDump()
+    protected override string BuildFullDump()
     {
         var sb = new StringBuilder();
         sb.AppendLine($"MZRaku HID Diagnostic — {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
@@ -178,53 +128,6 @@ public sealed class HidDiagnosticForm : Form
         sb.AppendLine("=== MZ machine state ===");
         sb.AppendLine(BuildMzText());
         return sb.ToString();
-    }
-
-    // AutoSize labels for the AutoSize rows: GroupBox sizes to label,
-    // row sizes to GroupBox. Used for the host + mapping panes whose
-    // content is a fixed handful of lines.
-    private static SmoothLabel AutoSizeMonoLabel() => new()
-    {
-        AutoSize = true,
-        Font = new Font(FontFamily.GenericMonospace, 9f),
-        Margin = new Padding(4),
-    };
-
-    // Fill label for the Percent(100) row: takes whatever space the
-    // user gives by resizing the window. Used for the matrix pane.
-    private static SmoothLabel FillMonoLabel() => new()
-    {
-        Dock = DockStyle.Fill,
-        Font = new Font(FontFamily.GenericMonospace, 9f),
-        AutoSize = false,
-        Padding = new Padding(4),
-        TextAlign = ContentAlignment.TopLeft,
-    };
-
-    private static GroupBox AutoGroup(string title, Control content)
-    {
-        var gb = new GroupBox
-        {
-            Text = title,
-            Dock = DockStyle.Fill,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Padding = new Padding(6, 16, 6, 6),
-        };
-        gb.Controls.Add(content);
-        return gb;
-    }
-
-    private static GroupBox FillGroup(string title, Control content)
-    {
-        var gb = new GroupBox
-        {
-            Text = title,
-            Dock = DockStyle.Fill,
-            Padding = new Padding(6, 16, 6, 6),
-        };
-        gb.Controls.Add(content);
-        return gb;
     }
 
     /// <summary>Called once per frame by MainForm's Timer_Tick.</summary>

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.IO;
 using System.Text;
 using System.Windows.Forms;
 using MZRaku.Hardware;
@@ -28,7 +27,7 @@ namespace MZRaku;
 ///
 /// Opened from Debug → Sound Diagnostic. Read-only, no controls.
 /// </summary>
-public sealed class SoundDiagnosticForm : Form
+internal sealed class SoundDiagnosticForm : DiagnosticFormBase
 {
     private readonly MZ700 _machine;
 
@@ -44,35 +43,19 @@ public sealed class SoundDiagnosticForm : Form
         WordWrap = false,
         BackColor = Color.White,
     };
-    private readonly Label _statusLabel = new()
-    {
-        AutoSize = false,
-        Dock = DockStyle.Fill,
-        TextAlign = ContentAlignment.MiddleLeft,
-        Font = new Font(FontFamily.GenericSansSerif, 8.5f),
-        ForeColor = SystemColors.GrayText,
-    };
 
     private readonly Queue<string> _eventLog = new();
     private const int EventLogCap = 40;
     private int _frame;
-
-    // Don't steal focus from the main emulator window when this form
-    // opens — the whole point is to watch what the running emulator's
-    // doing.
-    protected override bool ShowWithoutActivation => true;
 
     public SoundDiagnosticForm(MZ700 machine)
     {
         _machine = machine;
 
         Text = "Sound Diagnostic";
-        FormBorderStyle = FormBorderStyle.SizableToolWindow;
         StartPosition = FormStartPosition.Manual;
         ClientSize = new Size(560, 600);
         MinimumSize = new Size(420, 380);
-        ShowInTaskbar = false;
-        KeyPreview = false;
 
         var root = new TableLayoutPanel
         {
@@ -104,45 +87,12 @@ public sealed class SoundDiagnosticForm : Form
         };
     }
 
-    private static SmoothLabel AutoSizeMonoLabel() => new()
-    {
-        AutoSize = true,
-        Font = new Font(FontFamily.GenericMonospace, 9f),
-        Margin = new Padding(2),
-    };
-
-    private static GroupBox AutoGroup(string title, Control content)
-    {
-        var gb = new GroupBox
-        {
-            Text = title,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Dock = DockStyle.Fill,
-            Padding = new Padding(6, 16, 6, 6),
-        };
-        gb.Controls.Add(content);
-        return gb;
-    }
-
-    private static GroupBox FillGroup(string title, Control content)
-    {
-        var gb = new GroupBox
-        {
-            Text = title,
-            Dock = DockStyle.Fill,
-            Padding = new Padding(6, 16, 6, 6),
-        };
-        gb.Controls.Add(content);
-        return gb;
-    }
-
     private Control BuildButtonRow()
     {
         var copyBtn = new Button { Text = "Copy", AutoSize = true, Margin = new Padding(3) };
-        copyBtn.Click += (_, _) => CopyToClipboard();
+        copyBtn.Click += (_, _) => CopyDumpToClipboard();
         var saveBtn = new Button { Text = "Save…", AutoSize = true, Margin = new Padding(3) };
-        saveBtn.Click += (_, _) => SaveToFile();
+        saveBtn.Click += (_, _) => SaveDumpToFile($"sound-diag-frame{_frame}.txt");
         var clearBtn = new Button { Text = "Clear log", AutoSize = true, Margin = new Padding(3) };
         clearBtn.Click += (_, _) => { _eventLog.Clear(); _logBox.Text = ""; };
 
@@ -155,7 +105,7 @@ public sealed class SoundDiagnosticForm : Form
         flow.Controls.Add(copyBtn);
         flow.Controls.Add(saveBtn);
         flow.Controls.Add(clearBtn);
-        flow.Controls.Add(_statusLabel);
+        flow.Controls.Add(StatusLabel);
         return flow;
     }
 
@@ -266,33 +216,7 @@ public sealed class SoundDiagnosticForm : Form
         while (_eventLog.Count > EventLogCap) _eventLog.Dequeue();
     }
 
-    private void CopyToClipboard()
-    {
-        try
-        {
-            Clipboard.SetText(BuildFullDump());
-            _statusLabel.Text = "Copied to clipboard.";
-        }
-        catch (Exception ex) { _statusLabel.Text = $"Copy failed: {ex.Message}"; }
-    }
-
-    private void SaveToFile()
-    {
-        using var dlg = new SaveFileDialog
-        {
-            Filter = "Text|*.txt|All files|*.*",
-            FileName = $"sound-diag-frame{_frame}.txt",
-        };
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
-        try
-        {
-            File.WriteAllText(dlg.FileName, BuildFullDump());
-            _statusLabel.Text = $"Saved to {Path.GetFileName(dlg.FileName)}.";
-        }
-        catch (Exception ex) { _statusLabel.Text = $"Save failed: {ex.Message}"; }
-    }
-
-    private string BuildFullDump()
+    protected override string BuildFullDump()
     {
         var sb = new StringBuilder();
         sb.AppendLine($"-- Sound Diagnostic dump (frame {_frame}) --");
