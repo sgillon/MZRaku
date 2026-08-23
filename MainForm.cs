@@ -315,8 +315,7 @@ public sealed class MainForm : Form
             _memViewer?.Dispose();
             _hidDiag?.Dispose();
             _soundDiag?.Dispose();
-            _machine?.Sound.Dispose();
-            _mz80a?.Sound.Dispose();
+            Active.Sound.Dispose();
         };
     }
 
@@ -626,15 +625,15 @@ public sealed class MainForm : Form
             // (see [[project-feature-backlog]]).
             bool tracing = _dumpPath != null;
             Active.Cpu.PcTraceEnabled = tracing;
-            // Pit / Mem / Sound diagnostic hooks are MZ-700-specific
-            // for now — MZ-80A equivalents arrive with Phase 2/5.
+            // Pit / Mem diagnostic hooks are MZ-700-specific for now —
+            // MZ-80A equivalents arrive with the sound diagnostic
+            // MZ-80A peer ([[project-mz80a-clk1-rate]]).
             if (_machine != null)
             {
                 _machine.Pit.WriteLog = tracing ? new System.Text.StringBuilder() : null;
                 _machine.Mem.BankSwitchLog = tracing ? new System.Text.StringBuilder() : null;
-                _machine.Sound.Start();
             }
-            _mz80a?.Sound.Start();
+            Active.Sound.Start();
 
             // Auto-load BASIC if requested explicitly (--basic) OR if the
             // initial cassette is a BASIC program (type 0x02 / 0x05). The
@@ -768,23 +767,16 @@ public sealed class MainForm : Form
     /// </summary>
     private void UpdateTapeLabel()
     {
-        bool pending;
-        int headerHits, dataHits, writeHits;
-        if (_machine != null)
-        {
-            pending = _machine.Cassette.Pending != null;
-            headerHits = _machine.Cassette.HeaderTrapHits;
-            dataHits   = _machine.Cassette.DataTrapHits;
-            writeHits  = _machine.Cassette.WriteTapeTrapHits;
-        }
-        else if (_mz80a != null)
-        {
-            pending = _mz80a.Cassette.Pending != null;
-            headerHits = _mz80a.Cassette.HeaderTrapHits;
-            dataHits   = _mz80a.Cassette.DataTrapHits;
-            writeHits  = 0;   // SA-1510 SAVE traps not wired yet
-        }
-        else return;
+        if (_machine == null && _mz80a == null) return;
+        // Shared trap-state reads collapse to IMachine.Cassette
+        // (CassetteTrapBase surface). WriteTapeTrapHits is
+        // MZ-700-only (SA-1510 SAVE traps not wired yet); MZ-80A
+        // scores zero.
+        var cass = Active.Cassette;
+        bool pending = cass.Pending != null;
+        int headerHits = cass.HeaderTrapHits;
+        int dataHits   = cass.DataTrapHits;
+        int writeHits  = _machine?.Cassette.WriteTapeTrapHits ?? 0;
 
         // Any fresh trap hit extends the flash window. Also handles the
         // MZ-700 SAVE path (WriteTapeTrapHits) even though it has no
@@ -835,11 +827,9 @@ public sealed class MainForm : Form
         _wasPaused = paused;
         Text = paused ? TitleBase + " — PAUSED" : TitleBase;
         if (_pauseMenuItem != null) _pauseMenuItem.Checked = paused;
-        // Silence the wave output on pause. Both machines share the same
-        // Sound class (Mz80a uses it too); the concrete field lives on
-        // MZ700 / MZ80A respectively, not on IMachine.
-        var sound = _machine?.Sound ?? _mz80a?.Sound;
-        if (sound != null) sound.Muted = paused;
+        // Silence the wave output on pause. IMachine.Sound covers both
+        // machines (F-061).
+        Active.Sound.Muted = paused;
         _display.Invalidate();
     }
 
@@ -1346,10 +1336,10 @@ public sealed class MainForm : Form
 
     private void Display_Paint(object? sender, PaintEventArgs e)
     {
-        // Machine-agnostic framebuffer pick: use whichever machine is
-        // active. Both renderers back onto a 320×200 32bppArgb Bitmap
+        // Machine-agnostic framebuffer pick via IMachine.VideoFrame
+        // (F-061). Both renderers back onto a 320×200 32bppArgb Bitmap
         // so the downstream draw + scanline overlay code is identical.
-        var frame = _machine?.Video.Frame ?? _mz80a?.Video.Frame;
+        var frame = ((IMachine?)_machine ?? _mz80a)?.VideoFrame;
         if (frame == null)
         {
             e.Graphics.Clear(Color.Black);
