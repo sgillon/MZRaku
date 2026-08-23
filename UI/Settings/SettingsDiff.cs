@@ -105,56 +105,37 @@ internal sealed class SettingsSnapshot
     };
 
     /// <summary>
-    /// Build a candidate snapshot from the form controls (for scalars
-    /// that haven't yet been pushed to <see cref="Settings"/>) plus the
-    /// live overrides (which have been mutated live by the per-key
-    /// editor flow). Mirrors <see cref="SettingsForm.ApplyChanges"/>'s
-    /// own reads.
+    /// Writes this snapshot's scalar fields back into
+    /// <paramref name="settings"/>. Does NOT touch the char/key
+    /// override stores — those are mutated live by the per-key editor
+    /// flow and don't need round-tripping through the snapshot.
+    /// Called from <see cref="SettingsForm.ApplyChanges"/> after a
+    /// candidate snapshot has been built from the dialog controls.
     /// </summary>
-    public static SettingsSnapshot Build(
-        MachineType defaultMachine,
-        bool paneDebugger, bool paneMemoryViewer, bool paneHidDiagnostic,
-        bool paneFontSheet, bool paneSoundDiagnostic, bool paneKeyboardMatrix,
-        int displayScale,
-        bool displayScanlines,
-        bool mz80aGreenScreen,
-        bool mz80aInvertLetterShift,
-        string mz700Monitor, string mz700Font, string mz700Basic,
-        string mz80aMonitor, string mz80aFont, string mz80aBasic,
-        int joy1, int joy2,
-        CharMapOverrides charOverrides,
-        KeyOverride keyOverrides,
-        Mz80aCharMapOverrides mz80aCharOverrides,
-        KeyOverride mz80aKeyOverrides) => new()
-        {
-            DefaultMachine = defaultMachine,
-            PaneDebugger = paneDebugger,
-            PaneMemoryViewer = paneMemoryViewer,
-            PaneHidDiagnostic = paneHidDiagnostic,
-            PaneFontSheet = paneFontSheet,
-            PaneSoundDiagnostic = paneSoundDiagnostic,
-            PaneKeyboardMatrix = paneKeyboardMatrix,
-            DisplayScale = displayScale,
-            DisplayScanlines = displayScanlines,
-            Mz80aGreenScreen = mz80aGreenScreen,
-            Mz80aInvertLetterShift = mz80aInvertLetterShift,
-            Mz700MonitorPath = mz700Monitor ?? "",
-            Mz700FontPath = mz700Font ?? "",
-            Mz700BasicPath = mz700Basic ?? "",
-            Mz80aMonitorPath = mz80aMonitor ?? "",
-            Mz80aFontPath = mz80aFont ?? "",
-            Mz80aBasicPath = mz80aBasic ?? "",
-            JoyButton1Index = joy1,
-            JoyButton2Index = joy2,
-            CharOverrides = charOverrides.All.ToDictionary(
-                kv => kv.Key, kv => new MatrixPress(kv.Value.Row, kv.Value.Col, kv.Value.MzShift)),
-            SuppressedChars = new HashSet<char>(charOverrides.AllSuppressed),
-            KeyOverrides = keyOverrides.All.ToDictionary(kv => kv.Key, kv => kv.Value),
-            Mz80aCharOverrides = mz80aCharOverrides.All.ToDictionary(
-                kv => kv.Key, kv => new MatrixPress(kv.Value.Strobe, kv.Value.Bit, kv.Value.MzShift)),
-            Mz80aSuppressedChars = new HashSet<char>(mz80aCharOverrides.AllSuppressed),
-            Mz80aKeyOverrides = mz80aKeyOverrides.All.ToDictionary(kv => kv.Key, kv => kv.Value),
-        };
+    public void ApplyTo(Settings settings)
+    {
+        settings.DefaultMachine = DefaultMachine;
+        var dp = settings.DebugPanesAtStartup;
+        dp.Debugger = PaneDebugger;
+        dp.MemoryViewer = PaneMemoryViewer;
+        dp.HidDiagnostic = PaneHidDiagnostic;
+        dp.FontSheet = PaneFontSheet;
+        dp.SoundDiagnostic = PaneSoundDiagnostic;
+        dp.KeyboardMatrix = PaneKeyboardMatrix;
+
+        settings.DisplayScale = DisplayScale;
+        settings.DisplayScanlines = DisplayScanlines;
+        settings.Mz80aGreenScreen = Mz80aGreenScreen;
+        settings.Mz80aInvertLetterShift = Mz80aInvertLetterShift;
+        settings.Mz700Roms.MonitorRomPath = Mz700MonitorPath;
+        settings.Mz700Roms.FontPath = Mz700FontPath;
+        settings.Mz700Roms.BasicPath = Mz700BasicPath;
+        settings.Mz80aRoms.MonitorRomPath = Mz80aMonitorPath;
+        settings.Mz80aRoms.FontPath = Mz80aFontPath;
+        settings.Mz80aRoms.BasicPath = Mz80aBasicPath;
+        settings.JoyButton1Index = JoyButton1Index;
+        settings.JoyButton2Index = JoyButton2Index;
+    }
 
     // Both machines' char defaults, normalised to MatrixPress so the
     // diff walker can quote the restored slot in the "default restored

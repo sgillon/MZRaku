@@ -1090,37 +1090,58 @@ public sealed class SettingsForm : Form
 
     private void ApplyChanges()
     {
-        // Startup — DefaultMachine + debug pane flags. Grey-out on the
-        // checkboxes is UI-only; stored Checked values persist regardless
-        // so switching the default back restores them.
-        _settings.DefaultMachine = _rbDefaultMz80a.Checked
-            ? MachineType.MZ80A : MachineType.MZ700;
-        var dp = _settings.DebugPanesAtStartup;
-        dp.Debugger = _chkDebuggerAtStartup.Checked;
-        dp.MemoryViewer = _chkMemoryViewerAtStartup.Checked;
-        dp.HidDiagnostic = _chkHidDiagnosticAtStartup.Checked;
-        dp.FontSheet = _chkFontSheetAtStartup.Checked;
-        dp.SoundDiagnostic = _chkSoundDiagnosticAtStartup.Checked;
-        dp.KeyboardMatrix = _chkKeyboardMatrixAtStartup.Checked;
-
-        _settings.DisplayScale = _rb3x.Checked ? 3 : _rb1x.Checked ? 1 : 2;
-        _settings.DisplayScanlines = _chkScanlines.Checked;
-        _settings.Mz80aGreenScreen = _chkMz80aGreenScreen.Checked;
-        _settings.Mz80aInvertLetterShift = _chkMz80aInvertLetterShift.Checked;
-        _settings.Mz700Roms.MonitorRomPath = _txtMz700Monitor.Text.Trim();
-        _settings.Mz700Roms.FontPath = _txtMz700Font.Text.Trim();
-        _settings.Mz700Roms.BasicPath = _txtMz700Basic.Text.Trim();
-        _settings.Mz80aRoms.MonitorRomPath = _txtMz80aMonitor.Text.Trim();
-        _settings.Mz80aRoms.FontPath = _txtMz80aFont.Text.Trim();
-        _settings.Mz80aRoms.BasicPath = _txtMz80aBasic.Text.Trim();
-        _settings.JoyButton1Index = (int)_numButton1.Value;
-        _settings.JoyButton2Index = (int)_numButton2.Value;
+        // Startup / display / ROMs / joystick all live on the snapshot;
+        // overrides are already live-mutated by the per-key editor flow
+        // so the snapshot's char/key sections stay purely diagnostic.
+        var snap = CaptureDialogSnapshot();
+        snap.ApplyTo(_settings);
         _settings.Save();
         Applied?.Invoke();
 
         // Reset baseline so a follow-up Apply only summarises further
         // edits, not the ones the user just confirmed.
         _baseline = SettingsSnapshot.Capture(_settings);
+    }
+
+    /// <summary>
+    /// Snapshot of every scalar the dialog currently shows plus the
+    /// live keyboard override stores. Reads controls for scalars (the
+    /// dialog hasn't pushed them into <see cref="_settings"/> yet)
+    /// and the live <see cref="_settings"/> stores for the four
+    /// override layers (both machines' char + VK maps — the per-key
+    /// editor flow has already written whatever the user did there).
+    /// </summary>
+    private SettingsSnapshot CaptureDialogSnapshot()
+    {
+        var baseSnap = SettingsSnapshot.Capture(_settings);
+        return new SettingsSnapshot
+        {
+            DefaultMachine = _rbDefaultMz80a.Checked ? MachineType.MZ80A : MachineType.MZ700,
+            PaneDebugger = _chkDebuggerAtStartup.Checked,
+            PaneMemoryViewer = _chkMemoryViewerAtStartup.Checked,
+            PaneHidDiagnostic = _chkHidDiagnosticAtStartup.Checked,
+            PaneFontSheet = _chkFontSheetAtStartup.Checked,
+            PaneSoundDiagnostic = _chkSoundDiagnosticAtStartup.Checked,
+            PaneKeyboardMatrix = _chkKeyboardMatrixAtStartup.Checked,
+            DisplayScale = _rb3x.Checked ? 3 : _rb1x.Checked ? 1 : 2,
+            DisplayScanlines = _chkScanlines.Checked,
+            Mz80aGreenScreen = _chkMz80aGreenScreen.Checked,
+            Mz80aInvertLetterShift = _chkMz80aInvertLetterShift.Checked,
+            Mz700MonitorPath = _txtMz700Monitor.Text.Trim(),
+            Mz700FontPath = _txtMz700Font.Text.Trim(),
+            Mz700BasicPath = _txtMz700Basic.Text.Trim(),
+            Mz80aMonitorPath = _txtMz80aMonitor.Text.Trim(),
+            Mz80aFontPath = _txtMz80aFont.Text.Trim(),
+            Mz80aBasicPath = _txtMz80aBasic.Text.Trim(),
+            JoyButton1Index = (int)_numButton1.Value,
+            JoyButton2Index = (int)_numButton2.Value,
+            CharOverrides = baseSnap.CharOverrides,
+            SuppressedChars = baseSnap.SuppressedChars,
+            KeyOverrides = baseSnap.KeyOverrides,
+            Mz80aCharOverrides = baseSnap.Mz80aCharOverrides,
+            Mz80aSuppressedChars = baseSnap.Mz80aSuppressedChars,
+            Mz80aKeyOverrides = baseSnap.Mz80aKeyOverrides,
+        };
     }
 
     /// <summary>
@@ -1133,31 +1154,7 @@ public sealed class SettingsForm : Form
     /// </summary>
     private bool ConfirmDiff()
     {
-        var candidate = SettingsSnapshot.Build(
-            defaultMachine: _rbDefaultMz80a.Checked ? MachineType.MZ80A : MachineType.MZ700,
-            paneDebugger: _chkDebuggerAtStartup.Checked,
-            paneMemoryViewer: _chkMemoryViewerAtStartup.Checked,
-            paneHidDiagnostic: _chkHidDiagnosticAtStartup.Checked,
-            paneFontSheet: _chkFontSheetAtStartup.Checked,
-            paneSoundDiagnostic: _chkSoundDiagnosticAtStartup.Checked,
-            paneKeyboardMatrix: _chkKeyboardMatrixAtStartup.Checked,
-            displayScale: _rb3x.Checked ? 3 : _rb1x.Checked ? 1 : 2,
-            displayScanlines: _chkScanlines.Checked,
-            mz80aGreenScreen: _chkMz80aGreenScreen.Checked,
-            mz80aInvertLetterShift: _chkMz80aInvertLetterShift.Checked,
-            mz700Monitor: _txtMz700Monitor.Text.Trim(),
-            mz700Font: _txtMz700Font.Text.Trim(),
-            mz700Basic: _txtMz700Basic.Text.Trim(),
-            mz80aMonitor: _txtMz80aMonitor.Text.Trim(),
-            mz80aFont: _txtMz80aFont.Text.Trim(),
-            mz80aBasic: _txtMz80aBasic.Text.Trim(),
-            joy1: (int)_numButton1.Value,
-            joy2: (int)_numButton2.Value,
-            charOverrides: _settings.CharMapOverrides,
-            keyOverrides: _settings.KeyOverrides,
-            mz80aCharOverrides: _settings.Mz80aCharMapOverrides,
-            mz80aKeyOverrides: _settings.Mz80aKeyOverrides);
-
+        var candidate = CaptureDialogSnapshot();
         var lines = SettingsDiff.Describe(_baseline, candidate);
         if (lines.Count == 0) return true;
 
