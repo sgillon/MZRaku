@@ -84,7 +84,7 @@ public sealed class AdvancedKeyboardForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 4,
+            RowCount = 5,
             Padding = new Padding(10),
             AutoScroll = true,
         };
@@ -92,6 +92,7 @@ public sealed class AdvancedKeyboardForm : Form
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));         // caption
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));         // matrix
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));         // unbound-slot panel
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));         // overrides caption
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 240f));   // overrides list
 
         root.Controls.Add(new Label
@@ -127,6 +128,18 @@ public sealed class AdvancedKeyboardForm : Form
 
         root.Controls.Add(BuildUnboundPanel(), 0, 2);
 
+        // Overrides list caption — mirrors the unbound-slot panel's
+        // own caption above (both lists benefit from a heading now
+        // that the form scrolls and the two lists can be separated
+        // by scroll position).
+        root.Controls.Add(new Label
+        {
+            Text = "Overrides in effect — user-set char + VK bindings across both layers:",
+            AutoSize = true,
+            ForeColor = SystemColors.GrayText,
+            Margin = new Padding(0, 8, 0, 4),
+        }, 0, 3);
+
         _overridesList = new ListView
         {
             Dock = DockStyle.Fill,
@@ -142,7 +155,7 @@ public sealed class AdvancedKeyboardForm : Form
         _overridesList.Columns.Add("MZ slot",    80);
         _overridesList.Columns.Add("Shift",      100);
         PopulateOverridesList();
-        root.Controls.Add(_overridesList, 0, 3);
+        root.Controls.Add(_overridesList, 0, 4);
 
         // Bottom-docked closeRow FIRST, Fill root SECOND — Fill
         // respects the space closeRow has already claimed.
