@@ -70,6 +70,16 @@ public sealed class AdvancedKeyboardForm : Form
         AcceptButton = closeBtn;
         CancelButton = closeBtn;
 
+        // Root uses AutoScroll — the matrix grid on MZ-80A is
+        // ~470px tall, and adding the unbound panel + overrides list
+        // exceeds any reasonable default client height, so scrolling
+        // is inevitable at typical window sizes. All rows are
+        // fixed-or-AutoSize so the TableLayoutPanel's PreferredSize
+        // reports a deterministic total; AutoScroll draws a vertical
+        // scrollbar when it exceeds the visible area. Mixing
+        // Percent(100) with AutoSize under AutoScroll doesn't
+        // reliably scroll — the Percent row collapses to 0 before
+        // scrollbars kick in.
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -79,10 +89,10 @@ public sealed class AdvancedKeyboardForm : Form
             AutoScroll = true,
         };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));        // caption
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));        // matrix
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));        // unbound-slot panel
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));   // overrides list
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));         // caption
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));         // matrix
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));         // unbound-slot panel
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 240f));   // overrides list
 
         root.Controls.Add(new Label
         {

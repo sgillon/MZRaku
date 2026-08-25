@@ -587,10 +587,10 @@ public sealed class SettingsForm : Form
         RefreshKeyboardDiagramLabels();
         layout.Controls.Add(_kbdDiagram, 0, 1);
 
-        // Export / Import row — .mzkbd file format is MZ-700-only for
-        // now. Extending it to carry MZ-80A entries is a separate scope
-        // (deferred). Hide entirely on MZ-80A rather than showing buttons
-        // that operate on the wrong machine's overrides.
+        // Export / Import row. .mzkbd v2 (v1.2 audit F-037) carries a
+        // [Meta] machine= tag so both machines can round-trip; import
+        // refuses cross-machine files with a "machine mismatch" warning.
+        // The MzKbdIoCoordinator handles both dispatch + prompts.
         var ioButtons = new FlowLayoutPanel
         {
             FlowDirection = FlowDirection.LeftToRight,
@@ -598,7 +598,6 @@ public sealed class SettingsForm : Form
             WrapContents = false,
             Anchor = AnchorStyles.Right,
             Margin = new Padding(0, 8, 0, 4),
-            Visible = _machine != null,
         };
         var exportBtn = new Button { Text = "Export…", Width = 90 };
         var importBtn = new Button { Text = "Import…", Width = 90 };
