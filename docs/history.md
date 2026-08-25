@@ -789,6 +789,274 @@ from Phase 1 landing on 2026-07-19 to the v1.1.0 tag on 2026-08-22.
   acknowledgement bullet as a real-world "this is what it
   runs" showcase.
 
+### 2026-08-22 to 2026-08-25 — v1.2.0 development (tag-only)
+
+v1.2.0 was scoped 2026-07-19 as the "clean the deck" release —
+codebase audit + resulting refactors + MZRaku-side test seed. The
+brief locked two hard rules on 2026-08-22 (no code changes until
+Stage 1 brief + Stage 2 findings both complete; Z80Core out of
+scope, acts as a constant during MZRaku testing) and a YAGNI-first
+ethos softened by two considerations (legibility for learning +
+real near-term roadmap placement). The whole arc ran from Stage 1
+brief 2026-08-22 to Stage 3 completion 2026-08-23 with release-
+check walk + tag on 2026-08-25.
+
+**Three-stage execution with files as trust boundary.** Stage 1
+produced `docs/v1.2-audit-brief.md` (locked ethos, categorisation
+rules, per-finding schema, review rubric). Stage 2 ran as a
+multi-agent workflow producing `docs/v1.2-audit-findings.md` (74
+findings across categories a/b/c) + `docs/v1.2-audit-plan.md`
+(7-phase plan grouping the 65 category-(b) findings). Stage 3
+worked through the plan phase-by-phase with a per-finding rubric
+gate (deliberate design reversal? / legibility standing alone? /
+real roadmap placement? / deck-stacked pros/cons?) — three exit
+states per finding (accept + execute / accept with modifications
+/ reject). All three stages ran in one model (Opus) rather than
+splitting; adversarial-Stage-3 discipline caught 2 verified false
+findings + 4 scope narrowings that would otherwise have shipped.
+
+**Zero category-(a) findings surfaced** — v1.1.0's release-check
+walk had given a clean baseline.
+
+- **Phase 1 — Doc drift + dead-code sweep**
+  (`45c117c`, `38530e2`, 2026-08-23). Two batches covering 23
+  findings. Batch A landed 11 doc corrections: Ppi8255 / Pit8253 /
+  Sound / KeyboardDiagnostics / MZ700Memory / Mz80aMatrixReference
+  / Mz80aCharMap / KeyboardMatrixForm / KeyBindingEditorForm /
+  DebuggerForm / MemoryViewerForm / Video.cs / MonitorReady moved.
+  Batch B deleted the unused Ppi8255 surface (CassetteMotorOn,
+  MotorChanged, IntMaskChanged, SetCassetteRead + fire sites),
+  Cassette.DumpBasicWaitCode, Keyboard.SetShift, RomKeyTables
+  Count/All, Pit8253.Counter0FrequencyHz,
+  Mz700SoundReference.ExpectedEvents + SpeakerNandGate enum,
+  FontSheetForm._machine, SoundDiagnosticForm.FillMonoLabel,
+  MainForm.DumpMz80aBasicPointerCandidates (148 lines);
+  refactored SettingsForm's ROM validation around a shared row
+  list; extracted BuildCasePairLabel helper in SettingsDiff;
+  wired MainForm's OnLoaded subscriptions for both machines.
+  Two Stage-3 rejections recorded: `Ppi8255.SpeakerGate` has a
+  live consumer in SoundDiagnosticForm.BuildStateText (kept as
+  computed getter); `SettingsDiff.ShiftWord(bool?)` is called
+  from DescribeKeyOverrides via KeyOverride.Binding.MzShift's
+  tri-state (kept).
+
+- **Phase 2 — MZ-80A parity + real correctness patches**
+  (`9558013`, `90b0353`, `ec1d61a`, `001691c`, `942d468`,
+  `80498c3`, `78022fb`, `bfa0b8e`, `b400c1f`, 2026-08-23). Nine
+  findings shipped as individual commits per plan. F-026 wired
+  MZ80A.Reset's cassette + keyboard hygiene calls (Ctrl+R
+  matrix leak was live). F-058 replaced SwitchMachine's
+  Environment.Exit(0) with Close() so the FormClosing
+  geometry-save handler runs. F-031 fixed MzKeyEditorForm's
+  Reset-button enablement on MZ-80A (was reading MZ-700
+  CharMap.Defaults directly). F-032 threaded per-machine
+  SpecialKeyLabels into KeyCaptureControl. F-034 unlocked the
+  Keyboard Matrix debug pane on MZ-80A. F-038 added a
+  ShiftSlot getter to IKeyboardEditorContext (removed a
+  hardcoded per-machine coord branch). F-051 extended
+  SettingsSnapshot/Diff to cover MZ-80A char + key overrides
+  (Apply had been saving them without diff surface). F-057
+  fixed the `--dump=` NRE on MZ-80A. F-063 + F-CR-002 paired
+  as one commit: removed always-on trace scaffolding
+  (`_traceEnabled` public field hardcoded true, unbounded
+  Pit.WriteLog / Mem.BankSwitchLog growth per PIT write / bank
+  switch) — gated everything on `_dumpPath != null`.
+
+- **Phase 3 — Naming + configuration hygiene**
+  (`1a54e5c`, `007ecbd`, `e0b9abb`, `cf92953`, 2026-08-23).
+  Four mechanical fixups. F-069 made the csproj ROM-copy
+  condition machine-agnostic (was gated on MZ-700-specific
+  filenames only). F-068 renamed Settings.Type →
+  Settings.CurrentMachine (Type clashed with the .NET
+  convention that `.Type` returns a CLR Type object). F-002
+  renamed VideoRenderer → Video for sibling consistency (MZ-80A
+  had Mz80aVideo; MZ-700 field was Video but class was
+  VideoRenderer). F-065 dropped the seven pre-Phase-5.1a INI
+  fallback expressions in Settings.Load (v1.1's auto-migration
+  covers the transition) + collapsed the 13-line missing-section
+  check into a single RequiredSections walk. F-065's commit
+  body flagged the release-note reminder that carries to v1.3:
+  users going straight from v1.0.x → v1.3+ without launching
+  v1.1 or v1.2 lose custom `[KeyOverrides]` and explicit
+  `[Roms]` paths.
+
+- **Phase 4 — Shared-helper extractions**
+  (`251f40e`, `406fb5e`, `eaab28e`, `cca05f2`, `9811ddd`,
+  `7a5713f`, `89a5c59`, `57fa702`, 2026-08-23). Eight
+  extractions closing duplicated helper pairs across the UI
+  and hardware layers. F-CR-005 deleted SettingsForm.Clamp
+  (Math.Clamp exists since .NET Core 2.0). F-CR-003 extracted
+  EmbeddedResources.LoadIcon / LoadImage (MainForm + AboutForm
+  each carried byte-identical copies). F-CR-004 promoted
+  Settings.Resolve + MakeStorable from private to internal and
+  dropped SettingsForm's three parallel path-normalisation
+  reimplementations. F-047 cached MarkByte's three Pen instances
+  + monospace charW in MemoryViewerForm (540 allocations/sec
+  → 0 at 60 Hz with a snapshot diff active). F-035 extracted
+  PhysicalKeyboardLayoutHelpers.MapKind + LightenOrDarken
+  (both physical-layout adapters carried verbatim copies).
+  F-039 added Mz80aMatrixReference.FindGlyph + FindSpecialLabel
+  static methods (closed the canonical-reference-pattern gap;
+  Mz80aKeyboardEditorContext and Mz80aPhysicalKeyboardLayout
+  had duplicate walks). F-045 extracted DiagnosticFormBase
+  abstract Form (HidDiagnosticForm + SoundDiagnosticForm shared
+  Copy/Save + AutoGroup/FillGroup + ShowWithoutActivation +
+  chrome defaults). F-044 extracted DebuggerCommon (TryParseAddr
+  / SetTextIfChanged / IsMzIoWindow) + DebugToolForm (the
+  "user-close hides, real dispose only at app shutdown"
+  protocol) — DebuggerForm and MemoryViewerForm converged.
+
+- **Phase 5 — v1.1 carry-forward keyboard + settings work**
+  (`57da317`, `de4c132`, `0f92dbc`, `8f38968`, `5f3e769`,
+  `dcd4d26`, `99811c4`, 2026-08-23). Seven findings closing
+  the largest UX asymmetries between the two machines. F-017
+  introduced IMatrixReference (Rows / Cols / BindableCells /
+  ShiftSlot) with a ViewImpl singleton on each concrete
+  reference; MatrixCoverage.FindUnbound rewrote against the
+  interface, both editor contexts route their unbound-slot
+  walk through it (Mz80aKeyboardEditorContext's ~40-line inline
+  duplicate deleted). F-046 widened IKeyboardMatrix with
+  `Diag` + `PeekMatrixRow` — HidDiagnosticForm's
+  Keyboard?/Mz80aKeyboard? null-branching collapses to one
+  `IKeyboardMatrix _kb` field. F-036 shipped MZ-80A diagram
+  PC-key labels + red unreachable-essential outline (biggest
+  UX-visible win of the audit) — PcKeyIndex moved from
+  Hardware to UI/Keyboard and parameterised on
+  IKeyboardEditorContext; Mz80aMatrixReference gained
+  IsKnownUnreachableFromPc + SpecialLabels; Mz80aKeyboardLayout
+  gained EssentialKeys. F-052 extracted
+  UI/Keyboard/KeyboardReachability from SettingsForm — the
+  safety gate fires correctly on MZ-80A now (was silent
+  before). F-037 shipped `.mzkbd` v2 with a `[Meta] machine=`
+  tag + cross-machine-mismatch refusal on import; MZ-80A
+  gets first-class keyboard-map export/import. F-053 replaced
+  SettingsSnapshot.Build's 20-parameter positional factory
+  with an ApplyTo(Settings) instance method + private
+  CaptureDialogSnapshot on the form — LoadFromSettings /
+  ConfirmDiff / ApplyChanges all collapse. F-050 extracted
+  MzKbdIoCoordinator to own the mzkbd export/import prompts
+  + coordinator; SettingsForm's OnExportMzKbd / OnImportMzKbd
+  collapse to one-liners. SettingsForm shrank 1322 → 1153
+  lines. Deliberately did NOT split tab builders into partials
+  (finding called it optional; would read as churn).
+
+- **Phase 6 — Parallel machine-class convergence (Hardware)**
+  (`a8b1200`, `f237ca9`, `00ab45b`, `218b8bf`, `03ab3ca`,
+  `54ed892`, `d9bfe1f`, 2026-08-23). Seven commits closing
+  eight findings — F-015 and F-021 paired as one KeyboardMatrixBase
+  extraction (both targeted the same class). F-001 promoted
+  MzfImage from a nested `Cassette.MzfImage` type to a
+  top-level Hardware/MzfImage.cs (MZ-80A cassette code no
+  longer imports through the MZ-700 Cassette class purely
+  for the container). F-023 extracted `MatrixOverrides<TPress>`
+  generic base — CharMapOverrides + Mz80aCharMapOverrides
+  each collapse to ~25-line adapters bridging the concrete
+  Press type to a shared internal (int, int, bool) shape;
+  INI wire format identical, v1.1 settings.ini keeps loading.
+  F-024 moved MZ-700's SlotLabels alongside
+  Mz700MatrixReference (with FindSpecialLabel matching F-039's
+  MZ-80A shape) — SpecialKeyMap.SlotLabels deletes.
+  Deliberately did NOT extract a shared SpecialKeyMapBase per
+  the finding — the two SpecialKeyMaps have irreducible
+  per-machine differences (Map entry shapes, Validate rules,
+  Labels overlap on only ~4 keys). F-022 replaced CharMap.cs's
+  hand-coded 90-line Defaults dictionary with a walk over
+  Mz700MatrixReference.All plus explicit precedence overrides
+  for MZ-700's case policy + collision preferences (`'` → D7
+  not AT-slot) + UK-layout fallbacks. One intentional
+  addition: `↓` (printable down-arrow) now maps to POUND slot
+  (was unmapped; reference always documented it there).
+  F-016 extracted KeyboardAutoTyper — the ~150-line five-phase
+  auto-typer state machine leaves Keyboard.cs; MZ-80A's
+  time-based auto-typer stays inline (different mechanics —
+  SA-1510 doesn't scan the matrix from a predictable rhythm).
+  F-015+F-021 extracted KeyboardMatrixBase — the ~150-line
+  matrix + hold-bookkeeping + shift-race stage + effective-shift
+  scaffolding both keyboards shared. OnKeyDown / OnKeyPress /
+  OnKeyUp deliberately stay per-machine (Ctrl handling,
+  $1170 RAM mirror, case-inversion, GraphMode, different
+  SpecialKeyMap shape — divergences are too large for a safe
+  shared skeleton without risking the shift-race timing).
+  F-025 extracted CassetteTrapBase — shared LOAD-trap
+  primitives (WriteHeaderToBuffer, WriteDataToRam,
+  SynthesiseSuccess, PopFromStack); MZ-700's SAVE-tape
+  machinery + BreakWait trap stay MZ-700-only.
+
+- **Phase 7 — MainForm surgery**
+  (`83c82c3`, `31e7d51`, `388842a`, `eccfbda`, 2026-08-23).
+  Highest-risk phase; five findings, four commits. F-060
+  introduced MzMachineBase abstract carrying Cpu + Paused +
+  _stepFrameRequested + Pause/Resume/StepInstruction/StepFrame
+  (both machines' verbatim copies delete). F-061 widened
+  IMachine with `Sound` + `VideoFrame` (Bitmap?) +
+  `CassetteTrapBase Cassette` — the surfaces both machines
+  have AND MainForm accesses uniformly. F-056 collapsed ~15
+  of MainForm's ~28 _machine/_mz80a branches through the new
+  IMachine members (Sound.Dispose / Start / Muted; VideoFrame
+  paint; Cassette.Pending / HeaderTrapHits / DataTrapHits
+  polling). F-055 + F-062 paired as one commit: extracted
+  DumpTraceRecorder (~200 lines — the `--dump=` per-frame
+  trace + at-frame-N write + Close-on-complete flow) +
+  AutoLoadOrchestrator (~370 lines — both per-machine startup
+  pipelines: monitor-ready → BASIC → cassette → BASIC source,
+  plus the per-frame mode indicator and MZ-700 GRAPH auto-
+  Font-Sheet). Timer_Tick collapsed from ~300 lines to 30.
+  MainForm shrank 1984 → 1498 lines. StatusStripController
+  (the third companion the finding suggested) deliberately
+  skipped — the four status labels are placed on the form's
+  StatusStrip directly, and their extraction would need
+  partial-class or callback-based updates; read as churn
+  rather than a legibility win at this scale.
+
+- **Release-check walk + late fixes**
+  (`c559126`, `5148681`, `ede0ddc`, `f017a84`, `a6149f2`,
+  2026-08-25). Release-check.md refreshed for three drift items
+  (F-034 unlocked Keyboard Matrix on MZ-80A; F-037 wired MZ-80A
+  .mzkbd; F-036 shipped MZ-80A diagram labels) plus a new
+  Known-backlog line for [[project-basic-cold-start-overflow]]
+  (Dragon Caves cold-start Overflow surfaced during Phase 4;
+  target v1.3.0). Stage 2 findings + plan docs archived
+  alongside the already-committed Stage 1 brief. The walk
+  surfaced two issues fixed before the tag: MZ-80A safety gate
+  nagging on all 14 numeric-keypad slots (F-036 exposed a data
+  gap — NP slots have coords + Character kind but no PC
+  bindings; filtered them from EssentialKeys, matching the
+  char-map's own skip); AdvancedKeyboardForm's root
+  TableLayoutPanel mixed AutoSize + Percent(100) rows under
+  AutoScroll (Close button off-screen; content truncated).
+  Restructured to Dock=Bottom close row + all-fixed-height
+  root rows so AutoScroll works reliably. Added a caption
+  above the overrides list for parity with the unbound-slot
+  panel. SettingsForm's stale MZ-700-only `Visible` gate on
+  the Export/Import row also flipped — F-037 wired the
+  backend but never touched button visibility.
+
+- **v1.2.0 tagged (tag-only, no packaged release)**
+  (2026-08-25). csproj bumped `1.1.0` → `1.2.0`; BuildNumber
+  refreshed to the tag date. No release bundle built, no
+  README changes, no `gh release create` — v1.2 is refactors
+  + parity fixes + MZ-80A UX polish with no user-facing
+  improvements that would justify a download-facing release.
+  Next packaged release is v1.3.0 per [[project-roadmap]].
+  Test seed (`MZRaku.Tests/`) originally listed in the audit
+  brief did NOT ship in v1.2 — audit-generated Stage 2 didn't
+  raise a Phase for it and the release cadence made a
+  dedicated test-authoring session out of scope; carries
+  forward to v1.3.0.
+
+  **Method notes worth preserving.** The three-stage
+  execution (brief → findings+plan → review+execute) with
+  files as trust boundary worked. Per-finding categorisation
+  (a/b/c) kept scope bounded — no finding widened into
+  scope-creep, and 9 legitimate items got parked cleanly to
+  v1.3.0 (F-064 CLI parser, F-049 DebuggerForm split) /
+  v1.4.0 MZ-800 arc (F-019 folder reorg, F-020 file moves,
+  F-066 AccumulatePit helper) / adjacent-parked areas (F-027,
+  F-030, F-040, F-048). Adversarial Stage 3 caught 2 false
+  findings + 4 scope narrowings that would otherwise have
+  shipped. Same shape recommended for the Z80Core audit that
+  follows (MZRaku becomes the constant that time).
+
 ---
 
 ## Architectural decisions worth knowing

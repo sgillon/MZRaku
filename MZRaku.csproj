@@ -16,7 +16,7 @@
          About dialog and read from AssemblyInformationalVersion at
          runtime — see StampInformationalVersion below for how the full
          string is composed. -->
-    <Version>1.1.0</Version>
+    <Version>1.2.0</Version>
     <!-- Build number. Manually bumped before each publish; format
          YYYYMMDD-NNN where NNN is a per-day counter (001, 002, …).
          Composed with the git short-SHA into InformationalVersion by
@@ -25,7 +25,7 @@
          as the tiebreaker when two builds carry the same <Version> —
          a "which exe am I looking at" indicator distinct from the
          feature version. -->
-    <BuildNumber>20260822-001</BuildNumber>
+    <BuildNumber>20260825-001</BuildNumber>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
