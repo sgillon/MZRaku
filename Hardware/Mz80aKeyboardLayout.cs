@@ -208,16 +208,30 @@ public static class Mz80aKeyboardLayout
     /// <summary>
     /// Keys the safety gate should confirm are reachable from the PC
     /// keyboard before Apply. Every layout key with real (Row, Col)
-    /// coordinates qualifies — MZ-80A has no Blank filler kind so
-    /// nothing is excluded. Mirrors <see cref="MzKeyboardLayout.EssentialKeys"/>.
+    /// coordinates qualifies — with one exception: numeric-keypad
+    /// slots (Id starts with "NP") are filtered out because their
+    /// glyphs alias the main-row digits and PC-keypad → NP-slot
+    /// routing isn't wired yet (see the matching skip in
+    /// <see cref="Mz80aCharMap.BuildDefaults"/>). Without this
+    /// filter the safety gate would nag every Apply about all 14
+    /// NP slots being unreachable. When v1.3+ wires the PC
+    /// NumPad0-9 / Add / Subtract / Decimal / Enter keys through
+    /// to the NP slots, drop the filter and they graduate back to
+    /// essential automatically. Mirrors
+    /// <see cref="MzKeyboardLayout.EssentialKeys"/>'s Blank-filler
+    /// filter in spirit — both exclude slots we don't expect the
+    /// user to reach through the default binding set.
     /// </summary>
     public static IEnumerable<MzKeyboardLayout.MzKey> EssentialKeys
     {
         get
         {
             foreach (var k in Keys)
-                if (k.Row.HasValue && k.Col.HasValue)
-                    yield return k;
+            {
+                if (!k.Row.HasValue || !k.Col.HasValue) continue;
+                if (k.Id.StartsWith("NP")) continue;
+                yield return k;
+            }
         }
     }
 

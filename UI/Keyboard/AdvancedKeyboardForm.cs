@@ -45,11 +45,36 @@ public sealed class AdvancedKeyboardForm : Form
 
     private void BuildUi()
     {
+        // Close button lives in its own Dock=Bottom panel OUTSIDE the
+        // scrollable root — so even when the matrix + unbound-list +
+        // overrides list overflow the client area (they do on MZ-80A
+        // where the layout is tall), the button stays pinned and the
+        // rest of the form scrolls above it. Docking order matters:
+        // Bottom-docked controls added FIRST claim their edge first;
+        // the Fill root added SECOND occupies whatever remains.
+        var closeBtn = new Button
+        {
+            Text = "Close",
+            DialogResult = DialogResult.OK,
+            Width = 90,
+        };
+        var closeRow = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.RightToLeft,
+            Dock = DockStyle.Bottom,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = new Padding(10, 0, 10, 10),
+        };
+        closeRow.Controls.Add(closeBtn);
+        AcceptButton = closeBtn;
+        CancelButton = closeBtn;
+
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 5,
+            RowCount = 4,
             Padding = new Padding(10),
             AutoScroll = true,
         };
@@ -58,7 +83,6 @@ public sealed class AdvancedKeyboardForm : Form
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));        // matrix
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));        // unbound-slot panel
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));   // overrides list
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));        // close button row
 
         root.Controls.Add(new Label
         {
@@ -110,25 +134,9 @@ public sealed class AdvancedKeyboardForm : Form
         PopulateOverridesList();
         root.Controls.Add(_overridesList, 0, 3);
 
-        var closeBtn = new Button
-        {
-            Text = "Close",
-            DialogResult = DialogResult.OK,
-            Width = 90,
-            Anchor = AnchorStyles.Right,
-        };
-        var closeRow = new FlowLayoutPanel
-        {
-            FlowDirection = FlowDirection.RightToLeft,
-            Dock = DockStyle.Fill,
-            AutoSize = true,
-            Margin = new Padding(0),
-        };
-        closeRow.Controls.Add(closeBtn);
-        root.Controls.Add(closeRow, 0, 4);
-        AcceptButton = closeBtn;
-        CancelButton = closeBtn;
-
+        // Bottom-docked closeRow FIRST, Fill root SECOND — Fill
+        // respects the space closeRow has already claimed.
+        Controls.Add(closeRow);
         Controls.Add(root);
     }
 
