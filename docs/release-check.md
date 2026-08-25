@@ -64,8 +64,11 @@ release, update the checklist before fixing the bug.
 - [ ] `Debug → Debugger…` (Ctrl+D), `Memory Viewer…` (Ctrl+M),
       `HID Diagnostic…` (Ctrl+H) all open without NRE.
 - [ ] `View → Font Sheet…` (Ctrl+G) opens.
-- [ ] On MZ-80A: `Debug → Sound Diagnostic…` and `Keyboard Matrix…`
-      show friendly "MZ-700 only for now" MessageBox — no NRE.
+- [ ] On MZ-80A: `Debug → Sound Diagnostic…` shows friendly
+      "MZ-700 only for now" MessageBox — no NRE.
+- [ ] On MZ-80A: `Debug → Keyboard Matrix…` opens the shared
+      matrix grid against MZ-80A data — no MZ-700-only refusal
+      (v1.2 F-034 unlocked the pane).
 - [ ] `Help → About…` opens; version matches `<Version>` in the
       csproj; logo visible in header; `Emulating: Sharp MZ-XXX`
       line names the active machine.
@@ -141,8 +144,10 @@ into the SA-5510 `Ready` prompt; each tier should stay 100% clean.
       → override persists to `[CharMap.MZ80A]`.
 - [ ] MZ-80A: click either SHIFT cap → same "MZ Shift is permanently
       bound" MessageBox as MZ-700.
-- [ ] MZ-80A: Export/Import buttons hidden on this machine
-      (`.mzkbd` format is MZ-700-only for now).
+- [ ] MZ-80A: Export → `.mzkbd` file (v2 format with `[Meta]
+      machine=MZ-80A`); Import Merge with the same file → no
+      change. Import a MZ-700 `.mzkbd` on MZ-80A → refused with
+      a "machine mismatch" warning (v1.2 F-037).
 - [ ] Both machines: overrides survive close-and-relaunch.
 
 ### Font Sheet
@@ -242,11 +247,11 @@ stays honest.
 - **Apply-keyboard regression**
   ([[project-v1-1-apply-keyboard-regression]]): documented
   workaround verified in Critical smoke.
-- **MZ-80A diagram PC-key labels + red unreachable outline** —
-  deferred from 5.5c to v1.2 polish; MZ-80A diagram renders
-  label-less.
-- **`.mzkbd` export/import on MZ-80A** — deferred; buttons hidden
-  on MZ-80A.
+- **BASIC cold-start Overflow**
+  ([[project-basic-cold-start-overflow]]): some .mzf BASIC
+  programs (reproducer: Dragon Caves 1982) show screen
+  corruption + Overflow Error on cold-start LOAD+RUN. Clears
+  after any prior MC run in the session. Target v1.3.0.
 
 ---
 
