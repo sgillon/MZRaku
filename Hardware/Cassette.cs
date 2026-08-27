@@ -81,6 +81,34 @@ public sealed class Cassette : CassetteTrapBase
         Path.Combine(AppContext.BaseDirectory, "saves");
 
     /// <summary>
+    /// MZ-700 override: write payload straight to physical Ram[] and bank
+    /// VRAM out if the program spills past $CFFF. The base's Mem.Write
+    /// routes writes to $D000-$DFFF into Vram/Aram when VramIoEnabled is
+    /// true — so a BASIC program larger than ~25 KB has its tail land in
+    /// the character/attribute VRAM instead of extended RAM, corrupting
+    /// the screen and truncating what RUN can read back. Real S-BASIC's
+    /// LOAD banks VRAM out (OUT ($E1),A → VramIoEnabled=false) before
+    /// calling the monitor's tape read and leaves it out so RUN can walk
+    /// the program through $D000-$DFFF; we mimic that here. Discovered
+    /// 2026-08-27 via Dragon Caves (29,283 bytes @ $6BCF → extends to
+    /// $DE32); the bug appeared intermittent because BASIC's post-Ready
+    /// idle loop toggles VramIoEnabled and DirectInject's 60-frame wait
+    /// caught random points in that cycle.
+    /// </summary>
+    public override void DirectInject(MzfImage img, bool jumpExec = true)
+    {
+        for (int i = 0; i < HeaderSize; i++)
+            _mem.Ram[HeaderBufferAddr + i] = img.Header[i];
+        for (int i = 0; i < img.Data.Length; i++)
+            _mem.Ram[img.LoadAddr + i] = img.Data[i];
+        if (img.LoadAddr + img.Data.Length > 0xD000)
+            _mem.VramIoEnabled = false;
+        if (jumpExec)
+            Cpu.PC = img.ExecAddr;
+        RaiseLoaded($"Injected: {img.Filename} load=${img.LoadAddr:X4} exec=${img.ExecAddr:X4} size={img.Data.Length}");
+    }
+
+    /// <summary>
     /// Update S-BASIC's program-area control block after a cassette program
     /// has been direct-injected at <paramref name="startAddr"/>.
     ///

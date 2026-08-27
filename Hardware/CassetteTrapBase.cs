@@ -85,7 +85,7 @@ public abstract class CassetteTrapBase
     /// called while CPU is halted or about to run from a
     /// well-defined state (typically post-monitor-ready).
     /// </summary>
-    public void DirectInject(MzfImage img, bool jumpExec = true)
+    public virtual void DirectInject(MzfImage img, bool jumpExec = true)
     {
         for (int i = 0; i < HeaderSize; i++)
             Mem.Write((ushort)(HeaderBufferAddr + i), img.Header[i]);
