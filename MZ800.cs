@@ -119,9 +119,9 @@ public sealed class MZ800 : MzMachineBase, IMachine
         // MZ800.ROM is a single 16 KB file combining MZ-700 monitor +
         // CG-ROM + MZ-800 IPL + monitor + BASIC-IOCS. Font parameter is
         // ignored — the CG lives inside the combined ROM at offset
-        // $1000-$1FFF, and Phase 2's renderer will slice it out from
-        // Mem.Rom directly rather than reading a separate file.
+        // $1000-$1FFF, extracted for the renderer by Mz800Video.
         Mem.LoadRom(File.ReadAllBytes(monitorRomPath));
+        Video.LoadFontFromRom(Mem.Rom);
     }
 
     public void Reset()
@@ -153,9 +153,10 @@ public sealed class MZ800 : MzMachineBase, IMachine
     {
         if (Paused && !_stepFrameRequested)
         {
-            // No renderer yet — nothing to redraw when paused. Phase 2
-            // adds the render call here so the display stays live
-            // during debug.
+            // Still rebuild the framebuffer so the debugger's memory
+            // viewer and the main display stay live even while the
+            // CPU is paused. Same pattern as MZ700 / MZ80A.
+            Video.Render(Mem.Vram, Mem.Aram);
             return;
         }
         bool stepFrame = _stepFrameRequested;
@@ -190,7 +191,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
 
         if (tripped || stepFrame) Paused = true;
 
-        // Video.Render call arrives in Phase 2.
+        Video.Render(Mem.Vram, Mem.Aram);
     }
 
     protected override void AccumulatePit(int cpuCycles)

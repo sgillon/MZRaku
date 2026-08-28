@@ -1012,9 +1012,10 @@ public sealed class MainForm : Form
     private void Display_Paint(object? sender, PaintEventArgs e)
     {
         // Machine-agnostic framebuffer pick via IMachine.VideoFrame
-        // (F-061). Both renderers back onto a 320×200 32bppArgb Bitmap
-        // so the downstream draw + scanline overlay code is identical.
-        var frame = ((IMachine?)_machine ?? _mz80a)?.VideoFrame;
+        // (F-061). All three renderers back onto a 320×200 32bppArgb
+        // Bitmap so the downstream draw + scanline overlay code is
+        // identical.
+        var frame = ((IMachine?)_machine ?? (IMachine?)_mz80a ?? _mz800)?.VideoFrame;
         if (frame == null)
         {
             e.Graphics.Clear(Color.Black);
