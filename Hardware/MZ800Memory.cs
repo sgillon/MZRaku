@@ -190,11 +190,20 @@ public sealed class MZ800Memory : IMemory
     /// transitions and stubs the rest so unknown commands are visible
     /// in the log rather than silently corrupting state.
     ///
-    /// Boot-path transitions this method handles:
-    ///   $E0  MZ-700 mode: (c) → (b)  — restore text/attr VRAM
-    ///   $E1  MZ-700 mode: (b) → (c)  — expose CG-ROM at $1000, PCG at $D000
-    ///   $E1  MZ-800 mode: (a) → (d)  — all DRAM (used by BASIC per feasibility)
+    /// Boot-path transitions this method handles (tech-ref p. 5,
+    /// "Memory Bank Control" table for IN reads):
+    ///   $E0  MZ-700 mode: → (c)  — expose CG-ROM at $1000, PCG VRAM at $C000
+    ///   $E1  MZ-700 mode: → (b)  — restore DRAM at $1000 and $C000
+    ///   $E1  MZ-800 mode: → (d)  — all DRAM (used by BASIC per feasibility)
     ///   $E4  either mode: → default  — power-on-like restore
+    ///
+    /// Phase 2.5 fix (2026-08-28): $E0 and $E1 were swapped, causing
+    /// the IPL's LDIR at $E8B4 to copy from DRAM (zeros) instead of
+    /// CG-ROM, and — worse — the subsequent CALL $001B (GETL) ran
+    /// with the stack ($10DE-$10F0) inside the CG-ROM window, so
+    /// every RET popped a font byte as the return address and
+    /// re-entered the MZ-700 monitor's cold-boot init at $007C in a
+    /// tight infinite loop. Swapping the two lines fixes both.
     /// </summary>
     public void HandleBankSwitch(byte cmd)
     {
@@ -204,12 +213,17 @@ public sealed class MZ800Memory : IMemory
         switch (cmd)
         {
             case 0x00:  // $E0
-                if (Mz700Mode) Config = BankConfig.B_Mz700;
+                // MZ-700 mode: expose CG-ROM at $1000, VRAM (PCG) at $C000
+                // so the IPL's LDIR at $E8B4 copies CG-ROM into PCG.
+                if (Mz700Mode) Config = BankConfig.C_PcgWrite;
                 // In MZ-800 mode, $E0 puts DRAM at $0000-$7FFF per the
                 // tech-ref table. Not on a Phase-1 boot path; log only.
                 break;
             case 0x01:  // $E1
-                if (Mz700Mode) Config = BankConfig.C_PcgWrite;
+                // MZ-700 mode: revert the $E0 CG-ROM windowing — $1000
+                // and $C000 return to DRAM. Stack works normally again.
+                // MZ-800 mode: full DRAM (used by BASIC per feasibility).
+                if (Mz700Mode) Config = BankConfig.B_Mz700;
                 else Config = BankConfig.D_AllRam;
                 break;
             case 0x02:  // $E2

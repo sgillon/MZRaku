@@ -660,6 +660,14 @@ public sealed class MainForm : Form
                 _machine.Pit.WriteLog = tracing ? new System.Text.StringBuilder() : null;
                 _machine.Mem.BankSwitchLog = tracing ? new System.Text.StringBuilder() : null;
             }
+            // MZ-800 gets the same hooks (both classes carry
+            // WriteLog + BankSwitchLog StringBuilder fields). Phase 2.5
+            // boot-hang investigation reads these via --dump=.
+            if (_mz800 != null)
+            {
+                _mz800.Pit.WriteLog = tracing ? new System.Text.StringBuilder() : null;
+                _mz800.Mem.BankSwitchLog = tracing ? new System.Text.StringBuilder() : null;
+            }
             Active.Sound.Start();
 
             // Dump-and-trace recorder (v1.2 audit F-055). No-op when

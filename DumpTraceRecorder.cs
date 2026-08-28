@@ -24,7 +24,8 @@ internal sealed class DumpTraceRecorder
     private readonly string? _dumpPath;
     private readonly int _dumpFrame;
     private readonly IMachine _active;
-    private readonly MZ700? _mz700;           // null on MZ-80A
+    private readonly MZ700? _mz700;           // null on MZ-80A / MZ-800
+    private readonly MZ800? _mz800;           // null on MZ-700 / MZ-80A
     private readonly string _machineLabel;
     private readonly StringBuilder _traceLog = new();
 
@@ -43,6 +44,7 @@ internal sealed class DumpTraceRecorder
         _dumpFrame = dumpFrame;
         _active = active;
         _mz700 = active as MZ700;
+        _mz800 = active as MZ800;
         _machineLabel = machineLabel;
     }
 
@@ -66,6 +68,12 @@ internal sealed class DumpTraceRecorder
                 var c0 = _mz700.Pit.Counters[0];
                 var c2 = _mz700.Pit.Counters[2];
                 _traceLog.AppendLine($"[F{bootFrames:D4}] PC=${_mz700.Cpu.PC:X4} SP=${_mz700.Cpu.SP:X4} IFF1={_mz700.Cpu.IFF1} C0.rel={c0.Reload} run={c0.Running} out={c0.Out} C2.rel={c2.Reload} run={c2.Running} out={c2.Out} INTMSK={_mz700.Ppi.InterruptMask} hdr={_mz700.Cassette.HeaderDelivered} dat={_mz700.Cassette.DataDelivered}");
+            }
+            else if (_mz800 != null)
+            {
+                var c0 = _mz800.Pit.Counters[0];
+                var c2 = _mz800.Pit.Counters[2];
+                _traceLog.AppendLine($"[F{bootFrames:D4}] PC=${_mz800.Cpu.PC:X4} SP=${_mz800.Cpu.SP:X4} IFF1={_mz800.Cpu.IFF1} cfg={_mz800.Mem.Config} mz700={_mz800.Mem.Mz700Mode} C0.rel={c0.Reload} run={c0.Running} out={c0.Out} C2.rel={c2.Reload} run={c2.Running} out={c2.Out} INTMSK={_mz800.Ppi.InterruptMask}");
             }
             else
             {
@@ -113,11 +121,32 @@ internal sealed class DumpTraceRecorder
             w.WriteLine(sb0.ToString());
             w.WriteLine($"Tape trap hits: BreakWait={_mz700.Cassette.BreakWaitTrapHits} Header={_mz700.Cassette.HeaderTrapHits} Data={_mz700.Cassette.DataTrapHits} WriteTape={_mz700.Cassette.WriteTapeTrapHits}");
         }
+        else if (_mz800 != null)
+        {
+            w.WriteLine($"PPI PortA=${_mz800.Ppi.PortA:X2} PortCOut=${_mz800.Ppi.PortCOut:X2} PortCIn=${_mz800.Ppi.PortCIn:X2}");
+            w.WriteLine($"Mem Config={_mz800.Mem.Config} Mz700Mode={_mz800.Mem.Mz700Mode}");
+            w.WriteLine($"PIT C0.Reload={_mz800.Pit.Counters[0].Reload} C2.Reload={_mz800.Pit.Counters[2].Reload}");
+            // Phase 2.5 spots: RAM at the LDIR destination ($C000),
+            // and interrupt handler install at RAM $1038 (expected
+            // C3 8D 03 = "JP $038D").
+            var sbC = new StringBuilder("RAM @ $C000: ");
+            for (int i = 0; i < 32; i++) sbC.Append($"{_mz800.Mem.Ram[0xC000 + i]:X2} ");
+            w.WriteLine(sbC.ToString());
+            var sb38 = new StringBuilder("RAM @ $1038: ");
+            for (int i = 0; i < 8; i++) sb38.Append($"{_mz800.Mem.Ram[0x1038 + i]:X2} ");
+            w.WriteLine(sb38.ToString());
+            var sbATB = new StringBuilder("ARAM @ $D800: ");
+            for (int i = 0; i < 32; i++) sbATB.Append($"{_mz800.Mem.Aram[i]:X2} ");
+            w.WriteLine(sbATB.ToString());
+            w.WriteLine($"Tape trap hits: Header={_mz800.Cassette.HeaderTrapHits} Data={_mz800.Cassette.DataTrapHits}");
+        }
 
-        // VRAM is 40x25 on both machines; grab it via the machine
-        // that's actually running. Bytes are the raw display codes
-        // each machine renders through its own font ROM.
-        byte[] vram = _mz700 != null ? _mz700.Mem.Vram : ((MZ80A)_active).Mem.Vram;
+        // VRAM is 40x25 on all three machines; grab it via the
+        // machine that's actually running. Bytes are the raw display
+        // codes each machine renders through its own font ROM.
+        byte[] vram = _mz700 != null ? _mz700.Mem.Vram
+                    : _mz800 != null ? _mz800.Mem.Vram
+                    : ((MZ80A)_active).Mem.Vram;
         w.WriteLine();
         w.WriteLine("VRAM (40x25 text codes):");
         for (int row = 0; row < 25; row++)
@@ -165,20 +194,21 @@ internal sealed class DumpTraceRecorder
 
     private void AppendMz700WriteLogs()
     {
-        // Pit / Mem write logs are MZ-700 concrete-class members;
-        // MZ-80A doesn't expose analogues yet.
-        if (_mz700 == null) return;
-        if (_mz700.Pit.WriteLog != null)
+        // Pit / Mem write logs are MZ-700 / MZ-800 concrete-class
+        // members; MZ-80A doesn't expose analogues yet.
+        var pitLog = _mz700?.Pit.WriteLog ?? _mz800?.Pit.WriteLog;
+        var memLog = _mz700?.Mem.BankSwitchLog ?? _mz800?.Mem.BankSwitchLog;
+        if (pitLog != null)
         {
             _traceLog.AppendLine();
             _traceLog.AppendLine("PIT write log:");
-            _traceLog.Append(_mz700.Pit.WriteLog);
+            _traceLog.Append(pitLog);
         }
-        if (_mz700.Mem.BankSwitchLog != null)
+        if (memLog != null)
         {
             _traceLog.AppendLine();
             _traceLog.AppendLine("Bank-switch log:");
-            _traceLog.Append(_mz700.Mem.BankSwitchLog);
+            _traceLog.Append(memLog);
         }
     }
 
