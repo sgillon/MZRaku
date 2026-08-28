@@ -17,9 +17,9 @@ namespace MZRaku.Hardware;
 ///
 ///   1. Power-on: config (a), MZ-800 mode. ROM at $0000-$0FFF (MZ-700
 ///      monitor), CG-ROM at $1000-$1FFF, DRAM at $2000-$7FFF, VRAM at
-///      $8000-$BFFF (320×200 bitmap), DRAM $C000-$DFFF, MON at
-///      $E000-$FFFF. CPU boots at $0000 which is `JP $E800` — jumps
-///      into the MZ-800 IPL at ROM offset $2800.
+///      $8000-$BFFF (320×200 bitmap), DRAM $C000-$DFFF, MON (1Z-016B)
+///      at $E000-$FFFF. CPU boots at $0000 which is `JP $E800` —
+///      jumps into the MZ-800 IPL at ROM offset $2800.
 ///
 ///   2. IPL sets MZ-700 mode via OUT ($CE),A with A=$08 (DMD bit 3).
 ///
@@ -107,7 +107,7 @@ public sealed class MZ800Memory : IMemory
                 // MZ-800 mode power-on layout (tech-ref p. 3 config a)
                 if (addr < 0x1000) return Rom[addr];                    // MZ-700 monitor
                 if (addr < 0x2000) return Rom[addr];                    // CG ROM ($1000-$1FFF)
-                if (addr >= 0xE000) return Rom[0x2000 + (addr - 0xE000)]; // MZ-800 monitor
+                if (addr >= 0xE000) return Rom[0x2000 + (addr - 0xE000)]; // MZ-800 IPL/monitor (1Z-016B)
                 return Ram[addr];                                       // DRAM + VRAM window as DRAM
 
             case BankConfig.B_Mz700:

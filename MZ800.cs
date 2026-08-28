@@ -11,11 +11,11 @@ namespace MZRaku;
 /// configs per mode, keyed off IN $E0-$E5) + dual-mode I/O layout.
 ///
 /// Phase 1 status (v1.3.0, 2026-08-29): boot spike. This class boots
-/// the 1Z-013B monitor blind — CPU starts at $0000 (JP $E800), IPL
-/// runs from ROM at CPU $E800 (file offset $2800), IPL flips to
-/// MZ-700 mode via OUT ($CE),A, banks the CG-ROM in/out to copy PCG
-/// data, then MZ-700 monitor at CPU $0000 takes over and writes the
-/// '*' prompt to VRAM at $D000. All that is verifiable via the
+/// the 1Z-013B monitor blind — CPU starts at $0000 (JP $E800), the
+/// MZ-800 IPL (1Z-016B) runs from ROM at CPU $E800 (file offset
+/// $2800), flips to MZ-700 mode via OUT ($CE),A, banks the CG-ROM
+/// in/out to copy PCG data, then MZ-700 monitor at CPU $0000 takes
+/// over and writes the '*' prompt to VRAM at $D000. All that is verifiable via the
 /// debugger + memory viewer; no video renderer yet (Phase 2).
 ///
 /// The peripheral classes are placeholders sized to Phase 1:
@@ -116,10 +116,11 @@ public sealed class MZ800 : MzMachineBase, IMachine
 
     public void LoadRoms(string monitorRomPath, string? fontPath)
     {
-        // MZ800.ROM is a single 16 KB file combining MZ-700 monitor +
-        // CG-ROM + MZ-800 IPL + monitor + BASIC-IOCS. Font parameter is
-        // ignored — the CG lives inside the combined ROM at offset
-        // $1000-$1FFF, extracted for the renderer by Mz800Video.
+        // MZ800.ROM is a single 16 KB file combining MZ-700 monitor
+        // (1Z-013B) + CG-ROM + MZ-800 IPL/monitor (1Z-016B) +
+        // BASIC-IOCS. Font parameter is ignored — the CG lives inside
+        // the combined ROM at offset $1000-$1FFF, extracted for the
+        // renderer by Mz800Video.
         Mem.LoadRom(File.ReadAllBytes(monitorRomPath));
         Video.LoadFontFromRom(Mem.Rom);
     }
