@@ -88,6 +88,10 @@ public sealed class MZ800 : MzMachineBase, IMachine
         Mem.IoBus = Io;
         Mem.Cpu = Cpu;
         Ppi.Keyboard = Keyboard;
+        // Keyboard needs the DRAM handle for the $1170 shift mirror
+        // that the 1Z-013B monitor's GETKY reads to pick between
+        // unshifted / shifted key tables (Phase 3, 2026-08-28).
+        Keyboard.Memory = Mem;
 
         // Cassette needs Memory + CPU for trap injection. PreStep
         // watches the 1Z-013B tape entry-point vectors at $0027 /
@@ -162,6 +166,13 @@ public sealed class MZ800 : MzMachineBase, IMachine
         }
         bool stepFrame = _stepFrameRequested;
         _stepFrameRequested = false;
+
+        // Live-typing staged key bits: shifted presses land their key
+        // bit a couple of frames after SHIFT/$1170 was set, so the ROM
+        // scan sees a consistent (shift, key) pair rather than the key
+        // with stale cached shift. Same reason MZ-700 / MZ-80A tick
+        // this once per frame.
+        Keyboard.TickStagedKeyBits();
 
         Ppi.SetVBlank(false);
         int cyclesThisFrame = 0;

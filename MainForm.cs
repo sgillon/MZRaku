@@ -1084,6 +1084,14 @@ public sealed class MainForm : Form
             if (_mz80a.Keyboard.OnKeyDown(e.KeyData)) e.Handled = true;
             return;
         }
+        // MZ-800: same shift-aware, char-driven path as MZ-700 (both
+        // use the 1Z-013B monitor family with a $1170 shift mirror).
+        if (_mz800 != null)
+        {
+            bool shift800 = e.Shift || IsShiftKey(e.KeyCode);
+            if (_mz800.Keyboard.OnKeyDown(e.KeyData, shift800)) e.Handled = true;
+            return;
+        }
         if (_machine == null) return;
         // e.Shift can momentarily lag on the very first shift keydown, so
         // also detect via the VK code itself.
@@ -1108,6 +1116,11 @@ public sealed class MainForm : Form
             _mz80a.Keyboard.OnKeyPress(e.KeyChar);
             return;
         }
+        if (_mz800 != null)
+        {
+            _mz800.Keyboard.OnKeyPress(e.KeyChar);
+            return;
+        }
         if (_machine == null) return;
         _machine!.Keyboard.OnKeyPress(e.KeyChar);
     }
@@ -1117,6 +1130,12 @@ public sealed class MainForm : Form
         if (_mz80a != null)
         {
             if (_mz80a.Keyboard.OnKeyUp(e.KeyData)) e.Handled = true;
+            return;
+        }
+        if (_mz800 != null)
+        {
+            bool shift800 = e.Shift && !IsShiftKey(e.KeyCode);
+            if (_mz800.Keyboard.OnKeyUp(e.KeyData, shift800)) e.Handled = true;
             return;
         }
         if (_machine == null) return;
@@ -1494,10 +1513,10 @@ public sealed class MainForm : Form
 
     private void OpenHidDiag()
     {
-        // Pick whichever machine is active. Both MZ-700 and MZ-80A
-        // support HID Diagnostic since the form was made machine-aware
-        // (v1.1.0 Phase 4).
-        IMachine? active = _machine != null ? _machine : _mz80a;
+        // Pick whichever machine is active. MZ-700 / MZ-80A / MZ-800 all
+        // supported since the form was made machine-aware (v1.1.0
+        // Phase 4); MZ-800 joined in v1.3.0 Phase 3.
+        IMachine? active = (IMachine?)_machine ?? (IMachine?)_mz80a ?? _mz800;
         if (active == null) return;
         if (_hidDiag == null || _hidDiag.IsDisposed)
         {

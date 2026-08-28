@@ -7,10 +7,11 @@ namespace MZRaku.Hardware;
 /// <summary>
 /// Single entry point for the startup-time consistency check between
 /// the canonical matrix references (<see cref="Mz700MatrixReference"/>,
-/// <see cref="Mz80aMatrixReference"/>) and the data files that consume
-/// them: <see cref="SpecialKeyMap"/>, <see cref="CharMap"/>,
-/// <see cref="MzKeyboardLayout"/>, <see cref="Mz80aSpecialKeyMap"/>,
-/// <see cref="Mz80aCharMap"/>.
+/// <see cref="Mz80aMatrixReference"/>, <see cref="Mz800MatrixReference"/>)
+/// and the data files that consume them: <see cref="SpecialKeyMap"/>,
+/// <see cref="CharMap"/>, <see cref="MzKeyboardLayout"/>,
+/// <see cref="Mz80aSpecialKeyMap"/>, <see cref="Mz80aCharMap"/>,
+/// <see cref="Mz800SpecialKeyMap"/>, <see cref="Mz800CharMap"/>.
 ///
 /// Drift between these files is exactly the bug class the matrix
 /// reference was introduced to catch (the CTRL=(8,6) and @=(1,5) slot
@@ -39,6 +40,9 @@ public static class MatrixValidation
         AddPrefixed(all, "Mz80aMatrixReference", Mz80aMatrixReference.Validate());
         AddPrefixed(all, "Mz80aSpecialKeyMap",   Mz80aSpecialKeyMap.Validate());
         AddPrefixed(all, "Mz80aCharMap",         Mz80aCharMap.Validate());
+        AddPrefixed(all, "Mz800MatrixReference", Mz800MatrixReference.Validate());
+        AddPrefixed(all, "Mz800SpecialKeyMap",   Mz800SpecialKeyMap.Validate());
+        AddPrefixed(all, "Mz800CharMap",         Mz800CharMap.Validate());
         return all;
     }
 
