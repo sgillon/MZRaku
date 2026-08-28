@@ -38,10 +38,12 @@ internal sealed class AutoLoadOrchestrator
 {
     private readonly MZ700? _machine;
     private readonly MZ80A? _mz80a;
+    private readonly MZ800? _mz800;
     private readonly Settings _settings;
     private readonly Func<bool> _monitorReady;
     private readonly Func<bool> _mz80aMonitorReady;
     private readonly Func<bool> _mz80aBasicReady;
+    private readonly Func<bool> _mz800MonitorReady;
     private readonly Action<string> _setStatus;
     private readonly Action<string> _showFatal;   // MessageBox for BASIC-load failure
     private readonly Action _openFontSheet;       // MZ-700 GRAPH auto-surface
@@ -60,10 +62,12 @@ internal sealed class AutoLoadOrchestrator
     public AutoLoadOrchestrator(
         MZ700? machine,
         MZ80A? mz80a,
+        MZ800? mz800,
         Settings settings,
         Func<bool> monitorReady,
         Func<bool> mz80aMonitorReady,
         Func<bool> mz80aBasicReady,
+        Func<bool> mz800MonitorReady,
         Action<string> setStatus,
         Action<string> showFatal,
         Action openFontSheet,
@@ -72,10 +76,12 @@ internal sealed class AutoLoadOrchestrator
     {
         _machine = machine;
         _mz80a = mz80a;
+        _mz800 = mz800;
         _settings = settings;
         _monitorReady = monitorReady;
         _mz80aMonitorReady = mz80aMonitorReady;
         _mz80aBasicReady = mz80aBasicReady;
+        _mz800MonitorReady = mz800MonitorReady;
         _setStatus = setStatus;
         _showFatal = showFatal;
         _openFontSheet = openFontSheet;
@@ -119,6 +125,7 @@ internal sealed class AutoLoadOrchestrator
     {
         if (_machine != null) OnMz700Frame(bootFrames);
         else if (_mz80a != null) OnMz80aFrame(bootFrames);
+        else if (_mz800 != null) OnMz800Frame(bootFrames);
     }
 
     // ---- MZ-700 pipeline ------------------------------------------------
@@ -362,5 +369,60 @@ internal sealed class AutoLoadOrchestrator
         // program-driven mode changes not being caught.
         if (bootFrames % 10 == 0)
             _updateModeLabel(_mz80a!.Keyboard.GraphMode);
+    }
+
+    // ---- MZ-800 pipeline ------------------------------------------------
+
+    /// <summary>
+    /// Phase 4 (v1.3.0) — MC cassette autoload only. BASIC via
+    /// 1Z-016.mzf is deferred to Phase 4c (needs BASIC-IOCS exec-entry
+    /// research at $F400-$FFEF), so <see cref="_pendingLoadBasic"/> and
+    /// <see cref="_pendingBasicSource"/> are ignored on this path for
+    /// now. If either is set on an MZ-800 launch we surface a status
+    /// note so the user isn't left wondering why nothing loaded.
+    /// </summary>
+    private void OnMz800Frame(int bootFrames)
+    {
+        if (_pendingLoadBasic || _pendingBasicSource != null)
+        {
+            // One-shot notice so this doesn't spam every frame. Clear
+            // the pending flags so downstream code doesn't retry.
+            _setStatus("BASIC autoload not yet supported on MZ-800 (Phase 4c).");
+            _pendingLoadBasic = false;
+            _pendingBasicSource = null;
+        }
+
+        if (_pendingCassette != null && _mz800MonitorReady())
+        {
+            try
+            {
+                // MC-only path: DirectInject to the image's load address
+                // and jump to its exec entry. The IPL / boot menu is
+                // already up (that's what MonitorReady detects), so the
+                // banks are in DRAM-friendly state and injection lands
+                // where a monitor LOAD would have put it. Bypasses the
+                // C / M menu selection entirely.
+                var img = MzfImage.Parse(CassetteFile.ReadBytes(_pendingCassette));
+                if (img.Type == 0x01)
+                {
+                    _mz800!.DirectInjectCassette(_pendingCassette);
+                    _setStatus($"Loaded: {img.Filename}");
+                }
+                else
+                {
+                    // Non-MC without BASIC has no target on MZ-800 in
+                    // Phase 4 scope. Inject at load address without
+                    // jumping so the debugger / memory viewer can
+                    // still see the payload.
+                    _mz800!.Cassette.DirectInject(img, jumpExec: false);
+                    _setStatus($"Loaded (no exec, type {img.Type:X2}): {img.Filename}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _setStatus("Cassette load failed: " + ex.Message);
+            }
+            _pendingCassette = null;
+        }
     }
 }

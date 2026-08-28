@@ -342,6 +342,15 @@ public sealed class MainForm : Form
         // configuration moved to the System menu (2nd position).
         var file = new ToolStripMenuItem("&File");
         file.DropDownItems.Add(new ToolStripMenuItem("&Load cassette...", null, (_, _) => BrowseAndLoad()) { ShortcutKeys = Keys.Control | Keys.O });
+        // Queue-for-LOAD variant (v1.3.0 Phase 4a): pick a .mzf and hold
+        // it for the monitor's L command to fetch via the RDINF/RDDAT
+        // traps, instead of the direct-inject shortcut Load Cassette
+        // uses. Exercises the trap path end-to-end — the authentic MZ
+        // LOAD experience, and the only way to smoke-test the trap
+        // wiring on MZ-800 until Phase 4c wires BASIC (which uses the
+        // same traps). Available on MZ-700 and MZ-800; MZ-80A skips
+        // Monitor-L entirely (SA-5510 goes through BASIC's LOAD).
+        file.DropDownItems.Add(new ToolStripMenuItem("Queue cassette for &monitor LOAD...", null, (_, _) => BrowseAndQueue()));
         file.DropDownItems.Add(new ToolStripMenuItem("Load &BASIC", null, (_, _) => LoadBasic()) { ShortcutKeys = Keys.Control | Keys.B });
         file.DropDownItems.Add(new ToolStripMenuItem("Load BASIC &source...", null, (_, _) => BrowseAndLoadBasicSource()) { ShortcutKeys = Keys.Control | Keys.Shift | Keys.B });
         file.DropDownItems.Add(new ToolStripSeparator());
@@ -685,10 +694,12 @@ public sealed class MainForm : Form
             _autoLoad = new AutoLoadOrchestrator(
                 machine: _machine,
                 mz80a: _mz80a,
+                mz800: _mz800,
                 settings: _settings,
                 monitorReady: MonitorReady,
                 mz80aMonitorReady: Mz80aMonitorReady,
                 mz80aBasicReady: Mz80aBasicReady,
+                mz800MonitorReady: Mz800MonitorReady,
                 setStatus: msg => _statusLabel.Text = msg,
                 showFatal: msg => MessageBox.Show(this, msg, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error),
                 openFontSheet: () =>
@@ -777,6 +788,49 @@ public sealed class MainForm : Form
             _monitorReady = true;
         }
         return _monitorReady;
+    }
+
+    /// <summary>
+    /// MZ-800 monitor/boot-menu ready detector. Phase 4 (v1.3.0) uses
+    /// this only for MC cassette autoload — we wait until the 1Z-016B
+    /// IPL has finished painting its boot menu ("Make ready CMT /
+    /// Please push key / C/Cassette tape / M/Monitor") to VRAM before
+    /// injecting, so the memory banks are in a DRAM-friendly state and
+    /// the CPU is in the boot menu's stable keyboard-wait loop.
+    ///
+    /// Detection: anchor on the MZ display-code sequence for "MONITOR"
+    /// — M=$0D O=$0F N=$0E I=$09 T=$14 O=$0F R=$12 — which is
+    /// unambiguously the boot-menu bottom line. Also accept the
+    /// lowercase bank-1 variant (M/onitor prints "onitor" as bank-1
+    /// codes $8F $8E $89 $94 $8F $92) since the 1Z-016B IPL uses
+    /// mixed case. Earlier "M/" digraph check turned out to be too
+    /// fragile — the menu row's actual layout has spaces or bank
+    /// differences we hadn't confirmed against VRAM.
+    /// </summary>
+    private bool Mz800MonitorReady()
+    {
+        if (_monitorReady) return true;
+        if (_mz800 == null) return false;
+        var v = _mz800.Mem.Vram;
+        // "ONITOR" (uppercase O-N-I-T-O-R) as bank-0 codes.
+        byte[] onitorU = { 0x0F, 0x0E, 0x09, 0x14, 0x0F, 0x12 };
+        // Same as bank-1 (lowercase). MZ bank-1 = bank-0 + $80.
+        byte[] onitorL = { 0x8F, 0x8E, 0x89, 0x94, 0x8F, 0x92 };
+        for (int i = 0; i + onitorU.Length < v.Length; i++)
+        {
+            if (Match(v, i, onitorU) || Match(v, i, onitorL))
+            {
+                _monitorReady = true;
+                break;
+            }
+        }
+        return _monitorReady;
+
+        static bool Match(byte[] v, int i, byte[] pat)
+        {
+            for (int k = 0; k < pat.Length; k++) if (v[i + k] != pat[k]) return false;
+            return true;
+        }
     }
 
     /// <summary>
@@ -1167,6 +1221,46 @@ public sealed class MainForm : Form
             Title = "Load cassette image"
         };
         if (dlg.ShowDialog(this) == DialogResult.OK) LoadCassetteFile(dlg.FileName);
+    }
+
+    /// <summary>
+    /// v1.3.0 Phase 4a: pick a .mzf and queue it for the monitor's L
+    /// command to fetch via RDINF/RDDAT traps. No direct-inject, no
+    /// jump — the user drives the load from within the emulator by
+    /// typing L at the Monitor prompt. Exercises the cassette-trap
+    /// path end-to-end for MZ-700 and MZ-800. MZ-80A is filtered out
+    /// (SA-5510 goes through BASIC's LOAD, not Monitor's).
+    /// </summary>
+    private void BrowseAndQueue()
+    {
+        if (_machine == null && _mz800 == null)
+        {
+            MessageBox.Show(this,
+                "Queue-for-LOAD is available on MZ-700 and MZ-800 only.\n" +
+                "MZ-80A cassette LOAD runs through BASIC's SA-5510, not " +
+                "the SA-1510 monitor's L command — use Load cassette instead.",
+                "Not supported on this machine",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        using var dlg = new OpenFileDialog
+        {
+            Filter = "MZ cassette images (*.mzf;*.m12;*.mzt;*.zip)|*.mzf;*.m12;*.mzt;*.zip|All files|*.*",
+            Title = "Queue cassette image for monitor LOAD"
+        };
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        try
+        {
+            var img = Hardware.MzfImage.Parse(Hardware.CassetteFile.ReadBytes(dlg.FileName));
+            if (_machine != null) _machine.Cassette.Queue(img);
+            else                  _mz800!.Cassette.Queue(img);
+            _statusLabel.Text = $"Queued: {img.Filename}. Type L in Monitor mode to fetch.";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "Failed to queue cassette:\n" + ex.Message,
+                "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     private void LoadCassetteFile(string path)
