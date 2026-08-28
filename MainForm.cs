@@ -11,14 +11,17 @@ namespace MZRaku;
 public sealed class MainForm : Form
 {
     // Exactly one of these is populated at construction based on
-    // Settings.CurrentMachine. MZ-700-specific accesses (Sound, Ppi, Pit,
-    // Joystick, Cassette, Keyboard, Video, KeyTables) use _machine!.
-    // and are gated by _machine != null. IMachine-surface calls
-    // (Cpu, Mem, RunFrame, Reset, LoadRoms, AutoLoad*, debugger
-    // controls) use the Active property, which works for both.
+    // Settings.CurrentMachine. MZ-700-specific accesses (Sound, Ppi,
+    // Pit, Joystick, Cassette, Keyboard, Video, KeyTables) use
+    // _machine!. and are gated by _machine != null. Same pattern for
+    // _mz80a (MZ-80A specific) and _mz800 (MZ-800). IMachine-surface
+    // calls (Cpu, Mem, RunFrame, Reset, LoadRoms, AutoLoad*, debugger
+    // controls) use the Active property, which works for all three.
     private readonly MZ700? _machine;
     private readonly MZ80A? _mz80a;
-    private IMachine Active => (IMachine?)_machine ?? _mz80a!;
+    private readonly MZ800? _mz800;
+    private IMachine Active =>
+        (IMachine?)_machine ?? (IMachine?)_mz80a ?? _mz800!;
     private readonly Hardware.JoystickInput _joystickInput;
     private readonly System.Windows.Forms.Timer _timer = new();
     private readonly StatusStrip _status = new();
@@ -77,7 +80,10 @@ public sealed class MainForm : Form
     // without needing a helper wrapper.
     private int _statusLastSetFrame = -1;
     private const int StatusIdleFrames = 300;   // ~5 s at 60 Hz
-    private string MachineLabel => _mz80a != null ? "MZ-80A" : "MZ-700";
+    private string MachineLabel =>
+        _mz800 != null ? "MZ-800" :
+        _mz80a != null ? "MZ-80A" :
+                         "MZ-700";
     private readonly PictureBox _display = new();
     private readonly Settings _settings = Settings.Load();
     private readonly ToolStripMenuItem[] _scaleMenuItems = new ToolStripMenuItem[3];
@@ -148,33 +154,22 @@ public sealed class MainForm : Form
         // when settings.ini had never seen an MZ-80A launch before.
         // No-op if the previous Load() already populated both sides.
         if (_settings.EnsureRomPaths()) _settings.Save();
-        // MZ-800 intercept: v1.3.0 Phase 0 reserves the machine slot
-        // but the boot spike hasn't landed. Fall back to MZ-700 so a
-        // hand-edited [Machine] DefaultMachine=MZ800 or a --mz800 CLI
-        // flag can't brick the app; show a one-shot message so the
-        // user knows why they got the fallback. Remove this branch
-        // when Phase 1 wires the real MZ800 machine class.
-        if (_settings.CurrentMachine == MachineType.MZ800)
-        {
-            MessageBox.Show(
-                "MZ-800 support is Phase 0 scaffolding as of v1.3.0. The " +
-                "machine slot is reserved but the boot spike (Phase 1) " +
-                "hasn't landed yet.\n\n" +
-                "Falling back to MZ-700 for this session. Change the " +
-                "default via System → Machine, or pass --mz700 / " +
-                "--mz80a on the command line.",
-                "MZ-800 not ready",
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
-            _settings.CurrentMachine = MachineType.MZ700;
-        }
-        // Construct exactly one of the two machines.
+        // Construct exactly one of the three machines. Phase-1 MZ-800
+        // is a "boot spike" — CPU boots ROM through the mode-flip to
+        // MZ-700 mode + '*' prompt, but no video/keyboard/sound yet.
+        // Debugger + memory viewer are the only ways to interact with
+        // it until Phase 2 lights up the renderer.
         if (_settings.CurrentMachine == MachineType.MZ700)
             _machine = new MZ700();
-        else
+        else if (_settings.CurrentMachine == MachineType.MZ80A)
         {
             _mz80a = new MZ80A();
             _mz80a.Keyboard.InvertLetterShift = _settings.Mz80aInvertLetterShift;
             ApplyMz80aScreenColor();
+        }
+        else /* MachineType.MZ800 */
+        {
+            _mz800 = new MZ800();
         }
 
         // JoystickInput needs a non-null Joystick reference to
@@ -256,6 +251,10 @@ public sealed class MainForm : Form
         if (_mz80a != null)
         {
             _mz80a.Cassette.OnLoaded += msg => _statusLabel.Text = msg;
+        }
+        if (_mz800 != null)
+        {
+            _mz800.Cassette.OnLoaded += msg => _statusLabel.Text = msg;
         }
 
         // Every direct assignment to _statusLabel.Text starts the
@@ -818,11 +817,11 @@ public sealed class MainForm : Form
     /// </summary>
     private void UpdateTapeLabel()
     {
-        if (_machine == null && _mz80a == null) return;
+        if (_machine == null && _mz80a == null && _mz800 == null) return;
         // Shared trap-state reads collapse to IMachine.Cassette
         // (CassetteTrapBase surface). WriteTapeTrapHits is
         // MZ-700-only (SA-1510 SAVE traps not wired yet); MZ-80A
-        // scores zero.
+        // and MZ-800 score zero.
         var cass = Active.Cassette;
         bool pending = cass.Pending != null;
         int headerHits = cass.HeaderTrapHits;
@@ -1182,6 +1181,8 @@ public sealed class MainForm : Form
                 // jump straight to its exec entry. No reset needed.
                 if (_mz80a != null)
                     _mz80a.Cassette.DirectInject(img, jumpExec: true);
+                else if (_mz800 != null)
+                    _mz800.Cassette.DirectInject(img, jumpExec: true);
                 else
                     _machine!.Cassette.DirectInject(img, jumpExec: true);
                 _statusLabel.Text = $"Loaded & run: {img.Filename} exec=${img.ExecAddr:X4}";
@@ -1189,13 +1190,18 @@ public sealed class MainForm : Form
             else
             {
                 // Other type at the monitor: queue for monitor LOAD command
-                // (MZ-700) or direct-inject as best-effort (MZ-80A doesn't
-                // have the L-command auto-typer path yet). Non-MC .mzf
-                // types (03 BASIC data, 04 ASCII, A0/A1 PASCAL) don't
+                // (MZ-700) or direct-inject as best-effort (MZ-80A / MZ-800
+                // don't have the L-command auto-typer path yet). Non-MC
+                // .mzf types (03 BASIC data, 04 ASCII, A0/A1 PASCAL) don't
                 // have a reliable exec address — inject-only.
                 if (_mz80a != null)
                 {
                     _mz80a.Cassette.DirectInject(img, jumpExec: false);
+                    _statusLabel.Text = $"Loaded (no exec): {img.Filename}";
+                }
+                else if (_mz800 != null)
+                {
+                    _mz800.Cassette.DirectInject(img, jumpExec: false);
                     _statusLabel.Text = $"Loaded (no exec): {img.Filename}";
                 }
                 else
@@ -1317,24 +1323,13 @@ public sealed class MainForm : Form
     private void SwitchMachine(MachineType target)
     {
         if (target == _settings.CurrentMachine) return; // already on it — no-op
-        // MZ-800 Phase 0 intercept: the menu entry is here so the
-        // three-machine set reads correctly, but there's no machine
-        // to switch to yet. Explain and no-op — the actual restart
-        // path lights up once Phase 1 wires the boot spike.
-        if (target == MachineType.MZ800)
+        var name = target switch
         {
-            MessageBox.Show(
-                "MZ-800 support is Phase 0 scaffolding as of v1.3.0. The " +
-                "machine slot is reserved but the boot spike (Phase 1) " +
-                "hasn't landed yet.\n\n" +
-                "The menu entry is here now so System → Machine reads " +
-                "correctly across the full three-machine set; the " +
-                "actual switch will start working once Phase 1 lands.",
-                "MZ-800 not ready",
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return;
-        }
-        var name = target == MachineType.MZ700 ? "MZ-700" : "MZ-80A";
+            MachineType.MZ700 => "MZ-700",
+            MachineType.MZ80A => "MZ-80A",
+            MachineType.MZ800 => "MZ-800",
+            _ => target.ToString(),
+        };
         var result = MessageBox.Show(
             $"Restart MZRaku to run Sharp {name}?\n\n" +
             "This is a one-off switch for this session. Your default machine on next natural launch (Settings → [Machine] DefaultMachine=) is unchanged.",
@@ -1377,7 +1372,13 @@ public sealed class MainForm : Form
             if (a.Equals("--mz800", StringComparison.OrdinalIgnoreCase)) continue;
             psi.ArgumentList.Add(a);
         }
-        psi.ArgumentList.Add(target == MachineType.MZ700 ? "--mz700" : "--mz80a");
+        psi.ArgumentList.Add(target switch
+        {
+            MachineType.MZ700 => "--mz700",
+            MachineType.MZ80A => "--mz80a",
+            MachineType.MZ800 => "--mz800",
+            _ => "--mz700",
+        });
         System.Diagnostics.Process.Start(psi);
         // Close() runs the FormClosing handler that snapshots the window
         // rectangle into _settings.MainWindow and persists via Save().
