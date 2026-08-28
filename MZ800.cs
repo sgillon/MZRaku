@@ -141,6 +141,15 @@ public sealed class MZ800 : MzMachineBase, IMachine
         // Clear cassette state so a stale Pending image doesn't get
         // served to the freshly-booting monitor's tape traps.
         Cassette.ResetTrapState();
+        // Drop any matrix bits a host KeyDown asserted but hasn't yet
+        // released. Canonical case: Ctrl+R — PC Ctrl down asserts MZ
+        // CTRL via Mz800SpecialKeyMap's ControlKey entry, then the
+        // menu shortcut fires Reset. Without this the IPL boots with
+        // CTRL still held, which routes it into a diagnostic branch
+        // that never draws anything ("black screen after Ctrl+R"
+        // regression caught during Phase 3 verification 2026-08-28).
+        // Same pattern as MZ700.Reset / MZ80A.Reset.
+        Keyboard.ReleaseAll();
         // Clear VRAM buffers so the display starts blank (once the
         // renderer arrives). Sound gates default off.
         Array.Clear(Mem.Vram, 0, Mem.Vram.Length);
