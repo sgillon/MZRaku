@@ -76,9 +76,22 @@ public sealed class Settings
     // file.
     public RomPathSet Mz700Roms { get; } = new();
     public RomPathSet Mz80aRoms { get; } = new();
+    // MZ-800 ROM paths. Auto-scanned for MZ800.ROM (16 KB combined
+    // monitor + CG + BASIC-IOCS) and 1Z-016.mzf (BASIC cassette).
+    // MZ-800 has no separate font file — the CG ROM lives inside
+    // MZ800.ROM at offset $1000, and Video will split it at load
+    // time (Phase 2). FontPath stays "" for MZ-800; the field is
+    // kept for symmetry with the two-machine RomPathSet shape.
+    public RomPathSet Mz800Roms { get; } = new();
 
     /// <summary>The ROM paths for the currently-selected <see cref="CurrentMachine"/>.</summary>
-    public RomPathSet ActiveRoms => CurrentMachine == MachineType.MZ700 ? Mz700Roms : Mz80aRoms;
+    public RomPathSet ActiveRoms => CurrentMachine switch
+    {
+        MachineType.MZ700 => Mz700Roms,
+        MachineType.MZ80A => Mz80aRoms,
+        MachineType.MZ800 => Mz800Roms,
+        _ => Mz700Roms,
+    };
 
     // Convenience passthrough properties: read the ACTIVE machine's
     // ROM paths, so callers that don't care which machine (MainForm's
@@ -131,6 +144,13 @@ public sealed class Settings
     // [KeyOverrides.MZ80A] as of Phase 5.1a. Consulted first by
     // Mz80aKeyboard.OnKeyDown ahead of Mz80aSpecialKeyMap.
     public KeyOverride Mz80aKeyOverrides { get; } = new();
+
+    // MZ-800 key overrides. Same 10×8 matrix topology as MZ-700/MZ-80A
+    // per tech ref pp. 24-25, so the storage shape carries. Persisted
+    // at [KeyOverrides.MZ800]. Empty by default; the section exists
+    // as of v1.3.0 Phase 0 scaffolding — Mz800Keyboard.OnKeyDown
+    // consumption lands with the keyboard phase (Phase 3).
+    public KeyOverride Mz800KeyOverrides { get; } = new();
 
     // User-editable character-map overrides. Empty by default; built-in
     // defaults (letters, digits, common punctuation) live in CharMap.
@@ -200,8 +220,10 @@ public sealed class Settings
         "DebugPanes",
         "Joystick",
         "Roms.MZ700",
+        "Roms.MZ800",
         "KeyOverrides.MZ700",
         "KeyOverrides.MZ80A",
+        "KeyOverrides.MZ800",
         "CharMap",
         "CharMap.MZ80A",
         "MainWindow",
@@ -223,14 +245,22 @@ public sealed class Settings
                 s.DisplayScale = GetInt(ini, "Display", "Scale", s.DisplayScale);
                 s.DisplayScanlines = GetBool(ini, "Display", "Scanlines", s.DisplayScanlines);
 
-                // [Machine] DefaultMachine=MZ700|MZ80A. Absent → default
-                // MZ700. CurrentMachine mirrors DefaultMachine at this
-                // point; MainForm may then override it from a --mz700 /
-                // --mz80a CLI flag without touching the persisted
-                // DefaultMachine.
+                // [Machine] DefaultMachine=MZ700|MZ80A|MZ800. Absent →
+                // default MZ700. CurrentMachine mirrors DefaultMachine
+                // at this point; MainForm may then override it from a
+                // --mz700 / --mz80a / --mz800 CLI flag without touching
+                // the persisted DefaultMachine.
+                //
+                // MZ800 parses cleanly, but as of v1.3.0 Phase 0 it's a
+                // scaffolding placeholder — MainForm intercepts an
+                // MZ800 selection with a friendly message and falls
+                // back to MZ-700 so a stray edit here can't brick boot.
+                // The interception moves out once Phase 1 boots the ROM.
                 var typeStr = GetString(ini, "Machine", "DefaultMachine", "");
                 if (typeStr.Equals("MZ80A", StringComparison.OrdinalIgnoreCase))
                     s.DefaultMachine = MachineType.MZ80A;
+                else if (typeStr.Equals("MZ800", StringComparison.OrdinalIgnoreCase))
+                    s.DefaultMachine = MachineType.MZ800;
                 else
                     s.DefaultMachine = MachineType.MZ700;
                 s.CurrentMachine = s.DefaultMachine;
@@ -245,6 +275,13 @@ public sealed class Settings
                 s.Mz80aRoms.MonitorRomPath = GetString(ini, "Roms.MZ80A", "Monitor", "");
                 s.Mz80aRoms.FontPath = GetString(ini, "Roms.MZ80A", "Font", "");
                 s.Mz80aRoms.BasicPath = GetString(ini, "Roms.MZ80A", "Basic", "");
+                // MZ-800: single combined ROM file at Monitor (holds
+                // MZ-700 monitor + CG + MZ-800 IPL + BASIC-IOCS per
+                // tech ref pp. 24 ROM configuration). Font stays empty
+                // — no separate CG-ROM file on MZ-800.
+                s.Mz800Roms.MonitorRomPath = GetString(ini, "Roms.MZ800", "Monitor", "");
+                s.Mz800Roms.FontPath = GetString(ini, "Roms.MZ800", "Font", "");
+                s.Mz800Roms.BasicPath = GetString(ini, "Roms.MZ800", "Basic", "");
                 s.JoyButton1Index = GetInt(ini, "Joystick", "Button1", s.JoyButton1Index);
                 s.JoyButton2Index = GetInt(ini, "Joystick", "Button2", s.JoyButton2Index);
                 if (ini.TryGetValue("KeyOverrides.MZ700", out var koMz700))
@@ -254,6 +291,10 @@ public sealed class Settings
                 if (ini.TryGetValue("KeyOverrides.MZ80A", out var koMz80a))
                 {
                     foreach (var kv in koMz80a) s.Mz80aKeyOverrides.TryParseLine(kv.Key, kv.Value);
+                }
+                if (ini.TryGetValue("KeyOverrides.MZ800", out var koMz800))
+                {
+                    foreach (var kv in koMz800) s.Mz800KeyOverrides.TryParseLine(kv.Key, kv.Value);
                 }
                 if (ini.TryGetValue("CharMap", out var cm))
                 {
@@ -331,10 +372,16 @@ public sealed class Settings
             sb.AppendLine("; Which Sharp MZ machine to boot into. Values:");
             sb.AppendLine(";   DefaultMachine=MZ700   Sharp MZ-700 (default; original MZRaku target)");
             sb.AppendLine(";   DefaultMachine=MZ80A   Sharp MZ-80A");
-            sb.AppendLine("; Overridable per-run via the --mz700 / --mz80a CLI flags without");
-            sb.AppendLine("; touching this file. The File → Machine menu triggers an ad-hoc");
-            sb.AppendLine("; restart in the chosen machine (via a --mz700 / --mz80a arg) and");
-            sb.AppendLine("; does NOT rewrite this value — pick the default here in Settings.");
+            sb.AppendLine(";   DefaultMachine=MZ800   Sharp MZ-800 (v1.3.0 in-progress — Phase 0");
+            sb.AppendLine(";                          scaffolding only; picking this falls back");
+            sb.AppendLine(";                          to MZ-700 with a friendly message until the");
+            sb.AppendLine(";                          boot phase lands. Filed here as a real slot");
+            sb.AppendLine(";                          so [Roms.MZ800] auto-population can already");
+            sb.AppendLine(";                          find MZ800.ROM if you've dropped it in.)");
+            sb.AppendLine("; Overridable per-run via the --mz700 / --mz80a / --mz800 CLI flags");
+            sb.AppendLine("; without touching this file. The File → Machine menu triggers an");
+            sb.AppendLine("; ad-hoc restart in the chosen machine (via a --mz-flag arg) and does");
+            sb.AppendLine("; NOT rewrite this value — pick the default here in Settings.");
             sb.AppendLine($"DefaultMachine={DefaultMachine}");
             sb.AppendLine();
 
@@ -385,6 +432,22 @@ public sealed class Settings
             sb.AppendLine($"Basic={Mz80aRoms.BasicPath}");
             sb.AppendLine();
 
+            sb.AppendLine("[Roms.MZ800]");
+            sb.AppendLine("; Paths to the MZ-800's Sharp firmware files. Same format as");
+            sb.AppendLine("; [Roms.MZ700] above. Auto-populated when the launcher finds the");
+            sb.AppendLine("; files, whether or not MZ-800 is the active machine.");
+            sb.AppendLine(";   Monitor   MZ800.ROM    16 KiB combined ROM (holds MZ-700 monitor,");
+            sb.AppendLine(";                          CG, MZ-800 IPL + monitor, and BASIC-IOCS —");
+            sb.AppendLine(";                          split at load time by the MZ-800 side).");
+            sb.AppendLine(";   Font      (unused)     MZ-800 has no separate CG-ROM file; the");
+            sb.AppendLine(";                          character generator lives inside Monitor.");
+            sb.AppendLine(";                          Left blank in normal use.");
+            sb.AppendLine(";   Basic     1Z-016.mzf   MZ-800 S-BASIC cassette image");
+            sb.AppendLine($"Monitor={Mz800Roms.MonitorRomPath}");
+            sb.AppendLine($"Font={Mz800Roms.FontPath}");
+            sb.AppendLine($"Basic={Mz800Roms.BasicPath}");
+            sb.AppendLine();
+
             sb.AppendLine("[Joystick]");
             sb.AppendLine("; MZ-1X03 stick emulation driven by any Windows-recognised gamepad.");
             sb.AppendLine("; Both emulated sticks share the same button mapping.");
@@ -417,6 +480,16 @@ public sealed class Settings
             sb.AppendLine("; (0-9) + bit (0-7), per Fig 3.6 of the Owner's Manual. Consulted");
             sb.AppendLine("; ahead of Mz80aSpecialKeyMap in Mz80aKeyboard.OnKeyDown.");
             foreach (var line in Mz80aKeyOverrides.SerialiseLines()) sb.AppendLine(line);
+            sb.AppendLine();
+
+            sb.AppendLine("[KeyOverrides.MZ800]");
+            sb.AppendLine("; User physical-key bindings for MZ-800. Same format as");
+            sb.AppendLine("; [KeyOverrides.MZ700] above; coordinates are MZ-800 matrix strobe");
+            sb.AppendLine("; (0-9) + bit (0-7), per Tech Ref pp. 24-25. Empty by default until");
+            sb.AppendLine("; the MZ-800 keyboard phase (Phase 3) lands and Mz800Keyboard starts");
+            sb.AppendLine("; consuming it. Section exists now so hand-edits made during v1.3.0");
+            sb.AppendLine("; development survive across releases.");
+            foreach (var line in Mz800KeyOverrides.SerialiseLines()) sb.AppendLine(line);
             sb.AppendLine();
 
             sb.AppendLine("[CharMap]");
@@ -584,6 +657,16 @@ public sealed class Settings
             Resolve(Mz80aRoms.BasicPath), Mz80aRoms.BasicPath,
             v => Mz80aRoms.BasicPath = v,
             () => FindFile("SA-5510.mzf", "roms", "basic", ""));
+
+        // MZ-800 side. No font entry — MZ800.ROM carries its own CG.
+        dirty |= EnsureOne(
+            Resolve(Mz800Roms.MonitorRomPath), Mz800Roms.MonitorRomPath,
+            v => Mz800Roms.MonitorRomPath = v,
+            () => FindFile("MZ800.ROM", "roms", ""));
+        dirty |= EnsureOne(
+            Resolve(Mz800Roms.BasicPath), Mz800Roms.BasicPath,
+            v => Mz800Roms.BasicPath = v,
+            () => FindFile("1Z-016.mzf", "roms", "basic", ""));
 
         return dirty;
     }

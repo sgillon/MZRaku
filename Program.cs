@@ -33,6 +33,10 @@ internal static class Program
             {
                 machineOverride = MachineType.MZ80A;
             }
+            else if (a.Equals("--mz800", StringComparison.OrdinalIgnoreCase))
+            {
+                machineOverride = MachineType.MZ800;
+            }
             else if (a.StartsWith("--dump=", StringComparison.OrdinalIgnoreCase))
             {
                 dumpPath = a.Substring(7);
@@ -92,14 +96,18 @@ internal static class Program
             else if (a.Equals("--help", StringComparison.OrdinalIgnoreCase) || a == "-h" || a == "/?")
             {
                 MessageBox.Show(
-                    "MZRaku — Sharp MZ-700 / MZ-80A emulator\n\n" +
-                    "Usage: MZRaku.exe [--mz700|--mz80a] [--basic] [--display=N]\n" +
+                    "MZRaku — Sharp MZ-700 / MZ-80A / MZ-800 emulator\n\n" +
+                    "Usage: MZRaku.exe [--mz700|--mz80a|--mz800] [--basic] [--display=N]\n" +
                     "                  [path\\to\\cassette.mzf|.zip]\n\n" +
                     "  --mz700         Emulate the Sharp MZ-700 for this run (default).\n" +
                     "  --mz80a         Emulate the Sharp MZ-80A for this run. Overrides\n" +
                     "                  the persisted [Machine] Type in settings.ini for\n" +
-                    "                  this launch only. Change the default via File →\n" +
+                    "                  this launch only. Change the default via System →\n" +
                     "                  Machine → MZ-80A.\n" +
+                    "  --mz800         Emulate the Sharp MZ-800 (v1.3.0 in-progress —\n" +
+                    "                  Phase 0 scaffolding only, so this currently falls\n" +
+                    "                  back to MZ-700 with a message. The full boot lands\n" +
+                    "                  in Phase 1).\n" +
                     "  --basic         Force BASIC to be loaded at startup. Usually not\n" +
                     "                  needed: BASIC cassettes auto-load BASIC anyway.\n" +
                     "  --display=N     Override the persisted window scale for this run:\n" +

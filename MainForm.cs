@@ -148,6 +148,25 @@ public sealed class MainForm : Form
         // when settings.ini had never seen an MZ-80A launch before.
         // No-op if the previous Load() already populated both sides.
         if (_settings.EnsureRomPaths()) _settings.Save();
+        // MZ-800 intercept: v1.3.0 Phase 0 reserves the machine slot
+        // but the boot spike hasn't landed. Fall back to MZ-700 so a
+        // hand-edited [Machine] DefaultMachine=MZ800 or a --mz800 CLI
+        // flag can't brick the app; show a one-shot message so the
+        // user knows why they got the fallback. Remove this branch
+        // when Phase 1 wires the real MZ800 machine class.
+        if (_settings.CurrentMachine == MachineType.MZ800)
+        {
+            MessageBox.Show(
+                "MZ-800 support is Phase 0 scaffolding as of v1.3.0. The " +
+                "machine slot is reserved but the boot spike (Phase 1) " +
+                "hasn't landed yet.\n\n" +
+                "Falling back to MZ-700 for this session. Change the " +
+                "default via System → Machine, or pass --mz700 / " +
+                "--mz80a on the command line.",
+                "MZ-800 not ready",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            _settings.CurrentMachine = MachineType.MZ700;
+        }
         // Construct exactly one of the two machines.
         if (_settings.CurrentMachine == MachineType.MZ700)
             _machine = new MZ700();
@@ -349,10 +368,22 @@ public sealed class MainForm : Form
         {
             Checked = _settings.CurrentMachine == MachineType.MZ80A,
         };
+        // MZ-800 entry stays clickable through Phase 0 — the click
+        // handler routes to SwitchMachine which currently shows a
+        // "not ready" message. Enabling it keeps the three-machine
+        // set visually complete and lets users discover the status
+        // by clicking, which is more self-documenting than a
+        // greyed-out entry with no explanation.
+        var mz800Item = new ToolStripMenuItem("MZ-8&00")
+        {
+            Checked = _settings.CurrentMachine == MachineType.MZ800,
+        };
         mz700Item.Click += (_, _) => SwitchMachine(MachineType.MZ700);
         mz80aItem.Click += (_, _) => SwitchMachine(MachineType.MZ80A);
+        mz800Item.Click += (_, _) => SwitchMachine(MachineType.MZ800);
         machine.DropDownItems.Add(mz700Item);
         machine.DropDownItems.Add(mz80aItem);
+        machine.DropDownItems.Add(mz800Item);
         system.DropDownItems.Add(machine);
 
         system.DropDownItems.Add(new ToolStripMenuItem("&Reset", null, (_, _) => ResetMachine()) { ShortcutKeys = Keys.Control | Keys.R });
@@ -1286,6 +1317,23 @@ public sealed class MainForm : Form
     private void SwitchMachine(MachineType target)
     {
         if (target == _settings.CurrentMachine) return; // already on it — no-op
+        // MZ-800 Phase 0 intercept: the menu entry is here so the
+        // three-machine set reads correctly, but there's no machine
+        // to switch to yet. Explain and no-op — the actual restart
+        // path lights up once Phase 1 wires the boot spike.
+        if (target == MachineType.MZ800)
+        {
+            MessageBox.Show(
+                "MZ-800 support is Phase 0 scaffolding as of v1.3.0. The " +
+                "machine slot is reserved but the boot spike (Phase 1) " +
+                "hasn't landed yet.\n\n" +
+                "The menu entry is here now so System → Machine reads " +
+                "correctly across the full three-machine set; the " +
+                "actual switch will start working once Phase 1 lands.",
+                "MZ-800 not ready",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
         var name = target == MachineType.MZ700 ? "MZ-700" : "MZ-80A";
         var result = MessageBox.Show(
             $"Restart MZRaku to run Sharp {name}?\n\n" +
@@ -1326,6 +1374,7 @@ public sealed class MainForm : Form
             var a = origArgs[i];
             if (a.Equals("--mz700", StringComparison.OrdinalIgnoreCase)) continue;
             if (a.Equals("--mz80a", StringComparison.OrdinalIgnoreCase)) continue;
+            if (a.Equals("--mz800", StringComparison.OrdinalIgnoreCase)) continue;
             psi.ArgumentList.Add(a);
         }
         psi.ArgumentList.Add(target == MachineType.MZ700 ? "--mz700" : "--mz80a");
