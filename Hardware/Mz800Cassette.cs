@@ -1,30 +1,37 @@
 namespace MZRaku.Hardware;
 
 /// <summary>
-/// MZ-800 cassette trap. Same monitor family as MZ-700 (both run
-/// 1Z-013-series), so this class mirrors <see cref="Cassette"/>'s
-/// approach exactly: trap at the READ-HEADER and READ-DATA
-/// <b>implementation</b> addresses ($0436 and $04D8), not at the
-/// jump-table entries at $0021/$0027. The 1Z-013 monitor's L command
-/// resolves through those jumps into the routines at $0436/$04D8, and
-/// trapping the implementation entry point is what
-/// <see cref="Cassette"/> proved reliable on MZ-700 back in v0.x.
+/// MZ-800 cassette trap. The MZ-800 boots into 1Z-016B (its own
+/// monitor at CPU $E000-$FFFF) which handles the L command itself
+/// rather than delegating to 1Z-013B at $0000-$0FFF. 1Z-016B's L
+/// subroutine at $EB54 calls the 1Z-013B tape primitives:
+///   $EB54: CALL $04D8   — read header (128 bytes into $10F0)
+///   $EB6D: JP  $04F8    — read data  (size + load addr from header)
+/// then (on success) JPs to $E99D which auto-runs the program from
+/// the header's exec address.
 ///
-/// Phase 4 fix (v1.3.0, 2026-08-28): initial Phase-1 wiring used the
-/// jump-table entries ($0027/$002A) copied from
-/// <see cref="Mz80aCassette"/>. That happened to work on MZ-80A
-/// because SA-1510's L flow goes through those entries, but on the
-/// 1Z-013B monitor the LOAD flow ran past our trap — the user saw
-/// the real "PLAY" prompt instead of injection. Also mirrored MZ-700's
-/// IFF1/IFF2 restore after <see cref="SynthesiseSuccess"/>: the tape
-/// routines end with EI on 1Z-013A/013B, so skipping the RET without
-/// re-enabling interrupts left the monitor's keyboard-scan ISR dead
-/// and the machine appeared to hang.
+/// So on MZ-800 the trap points are $04D8 (header) and $04F8 (data)
+/// — the opposite of what MZ-700's L flow uses. MZ-700's L handler in
+/// 1Z-013A calls $04D8 which internally does header + CALL $050E for
+/// data, so MZ-700 gets away with a single $04D8 trap; on MZ-800
+/// 1Z-016B does the two reads separately and $04F8 must be trapped
+/// too or the second read hits real hardware and spins forever.
+///
+/// $0436 is NOT the LOAD header entry — its inline text at $0467
+/// reads "WRITING &lt;CR&gt;". It's the SAVE header routine. Old
+/// Phase 4 wiring trapped it as READ HEADER (copied from an incorrect
+/// MZ-700 comment); the trap was dead on MZ-800 because 1Z-016B's L
+/// never called it.
+///
+/// Trap addresses fixed 2026-08-30 (Phase 5 diagnostic session):
+/// pinned down by walking the L flow from PC=$0E77 (mid-scroll) back
+/// through ret=$EB57 in the trap log message, then disassembling
+/// 1Z-016B's L subroutine and the 1Z-013B tape primitives it calls.
 /// </summary>
 public sealed class Mz800Cassette : CassetteTrapBase
 {
-    public const ushort TrapReadHeader = 0x0436;
-    public const ushort TrapReadData   = 0x04D8;
+    public const ushort TrapReadHeader = 0x04D8;
+    public const ushort TrapReadData   = 0x04F8;
 
     // Typed field so callers wire Memory as MZ800Memory; base holds
     // it as IMemory (Mem) for its read/write path. Same shape as
@@ -35,6 +42,17 @@ public sealed class Mz800Cassette : CassetteTrapBase
         get => _mem;
         set { _mem = value; Mem = value; }
     }
+
+    // Phase 5 blank-screen diagnostics: capture the trap-time state so
+    // MainForm can show it in the OnLoaded status message. Zeroed until
+    // the first trap fires.
+    public ushort LastHeaderRetPc;
+    public ushort LastDataRetPc;
+    public ushort LastExecAddr;
+    public ushort LastLoadAddr;
+    public ushort LastSize;
+    public bool LastWasMz700Mode;
+    public MZ800Memory.BankConfig LastConfig;
 
     public override bool OnPreStep()
     {
@@ -47,6 +65,7 @@ public sealed class Mz800Cassette : CassetteTrapBase
             HeaderDelivered = true;
             SynthesiseSuccess();
             Cpu.IFF1 = Cpu.IFF2 = true;
+            LastHeaderRetPc = Cpu.PC;
             return true;
         }
         if (pc == TrapReadData && !DataDelivered)
@@ -66,10 +85,23 @@ public sealed class Mz800Cassette : CassetteTrapBase
             }
             ushort loadAddr = (ushort)(Mem.Read(HeaderBufferAddr + 0x14) | (Mem.Read(HeaderBufferAddr + 0x15) << 8));
             ushort size = (ushort)(Mem.Read(HeaderBufferAddr + 0x12) | (Mem.Read(HeaderBufferAddr + 0x13) << 8));
+            ushort execAddr = (ushort)(Mem.Read(HeaderBufferAddr + 0x16) | (Mem.Read(HeaderBufferAddr + 0x17) << 8));
             WriteDataToRam(loadAddr, size);
             DataDelivered = true;
             SynthesiseSuccess();
             Cpu.IFF1 = Cpu.IFF2 = true;
+
+            LastDataRetPc = Cpu.PC;
+            LastExecAddr = execAddr;
+            LastLoadAddr = loadAddr;
+            LastSize = size;
+            LastWasMz700Mode = _mem.Mz700Mode;
+            LastConfig = _mem.Config;
+
+            RaiseLoaded(
+                $"TRAP LOAD: {Pending!.Filename} exec=${execAddr:X4} load=${loadAddr:X4} size={size} " +
+                $"| ret=${LastDataRetPc:X4} mode={(_mem.Mz700Mode ? "MZ700" : "MZ800")} cfg={_mem.Config}");
+
             // Clear delivered flags after Pending goes so a follow-up
             // Queue starts fresh. Same shape as MZ-700's Cassette.cs.
             Pending = null;

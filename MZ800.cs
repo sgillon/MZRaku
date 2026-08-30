@@ -94,10 +94,10 @@ public sealed class MZ800 : MzMachineBase, IMachine
         Keyboard.Memory = Mem;
 
         // Cassette needs Memory + CPU for trap injection. PreStep
-        // watches the 1Z-013B tape entry-point vectors at $0027 /
-        // $002A (same addresses as MZ-80A per research; MZ-700 traps
-        // at implementation addresses instead but that's a historical
-        // quirk, not a hardware requirement).
+        // watches the 1Z-013B tape implementation addresses at $04D8
+        // (READ HEADER) and $04F8 (READ DATA), which 1Z-016B's own L
+        // subroutine at $EB54 calls into. See Mz800Cassette's class
+        // comment for the flow.
         Cassette.Memory = Mem;
         Cassette.Cpu = Cpu;
         Cpu.PreStep = Cassette.OnPreStep;

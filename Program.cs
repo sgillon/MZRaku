@@ -104,10 +104,10 @@ internal static class Program
                     "                  the persisted [Machine] Type in settings.ini for\n" +
                     "                  this launch only. Change the default via System →\n" +
                     "                  Machine → MZ-80A.\n" +
-                    "  --mz800         Emulate the Sharp MZ-800 (v1.3.0 in-progress —\n" +
-                    "                  Phase 0 scaffolding only, so this currently falls\n" +
-                    "                  back to MZ-700 with a message. The full boot lands\n" +
-                    "                  in Phase 1).\n" +
+                    "  --mz800         Emulate the Sharp MZ-800 (v1.3.0 in-progress).\n" +
+                    "                  MZ-700-mode text + keyboard + cassette LOAD work;\n" +
+                    "                  MZ-800-native bitmap graphics + PSG sound arrive\n" +
+                    "                  in later phases.\n" +
                     "  --basic         Force BASIC to be loaded at startup. Usually not\n" +
                     "                  needed: BASIC cassettes auto-load BASIC anyway.\n" +
                     "  --display=N     Override the persisted window scale for this run:\n" +
