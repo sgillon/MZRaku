@@ -247,10 +247,41 @@ public sealed class MZ800 : MzMachineBase, IMachine
         if (!File.Exists(basicPath))
             throw new FileNotFoundException("BASIC cassette image not found", basicPath);
         var img = MzfImage.Parse(File.ReadAllBytes(basicPath));
-        // DirectInject shortcut, same as MZ-80A. Phase 4 refines the
-        // BASIC boot dance if 1Z-016's IPL turns out to need
-        // pointer-fixup like S-BASIC does on MZ-700.
-        Cassette.DirectInject(img, jumpExec: true);
+
+        // 1Z-016.mzf loads to $0000 with exec=$0000 in its SA-1510
+        // header. That's not literally "jump to zero and reset" — the
+        // 42 KB payload's byte-0 is a standard Sharp jump table whose
+        // first entry (`C3 F9 0E` at offset 0) is JP $0EF9, the BASIC
+        // cold-boot handler. To land there the CPU has to see DRAM at
+        // $0000, not the MZ-700 monitor ROM that config B keeps mapped
+        // in there. Bank config D_AllRam (all 64 KB DRAM) does exactly
+        // that — it's the config the tech-ref specifies for BASIC use
+        // and is what IN ($E1) in MZ-800 mode selects (p. 5).
+        //
+        // Trap-driven LOAD via M/L or the IPL's C option also loads
+        // the binary but then 1Z-016B does JP <header exec = $0000>,
+        // which in config B reads ROM at $0000 (`JP $E800`) and
+        // restarts the IPL. That's the "load then boot menu again"
+        // behaviour we saw during Phase 4c bring-up. AutoLoadBasic
+        // skips that dance entirely: write to Ram[] directly, flip
+        // the banks, hand off to BASIC's own cold-boot at PC=$0000.
+        //
+        // The payload spans $0000-$A3F9 which stays safely below the
+        // VRAM window at $D000 — no chance of VRAM/ARAM corruption
+        // from these writes. Going via Ram[] rather than Mem.Write
+        // is still the right shape because current config B routes
+        // $E000-$E00F writes to the I/O bus and $E010+ to ROM shadow
+        // (both fine here since 1Z-016 doesn't cross those thresholds
+        // but preserves the "the loaded binary owns exactly what its
+        // header says it owns" contract).
+        for (int i = 0; i < CassetteTrapBase.HeaderSize; i++)
+            Mem.Ram[CassetteTrapBase.HeaderBufferAddr + i] = img.Header[i];
+        for (int i = 0; i < img.Data.Length; i++)
+            Mem.Ram[img.LoadAddr + i] = img.Data[i];
+
+        Mem.Mz700Mode = false;
+        Mem.Config = MZ800Memory.BankConfig.D_AllRam;
+        Cpu.PC = img.ExecAddr; // = $0000 for 1Z-016
     }
 
     public void AutoLoadCassette(string path, bool autoRun)

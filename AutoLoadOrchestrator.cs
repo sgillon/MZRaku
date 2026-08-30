@@ -374,21 +374,37 @@ internal sealed class AutoLoadOrchestrator
     // ---- MZ-800 pipeline ------------------------------------------------
 
     /// <summary>
-    /// Phase 4 (v1.3.0) — MC cassette autoload only. BASIC via
-    /// 1Z-016.mzf is deferred to Phase 4c (needs BASIC-IOCS exec-entry
-    /// research at $F400-$FFEF), so <see cref="_pendingLoadBasic"/> and
-    /// <see cref="_pendingBasicSource"/> are ignored on this path for
-    /// now. If either is set on an MZ-800 launch we surface a status
-    /// note so the user isn't left wondering why nothing loaded.
+    /// Phase 4c (v1.3.0): BASIC via 1Z-016.mzf goes through the same
+    /// shape as MZ-700's pipeline — wait for the boot menu / monitor
+    /// ready, hand off to <see cref="MZ800.AutoLoadBasic"/> which
+    /// writes to Ram[] and switches to bank config D_AllRam so the
+    /// binary's byte-0 (JP to BASIC cold-boot) actually runs. BASIC
+    /// source typing (<see cref="_pendingBasicSource"/>) is Phase 4d;
+    /// surface a one-shot note so the user knows why nothing's typed.
     /// </summary>
     private void OnMz800Frame(int bootFrames)
     {
-        if (_pendingLoadBasic || _pendingBasicSource != null)
+        if (_pendingLoadBasic && _mz800MonitorReady())
         {
-            // One-shot notice so this doesn't spam every frame. Clear
-            // the pending flags so downstream code doesn't retry.
-            _setStatus("BASIC autoload not yet supported on MZ-800 (Phase 4c).");
-            _pendingLoadBasic = false;
+            try
+            {
+                _mz800!.AutoLoadBasic(_settings.BasicFullPath);
+                _setStatus("BASIC loaded.");
+                _pendingLoadBasic = false;
+            }
+            catch (Exception ex)
+            {
+                _pendingLoadBasic = false;
+                _pendingCassette = null;
+                _pendingBasicSource = null;
+                _setStatus("BASIC load failed.");
+                _showFatal("BASIC load failed:\n" + ex.Message);
+            }
+        }
+
+        if (_pendingBasicSource != null)
+        {
+            _setStatus("BASIC source typing not yet supported on MZ-800 (Phase 4d).");
             _pendingBasicSource = null;
         }
 
