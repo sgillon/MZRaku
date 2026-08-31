@@ -141,6 +141,43 @@ public sealed class MZ800Memory : IMemory
     public void SetRfRegister(byte value) => RfRegister = value;
 
     /// <summary>
+    /// 4-entry pixel palette. Each byte holds a 4-bit IRGB code
+    /// (D3=I intensity, D2=R, D1=G, D0=B) — same layout as CGA/EGA.
+    /// A 2-plane pixel decodes to <c>(planeI_bit &lt;&lt; 1) | planeII_bit</c>
+    /// = colour code 0..3 which indexes here. Phase 5.5 renderer
+    /// resolves each entry through <see cref="Mz800Video.IrgbToArgb"/>.
+    /// See tech-ref p. 22 and research/05-palette.md.
+    /// </summary>
+    public byte[] Palette = new byte[4];
+
+    /// <summary>
+    /// Border colour — 4-bit IRGB same shape as a palette entry.
+    /// Written via OUT ($CF),A with B=6 per plan (tech-ref p. 23).
+    /// Real hardware wiring TBC; the ambiguity between $CF B=6 and
+    /// an alternative $F0 high-nibble=4 encoding is captured in
+    /// research/05-palette.md. Phase 5.5 renderer paints this
+    /// around the 320×200 active area.
+    /// </summary>
+    public byte BorderColour;
+
+    /// <summary>Phase 5.4: OUT ($F0),A palette write. High nibble is the
+    /// target slot (0-3 = pixel palette; 4-15 currently no-op pending
+    /// tech-ref clarification), low nibble is the IRGB value.</summary>
+    public void WritePalette(byte value)
+    {
+        int index = (value >> 4) & 0x0F;
+        byte irgb = (byte)(value & 0x0F);
+        if (index < Palette.Length) Palette[index] = irgb;
+        // High-nibble 4-15 is captured in the CRTC write log; not
+        // routed to any state today. Phase 5.5 visual verification
+        // decides whether index 4 is border colour (see research doc).
+    }
+
+    /// <summary>Phase 5.4: OUT ($CF),A with B=6 border-colour write.
+    /// Low nibble is IRGB, high nibble unused per tech-ref p. 23.</summary>
+    public void SetBorderColour(byte value) => BorderColour = (byte)(value & 0x0F);
+
+    /// <summary>
     /// Optional log sink (mirror of MZ700Memory.BankSwitchLog).
     /// Useful during Phase 1 bring-up to see the IPL's bank-switch
     /// sequence in the debugger.
@@ -530,6 +567,8 @@ public sealed class MZ800Memory : IMemory
         Config = BankConfig.A_Power;
         WfRegister = 0;
         RfRegister = 0;
+        BorderColour = 0;
+        Array.Clear(Palette,  0, Palette.Length);
         Array.Clear(PlaneI,   0, PlaneI.Length);
         Array.Clear(PlaneII,  0, PlaneII.Length);
         Array.Clear(PlaneIII, 0, PlaneIII.Length);

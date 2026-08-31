@@ -191,19 +191,21 @@ public sealed class Mz800IoBus : IIoBus
         }
         if (p == 0xCF)
         {
-            // Indirect CRTC register write. B register selects sub-
-            // register (SOF1/SOF2/SW/SSA/SEA/BCOL/CKSW). Phase 5 wires
-            // this properly — for now the write is silently accepted.
-            // Phase 5.0: log with the B selector so the trace shows
-            // which sub-register the CPU targeted (B rides in the high
-            // byte of the OUT (n),A port word — see tech-ref p. 23).
-            LogCrtcWrite(p, value, (byte)((port >> 8) & 0xFF));
+            // Indirect CRTC register write. B register (in high byte of
+            // port word per tech-ref p. 23) selects sub-register:
+            //   B=1 SOF1, B=2 SOF2, B=3 SW, B=4 SSA, B=5 SEA (Phase 5.7),
+            //   B=6 BCOL border colour (Phase 5.4 — wired now),
+            //   B=7 CKSW cursor/style (deferred).
+            byte b = (byte)((port >> 8) & 0xFF);
+            if (b == 6) Memory.SetBorderColour(value);
+            LogCrtcWrite(p, value, b);
             return;
         }
 
         // Palette write ($F0 OUT — same port as joystick-1 IN, direction
-        // decides which device). Phase 5 wires this.
-        if (p == 0xF0) { LogCrtcWrite(p, value, 0); return; }
+        // decides which device). Phase 5.4 wires this: high nibble is
+        // the target slot (0-3 = pixel palette), low nibble is IRGB.
+        if (p == 0xF0) { Memory.WritePalette(value); LogCrtcWrite(p, value, 0); return; }
 
         // SN76489 PSG ($F2 OUT). Phase 6 wires this.
         if (p == 0xF2) return;

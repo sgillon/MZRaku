@@ -163,6 +163,15 @@ internal sealed class DumpTraceRecorder
             var sbRam8000 = new StringBuilder("Ram @ $8000: ");
             for (int i = 0; i < 16; i++) sbRam8000.Append($"{_mz800.Mem.Ram[0x8000 + i]:X2} ");
             w.WriteLine(sbRam8000.ToString());
+            // Phase 5.4: palette + border in resolved form so the dump
+            // reader can eyeball whether BASIC's cold-boot palette
+            // (research/05-palette.md predicts black/blue/red/white
+            // from $00 $11 $22 $3F) landed correctly.
+            var sbPal = new StringBuilder("Palette IRGB: ");
+            for (int i = 0; i < 4; i++)
+                sbPal.Append($"[{i}]=${_mz800.Mem.Palette[i]:X1}→ARGB={Mz800Video.IrgbToArgb(_mz800.Mem.Palette[i]):X8} ");
+            w.WriteLine(sbPal.ToString());
+            w.WriteLine($"Border IRGB: ${_mz800.Mem.BorderColour:X1}→ARGB={Mz800Video.IrgbToArgb(_mz800.Mem.BorderColour):X8}");
             w.WriteLine($"Tape trap hits: Header={_mz800.Cassette.HeaderTrapHits} Data={_mz800.Cassette.DataTrapHits}");
         }
 

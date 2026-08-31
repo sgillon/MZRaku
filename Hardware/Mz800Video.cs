@@ -74,6 +74,44 @@ public sealed class Mz800Video
         if (n > 0) Array.Copy(rom, cgOffset, FontRom, 0, n);
     }
 
+    /// <summary>
+    /// Convert an MZ-800 4-bit IRGB colour code to 32-bit ARGB, for the
+    /// Phase 5.5 bitmap renderer to consume when it paints plane pixels
+    /// through the palette.
+    ///
+    /// Bit layout (BRG wiring, matching MZ-700's <c>Video.Palette</c>
+    /// table — Sharp uses this ordering consistently across the 700/800
+    /// family): D3=I intensity, D2=G green, D1=R red, D0=B blue.
+    /// So the 3-bit RGB portion decodes as:
+    ///   0 black · 1 blue · 2 red · 3 magenta · 4 green · 5 cyan · 6 yellow · 7 white
+    /// Verified against Phase 5.0's BASIC-cold-boot palette writes
+    /// (`$00 $11 $22 $3F` for slots 0-3 = black / blue / red /
+    /// bright-white) — matches BASIC's intended "text on black,
+    /// alternate colours available" layout.
+    ///
+    /// Intensity formula (provisional): channels are 0 when off, 0xAA
+    /// when on without I, 0xFF when on with I — classic CGA-family
+    /// ramp. IRGB=$8 (intensity alone with no primary) renders as
+    /// dark grey (0x55 across channels) so a "bright black" palette
+    /// slot is visually distinct from natural black IRGB=$0. Phase 5.5
+    /// revisits both the wiring and the intensity ramp if visible
+    /// output doesn't match reference-emulator screenshots — see
+    /// research/05-palette.md.
+    /// </summary>
+    public static int IrgbToArgb(byte irgb)
+    {
+        bool i = (irgb & 0x08) != 0;
+        bool g = (irgb & 0x04) != 0;
+        bool r = (irgb & 0x02) != 0;
+        bool b = (irgb & 0x01) != 0;
+        byte on = i ? (byte)0xFF : (byte)0xAA;
+        byte cr = r ? on : (byte)0;
+        byte cg = g ? on : (byte)0;
+        byte cb = b ? on : (byte)0;
+        if (irgb == 0x08) { cr = cg = cb = 0x55; }
+        return unchecked((int)0xFF000000) | (cr << 16) | (cg << 8) | cb;
+    }
+
     public void Render(byte[] vram, byte[] aram)
     {
         var rect = new Rectangle(0, 0, PixelWidth, PixelHeight);
