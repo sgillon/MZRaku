@@ -138,6 +138,31 @@ internal sealed class DumpTraceRecorder
             var sbATB = new StringBuilder("ARAM @ $D800: ");
             for (int i = 0; i < 32; i++) sbATB.Append($"{_mz800.Mem.Aram[i]:X2} ");
             w.WriteLine(sbATB.ToString());
+            // Phase 5.1: plane samples. Prove BASIC's writes now land
+            // in plane storage rather than vanishing. Address $9F00 is
+            // near the end of a 320×200 plane (row 199 area) where the
+            // clear loop starts; $8000 is row 0 (should stay zero if
+            // nothing wrote there yet). PlaneIII[$1FFF] captures the
+            // two probe writes BASIC does with WF=$94 at CPU $9FFF.
+            var sbP1a = new StringBuilder("PlaneI  @ $8000: ");
+            for (int i = 0; i < 16; i++) sbP1a.Append($"{_mz800.Mem.PlaneI[i]:X2} ");
+            w.WriteLine(sbP1a.ToString());
+            var sbP1b = new StringBuilder("PlaneI  @ $9F00: ");
+            for (int i = 0; i < 16; i++) sbP1b.Append($"{_mz800.Mem.PlaneI[0x1F00 + i]:X2} ");
+            w.WriteLine(sbP1b.ToString());
+            var sbP2 = new StringBuilder("PlaneII @ $9F00: ");
+            for (int i = 0; i < 16; i++) sbP2.Append($"{_mz800.Mem.PlaneII[0x1F00 + i]:X2} ");
+            w.WriteLine(sbP2.ToString());
+            var sbP3 = new StringBuilder("PlaneIII @ $9FF0: ");
+            for (int i = 0; i < 16; i++) sbP3.Append($"{_mz800.Mem.PlaneIII[0x1FF0 + i]:X2} ");
+            w.WriteLine(sbP3.ToString());
+            // Sanity check: Ram[$8000-$800F] should now stay zero (writes
+            // route to planes instead). Contrast against Phase 5.0 where
+            // the whole $8000-$BFFF area was Ram[] and was still zero
+            // only because BASIC's writes were being absorbed into DRAM.
+            var sbRam8000 = new StringBuilder("Ram @ $8000: ");
+            for (int i = 0; i < 16; i++) sbRam8000.Append($"{_mz800.Mem.Ram[0x8000 + i]:X2} ");
+            w.WriteLine(sbRam8000.ToString());
             w.WriteLine($"Tape trap hits: Header={_mz800.Cassette.HeaderTrapHits} Data={_mz800.Cassette.DataTrapHits}");
         }
 

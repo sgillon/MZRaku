@@ -67,6 +67,24 @@ public sealed class MZ800Memory : IMemory
     public byte[] Vram = new byte[0x800];
     public byte[] Aram = new byte[0x800];
 
+    // MZ-800 native-mode bitmap VRAM — four bit-planes of 8 KB each.
+    // Phase 5.1: added as plane-oriented storage so writes to CPU
+    // $8000-$BFFF in MZ-800 mode land here (routed via WF register)
+    // instead of vanishing into Ram[]. Phase 5.0 dump analysis
+    // (research/07-basic-rendering-path.md) proved BASIC writes ~4 KB+
+    // to this window with WF=$83 (REPLACE, Frame A, planes I+II) and
+    // was silently absorbed by the old D_AllRam Ram[]-only path.
+    //
+    // Sizing: 8 KB per plane covers 320×200 bitmap (8000 bytes) with
+    // headroom, and 640×200 (16000 bytes) via two-planes-per-scanline
+    // partitioning per tech-ref pp. 10-13. Frame A = planes I+II,
+    // Frame B = planes III+IV. Phase 5.5 renderer reads these to
+    // paint the display; 5.7 hardware-scroll retreads the addressing.
+    public byte[] PlaneI   = new byte[0x2000];
+    public byte[] PlaneII  = new byte[0x2000];
+    public byte[] PlaneIII = new byte[0x2000];
+    public byte[] PlaneIV  = new byte[0x2000];
+
     // Bank-configuration enum. Names follow the tech-ref diagram
     // letters (a,b,c,d). Extra configs the tech-ref table hints at
     // (e.g. after IN $E1 in MZ-800 mode) can be added when a specific
@@ -76,7 +94,7 @@ public sealed class MZ800Memory : IMemory
         A_Power,     // Power-on / after Reset (MZ-800 mode default)
         B_Mz700,     // MZ-700-mode operating: ROM+DRAM+VRAM+IO+ROM
         C_PcgWrite,  // MZ-700-mode PCG update: ROM+CGROM+DRAM+VRAM+ROM
-        D_AllRam,    // BASIC/user code: all 64 KB DRAM
+        D_AllRam,    // BASIC/user code: 64 KB DRAM (Phase 5.1: $8000-$BFFF routes to bitmap planes in MZ-800 mode)
     }
 
     public BankConfig Config = BankConfig.A_Power;
@@ -113,6 +131,82 @@ public sealed class MZ800Memory : IMemory
     private int _videoWriteLogEntries;
     private const int VideoWriteLogCap = 4096;
 
+    /// <summary>
+    /// Phase 5.1: does this address in the current mode/config route
+    /// through the bitmap-VRAM plane storage rather than DRAM? True
+    /// when the CPU is in MZ-800 mode and the address falls in the
+    /// $8000-$BFFF window. In MZ-700 mode this range is normal DRAM
+    /// (config B_Mz700 keeps VRAM at $D000-$DFFF instead).
+    ///
+    /// Applies to both A_Power and D_AllRam — the two MZ-800-mode
+    /// configs BASIC and the IPL land in. Our tech-ref comment on
+    /// D_AllRam said "VRAM windows disabled" but Phase 5.0 dump
+    /// analysis proved BASIC treats $8000-$BFFF as bitmap VRAM even
+    /// in D_AllRam. Since D_AllRam is where BASIC lives, plane
+    /// routing has to work there.
+    /// </summary>
+    private bool RoutesToBitmapVram(ushort addr)
+        => !Mz700Mode && addr >= 0x8000 && addr <= 0xBFFF
+           && (Config == BankConfig.A_Power || Config == BankConfig.D_AllRam);
+
+    /// <summary>
+    /// Phase 5.1 write path for the MZ-800-mode bitmap-VRAM window.
+    /// Honours the WF register's FRAME bit (D4) and per-plane enable
+    /// bits (D0-D3) for the REPLACE write mode only — the mode BASIC
+    /// uses on the Ready-prompt path per Phase 5.0 findings. Other
+    /// WF modes (SINGLE / XOR / OR / RESET / PSET) land in Phase 5.2.
+    ///
+    /// Address decode: plane offset = addr - $8000. Only the lower
+    /// 8000 bytes of the 16 KB window are meaningful for 320×200 mode
+    /// (40 cols × 200 rows). Writes past offset 8191 land in the last
+    /// plane byte harmlessly (Phase 5.6 revisits for 640×200).
+    ///
+    /// When WF hasn't been programmed yet (value $00 = SINGLE mode,
+    /// no planes enabled) we conservatively default to REPLACE plane I
+    /// so the very first cold-boot writes don't silently vanish.
+    /// </summary>
+    private void WriteVideoPlane(ushort addr, byte value)
+    {
+        int offset = addr - 0x8000;
+        if (offset < 0 || offset >= 0x2000) return;
+
+        byte wf = IoBus?.WfRegister ?? 0;
+        int mode = (wf >> 5) & 0x07;
+        int frame = (wf >> 4) & 0x01;
+        int enables = wf & 0x0F;
+
+        // Phase 5.1 MVP: REPLACE mode (100 binary) OR unprogrammed WF.
+        // Other modes get their own case in Phase 5.2 — for now, only
+        // REPLACE affects planes so uninitialised BASIC-boot writes
+        // still land somewhere the debugger can see them.
+        bool doReplace = mode == 0b100 || wf == 0;
+        if (!doReplace) return;
+
+        if (frame == 0)
+        {
+            if ((enables & 0x01) != 0 || wf == 0) PlaneI[offset]  = value;
+            if ((enables & 0x02) != 0)            PlaneII[offset] = value;
+        }
+        else
+        {
+            if ((enables & 0x04) != 0) PlaneIII[offset] = value;
+            if ((enables & 0x08) != 0) PlaneIV[offset]  = value;
+        }
+    }
+
+    /// <summary>
+    /// Phase 5.1 read path for the MZ-800-mode bitmap-VRAM window.
+    /// MVP just returns Plane I. Phase 5.3 wires the RF register so
+    /// reads pick the right plane and support SEARCH mode. Off-window
+    /// addresses return 0xFF (bus-idle).
+    /// </summary>
+    private byte ReadVideoPlane(ushort addr)
+    {
+        int offset = addr - 0x8000;
+        if (offset < 0 || offset >= 0x2000) return 0xFF;
+        return PlaneI[offset];
+    }
+
     public byte Read(ushort addr)
     {
         switch (Config)
@@ -122,7 +216,8 @@ public sealed class MZ800Memory : IMemory
                 if (addr < 0x1000) return Rom[addr];                    // MZ-700 monitor
                 if (addr < 0x2000) return Rom[addr];                    // CG ROM ($1000-$1FFF)
                 if (addr >= 0xE000) return Rom[0x2000 + (addr - 0xE000)]; // MZ-800 IPL/monitor (1Z-016B)
-                return Ram[addr];                                       // DRAM + VRAM window as DRAM
+                if (RoutesToBitmapVram(addr)) return ReadVideoPlane(addr);
+                return Ram[addr];                                       // DRAM elsewhere
 
             case BankConfig.B_Mz700:
                 // MZ-700-mode operating layout (tech-ref p. 3 config b)
@@ -149,7 +244,13 @@ public sealed class MZ800Memory : IMemory
 
             case BankConfig.D_AllRam:
                 // All-DRAM layout (BASIC / large user code). ROM banked
-                // out entirely, VRAM/IO windows disabled.
+                // out entirely. Phase 5.1: the $8000-$BFFF window is
+                // routed through the bitmap-VRAM planes when in MZ-800
+                // mode — Phase 5.0 dump analysis proved BASIC treats it
+                // as bitmap VRAM even here (not "disabled" as originally
+                // documented). MZ-700 mode inside D_AllRam still sees
+                // $8000-$BFFF as DRAM.
+                if (RoutesToBitmapVram(addr)) return ReadVideoPlane(addr);
                 return Ram[addr];
         }
         return Ram[addr];
@@ -181,6 +282,7 @@ public sealed class MZ800Memory : IMemory
         switch (Config)
         {
             case BankConfig.A_Power:
+                if (RoutesToBitmapVram(addr)) { WriteVideoPlane(addr, value); return; }
                 if (addr >= 0xE000)
                 {
                     // MZ-800 mode: writes to $E000-$FFFF go to RAM
@@ -210,6 +312,7 @@ public sealed class MZ800Memory : IMemory
                 return;
 
             case BankConfig.D_AllRam:
+                if (RoutesToBitmapVram(addr)) { WriteVideoPlane(addr, value); return; }
                 Ram[addr] = value;
                 return;
         }
@@ -327,11 +430,18 @@ public sealed class MZ800Memory : IMemory
     }
 
     /// <summary>
-    /// Restore power-on state — MZ-800 mode, config (a).
+    /// Restore power-on state — MZ-800 mode, config (a), and blank
+    /// bitmap planes. Phase 5.1 added the plane-clear so a Reset
+    /// gives a defined black display in MZ-800 mode instead of
+    /// carrying pre-reset plane data forward.
     /// </summary>
     public void ResetBankState()
     {
         Mz700Mode = false;
         Config = BankConfig.A_Power;
+        Array.Clear(PlaneI,   0, PlaneI.Length);
+        Array.Clear(PlaneII,  0, PlaneII.Length);
+        Array.Clear(PlaneIII, 0, PlaneIII.Length);
+        Array.Clear(PlaneIV,  0, PlaneIV.Length);
     }
 }
