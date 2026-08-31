@@ -259,16 +259,41 @@ public sealed class MZ800Memory : IMemory
     }
 
     /// <summary>
-    /// Phase 5.1 read path for the MZ-800-mode bitmap-VRAM window.
-    /// MVP just returns Plane I. Phase 5.3 wires the RF register so
-    /// reads pick the right plane and support SEARCH mode. Off-window
-    /// addresses return 0xFF (bus-idle).
+    /// Phase 5.3 read path for the MZ-800-mode bitmap-VRAM window.
+    /// Honours the RF register (tech-ref pp. 13-14):
+    ///
+    ///   D4 = 0 → single-plane read. Low nibble is per-plane enables
+    ///           (D0=I, D1=II, D2=III, D3=IV), same convention as WF.
+    ///           First-enabled plane wins if multiple bits set.
+    ///   D4 = 1 → SEARCH mode: return a bitmask where each bit=1 marks
+    ///           a pixel whose across-plane colour code matches a
+    ///           search-colour register. Used by MC games for
+    ///           collision detection / sprite masking. Deferred —
+    ///           returns $FF today. Revisit when an MC game exercises
+    ///           it and the tech-ref colour-register semantics are
+    ///           settled (see research/04-read-format.md).
+    ///
+    /// Cold-boot fallback: RF=$00 decodes as single-plane with no
+    /// enables set — semantically "no plane". Fall back to PlaneI
+    /// so any read before the IPL programs RF (WF=$00 case too)
+    /// still returns something the CPU can work with.
+    ///
+    /// Off-window addresses (past the plane storage size) return
+    /// $FF (bus-idle).
     /// </summary>
     private byte ReadVideoPlane(ushort addr)
     {
         int offset = addr - 0x8000;
         if (offset < 0 || offset >= 0x2000) return 0xFF;
-        return PlaneI[offset];
+
+        if (RfRegister == 0) return PlaneI[offset];         // cold-boot fallback
+        if ((RfRegister & 0x10) != 0) return 0xFF;          // SEARCH mode - deferred
+
+        if ((RfRegister & 0x01) != 0) return PlaneI[offset];
+        if ((RfRegister & 0x02) != 0) return PlaneII[offset];
+        if ((RfRegister & 0x04) != 0) return PlaneIII[offset];
+        if ((RfRegister & 0x08) != 0) return PlaneIV[offset];
+        return 0xFF;
     }
 
     public byte Read(ushort addr)

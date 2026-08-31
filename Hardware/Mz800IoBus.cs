@@ -139,10 +139,19 @@ public sealed class Mz800IoBus : IIoBus
         // 8253 PIT in MZ-800 mode ($D4-$D7).
         if (p >= 0xD4 && p <= 0xD7) return Pit.Read(p - 0xD4);
 
-        // CRTC status ($CE IN). Bit meanings per tech-ref not fully
-        // read in Phase 1; return $FF (no wait, all-idle) to keep the
-        // ROM from spinning waiting for a status bit.
-        if (p == 0xCE) return 0xFF;
+        // CRTC status ($CE IN). Phase 5.3: return real VBLK bit
+        // (D7) tracked by MZ800.RunFrame via Ppi.SetVBlank — same
+        // signal used by $E008 mem-mapped in MZ-700 mode. HBLK (D6)
+        // stays zero: we don't model per-scanline timing yet, and no
+        // MC-game path exercised so far spin-waits on HBLK.
+        // See research/04-read-format.md for the bit-layout guess
+        // and open questions on the reserved bits.
+        if (p == 0xCE)
+        {
+            byte status = 0;
+            if ((Ppi.PortCIn & 0x80) != 0) status |= 0x80;
+            return status;
+        }
 
         // Joystick ports ($F0/$F1). No stick connected in Phase 1;
         // return $FF (all lines high = nothing pressed).
