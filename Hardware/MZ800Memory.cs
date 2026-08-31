@@ -99,6 +99,20 @@ public sealed class MZ800Memory : IMemory
     /// </summary>
     public System.Text.StringBuilder? BankSwitchLog;
 
+    /// <summary>
+    /// Optional log sink for CPU writes into the MZ-800-mode bitmap
+    /// VRAM window ($8000-$BFFF). Phase 5.0 diagnostic to answer
+    /// "does BASIC actually write here, and if so what WF register
+    /// is active?" — see _mz800info/MZ800_VideoRendering_Research/
+    /// 00-current-state.md open questions. Populated only when
+    /// --dump= is active; the null-conditional check inside Write()
+    /// keeps the hot path free otherwise. Capped at 4096 entries so
+    /// a runaway boot doesn't OOM the trace.
+    /// </summary>
+    public System.Text.StringBuilder? VideoWriteLog;
+    private int _videoWriteLogEntries;
+    private const int VideoWriteLogCap = 4096;
+
     public byte Read(ushort addr)
     {
         switch (Config)
@@ -143,6 +157,24 @@ public sealed class MZ800Memory : IMemory
 
     public void Write(ushort addr, byte value)
     {
+        // Phase 5.0 diagnostic: log every write to the MZ-800 bitmap
+        // VRAM window in every config, so we can settle whether BASIC
+        // does write here (currently absorbed into Ram[] by D_AllRam).
+        // Deliberately outside the switch so it fires for every mode.
+        if (VideoWriteLog != null
+            && addr >= 0x8000 && addr <= 0xBFFF
+            && _videoWriteLogEntries < VideoWriteLogCap)
+        {
+            _videoWriteLogEntries++;
+            ushort pc = Cpu != null ? Cpu.PC : (ushort)0;
+            byte wf = IoBus != null ? IoBus.WfRegister : (byte)0;
+            VideoWriteLog.AppendLine(
+                $"PC=${pc:X4} W ${addr:X4}=${value:X2} cfg={Config} " +
+                $"mode={(Mz700Mode ? "MZ700" : "MZ800")} WF=${wf:X2}");
+            if (_videoWriteLogEntries == VideoWriteLogCap)
+                VideoWriteLog.AppendLine($"[...cap {VideoWriteLogCap} entries, further writes suppressed]");
+        }
+
         // Writes to the ROM window always land in RAM beneath (same
         // pattern as MZ-700 / MZ-80A — the ROM is read-only and RAM
         // captures the writes for the future all-RAM state).

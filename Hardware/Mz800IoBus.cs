@@ -49,6 +49,32 @@ public sealed class Mz800IoBus : IIoBus
     public byte RfRegister;
 
     /// <summary>
+    /// Optional log sink for CRTC / palette register writes. Phase 5.0
+    /// diagnostic to capture the sequence BASIC (and later MC games)
+    /// programs into $CC/$CD/$CE/$CF/$F0 during cold-boot. See
+    /// _mz800info/MZ800_VideoRendering_Research/00-current-state.md
+    /// open questions. Populated only when --dump= is active. Capped
+    /// at 4096 entries.
+    /// </summary>
+    public System.Text.StringBuilder? CrtcWriteLog;
+    private int _crtcWriteLogEntries;
+    private const int CrtcWriteLogCap = 4096;
+
+    private void LogCrtcWrite(byte port, byte value, ushort b)
+    {
+        if (CrtcWriteLog == null || _crtcWriteLogEntries >= CrtcWriteLogCap) return;
+        _crtcWriteLogEntries++;
+        ushort pc = Cpu.PC;
+        // $CF is indirect via B register; give the sub-reg selector its own field.
+        if (port == 0xCF)
+            CrtcWriteLog.AppendLine($"PC=${pc:X4} OUT (${port:X2}),${value:X2}  B=${b:X2}  [$CF indirect]");
+        else
+            CrtcWriteLog.AppendLine($"PC=${pc:X4} OUT (${port:X2}),${value:X2}");
+        if (_crtcWriteLogEntries == CrtcWriteLogCap)
+            CrtcWriteLog.AppendLine($"[...cap {CrtcWriteLogCap} entries, further writes suppressed]");
+    }
+
+    /// <summary>
     /// $E000-$E00F memory-mapped I/O window — MZ-700 mode only.
     /// Same shape as MZ-700's IoBus.MemIn (PPI at $E000-$E003, PIT
     /// at $E004-$E007, $E008 for TEMP/HBLK). Called from
@@ -142,12 +168,13 @@ public sealed class Mz800IoBus : IIoBus
         if (p >= 0xD4 && p <= 0xD7) { Pit.Write(p - 0xD4, value); return; }
 
         // CRTC writes.
-        if (p == 0xCC) { WfRegister = value; return; }
-        if (p == 0xCD) { RfRegister = value; return; }
+        if (p == 0xCC) { WfRegister = value; LogCrtcWrite(p, value, 0); return; }
+        if (p == 0xCD) { RfRegister = value; LogCrtcWrite(p, value, 0); return; }
         if (p == 0xCE)
         {
             DmdRegister = value;
             Memory.SetDmdRegister(value);
+            LogCrtcWrite(p, value, 0);
             return;
         }
         if (p == 0xCF)
@@ -155,12 +182,16 @@ public sealed class Mz800IoBus : IIoBus
             // Indirect CRTC register write. B register selects sub-
             // register (SOF1/SOF2/SW/SSA/SEA/BCOL/CKSW). Phase 5 wires
             // this properly — for now the write is silently accepted.
+            // Phase 5.0: log with the B selector so the trace shows
+            // which sub-register the CPU targeted (B rides in the high
+            // byte of the OUT (n),A port word — see tech-ref p. 23).
+            LogCrtcWrite(p, value, (byte)((port >> 8) & 0xFF));
             return;
         }
 
         // Palette write ($F0 OUT — same port as joystick-1 IN, direction
         // decides which device). Phase 5 wires this.
-        if (p == 0xF0) return;
+        if (p == 0xF0) { LogCrtcWrite(p, value, 0); return; }
 
         // SN76489 PSG ($F2 OUT). Phase 6 wires this.
         if (p == 0xF2) return;

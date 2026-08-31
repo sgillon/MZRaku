@@ -210,6 +210,23 @@ internal sealed class DumpTraceRecorder
             _traceLog.AppendLine("Bank-switch log:");
             _traceLog.Append(memLog);
         }
+
+        // Phase 5.0 diagnostics — MZ-800 only.
+        if (_mz800 != null)
+        {
+            if (_mz800.Io.CrtcWriteLog != null)
+            {
+                _traceLog.AppendLine();
+                _traceLog.AppendLine("CRTC / palette write log ($CC/$CD/$CE/$CF/$F0):");
+                _traceLog.Append(_mz800.Io.CrtcWriteLog);
+            }
+            if (_mz800.Mem.VideoWriteLog != null)
+            {
+                _traceLog.AppendLine();
+                _traceLog.AppendLine("Bitmap VRAM window write log ($8000-$BFFF):");
+                _traceLog.Append(_mz800.Mem.VideoWriteLog);
+            }
+        }
     }
 
     private static char MzDisplayToAscii(byte b)

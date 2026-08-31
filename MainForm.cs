@@ -676,6 +676,11 @@ public sealed class MainForm : Form
             {
                 _mz800.Pit.WriteLog = tracing ? new System.Text.StringBuilder() : null;
                 _mz800.Mem.BankSwitchLog = tracing ? new System.Text.StringBuilder() : null;
+                // Phase 5.0 diagnostics: log every $8000-$BFFF write and
+                // every CRTC / palette register OUT. Fed into the .trace
+                // file by DumpTraceRecorder.
+                _mz800.Mem.VideoWriteLog = tracing ? new System.Text.StringBuilder() : null;
+                _mz800.Io.CrtcWriteLog = tracing ? new System.Text.StringBuilder() : null;
             }
             Active.Sound.Start();
 
