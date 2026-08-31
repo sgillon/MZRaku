@@ -111,6 +111,36 @@ public sealed class MZ800Memory : IMemory
     public Z80Cpu? Cpu;
 
     /// <summary>
+    /// CRTC Write Format register — set by OUT ($CC),A. Bit layout
+    /// (tech-ref pp. 10-13): D7-D5 = write MODE (000 SINGLE / 001 XOR /
+    /// 010 OR / 011 RESET / 100 REPLACE / 101 PSET); D4 = FRAME
+    /// (0 = Frame A, planes I+II; 1 = Frame B, planes III+IV);
+    /// D3-D0 = per-plane enable (D0 plane I, D1 plane II, D2 plane III,
+    /// D3 plane IV). Consumed by <see cref="WriteVideoPlane"/> on every
+    /// CPU write to $8000-$BFFF in MZ-800 mode.
+    /// </summary>
+    public byte WfRegister;
+
+    /// <summary>
+    /// CRTC Read Format register — set by OUT ($CD),A. Selects which
+    /// plane <see cref="ReadVideoPlane"/> returns and (bit 4) whether
+    /// SEARCH mode is active. Phase 5.2 captures the value; Phase 5.3
+    /// wires the read decode.
+    /// </summary>
+    public byte RfRegister;
+
+    /// <summary>
+    /// Phase 5.2: OUT ($CC),A hook. Ownership of the WF register byte
+    /// moved from Mz800IoBus to Memory in 5.2 because Memory is the
+    /// consumer. Pass-through today — kept as a method so future phases
+    /// (renderer cache invalidation, Phase 5.7 scroll) can hook cleanly.
+    /// </summary>
+    public void SetWfRegister(byte value) => WfRegister = value;
+
+    /// <summary>Phase 5.2 companion to <see cref="SetWfRegister"/> for the RF register.</summary>
+    public void SetRfRegister(byte value) => RfRegister = value;
+
+    /// <summary>
     /// Optional log sink (mirror of MZ700Memory.BankSwitchLog).
     /// Useful during Phase 1 bring-up to see the IPL's bank-switch
     /// sequence in the debugger.
@@ -150,47 +180,81 @@ public sealed class MZ800Memory : IMemory
            && (Config == BankConfig.A_Power || Config == BankConfig.D_AllRam);
 
     /// <summary>
-    /// Phase 5.1 write path for the MZ-800-mode bitmap-VRAM window.
-    /// Honours the WF register's FRAME bit (D4) and per-plane enable
-    /// bits (D0-D3) for the REPLACE write mode only — the mode BASIC
-    /// uses on the Ready-prompt path per Phase 5.0 findings. Other
-    /// WF modes (SINGLE / XOR / OR / RESET / PSET) land in Phase 5.2.
+    /// Phase 5.2 write path for the MZ-800-mode bitmap-VRAM window.
+    /// Honours all six WF write modes (tech-ref pp. 10-13):
+    ///
+    ///   000 SINGLE  — write value to each enabled plane (treated as
+    ///                 REPLACE for now; the SINGLE/REPLACE distinction
+    ///                 in the tech-ref is subtle and worth re-reading
+    ///                 in Phase 5.5 verification if a game misbehaves)
+    ///   001 XOR     — plane_byte ^= value
+    ///   010 OR      — plane_byte |= value
+    ///   011 RESET   — plane_byte &amp;= ~value  (clear bits where value=1)
+    ///   100 REPLACE — plane_byte = value
+    ///   101 PSET    — colour-code write via a separate colour register
+    ///                 (deferred; needs a model we don't have yet — see
+    ///                 research/03-write-format.md)
+    ///   110 / 111   — prohibited per tech-ref; silent no-op
+    ///
+    /// FRAME (D4) selects the plane pair:
+    ///   0 → Frame A (planes I + II, enabled by D0/D1)
+    ///   1 → Frame B (planes III + IV, enabled by D2/D3)
     ///
     /// Address decode: plane offset = addr - $8000. Only the lower
-    /// 8000 bytes of the 16 KB window are meaningful for 320×200 mode
-    /// (40 cols × 200 rows). Writes past offset 8191 land in the last
-    /// plane byte harmlessly (Phase 5.6 revisits for 640×200).
+    /// 8000 bytes of the 16 KB window are meaningful for 320×200
+    /// (40 cols × 200 rows); writes past offset $1FFF are dropped
+    /// (Phase 5.6 revisits for 640×200).
     ///
-    /// When WF hasn't been programmed yet (value $00 = SINGLE mode,
-    /// no planes enabled) we conservatively default to REPLACE plane I
-    /// so the very first cold-boot writes don't silently vanish.
+    /// Cold-boot fallback: WF=$00 decodes as SINGLE with no planes
+    /// enabled — semantically a no-op. Fall back to REPLACE plane I
+    /// so the very first writes (before any code programs WF) land
+    /// somewhere the debugger can see them.
     /// </summary>
     private void WriteVideoPlane(ushort addr, byte value)
     {
         int offset = addr - 0x8000;
         if (offset < 0 || offset >= 0x2000) return;
 
-        byte wf = IoBus?.WfRegister ?? 0;
-        int mode = (wf >> 5) & 0x07;
-        int frame = (wf >> 4) & 0x01;
-        int enables = wf & 0x0F;
+        if (WfRegister == 0) { PlaneI[offset] = value; return; }
 
-        // Phase 5.1 MVP: REPLACE mode (100 binary) OR unprogrammed WF.
-        // Other modes get their own case in Phase 5.2 — for now, only
-        // REPLACE affects planes so uninitialised BASIC-boot writes
-        // still land somewhere the debugger can see them.
-        bool doReplace = mode == 0b100 || wf == 0;
-        if (!doReplace) return;
+        int mode = (WfRegister >> 5) & 0x07;
+        bool frameB = (WfRegister & 0x10) != 0;
 
-        if (frame == 0)
+        byte[] plane0, plane1;
+        bool enable0, enable1;
+        if (!frameB)
         {
-            if ((enables & 0x01) != 0 || wf == 0) PlaneI[offset]  = value;
-            if ((enables & 0x02) != 0)            PlaneII[offset] = value;
+            plane0 = PlaneI;   enable0 = (WfRegister & 0x01) != 0;
+            plane1 = PlaneII;  enable1 = (WfRegister & 0x02) != 0;
         }
         else
         {
-            if ((enables & 0x04) != 0) PlaneIII[offset] = value;
-            if ((enables & 0x08) != 0) PlaneIV[offset]  = value;
+            plane0 = PlaneIII; enable0 = (WfRegister & 0x04) != 0;
+            plane1 = PlaneIV;  enable1 = (WfRegister & 0x08) != 0;
+        }
+
+        switch (mode)
+        {
+            case 0b000: // SINGLE (treated as REPLACE pending 5.5 verification)
+            case 0b100: // REPLACE
+                if (enable0) plane0[offset] = value;
+                if (enable1) plane1[offset] = value;
+                break;
+            case 0b001: // XOR
+                if (enable0) plane0[offset] ^= value;
+                if (enable1) plane1[offset] ^= value;
+                break;
+            case 0b010: // OR
+                if (enable0) plane0[offset] |= value;
+                if (enable1) plane1[offset] |= value;
+                break;
+            case 0b011: // RESET
+                if (enable0) plane0[offset] &= (byte)~value;
+                if (enable1) plane1[offset] &= (byte)~value;
+                break;
+            case 0b101: // PSET — deferred
+            default:    // 110 / 111 prohibited
+                break;
         }
     }
 
@@ -268,7 +332,7 @@ public sealed class MZ800Memory : IMemory
         {
             _videoWriteLogEntries++;
             ushort pc = Cpu != null ? Cpu.PC : (ushort)0;
-            byte wf = IoBus != null ? IoBus.WfRegister : (byte)0;
+            byte wf = WfRegister;
             VideoWriteLog.AppendLine(
                 $"PC=${pc:X4} W ${addr:X4}=${value:X2} cfg={Config} " +
                 $"mode={(Mz700Mode ? "MZ700" : "MZ800")} WF=${wf:X2}");
@@ -439,6 +503,8 @@ public sealed class MZ800Memory : IMemory
     {
         Mz700Mode = false;
         Config = BankConfig.A_Power;
+        WfRegister = 0;
+        RfRegister = 0;
         Array.Clear(PlaneI,   0, PlaneI.Length);
         Array.Clear(PlaneII,  0, PlaneII.Length);
         Array.Clear(PlaneIII, 0, PlaneIII.Length);

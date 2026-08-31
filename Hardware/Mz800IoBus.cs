@@ -43,10 +43,13 @@ public sealed class Mz800IoBus : IIoBus
     public Z80Cpu Cpu = null!;
 
     // Phase 5 populates these; Phase 1 catches the writes so a slice
-    // of the CRTC surface is at least visible in the debugger.
+    // of the CRTC surface is at least visible in the debugger. WF/RF
+    // ownership moved to MZ800Memory in Phase 5.2 — those registers
+    // are used by the plane read/write paths, so keeping them on
+    // Memory removes the null-safe IoBus?.WfRegister hop. DMD stays
+    // here because its consumer (Memory.SetDmdRegister → Mz700Mode)
+    // takes just the derived bit rather than the raw byte.
     public byte DmdRegister;
-    public byte WfRegister;
-    public byte RfRegister;
 
     /// <summary>
     /// Optional log sink for CRTC / palette register writes. Phase 5.0
@@ -168,8 +171,8 @@ public sealed class Mz800IoBus : IIoBus
         if (p >= 0xD4 && p <= 0xD7) { Pit.Write(p - 0xD4, value); return; }
 
         // CRTC writes.
-        if (p == 0xCC) { WfRegister = value; LogCrtcWrite(p, value, 0); return; }
-        if (p == 0xCD) { RfRegister = value; LogCrtcWrite(p, value, 0); return; }
+        if (p == 0xCC) { Memory.SetWfRegister(value); LogCrtcWrite(p, value, 0); return; }
+        if (p == 0xCD) { Memory.SetRfRegister(value); LogCrtcWrite(p, value, 0); return; }
         if (p == 0xCE)
         {
             DmdRegister = value;
