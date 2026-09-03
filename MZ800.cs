@@ -170,7 +170,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
             // Still rebuild the framebuffer so the debugger's memory
             // viewer and the main display stay live even while the
             // CPU is paused. Same pattern as MZ700 / MZ80A.
-            Video.Render(Mem.Vram, Mem.Aram);
+            RenderCurrentMode();
             return;
         }
         bool stepFrame = _stepFrameRequested;
@@ -212,7 +212,22 @@ public sealed class MZ800 : MzMachineBase, IMachine
 
         if (tripped || stepFrame) Paused = true;
 
-        Video.Render(Mem.Vram, Mem.Aram);
+        RenderCurrentMode();
+    }
+
+    /// <summary>
+    /// Phase 5.5: pick MZ-700-mode text renderer or MZ-800-mode
+    /// bitmap renderer per <see cref="MZ800Memory.Mz700Mode"/>. Both
+    /// paths back into the same <see cref="Mz800Video.Frame"/> so
+    /// <see cref="MainForm"/>'s Display_Paint doesn't need to know
+    /// which is active.
+    /// </summary>
+    private void RenderCurrentMode()
+    {
+        if (Mem.Mz700Mode)
+            Video.Render(Mem.Vram, Mem.Aram);
+        else
+            Video.RenderBitmap(Mem.PlaneI, Mem.PlaneII, Mem.Palette, Mem.BorderColour);
     }
 
     protected override void AccumulatePit(int cpuCycles)

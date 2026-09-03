@@ -161,4 +161,82 @@ public sealed class Mz800Video
             Frame.UnlockBits(data);
         }
     }
+
+    /// <summary>
+    /// Phase 5.5 MZ-800-mode 320×200 4-colour Frame A renderer.
+    /// Reads planes I and II, combines each pair of bits into a 2-bit
+    /// pixel colour code, resolves through the palette + IrgbToArgb,
+    /// and paints into <see cref="Frame"/> — the same bitmap the
+    /// MZ-700-mode <see cref="Render"/> path uses, so
+    /// <see cref="MainForm"/>'s Display_Paint doesn't need to know
+    /// which mode is active.
+    ///
+    /// Plane offset per CPU-visible address is
+    /// <c>plane_offset = addr - $8000</c> (see research/02-plane-layout.md).
+    /// 40 bytes cover one scanline × 200 scanlines = 8000 bytes total.
+    /// Bit ordering per byte: LSB-first (bit 0 = leftmost pixel),
+    /// matching the MZ-700 CG-ROM convention above. If Phase 5.9
+    /// verification shows mirrored pixels, flip the shift index.
+    ///
+    /// Colour code: <c>(planeII_bit &lt;&lt; 1) | planeI_bit</c>. If
+    /// verification shows colours consistently swapped across all
+    /// non-black pixels, swap the two plane arguments at the call
+    /// site (simpler than adjusting the shift here).
+    ///
+    /// Border is not painted here — the 320×200 pixel area fills the
+    /// full <see cref="Frame"/>. Real hardware surrounds the active
+    /// image with a coloured border on an overscanned CRT area; if we
+    /// later want to model that, grow Frame and paint BorderColour
+    /// around a centred 320×200 active rect.
+    /// </summary>
+    public void RenderBitmap(byte[] planeI, byte[] planeII, byte[] palette, byte borderIrgb)
+    {
+        // Resolve the 4-entry palette to ARGB once per frame.
+        int c0 = IrgbToArgb(palette[0]);
+        int c1 = IrgbToArgb(palette[1]);
+        int c2 = IrgbToArgb(palette[2]);
+        int c3 = IrgbToArgb(palette[3]);
+        int _ = IrgbToArgb(borderIrgb); // reserved: border painting arrives when we grow Frame past 320×200
+
+        var rect = new Rectangle(0, 0, PixelWidth, PixelHeight);
+        var data = Frame.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            unsafe
+            {
+                int stride = data.Stride / 4;
+                int* pix = (int*)data.Scan0;
+                const int bytesPerRow = PixelWidth / 8; // 40 bytes per scanline for 320 pixels
+                for (int y = 0; y < PixelHeight; y++)
+                {
+                    int rowBase = y * bytesPerRow;
+                    int* rowPix = pix + y * stride;
+                    for (int col = 0; col < bytesPerRow; col++)
+                    {
+                        int offset = rowBase + col;
+                        byte b1 = planeI[offset];
+                        byte b2 = planeII[offset];
+                        int pixX = col * 8;
+                        for (int bit = 0; bit < 8; bit++)
+                        {
+                            int mask = 1 << bit;
+                            int code = ((b2 & mask) != 0 ? 2 : 0) | ((b1 & mask) != 0 ? 1 : 0);
+                            int argb = code switch
+                            {
+                                0 => c0,
+                                1 => c1,
+                                2 => c2,
+                                _ => c3,
+                            };
+                            rowPix[pixX + bit] = argb;
+                        }
+                    }
+                }
+            }
+        }
+        finally
+        {
+            Frame.UnlockBits(data);
+        }
+    }
 }

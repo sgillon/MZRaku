@@ -89,6 +89,7 @@ internal sealed class DumpTraceRecorder
                 AppendPcTrace();
                 AppendMz700WriteLogs();
                 File.WriteAllText(_dumpPath + ".trace", _traceLog.ToString());
+                SaveVideoFramePng();
             }
             catch (Exception ex)
             {
@@ -96,6 +97,75 @@ internal sealed class DumpTraceRecorder
                 return;
             }
             OnDumpComplete?.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// Phase 5.5: alongside the .txt + .trace, also emit a .png of the
+    /// current video frame. Gives visual verification of the renderer's
+    /// output without needing a live GUI session — the CI-friendly form
+    /// of "look at the screen".
+    ///
+    /// For MZ-800 dumps we also emit a `.test.png` where we seed the
+    /// planes with a known 4-colour-bar pattern (black/blue/red/white
+    /// top-to-bottom) and render that. Proves end-to-end that the
+    /// renderer reads plane bytes, decodes the 2-bit colour code, and
+    /// resolves through the palette + IrgbToArgb correctly — separate
+    /// from whether the CURRENT plane content happens to be black.
+    /// </summary>
+    private void SaveVideoFramePng()
+    {
+        var frame = _active.VideoFrame;
+        if (frame == null || _dumpPath == null) return;
+        using (var snapshot = new System.Drawing.Bitmap(frame))
+            snapshot.Save(_dumpPath + ".png", System.Drawing.Imaging.ImageFormat.Png);
+
+        if (_mz800 != null)
+            SaveMz800TestPatternPng(_dumpPath + ".test.png");
+    }
+
+    /// <summary>
+    /// Seed planes with a 4-horizontal-bar pattern, render, save, then
+    /// restore the original plane data. Palette used comes from
+    /// whatever BASIC / the IPL programmed at the time of the dump — so
+    /// the four bars should match BASIC's actual palette
+    /// (typically black / dark-blue / dark-red / bright-white).
+    /// </summary>
+    private void SaveMz800TestPatternPng(string path)
+    {
+        if (_mz800 == null) return;
+        var mem = _mz800.Mem;
+        // Back up plane I + II (Frame A). We only test Frame A rendering.
+        var savedI  = (byte[])mem.PlaneI.Clone();
+        var savedII = (byte[])mem.PlaneII.Clone();
+        try
+        {
+            // 320×200 = 40 bytes wide × 200 rows. 50 rows per colour bar.
+            const int bytesPerRow = 40;
+            for (int y = 0; y < 200; y++)
+            {
+                int rowBase = y * bytesPerRow;
+                // Colour code 0..3 depending on which quarter of the screen.
+                int code = y / 50;
+                byte piBits = (code & 1) != 0 ? (byte)0xFF : (byte)0x00;
+                byte p2Bits = (code & 2) != 0 ? (byte)0xFF : (byte)0x00;
+                for (int col = 0; col < bytesPerRow; col++)
+                {
+                    mem.PlaneI[rowBase + col]  = piBits;
+                    mem.PlaneII[rowBase + col] = p2Bits;
+                }
+            }
+            _mz800.Video.RenderBitmap(mem.PlaneI, mem.PlaneII, mem.Palette, mem.BorderColour);
+            using var snapshot = new System.Drawing.Bitmap(_mz800.Video.Frame);
+            snapshot.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+        }
+        finally
+        {
+            Array.Copy(savedI,  mem.PlaneI,  savedI.Length);
+            Array.Copy(savedII, mem.PlaneII, savedII.Length);
+            // Re-render so the live frame reflects the real (post-restore)
+            // plane state, not the test pattern.
+            _mz800.Video.RenderBitmap(mem.PlaneI, mem.PlaneII, mem.Palette, mem.BorderColour);
         }
     }
 
