@@ -214,4 +214,25 @@ public abstract class KeyboardMatrixBase : IKeyboardMatrix
     // callers can't peek at raw scan state.
     internal bool WasStrobeScanned(int strobe) => (_scanMask & (1 << strobe)) != 0;
     internal void ClearScanObservation() => _scanMask = 0;
+
+    /// <summary>Phase 5.5 diagnostic: read-only peek at the accumulated
+    /// scan-mask so the status-bar diagnostic can show which rows the
+    /// CPU has scanned. Doesn't reset the mask (auto-typer still owns
+    /// the reset semantics via <see cref="ClearScanObservation"/>).</summary>
+    public int PeekScanMask() => _scanMask;
+
+    /// <summary>Phase 5.5 diagnostic: atomic read-and-reset for the
+    /// scan-mask. Lets the status-bar diagnostic show the live per-
+    /// interval scan pattern rather than a cumulative one that may have
+    /// been fully lit up at boot. Doesn't affect auto-typer because
+    /// the mask is a monotonic OR — clearing it means auto-typer's
+    /// next check will only see subsequent scans, which is what
+    /// diagnostic wants (auto-typer isn't running during this
+    /// diagnostic mode anyway; MZ-800 doesn't ship one yet).</summary>
+    public int PopScanMask()
+    {
+        int v = _scanMask;
+        _scanMask = 0;
+        return v;
+    }
 }

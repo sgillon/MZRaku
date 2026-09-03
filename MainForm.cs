@@ -72,6 +72,26 @@ public sealed class MainForm : Form
         BorderSides = ToolStripStatusLabelBorderSides.Left,
         BorderStyle = Border3DStyle.Etched,
     };
+    // Phase 5.5 diagnostic (MZ-800 only): shows keyboard-scan activity
+    // so we can see whether BASIC is actually polling the matrix. Only
+    // added to the status strip when _mz800 != null. Format:
+    //   `KB rows=$XXX PB=NNNN`
+    // Where rows is the accumulated scan mask (bit N = row N scanned)
+    // and PB is Ppi.PortBReadsTotal (Port B reads = keyboard-row
+    // fetches). If both stay at zero while typing, BASIC isn't
+    // scanning; if they grow but typing does nothing, BASIC is
+    // scanning but the key isn't being recognised.
+    private readonly ToolStripStatusLabel _mz800KbdDiagLabel = new()
+    {
+        Spring = false,
+        Text = "KB —",
+        AutoSize = false,
+        Width = 420,
+        TextAlign = ContentAlignment.MiddleCenter,
+        BorderSides = ToolStripStatusLabelBorderSides.Left,
+        BorderStyle = Border3DStyle.Etched,
+        ForeColor = SystemColors.GrayText,
+    };
     // Frame at which _statusLabel last received a non-empty message.
     // The message auto-clears after StatusIdleFrames so the middle
     // pane stays empty when nothing's happening. Populated via the
@@ -237,6 +257,7 @@ public sealed class MainForm : Form
         _status.Items.Add(_statusLabel);
         _status.Items.Add(_tapeLabel);
         _status.Items.Add(_modeLabel);
+        if (_mz800 != null) _status.Items.Add(_mz800KbdDiagLabel);
 
         // Cassette trap events surface load / save outcomes via the
         // status label. Fire on the UI thread (OnPreStep is called from
@@ -1064,6 +1085,43 @@ public sealed class MainForm : Form
         // GRAPH-mode indicator + Font Sheet auto-surface for MZ-700
         // and the F11-driven mode indicator for MZ-80A.
         _autoLoad.OnFrame(_bootFrames);
+
+        // Phase 5.5 keyboard-scan diagnostic. Only meaningful when
+        // MZ-800 is active. Updated every 20 frames (~3 Hz).
+        // Fields:
+        //   rows= accumulated scan-mask (bit N = row N scanned since boot)
+        //   PB=   Ppi.PortBReadsTotal (how many row-fetches CPU has done)
+        //   hit=  first row (0-9) whose current bits aren't $FF, else `-`
+        //   bits= that row's byte (bit N low → col N key held)
+        // If BASIC is scanning (PB grows) but no key press ever makes
+        // hit go from `-` to a row number, our matrix isn't updating.
+        // If hit shows a row and bits but BASIC ignores the key, the
+        // scan / key logic works but BASIC's response path is broken.
+        if (_mz800 != null && (_bootFrames % 20) == 0)
+        {
+            // Live per-interval scan pattern (pop-and-reset). Says
+            // which rows BASIC has actually scanned in the last ~0.33s,
+            // not the boot-cumulative pattern that could mislead.
+            int mask = _mz800.Keyboard.PopScanMask();
+            int pb = _mz800.Ppi.PortBReadsTotal;
+            int hitRow = -1;
+            byte hitBits = 0xFF;
+            for (int r = 0; r < 10; r++)
+            {
+                byte b = _mz800.Keyboard.PeekMatrixRow(r);
+                if (b != 0xFF) { hitRow = r; hitBits = b; break; }
+            }
+            string hit = hitRow < 0 ? "hit=-" : $"hit={hitRow} bits=${hitBits:X2}";
+            // PBmin = lowest byte the CPU has actually read via Port B
+            // since last reset. If a key is held (hit≠-) but PBmin
+            // stays $FF, the CPU isn't seeing what the matrix has.
+            byte pbmin = _mz800.Ppi.PortBMinObserved;
+            _mz800KbdDiagLabel.Text = $"KB rows=${mask:X3} PB={pb} {hit} PBmin=${pbmin:X2}";
+            _mz800KbdDiagLabel.ForeColor =
+                hitRow >= 0 ? System.Drawing.Color.OrangeRed :
+                pb > 0     ? SystemColors.ControlText :
+                             SystemColors.GrayText;
+        }
 
         _display.Invalidate();
 

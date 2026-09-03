@@ -40,14 +40,32 @@ public sealed class Ppi8255
 
     public event Action<bool>? SpeakerGateChanged;
 
+    /// <summary>Phase 5.5 diagnostic (kept as permanent counter): count
+    /// of Port B (keyboard-row) reads since power-on. Non-zero means
+    /// something is scanning the keyboard; zero means nothing is.</summary>
+    public int PortBReadsTotal;
+
+    /// <summary>Phase 5.5 diagnostic: minimum Port B value returned to
+    /// the CPU since last <see cref="ResetPortBMinObserved"/>. If this
+    /// stays at $FF while a key is held on the matrix, the CPU's scan
+    /// isn't seeing the low bit — i.e. our Read path is returning stale
+    /// data or BASIC uses a different read path. If it drops below $FF,
+    /// the CPU IS seeing key state and any "no response" bug is
+    /// downstream.</summary>
+    public byte PortBMinObserved = 0xFF;
+
+    public void ResetPortBMinObserved() => PortBMinObserved = 0xFF;
+
     public byte Read(int reg)
     {
         switch (reg & 3)
         {
             case 0: return PortA;
             case 1:
+                PortBReadsTotal++;
                 if (Keyboard != null)
                     PortBIn = Keyboard.ReadRow(PortA & 0x0F);
+                if (PortBIn < PortBMinObserved) PortBMinObserved = PortBIn;
                 return PortBIn;
             case 2:
                 // Combine high-nibble inputs with a readable copy of the low outputs
