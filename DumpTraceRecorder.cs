@@ -427,6 +427,12 @@ internal sealed class DumpTraceRecorder
                 _traceLog.AppendLine("Bitmap VRAM window write log ($8000-$BFFF):");
                 _traceLog.Append(_mz800.Mem.VideoWriteLog);
             }
+            if (_mz800.Mem.ModeFlipLog != null)
+            {
+                _traceLog.AppendLine();
+                _traceLog.AppendLine("DMD mode-flip log ($CE) — mode + config transitions only:");
+                _traceLog.Append(_mz800.Mem.ModeFlipLog);
+            }
         }
     }
 

@@ -280,6 +280,20 @@ public sealed class MZ800Memory : IMemory
     private const int VideoWriteLogCap = 4096;
 
     /// <summary>
+    /// Phase 5.8 diagnostic: every OUT ($CE),A that actually changes
+    /// <see cref="Mz700Mode"/> or <see cref="Config"/> emits a line
+    /// with PC + before/after state. Answers "what mode transitions
+    /// does software do during boot/game-load?" without needing to
+    /// grep the (much noisier) CrtcWriteLog. Populated only under
+    /// --dump=; capped at 1024 entries — mode transitions are rare so
+    /// this cap is much lower than the plane-write log's.
+    /// See research/08-mode-flip.md.
+    /// </summary>
+    public System.Text.StringBuilder? ModeFlipLog;
+    private int _modeFlipLogEntries;
+    private const int ModeFlipLogCap = 1024;
+
+    /// <summary>
     /// Phase 5.1: does this address in the current mode/config route
     /// through the bitmap-VRAM plane storage rather than DRAM? True
     /// when the CPU is in MZ-800 mode and the address falls in the
@@ -621,11 +635,29 @@ public sealed class MZ800Memory : IMemory
     /// the mode transition (MZ-800 ↔ MZ-700) and the associated bank
     /// switch.
     ///
-    /// Flipping into MZ-700 mode transitions bank config (a) → (b)
-    /// per tech-ref — the IPL's first mode-change step.
+    /// Phase 5.8 makes the config auto-flip symmetric (see
+    /// research/08-mode-flip.md for the full rationale):
+    ///   • MZ-800 → MZ-700: if Config==A_Power → B_Mz700. Matches
+    ///     the IPL's first mode-change step (tech-ref implicit).
+    ///   • MZ-700 → MZ-800: if Config==B_Mz700 or C_PcgWrite →
+    ///     A_Power. Mirrors the above so an MC game that writes
+    ///     DMD=$00 without a subsequent IN $E-sequence still gets
+    ///     plane routing on $8000-$BFFF (which is where MZ-800
+    ///     software expects to draw). Not strict hardware fidelity
+    ///     — real DMD and bank switch are independent — but the
+    ///     other direction wasn't either, and this convention
+    ///     matches what MZ-800 software relies on in practice.
+    ///
+    /// If <see cref="ModeFlipLog"/> is populated, every actual
+    /// mode transition (with or without auto-flip) is captured
+    /// there for diagnostic replay.
     /// </summary>
     public void SetDmdRegister(byte value)
     {
+        var prevMode = Mz700Mode;
+        var prevConfig = Config;
+        ushort pc = Cpu != null ? Cpu.PC : (ushort)0;
+
         DmdRegister = value;
         bool wantMz700 = (value & 0x0C) == 0x08;
         if (wantMz700 && !Mz700Mode)
@@ -636,8 +668,25 @@ public sealed class MZ800Memory : IMemory
         else if (!wantMz700 && Mz700Mode)
         {
             Mz700Mode = false;
-            // Don't auto-flip the config — leave it to the caller's
-            // subsequent IN $E0-$E5 sequence.
+            // Symmetric auto-flip — see docstring above. B_Mz700
+            // and C_PcgWrite are MZ-700-mode-only configs; leaving
+            // them active while Mz700Mode=false silently drops
+            // plane writes into DRAM. D_AllRam is intentionally
+            // preserved (BASIC path).
+            if (Config == BankConfig.B_Mz700 || Config == BankConfig.C_PcgWrite)
+                Config = BankConfig.A_Power;
+        }
+
+        if (ModeFlipLog != null && (prevMode != Mz700Mode || prevConfig != Config)
+            && _modeFlipLogEntries < ModeFlipLogCap)
+        {
+            _modeFlipLogEntries++;
+            ModeFlipLog.AppendLine(
+                $"PC=${pc:X4} OUT ($CE),${value:X2}  " +
+                $"mode={(prevMode ? "MZ700" : "MZ800")}→{(Mz700Mode ? "MZ700" : "MZ800")}  " +
+                $"cfg={prevConfig}→{Config}");
+            if (_modeFlipLogEntries == ModeFlipLogCap)
+                ModeFlipLog.AppendLine($"[...cap {ModeFlipLogCap} entries, further transitions suppressed]");
         }
     }
 

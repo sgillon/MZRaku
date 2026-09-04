@@ -702,6 +702,10 @@ public sealed class MainForm : Form
                 // file by DumpTraceRecorder.
                 _mz800.Mem.VideoWriteLog = tracing ? new System.Text.StringBuilder() : null;
                 _mz800.Io.CrtcWriteLog = tracing ? new System.Text.StringBuilder() : null;
+                // Phase 5.8: log every DMD-driven mode/config transition
+                // for offline analysis of how software actually flips
+                // between MZ-700 and MZ-800 modes.
+                _mz800.Mem.ModeFlipLog = tracing ? new System.Text.StringBuilder() : null;
             }
             Active.Sound.Start();
 
