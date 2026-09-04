@@ -50,7 +50,13 @@ public sealed class MZ800 : MzMachineBase, IMachine
     public MachineType Kind => MachineType.MZ800;
     Z80Core.IMemory IMachine.Mem => Mem;
     CassetteTrapBase IMachine.Cassette => Cassette;
-    System.Drawing.Bitmap? IMachine.VideoFrame => Video.Frame;
+    // Video output surface: DMD-mode-aware. Phase 5.6 added the second
+    // bitmap (FrameHi, 640×200) so 640-mode gets its native resolution
+    // without stretching or downsampling the 320-mode/MZ-700-mode
+    // output. MainForm.Display_Paint scales from whichever bitmap
+    // comes back here — it reads size from the bitmap itself, not
+    // from any constant.
+    System.Drawing.Bitmap? IMachine.VideoFrame => Mem.Is640BitmapMode ? Video.FrameHi : Video.Frame;
 
     // MZ-800 CPU runs at 3.547 MHz (17.734 MHz crystal ÷ 5, per
     // tech-ref p. 9). Matches MZ-700 exactly; MZ-80A is the slower
@@ -216,16 +222,20 @@ public sealed class MZ800 : MzMachineBase, IMachine
     }
 
     /// <summary>
-    /// Phase 5.5: pick MZ-700-mode text renderer or MZ-800-mode
-    /// bitmap renderer per <see cref="MZ800Memory.Mz700Mode"/>. Both
-    /// paths back into the same <see cref="Mz800Video.Frame"/> so
-    /// <see cref="MainForm"/>'s Display_Paint doesn't need to know
-    /// which is active.
+    /// Pick a renderer per <see cref="MZ800Memory.Mz700Mode"/> and (in
+    /// MZ-800 mode) the DMD resolution field: MZ-700-mode text →
+    /// <see cref="Mz800Video.Render"/>; MZ-800 320×200 →
+    /// <see cref="Mz800Video.RenderBitmap"/> (fills <see cref="Mz800Video.Frame"/>);
+    /// MZ-800 640×200 → <see cref="Mz800Video.RenderBitmap640Mono"/>
+    /// (fills <see cref="Mz800Video.FrameHi"/>). VideoFrame downstream
+    /// picks the matching bitmap.
     /// </summary>
     private void RenderCurrentMode()
     {
         if (Mem.Mz700Mode)
             Video.Render(Mem.Vram, Mem.Aram);
+        else if (Mem.Is640BitmapMode)
+            Video.RenderBitmap640Mono(Mem.PlaneI, Mem.Palette, Mem.BorderColour);
         else
             Video.RenderBitmap(Mem.PlaneI, Mem.PlaneII, Mem.Palette, Mem.BorderColour);
     }

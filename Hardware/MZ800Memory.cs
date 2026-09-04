@@ -75,15 +75,20 @@ public sealed class MZ800Memory : IMemory
     // to this window with WF=$83 (REPLACE, Frame A, planes I+II) and
     // was silently absorbed by the old D_AllRam Ram[]-only path.
     //
-    // Sizing: 8 KB per plane covers 320×200 bitmap (8000 bytes) with
-    // headroom, and 640×200 (16000 bytes) via two-planes-per-scanline
-    // partitioning per tech-ref pp. 10-13. Frame A = planes I+II,
-    // Frame B = planes III+IV. Phase 5.5 renderer reads these to
-    // paint the display; 5.7 hardware-scroll retreads the addressing.
-    public byte[] PlaneI   = new byte[0x2000];
-    public byte[] PlaneII  = new byte[0x2000];
-    public byte[] PlaneIII = new byte[0x2000];
-    public byte[] PlaneIV  = new byte[0x2000];
+    // Sizing: 16 KB per plane. In 320×200 mode only the low 8 KB
+    // (8000 bytes = 40 cols × 200 rows) is used; the upper half sits
+    // idle. In 640×200 mode a single "plane" spans the full 16 KB
+    // CPU window ($8000-$BFFF) with display bytes interleaved
+    // even/odd across the two halves — even bytes at offset
+    // $0000-$1F3F, odd at $2000-$3F3F (tech-ref p. 15). Frame A =
+    // Plane I (+ Plane II when 320×200 4-colour); Frame B = Plane III
+    // (+ Plane IV when 320×200 4-colour). Phase 5.6 grew this from
+    // 8 KB so 640-mode CPU writes to $A000-$BFFF no longer drop off
+    // the end.
+    public byte[] PlaneI   = new byte[0x4000];
+    public byte[] PlaneII  = new byte[0x4000];
+    public byte[] PlaneIII = new byte[0x4000];
+    public byte[] PlaneIV  = new byte[0x4000];
 
     // Bank-configuration enum. Names follow the tech-ref diagram
     // letters (a,b,c,d). Extra configs the tech-ref table hints at
@@ -101,9 +106,9 @@ public sealed class MZ800Memory : IMemory
 
     /// <summary>
     /// Which display mode the machine is in. Set by DMD-register
-    /// writes at OUT ($CE),A — bit 3 of the value flips the mode
-    /// (DMD3=1 → MZ-700 mode, DMD3=0 → MZ-800 mode). See tech-ref
-    /// p. 17 Table-1.
+    /// writes at OUT ($CE),A — the DMD3+DMD2 field (mask $0C) selects
+    /// the mode: $00 = MZ-800 320×200, $04 = MZ-800 640×200, $08 =
+    /// MZ-700, $0C = prohibited. See tech-ref p. 17 Table-1.
     /// </summary>
     public bool Mz700Mode;
 
@@ -139,6 +144,26 @@ public sealed class MZ800Memory : IMemory
 
     /// <summary>Phase 5.2 companion to <see cref="SetWfRegister"/> for the RF register.</summary>
     public void SetRfRegister(byte value) => RfRegister = value;
+
+    /// <summary>
+    /// CRTC Display Mode register — full value from the last OUT ($CE),A.
+    /// Bit layout per tech-ref p. 17 Table-1:
+    ///   DMD3+DMD2 = combined mode/resolution field:
+    ///     00 → MZ-800 bitmap 320×200
+    ///     01 → MZ-800 bitmap 640×200
+    ///     10 → MZ-700 mode (40×25 char cells)
+    ///     11 → prohibited
+    ///   DMD1+DMD0 = combined frame/plane designation (see Table-1):
+    ///     for 320×200: 00 Frame A · 01 Frame B · 10 both (16-colour,
+    ///     32-KB VRAM only) · 11 prohibited
+    ///     for 640×200: 00 Frame A (Plane I) · 01 Frame B (Plane III,
+    ///     32-KB VRAM only) · 10 both (4-colour, 32-KB VRAM only) ·
+    ///     11 prohibited
+    /// Phase 5.6 wired the combined decode; Phase 5.0-5.5 had only
+    /// bit 3 acted on (which happened to be right for the two values
+    /// the IPL and BASIC actually write: $00 and $08).
+    /// </summary>
+    public byte DmdRegister;
 
     /// <summary>
     /// 4-entry pixel palette. Each byte holds a 4-bit IRGB code
@@ -237,10 +262,13 @@ public sealed class MZ800Memory : IMemory
     ///   0 → Frame A (planes I + II, enabled by D0/D1)
     ///   1 → Frame B (planes III + IV, enabled by D2/D3)
     ///
-    /// Address decode: plane offset = addr - $8000. Only the lower
-    /// 8000 bytes of the 16 KB window are meaningful for 320×200
-    /// (40 cols × 200 rows); writes past offset $1FFF are dropped
-    /// (Phase 5.6 revisits for 640×200).
+    /// Address decode: plane offset = addr - $8000. Full 16 KB window
+    /// ($8000-$BFFF) maps 1:1 to plane storage. In 320×200 only the
+    /// low $2000 bytes hold display data (40 cols × 200 rows = 8000);
+    /// in 640×200 the full $4000 bytes are populated, with the CRTC
+    /// treating $0000-$1F3F as even display bytes and $2000-$3F3F as
+    /// odd (see research/02-plane-layout.md for the fetch pattern
+    /// the renderer applies).
     ///
     /// Cold-boot fallback: WF=$00 decodes as SINGLE with no planes
     /// enabled — semantically a no-op. Fall back to REPLACE plane I
@@ -250,7 +278,7 @@ public sealed class MZ800Memory : IMemory
     private void WriteVideoPlane(ushort addr, byte value)
     {
         int offset = addr - 0x8000;
-        if (offset < 0 || offset >= 0x2000) return;
+        if (offset < 0 || offset >= 0x4000) return;
 
         if (WfRegister == 0) { PlaneI[offset] = value; return; }
 
@@ -321,7 +349,7 @@ public sealed class MZ800Memory : IMemory
     private byte ReadVideoPlane(ushort addr)
     {
         int offset = addr - 0x8000;
-        if (offset < 0 || offset >= 0x2000) return 0xFF;
+        if (offset < 0 || offset >= 0x4000) return 0xFF;
 
         if (RfRegister == 0) return PlaneI[offset];         // cold-boot fallback
         if ((RfRegister & 0x10) != 0) return 0xFF;          // SEARCH mode - deferred
@@ -524,18 +552,26 @@ public sealed class MZ800Memory : IMemory
     }
 
     /// <summary>
-    /// Set the display-mode bit from a DMD-register write. Called from
-    /// <see cref="Mz800IoBus"/> when the CPU does OUT ($CE),A. DMD bit
-    /// 3 (mask $08) selects the mode; the other bits control resolution
-    /// and frame selection which Phase 1 ignores.
+    /// Handle an OUT ($CE),A DMD-register write. Per tech-ref p. 17
+    /// Table-1 the top nibble carries two 2-bit fields:
+    ///   DMD3+DMD2 (mask $0C) — mode/resolution:
+    ///     $00 = MZ-800 bitmap 320×200
+    ///     $04 = MZ-800 bitmap 640×200
+    ///     $08 = MZ-700 mode
+    ///     $0C = prohibited
+    ///   DMD1+DMD0 (mask $03) — frame/plane designation (Table-1).
+    /// The full value is stashed in <see cref="DmdRegister"/> so the
+    /// renderer can inspect resolution and frame; this method acts on
+    /// the mode transition (MZ-800 ↔ MZ-700) and the associated bank
+    /// switch.
     ///
-    /// Flipping to MZ-700 mode also transitions the config to (b) if
-    /// we were in (a) — the tech-ref diagram shows this as the
-    /// first-step of the IPL's mode change.
+    /// Flipping into MZ-700 mode transitions bank config (a) → (b)
+    /// per tech-ref — the IPL's first mode-change step.
     /// </summary>
     public void SetDmdRegister(byte value)
     {
-        bool wantMz700 = (value & 0x08) != 0;
+        DmdRegister = value;
+        bool wantMz700 = (value & 0x0C) == 0x08;
         if (wantMz700 && !Mz700Mode)
         {
             Mz700Mode = true;
@@ -548,6 +584,12 @@ public sealed class MZ800Memory : IMemory
             // subsequent IN $E0-$E5 sequence.
         }
     }
+
+    /// <summary>
+    /// True when DMD selects MZ-800 640×200 bitmap mode (DMD3+DMD2 =
+    /// 01). Consumed by the renderer dispatch in <see cref="MZ800"/>.
+    /// </summary>
+    public bool Is640BitmapMode => (DmdRegister & 0x0C) == 0x04;
 
     public void LoadRom(byte[] rom)
     {
@@ -567,6 +609,7 @@ public sealed class MZ800Memory : IMemory
         Config = BankConfig.A_Power;
         WfRegister = 0;
         RfRegister = 0;
+        DmdRegister = 0;
         BorderColour = 0;
         Array.Clear(Palette,  0, Palette.Length);
         Array.Clear(PlaneI,   0, PlaneI.Length);

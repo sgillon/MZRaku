@@ -121,7 +121,10 @@ internal sealed class DumpTraceRecorder
             snapshot.Save(_dumpPath + ".png", System.Drawing.Imaging.ImageFormat.Png);
 
         if (_mz800 != null)
+        {
             SaveMz800TestPatternPng(_dumpPath + ".test.png");
+            SaveMz800Test640PatternPng(_dumpPath + ".test640.png");
+        }
     }
 
     /// <summary>
@@ -166,6 +169,51 @@ internal sealed class DumpTraceRecorder
             // Re-render so the live frame reflects the real (post-restore)
             // plane state, not the test pattern.
             _mz800.Video.RenderBitmap(mem.PlaneI, mem.PlaneII, mem.Palette, mem.BorderColour);
+        }
+    }
+
+    /// <summary>
+    /// Phase 5.6 companion: seed Plane I with a pattern that exercises
+    /// both bit-ordering (LSB-first) and the even/odd-bank decode of
+    /// 640-mode, render FrameHi, save, restore.
+    ///
+    /// Pattern: every EVEN display byte = $FF, every ODD display byte
+    /// = $00. On a correct decode that produces 8-pixel-wide vertical
+    /// bars alternating on/off across the full 640-pixel width. If
+    /// the even/odd decode is inverted you'd instead see one solid
+    /// on/off band per half-screen. If bit ordering is wrong the bar
+    /// widths would be off inside each 8-pixel group.
+    /// </summary>
+    private void SaveMz800Test640PatternPng(string path)
+    {
+        if (_mz800 == null) return;
+        var mem = _mz800.Mem;
+        var savedI = (byte[])mem.PlaneI.Clone();
+        try
+        {
+            // Even display bytes live at Plane I offset $0000-$1F3F,
+            // odd at $2000-$3F3F (tech-ref p. 15). 40 even bytes per
+            // row × 200 rows fills the low half; ditto for the high.
+            const int rowSpan = 40;
+            const int oddBase = 0x2000;
+            for (int y = 0; y < 200; y++)
+            {
+                int rowBaseEven = y * rowSpan;
+                int rowBaseOdd  = oddBase + y * rowSpan;
+                for (int c = 0; c < rowSpan; c++)
+                {
+                    mem.PlaneI[rowBaseEven + c] = 0xFF; // even display byte → all pixels on
+                    mem.PlaneI[rowBaseOdd  + c] = 0x00; // odd  display byte → all pixels off
+                }
+            }
+            _mz800.Video.RenderBitmap640Mono(mem.PlaneI, mem.Palette, mem.BorderColour);
+            using var snapshot = new System.Drawing.Bitmap(_mz800.Video.FrameHi);
+            snapshot.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+        }
+        finally
+        {
+            Array.Copy(savedI, mem.PlaneI, savedI.Length);
+            _mz800.Video.RenderBitmap640Mono(mem.PlaneI, mem.Palette, mem.BorderColour);
         }
     }
 

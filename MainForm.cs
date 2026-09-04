@@ -1137,9 +1137,13 @@ public sealed class MainForm : Form
     private void Display_Paint(object? sender, PaintEventArgs e)
     {
         // Machine-agnostic framebuffer pick via IMachine.VideoFrame
-        // (F-061). All three renderers back onto a 320×200 32bppArgb
-        // Bitmap so the downstream draw + scanline overlay code is
-        // identical.
+        // (F-061). MZ-700 + MZ-80A + MZ-800 320-mode/MZ-700-mode all
+        // hand back a 320×200 32bppArgb bitmap; MZ-800 640-mode hands
+        // back a 640×200 one. Scaling uses a fixed 320×200 reference
+        // area regardless of which bitmap came back — that matches how
+        // real MZ-800 CRT hardware paints 320-mode pixels 2× wide and
+        // 640-mode pixels at native density into the same physical
+        // display area.
         var frame = ((IMachine?)_machine ?? (IMachine?)_mz80a ?? _mz800)?.VideoFrame;
         if (frame == null)
         {
@@ -1151,11 +1155,13 @@ public sealed class MainForm : Form
         e.Graphics.SmoothingMode = SmoothingMode.None;
 
         var cr = _display.ClientRectangle;
-        float sx = (float)cr.Width / Video.PixelWidth;
-        float sy = (float)cr.Height / Video.PixelHeight;
+        const int RefWidth = Video.PixelWidth;   // 320 — the CRT's "column count" reference
+        const int RefHeight = Video.PixelHeight; // 200
+        float sx = (float)cr.Width / RefWidth;
+        float sy = (float)cr.Height / RefHeight;
         float scale = Math.Min(sx, sy);
-        int w = (int)(Video.PixelWidth * scale);
-        int h = (int)(Video.PixelHeight * scale);
+        int w = (int)(RefWidth * scale);
+        int h = (int)(RefHeight * scale);
         int x = (cr.Width - w) / 2;
         int y = (cr.Height - h) / 2;
         e.Graphics.DrawImage(frame, new Rectangle(x, y, w, h));

@@ -60,6 +60,15 @@ public sealed class Mz800Video
 
     public Bitmap Frame = new Bitmap(PixelWidth, PixelHeight, PixelFormat.Format32bppArgb);
 
+    // Phase 5.6 640×200 mono output. Kept as a second bitmap rather
+    // than resizing Frame so the existing 320-mode + MZ-700-mode paths
+    // stay byte-identical. MZ800.VideoFrame picks whichever matches
+    // the current DMD-selected resolution; MainForm scales from the
+    // returned bitmap's own Width/Height (mode-agnostic).
+    public const int HiPixelWidth = 640;
+    public const int HiPixelHeight = 200;
+    public Bitmap FrameHi = new Bitmap(HiPixelWidth, HiPixelHeight, PixelFormat.Format32bppArgb);
+
     /// <summary>
     /// Copy the 4 KB CG-ROM out of the combined MZ800.ROM into
     /// <see cref="FontRom"/>. Called from
@@ -237,6 +246,68 @@ public sealed class Mz800Video
         finally
         {
             Frame.UnlockBits(data);
+        }
+    }
+
+    /// <summary>
+    /// Phase 5.6 MZ-800-mode 640×200 1-colour renderer. Stock 16 KB
+    /// MZ-800 supports exactly two bitmap resolutions: 320×200 4-colour
+    /// (<see cref="RenderBitmap"/>) and 640×200 1-colour (this method).
+    /// 640×200 4-colour is a 32-KB-VRAM-option mode and out of scope.
+    ///
+    /// The hi-res mode packs 80 bytes per scanline × 200 rows =
+    /// 16000 bytes across a single 16 KB Plane I, interleaved
+    /// even/odd across the two halves per tech-ref p. 15:
+    ///   display byte index n = row×80 + col_byte
+    ///   n even → planeI[$0000 + n/2]     (n/2 in [0,  $1F40))
+    ///   n odd  → planeI[$2000 + (n-1)/2] (offset in [$2000, $3F40))
+    /// Simplified: n even offset = row×40 + col_byte/2;
+    /// n odd  offset = $2000 + row×40 + (col_byte-1)/2.
+    ///
+    /// Colour: each bit picks palette[0] (off) or palette[1] (on).
+    /// Palette entries 2 and 3 are unused in mono mode. Bit ordering
+    /// per byte matches 320-mode (LSB-first = leftmost pixel).
+    /// </summary>
+    public void RenderBitmap640Mono(byte[] planeI, byte[] palette, byte borderIrgb)
+    {
+        int cOff = IrgbToArgb(palette[0]);
+        int cOn  = IrgbToArgb(palette[1]);
+        int _ = IrgbToArgb(borderIrgb); // reserved: border painting arrives when FrameHi grows past 640×200
+
+        var rect = new Rectangle(0, 0, HiPixelWidth, HiPixelHeight);
+        var data = FrameHi.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            unsafe
+            {
+                int stride = data.Stride / 4;
+                int* pix = (int*)data.Scan0;
+                const int bytesPerRow = HiPixelWidth / 8; // 80 bytes per scanline
+                const int oddBankBase = 0x2000;
+                for (int y = 0; y < HiPixelHeight; y++)
+                {
+                    int evenRowBase = y * (bytesPerRow / 2);       // 40 bytes worth of even displayed indices
+                    int oddRowBase  = oddBankBase + y * (bytesPerRow / 2);
+                    int* rowPix = pix + y * stride;
+                    for (int c = 0; c < bytesPerRow; c++)
+                    {
+                        int planeAddr = ((c & 1) == 0)
+                            ? evenRowBase + (c >> 1)
+                            : oddRowBase  + (c >> 1);
+                        byte b = planeI[planeAddr];
+                        int pixX = c * 8;
+                        for (int bit = 0; bit < 8; bit++)
+                        {
+                            int mask = 1 << bit;
+                            rowPix[pixX + bit] = ((b & mask) != 0) ? cOn : cOff;
+                        }
+                    }
+                }
+            }
+        }
+        finally
+        {
+            FrameHi.UnlockBits(data);
         }
     }
 }
