@@ -1057,6 +1057,97 @@ walk had given a clean baseline.
   shipped. Same shape recommended for the Z80Core audit that
   follows (MZRaku becomes the constant that time).
 
+### v1.3.0 in progress — MZ-800 arc (2026-08-27 → )
+
+The main body of v1.3.0 is MZ-800 emulator support. Roadmap-swapped
+ahead of the v1.4 settings work at the start of the arc
+([[project-roadmap]] revision 2026-08-27).
+
+- **Phase 5 — MZ-800-mode bitmap video (SHIPPED)**
+  (2026-08-31 → 2026-09-04, `8c830b9` through `30c0928`,
+  10 commits). The largest of v1.3.0's phases: build the full
+  CRTC LSI substrate + both bitmap renderers + hardware scroll +
+  bidirectional mode-flip. Sub-phase-by-sub-phase discovery
+  approach with every finding written to a persistent research
+  doc under `_mz800info/MZ800_VideoRendering_Research/` (local-
+  only per [[feedback-local-dir-convention]]) so future
+  maintenance doesn't rely on memory replay.
+  - **5.0** `8c830b9` — diagnostic tracing (`VideoWriteLog` +
+    `CrtcWriteLog`) so we could see what BASIC and MC games
+    actually program the CRTC to do.
+  - **5.1** `9eedd27` — plane-oriented VRAM storage. Four
+    `byte[0x2000]` plane buffers (grown to `0x4000` in 5.6)
+    replace the "VRAM is DRAM" fiction. WriteVideoPlane routes
+    CPU writes to $8000-$BFFF through them.
+  - **5.2** `00f3367` — WF register write modes. All six
+    documented modes (SINGLE / XOR / OR / RESET / REPLACE /
+    PSET); PSET stubbed pending a colour-register model.
+    WF/RF ownership moved from Mz800IoBus to MZ800Memory.
+  - **5.3** `1bec8bb` — RF register + CRTC status IN with real
+    VBLK bit. SEARCH mode (RF D4=1) deferred.
+  - **5.4** `8a07a1e` — palette + border + IRGB→ARGB helper.
+    BRG wiring (matching MZ-700) with CGA-family intensity ramp.
+  - **5.5** `d08d8e1` — 320×200 4-colour Frame A renderer.
+    First proof-point: `.test.png` seeds planes with a 4-bar
+    pattern and renders through BASIC's palette →
+    black/blue/red/white bars appear pixel-perfect. Follow-up
+    `93009d2` adds a status-bar keyboard-scan diagnostic that
+    surfaced the root cause of BASIC's "no key echo": missing
+    PIT c0 → PIO PA4 interrupt (Phase 6/7 dependency, not a
+    renderer bug).
+  - **5.6** `74fa1b9` — 640×200 mono renderer + DMD register
+    decoding correction. The 5.0-5.5 code only acted on DMD
+    bit 3 (which happened to be right for BASIC/IPL but would
+    miss $04); real tech-ref p. 17 layout is DMD3+DMD2 as a
+    combined 2-bit field. Plane buffers grew 8 KB → 16 KB to
+    accommodate 640-mode's even/odd bank interleave (tech-ref
+    p. 15). Second bitmap `FrameHi` keeps 320-mode output
+    byte-identical.
+  - **5.7** `0e89f88` — hardware scroll (SOF full-screen).
+    SSA/SEA/SW captured but split-screen enforcement deferred
+    (no game in the sample needs it). Renderer per-row plane
+    fetch becomes `(Y + Sof/5) mod 200`. Live BASIC trace
+    confirms $04E9 programs the "no scroll" defaults.
+  - **5.8** `30c0928` — bidirectional mode-flip integration.
+    `SetDmdRegister` now symmetrically auto-flips config on the
+    MZ-700 → MZ-800 direction (B_Mz700/C_PcgWrite → A_Power)
+    mirroring the existing MZ-800 → MZ-700 auto-flip. Fixes
+    MC games that write DMD=$00 without a following IN
+    $E-sequence — their plane writes were previously vanishing.
+    New `ModeFlipLog` sink captures mode/config transitions.
+    Verified via Exploding Fist DirectInject: game's own DMD
+    write at PC=$5503 now correctly transitions cfg
+    B_Mz700→A_Power; frame-120 render shows a visible
+    "MICROSOFT" credit where pre-5.8 output was PCG garbage.
+  - **5.9** — MC-game verification pass. Loaded all 5 games in
+    `_mz800info/Machine code games/`, screenshotted, catalogued
+    behaviour. Findings (full in
+    `research/09-mc-game-rendering-paths.md`):
+    - **James** (MZ-700 game) renders its full title screen
+      pixel-perfectly.
+    - **Highway** shows a partial horizon-like game world.
+    - **Exploding Fist** boots to a Microsoft credit then
+      stalls (missing interrupt source).
+    - **G.P.S. program** programs an all-black palette
+      (`$00 $10 $20 $30`) — genuinely intentional; game hasn't
+      reached its "install real palette" phase.
+    - **Uridium** writes DMD=$02 (16-colour Frame A+B) — a
+      32-KB-VRAM-option mode we don't emulate. Only Plane I+II
+      content (a faint star field) is visible; sprites and HUD
+      live on Plane III+IV.
+    Only WF modes exercised across all 5 games: SINGLE and
+    REPLACE. PSET / XOR / OR / RESET / SEARCH-mode deferrals
+    all hold. Nothing exercised SSA/SEA/SW split-screen scroll.
+    No renderer bugs found; no code changes required.
+
+  What Phase 5 leaves behind: a persistent MZ-800 diagnostic
+  suite (`.png` + `.test.png` + `.test640.png` + `.testscroll.png`
+  under `--dump=`, plus `ModeFlipLog` in the `.trace`) that
+  survives into future sub-phase work. What it hands off: 3 of
+  5 MC games (and BASIC) stalled on a missing interrupt source,
+  which becomes Phase 6's kickoff task via a temporary PIT c0
+  → interrupt shim.
+
 ---
 
 ## Architectural decisions worth knowing
