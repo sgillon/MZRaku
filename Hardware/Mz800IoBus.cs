@@ -188,11 +188,21 @@ public sealed class Mz800IoBus : IIoBus
         {
             // Indirect CRTC register write. B register (in high byte of
             // port word per tech-ref p. 23) selects sub-register:
-            //   B=1 SOF1, B=2 SOF2, B=3 SW, B=4 SSA, B=5 SEA (Phase 5.7),
-            //   B=6 BCOL border colour (Phase 5.4 — wired now),
-            //   B=7 CKSW cursor/style (deferred).
+            //   B=1 SOF1 · B=2 SOF2 · B=3 SW · B=4 SSA · B=5 SEA (Phase 5.7)
+            //   B=6 BCOL border colour (Phase 5.4)
+            //   B=7 CKSW cursor/style (deferred — PCG cursor blink,
+            //       low priority)
             byte b = (byte)((port >> 8) & 0xFF);
-            if (b == 6) Memory.SetBorderColour(value);
+            switch (b)
+            {
+                case 1: Memory.SetSof1(value);       break;
+                case 2: Memory.SetSof2(value);       break;
+                case 3: Memory.SetSw(value);         break;
+                case 4: Memory.SetSsa(value);        break;
+                case 5: Memory.SetSea(value);        break;
+                case 6: Memory.SetBorderColour(value); break;
+                // B=0 and B=7+ silently drop (write-log still captures)
+            }
             LogCrtcWrite(p, value, b);
             return;
         }

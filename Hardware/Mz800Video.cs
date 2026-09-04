@@ -197,8 +197,15 @@ public sealed class Mz800Video
     /// image with a coloured border on an overscanned CRT area; if we
     /// later want to model that, grow Frame and paint BorderColour
     /// around a centred 320×200 active rect.
+    ///
+    /// Phase 5.7 added <paramref name="scrollLines"/> for hardware
+    /// vertical scroll: the plane row read for display row Y becomes
+    /// <c>(Y + scrollLines) mod 200</c>, giving a circular wrap. Pass
+    /// <c>Mem.Sof / 5</c> (tech-ref p. 10 §3 — SOF unit is 5 = 1
+    /// scanline). SSA/SEA windowing (split-screen scroll) is deferred
+    /// so the wrap always covers the full 200 rows.
     /// </summary>
-    public void RenderBitmap(byte[] planeI, byte[] planeII, byte[] palette, byte borderIrgb)
+    public void RenderBitmap(byte[] planeI, byte[] planeII, byte[] palette, byte borderIrgb, int scrollLines = 0)
     {
         // Resolve the 4-entry palette to ARGB once per frame.
         int c0 = IrgbToArgb(palette[0]);
@@ -206,6 +213,9 @@ public sealed class Mz800Video
         int c2 = IrgbToArgb(palette[2]);
         int c3 = IrgbToArgb(palette[3]);
         int _ = IrgbToArgb(borderIrgb); // reserved: border painting arrives when we grow Frame past 320×200
+
+        // Normalise scroll offset into [0, 200) so the modulo below is cheap
+        int scroll = ((scrollLines % PixelHeight) + PixelHeight) % PixelHeight;
 
         var rect = new Rectangle(0, 0, PixelWidth, PixelHeight);
         var data = Frame.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
@@ -218,7 +228,9 @@ public sealed class Mz800Video
                 const int bytesPerRow = PixelWidth / 8; // 40 bytes per scanline for 320 pixels
                 for (int y = 0; y < PixelHeight; y++)
                 {
-                    int rowBase = y * bytesPerRow;
+                    int planeRow = y + scroll;
+                    if (planeRow >= PixelHeight) planeRow -= PixelHeight;
+                    int rowBase = planeRow * bytesPerRow;
                     int* rowPix = pix + y * stride;
                     for (int col = 0; col < bytesPerRow; col++)
                     {
@@ -267,12 +279,19 @@ public sealed class Mz800Video
     /// Colour: each bit picks palette[0] (off) or palette[1] (on).
     /// Palette entries 2 and 3 are unused in mono mode. Bit ordering
     /// per byte matches 320-mode (LSB-first = leftmost pixel).
+    ///
+    /// Phase 5.7 added <paramref name="scrollLines"/> for hardware
+    /// scroll (same semantics as <see cref="RenderBitmap"/> — pass
+    /// <c>Mem.Sof / 5</c>). Wrap is at the full 200-scanline extent;
+    /// SSA/SEA windowing deferred.
     /// </summary>
-    public void RenderBitmap640Mono(byte[] planeI, byte[] palette, byte borderIrgb)
+    public void RenderBitmap640Mono(byte[] planeI, byte[] palette, byte borderIrgb, int scrollLines = 0)
     {
         int cOff = IrgbToArgb(palette[0]);
         int cOn  = IrgbToArgb(palette[1]);
         int _ = IrgbToArgb(borderIrgb); // reserved: border painting arrives when FrameHi grows past 640×200
+
+        int scroll = ((scrollLines % HiPixelHeight) + HiPixelHeight) % HiPixelHeight;
 
         var rect = new Rectangle(0, 0, HiPixelWidth, HiPixelHeight);
         var data = FrameHi.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
@@ -286,8 +305,10 @@ public sealed class Mz800Video
                 const int oddBankBase = 0x2000;
                 for (int y = 0; y < HiPixelHeight; y++)
                 {
-                    int evenRowBase = y * (bytesPerRow / 2);       // 40 bytes worth of even displayed indices
-                    int oddRowBase  = oddBankBase + y * (bytesPerRow / 2);
+                    int planeRow = y + scroll;
+                    if (planeRow >= HiPixelHeight) planeRow -= HiPixelHeight;
+                    int evenRowBase = planeRow * (bytesPerRow / 2);       // 40 bytes worth of even displayed indices
+                    int oddRowBase  = oddBankBase + planeRow * (bytesPerRow / 2);
                     int* rowPix = pix + y * stride;
                     for (int c = 0; c < bytesPerRow; c++)
                     {

@@ -203,6 +203,62 @@ public sealed class MZ800Memory : IMemory
     public void SetBorderColour(byte value) => BorderColour = (byte)(value & 0x0F);
 
     /// <summary>
+    /// Scroll registers (tech-ref pp. 10-11). CRTC uses these to
+    /// window and offset the plane addresses driven onto the display,
+    /// giving smooth vertical scroll and split-screen scroll windows
+    /// without the CPU having to memmove any VRAM. Programmed via
+    /// OUT ($CF),A with B=1..5.
+    ///
+    ///   <see cref="Ssa"/> B=4 (7-bit): scroll start address — top
+    ///                    of the scroll window in units of $5 (each
+    ///                    unit = 1 character row = 8 scanlines).
+    ///                    Range $0-$78; default $0.
+    ///   <see cref="Sea"/> B=5 (7-bit): scroll end address, same
+    ///                    units. Range $5-$7D; default $7D
+    ///                    (covers full 200 scanlines).
+    ///   <see cref="Sw"/>  B=3 (7-bit): scroll width = SEA - SSA.
+    ///                    Default $7D (whole display is one scroll
+    ///                    region). Constraint: SW &gt; SOF.
+    ///   <see cref="Sof"/> B=1 (SOF1, low 8 bits) + B=2 (SOF2, high
+    ///                    2 bits) — 10-bit scroll offset. Increment
+    ///                    $5 = shift display up by 1 scanline
+    ///                    (tech-ref §3 smooth-scroll example).
+    ///                    Range $0-$3E8; default $0.
+    ///
+    /// Phase 5.7 MVP: only SOF is fed into the renderers (both 320
+    /// and 640) as a full-screen circular scroll wrapping within the
+    /// full 200-scanline plane extent. SSA/SEA/SW are stored but not
+    /// yet used to define a windowed scroll region — that arrives
+    /// when either BASIC's split CONSOLE or an MC game (Uridium's
+    /// candidate) exercises it. See research/06-hardware-scroll.md.
+    /// </summary>
+    public byte Ssa = 0x00;
+    /// <inheritdoc cref="Ssa" />
+    public byte Sea = 0x7D;
+    /// <inheritdoc cref="Ssa" />
+    public byte Sw  = 0x7D;
+    /// <inheritdoc cref="Ssa" />
+    public ushort Sof;
+
+    /// <summary>OUT ($CF),A with B=4 — sets <see cref="Ssa"/>.</summary>
+    public void SetSsa(byte value) => Ssa = (byte)(value & 0x7F);
+    /// <summary>OUT ($CF),A with B=5 — sets <see cref="Sea"/>.</summary>
+    public void SetSea(byte value) => Sea = (byte)(value & 0x7F);
+    /// <summary>OUT ($CF),A with B=3 — sets <see cref="Sw"/>.</summary>
+    public void SetSw(byte value)  => Sw  = (byte)(value & 0x7F);
+
+    /// <summary>OUT ($CF),A with B=1 — sets the low 8 bits of
+    /// <see cref="Sof"/> (SOF7..SOF0), preserving SOF9..SOF8.</summary>
+    public void SetSof1(byte value)
+        => Sof = (ushort)((Sof & 0x0300) | value);
+
+    /// <summary>OUT ($CF),A with B=2 — sets the high 2 bits of
+    /// <see cref="Sof"/> (SOF9..SOF8, low bits of value), preserving
+    /// SOF7..SOF0.</summary>
+    public void SetSof2(byte value)
+        => Sof = (ushort)((Sof & 0x00FF) | ((value & 0x03) << 8));
+
+    /// <summary>
     /// Optional log sink (mirror of MZ700Memory.BankSwitchLog).
     /// Useful during Phase 1 bring-up to see the IPL's bank-switch
     /// sequence in the debugger.
@@ -611,6 +667,12 @@ public sealed class MZ800Memory : IMemory
         RfRegister = 0;
         DmdRegister = 0;
         BorderColour = 0;
+        // Scroll defaults per tech-ref p. 10 §2 — "no scroll" state
+        // that covers the full 200-scanline display.
+        Ssa = 0x00;
+        Sea = 0x7D;
+        Sw  = 0x7D;
+        Sof = 0x0000;
         Array.Clear(Palette,  0, Palette.Length);
         Array.Clear(PlaneI,   0, PlaneI.Length);
         Array.Clear(PlaneII,  0, PlaneII.Length);

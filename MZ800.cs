@@ -233,11 +233,19 @@ public sealed class MZ800 : MzMachineBase, IMachine
     private void RenderCurrentMode()
     {
         if (Mem.Mz700Mode)
+        {
             Video.Render(Mem.Vram, Mem.Aram);
-        else if (Mem.Is640BitmapMode)
-            Video.RenderBitmap640Mono(Mem.PlaneI, Mem.Palette, Mem.BorderColour);
+            return;
+        }
+        // SOF register increment $5 = shift display up by 1 scanline
+        // (tech-ref p. 10 §3). Renderer wraps within the full 200-row
+        // plane extent; SSA/SEA split-screen windowing is Phase 5.7
+        // follow-up work.
+        int scrollLines = Mem.Sof / 5;
+        if (Mem.Is640BitmapMode)
+            Video.RenderBitmap640Mono(Mem.PlaneI, Mem.Palette, Mem.BorderColour, scrollLines);
         else
-            Video.RenderBitmap(Mem.PlaneI, Mem.PlaneII, Mem.Palette, Mem.BorderColour);
+            Video.RenderBitmap(Mem.PlaneI, Mem.PlaneII, Mem.Palette, Mem.BorderColour, scrollLines);
     }
 
     protected override void AccumulatePit(int cpuCycles)

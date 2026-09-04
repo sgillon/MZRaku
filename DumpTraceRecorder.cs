@@ -124,6 +124,7 @@ internal sealed class DumpTraceRecorder
         {
             SaveMz800TestPatternPng(_dumpPath + ".test.png");
             SaveMz800Test640PatternPng(_dumpPath + ".test640.png");
+            SaveMz800TestScrollPng(_dumpPath + ".testscroll.png");
         }
     }
 
@@ -214,6 +215,54 @@ internal sealed class DumpTraceRecorder
         {
             Array.Copy(savedI, mem.PlaneI, savedI.Length);
             _mz800.Video.RenderBitmap640Mono(mem.PlaneI, mem.Palette, mem.BorderColour);
+        }
+    }
+
+    /// <summary>
+    /// Phase 5.7 scroll-verification pattern: seed 320-mode Plane I +
+    /// Plane II with the same 4-horizontal-bar pattern as .test.png,
+    /// then apply SOF = 250 (scrolls display up 50 scanlines = one
+    /// full bar), render, save, restore. Expected: the bars appear
+    /// cyclically rotated — top band (black) wraps to the bottom
+    /// instead of appearing at the top. Proves the renderer's SOF
+    /// path works end-to-end.
+    /// </summary>
+    private void SaveMz800TestScrollPng(string path)
+    {
+        if (_mz800 == null) return;
+        var mem = _mz800.Mem;
+        var savedI  = (byte[])mem.PlaneI.Clone();
+        var savedII = (byte[])mem.PlaneII.Clone();
+        ushort savedSof = mem.Sof;
+        try
+        {
+            const int bytesPerRow = 40;
+            for (int y = 0; y < 200; y++)
+            {
+                int rowBase = y * bytesPerRow;
+                int code = y / 50;
+                byte piBits = (code & 1) != 0 ? (byte)0xFF : (byte)0x00;
+                byte p2Bits = (code & 2) != 0 ? (byte)0xFF : (byte)0x00;
+                for (int col = 0; col < bytesPerRow; col++)
+                {
+                    mem.PlaneI[rowBase + col]  = piBits;
+                    mem.PlaneII[rowBase + col] = p2Bits;
+                }
+            }
+            // SOF unit is 5 scanlines. SOF=250 → shift up 50 scanlines
+            // = one full 4-band bar. Result: the bar order visibly
+            // rotates (black moves from top to bottom).
+            mem.Sof = 250;
+            _mz800.Video.RenderBitmap(mem.PlaneI, mem.PlaneII, mem.Palette, mem.BorderColour, mem.Sof / 5);
+            using var snapshot = new System.Drawing.Bitmap(_mz800.Video.Frame);
+            snapshot.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+        }
+        finally
+        {
+            Array.Copy(savedI,  mem.PlaneI,  savedI.Length);
+            Array.Copy(savedII, mem.PlaneII, savedII.Length);
+            mem.Sof = savedSof;
+            _mz800.Video.RenderBitmap(mem.PlaneI, mem.PlaneII, mem.Palette, mem.BorderColour, mem.Sof / 5);
         }
     }
 
