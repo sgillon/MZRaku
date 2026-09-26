@@ -37,6 +37,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
     public MZ800Memory Mem { get; } = new();
     public Ppi8255 Ppi = new();
     public Pit8253 Pit = new();
+    public Z80Pio Pio = new();
     public Mz800IoBus Io = new();
     public Mz800Video Video { get; } = new();
     public Mz800Keyboard Keyboard = new();
@@ -65,10 +66,12 @@ public sealed class MZ800 : MzMachineBase, IMachine
     public const int FramesPerSecond = 60;
     public const int CyclesPerFrame = (int)(CpuClockHz / FramesPerSecond);
 
-    // PIT input clocks — same values as MZ-700 for Phase 1. Refine
-    // when Phase 6 PSG wiring lands and we start measuring timing
-    // against sample MC games.
-    public const double PitC0InputHz = 895_000.0;
+    // PIT input clocks. C0 is CKMS = 17.7344 MHz ÷ 16 ≈ 1.108 MHz
+    // (tech-ref p. 28 "1.10 MHz"), i.e. exactly 5/16 of the CPU clock
+    // (17.7344 ÷ 5). Phase 6.0 corrected this from the MZ-700's
+    // 895 kHz — C0 now times BASIC's PIO interrupt, so its rate sets
+    // the ISR cadence (10928 counts ≈ 9.9 ms ≈ 101 Hz).
+    public const double PitC0InputHz = 1_108_400.0;
     public const double PitC2InputHz = 15_700.0;
 
     private int _pitC0Accum;
@@ -91,6 +94,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
         Io.Memory = Mem;
         Io.Sound = Sound;
         Io.Cpu = Cpu;
+        Io.Pio = Pio;
         Mem.IoBus = Io;
         Mem.Cpu = Cpu;
         Ppi.Keyboard = Keyboard;
@@ -122,6 +126,22 @@ public sealed class MZ800 : MzMachineBase, IMachine
         {
             if (Ppi.InterruptMask) Cpu.RequestInterrupt();
         };
+
+        // PIO interrupt (tech-ref p. 28): PIT OUT0 → inverter → PA4.
+        // The PIO supplies its programmed vector byte, which IM 2
+        // uses as the low byte of the vector-table address. BASIC's
+        // MUSIC/PSG sequencer ISR ($421A via $0FFC) hangs off this
+        // (Phase 6.0).
+        Pio.InterruptRequested += vector =>
+        {
+            if (Io.IntIoWriteLog != null)
+            {
+                ushort va = (ushort)((Cpu.I << 8) | vector);
+                ushort target = (ushort)(Mem.Read(va) | (Mem.Read((ushort)(va + 1)) << 8));
+                Io.LogIntIoNote($"  [PIO INT] PC=${Cpu.PC:X4} SP=${Cpu.SP:X4} IFF1={Cpu.IFF1} IM={Cpu.IM} vec=${va:X4} -> ${target:X4} bank={Mem.BankState}");
+            }
+            Cpu.RequestInterrupt(vector);
+        };
     }
 
     public void LoadRoms(string monitorRomPath, string? fontPath)
@@ -144,6 +164,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
         // reset vector at $0000 is `JP $E800`, which jumps into the
         // IPL and starts the mode-selection dance.
         Mem.ResetBankState();
+        Pio.Reset();
         // Clear cassette state so a stale Pending image doesn't get
         // served to the freshly-booting monitor's tape traps.
         Cassette.ResetTrapState();
@@ -250,18 +271,21 @@ public sealed class MZ800 : MzMachineBase, IMachine
 
     protected override void AccumulatePit(int cpuCycles)
     {
-        // Same rates as MZ-700 — the MZ-800 uses the same 8253 layout
-        // in MZ-700 mode. Phase 6 revisits when the PSG needs its
-        // own timer path.
-        _pitC0Accum += cpuCycles * 895;   // 895/3547 ≈ 0.2523 → 895 kHz
-        int c0 = _pitC0Accum / 3547;
-        _pitC0Accum -= c0 * 3547;
+        // C0 = CPU × 5/16 (1.108 MHz CKMS — see PitC0InputHz). C1 as
+        // MZ-700 (15.7 kHz HSYN).
+        _pitC0Accum += cpuCycles * 5;
+        int c0 = _pitC0Accum / 16;
+        _pitC0Accum -= c0 * 16;
 
         _pitC1Accum += cpuCycles * 157;   // 157/35469 ≈ 0.00443 → 15.7 kHz
         int c1 = _pitC1Accum / 35469;
         _pitC1Accum -= c1 * 35469;
 
         Pit.Tick(c0, c1);
+        // PA4 is the inverted OUT0. Sampled after every instruction so
+        // both terminal count and a CPU reload (mode 0 → OUT low) reach
+        // the PIO's edge detector.
+        Pio.SetPortAPin(4, !Pit.Counters[0].Out);
 
         // TEMP toggle — same shape as MZ-700's tempo bit. The MZ-800's
         // MZ-700-mode monitor polls $E008 bit 0 to time boot beep and
@@ -286,34 +310,35 @@ public sealed class MZ800 : MzMachineBase, IMachine
         // 42 KB payload's byte-0 is a standard Sharp jump table whose
         // first entry (`C3 F9 0E` at offset 0) is JP $0EF9, the BASIC
         // cold-boot handler. To land there the CPU has to see DRAM at
-        // $0000, not the MZ-700 monitor ROM that config B keeps mapped
-        // in there. Bank config D_AllRam (all 64 KB DRAM) does exactly
-        // that — it's the config the tech-ref specifies for BASIC use
-        // and is what IN ($E1) in MZ-800 mode selects (p. 5).
+        // $0000, not the MZ-700 monitor ROM (OUT $E0 below).
         //
         // Trap-driven LOAD via M/L or the IPL's C option also loads
-        // the binary but then 1Z-016B does JP <header exec = $0000>,
-        // which in config B reads ROM at $0000 (`JP $E800`) and
-        // restarts the IPL. That's the "load then boot menu again"
-        // behaviour we saw during Phase 4c bring-up. AutoLoadBasic
-        // skips that dance entirely: write to Ram[] directly, flip
-        // the banks, hand off to BASIC's own cold-boot at PC=$0000.
+        // the binary, but during Phase 4c bring-up 1Z-016B's
+        // JP <header exec = $0000> landed on the monitor ROM's
+        // `JP $E800` and restarted the IPL ("load then boot menu
+        // again"). That was before OUT $E0-$E6 banking existed
+        // (Phase 6.0), so the C path may work now — unverified.
+        // AutoLoadBasic skips that dance entirely: write to Ram[]
+        // directly, set the banks, hand off to BASIC's own cold-boot
+        // at PC=$0000.
         //
-        // The payload spans $0000-$A3F9 which stays safely below the
-        // VRAM window at $D000 — no chance of VRAM/ARAM corruption
-        // from these writes. Going via Ram[] rather than Mem.Write
-        // is still the right shape because current config B routes
-        // $E000-$E00F writes to the I/O bus and $E010+ to ROM shadow
-        // (both fine here since 1Z-016 doesn't cross those thresholds
-        // but preserves the "the loaded binary owns exactly what its
-        // header says it owns" contract).
+        // The payload spans $0000-$A3F9, which overlaps the MZ-800
+        // bitmap VRAM window ($8000-$9FFF) — writing straight to
+        // Ram[] puts it in DRAM regardless of the bank latches, the
+        // way the "loaded binary owns exactly what its header says"
+        // contract needs.
         for (int i = 0; i < CassetteTrapBase.HeaderSize; i++)
             Mem.Ram[CassetteTrapBase.HeaderBufferAddr + i] = img.Header[i];
         for (int i = 0; i < img.Data.Length; i++)
             Mem.Ram[img.LoadAddr + i] = img.Data[i];
 
+        // Hand over with the map BASIC runs in: MZ-800 mode, DRAM at
+        // $0000-$7FFF (OUT $E0) and $E000-$FFFF (OUT $E1), VRAM still
+        // at $8000. BASIC banks the ROM back in itself (OUT $E3 ...
+        // OUT $E1 around `JP $F4xx`) for IOCS calls.
         Mem.Mz700Mode = false;
-        Mem.Config = MZ800Memory.BankConfig.D_AllRam;
+        Mem.HandleBankOut(0x00);
+        Mem.HandleBankOut(0x01);
         Cpu.PC = img.ExecAddr; // = $0000 for 1Z-016
     }
 

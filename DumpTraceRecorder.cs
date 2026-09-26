@@ -73,7 +73,7 @@ internal sealed class DumpTraceRecorder
             {
                 var c0 = _mz800.Pit.Counters[0];
                 var c2 = _mz800.Pit.Counters[2];
-                _traceLog.AppendLine($"[F{bootFrames:D4}] PC=${_mz800.Cpu.PC:X4} SP=${_mz800.Cpu.SP:X4} IFF1={_mz800.Cpu.IFF1} cfg={_mz800.Mem.Config} mz700={_mz800.Mem.Mz700Mode} C0.rel={c0.Reload} run={c0.Running} out={c0.Out} C2.rel={c2.Reload} run={c2.Running} out={c2.Out} INTMSK={_mz800.Ppi.InterruptMask}");
+                _traceLog.AppendLine($"[F{bootFrames:D4}] PC=${_mz800.Cpu.PC:X4} SP=${_mz800.Cpu.SP:X4} IFF1={_mz800.Cpu.IFF1} IM={_mz800.Cpu.IM} I=${_mz800.Cpu.I:X2} bank={_mz800.Mem.BankState} mz700={_mz800.Mem.Mz700Mode} C0.rel={c0.Reload} run={c0.Running} out={c0.Out} C2.rel={c2.Reload} run={c2.Running} out={c2.Out} INTMSK={_mz800.Ppi.InterruptMask}");
             }
             else
             {
@@ -89,6 +89,10 @@ internal sealed class DumpTraceRecorder
                 AppendPcTrace();
                 AppendMz700WriteLogs();
                 File.WriteAllText(_dumpPath + ".trace", _traceLog.ToString());
+                // Phase 6.0: raw 64 KB DRAM image for offline
+                // disassembly of code software relocates at runtime
+                // (e.g. BASIC's high-RAM routines above the .mzf image).
+                if (_mz800 != null) File.WriteAllBytes(_dumpPath + ".ram", _mz800.Mem.Ram);
                 SaveVideoFramePng();
             }
             catch (Exception ex)
@@ -291,7 +295,7 @@ internal sealed class DumpTraceRecorder
         else if (_mz800 != null)
         {
             w.WriteLine($"PPI PortA=${_mz800.Ppi.PortA:X2} PortCOut=${_mz800.Ppi.PortCOut:X2} PortCIn=${_mz800.Ppi.PortCIn:X2}");
-            w.WriteLine($"Mem Config={_mz800.Mem.Config} Mz700Mode={_mz800.Mem.Mz700Mode}");
+            w.WriteLine($"Mem Bank={_mz800.Mem.BankState} Mz700Mode={_mz800.Mem.Mz700Mode}");
             w.WriteLine($"PIT C0.Reload={_mz800.Pit.Counters[0].Reload} C2.Reload={_mz800.Pit.Counters[2].Reload}");
             // Phase 2.5 spots: RAM at the LDIR destination ($C000),
             // and interrupt handler install at RAM $1038 (expected
@@ -432,6 +436,12 @@ internal sealed class DumpTraceRecorder
                 _traceLog.AppendLine();
                 _traceLog.AppendLine("DMD mode-flip log ($CE) — mode + config transitions only:");
                 _traceLog.Append(_mz800.Mem.ModeFlipLog);
+            }
+            if (_mz800.Io.IntIoWriteLog != null)
+            {
+                _traceLog.AppendLine();
+                _traceLog.AppendLine("PIO / PSG / PPI write log ($FC-$FF / $F2 / $D0-$D3):");
+                _traceLog.Append(_mz800.Io.IntIoWriteLog);
             }
         }
     }

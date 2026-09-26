@@ -1148,6 +1148,47 @@ ahead of the v1.4 settings work at the start of the arc
   which becomes Phase 6's kickoff task via a temporary PIT c0
   → interrupt shim.
 
+- **Phase 6.0 — PIO interrupt + bank-latch memory model (SHIPPED
+  2026-09-26).** The planned "temporary PIT c0 → interrupt shim"
+  became a real Z80 PIO model once a new PIO/PSG/PPI write log
+  showed exactly how BASIC programs it: port A mode 3, PA4 only,
+  active low, vector $FC, IM 2 with I=$0F → ISR at $421A. Two
+  findings reshaped the phase:
+  - **The PIO interrupt drives BASIC's MUSIC/PSG sequencer, not
+    its keyboard scan.** The ISR reloads PIT c0 each tick and
+    disables its own interrupt when no tune is playing. The
+    Phase 5.5 hypothesis ("interrupt-driven keyboard") was wrong.
+  - **The real BASIC blocker was memory banking.** MZ-800 banking
+    is mostly OUT $E0-$E6 (MZ-700-compatible ports, tech-ref
+    pp. 4-5) plus IN $E0/$E1 for CG-ROM/VRAM. We only modelled a
+    handful of IN-triggered whole-machine configs, so BASIC's
+    first ROM service call (`OUT ($E3),A` … `JP $F4xx` at $1517)
+    ran into empty DRAM. A PC-trace freeze on the first NOP sled
+    pinned it.
+
+  Shipped: `Hardware/Z80Pio.cs` (control-word decode, mode-3
+  logic equation, edge-triggered interrupt with programmed
+  vector); PIT OUT0 → inverted → PA4 wiring; PIT c0 clock
+  corrected to 1.108 MHz (CPU × 5/16, tech-ref p. 28);
+  `MZ800Memory` rebuilt around independent latches (ROM at
+  $0000, CG-ROM, VRAM, ROM at $E000, prohibit) with mode deciding
+  where VRAM appears, and the 320-mode $A000-$BFFF → DRAM note
+  honoured. The Phase 5.8 DMD config auto-flip is gone — latches
+  make it unnecessary. Z80Core gained `RequestInterrupt(byte
+  vector)` for IM 2 device vectors (sgillon/Z80Core). Diagnostics
+  added: `IntIoWriteLog` + `[PIO INT]` lines in `.trace`, raw
+  64 KB `.ram` image under `--dump=`, `IM`/`I`/`bank=` on the
+  per-frame trace line.
+
+  Result: `--mz800 --basic` boots to the 1Z-016 V1.0A banner and
+  Ready; typing and running a small program verified live.
+  Highway and Exploding Fist now reach their full title screens
+  (banking, not interrupts — neither enables PIO interrupts).
+  Uridium went from faint dots to black (still needs the 32-KB
+  VRAM option). Open: `RUN "AUTO RUN"` → `Dev. name error` at
+  BASIC boot; BASIC-side tape LOAD and the IPL "C" path for
+  BASIC untested.
+
 ---
 
 ## Architectural decisions worth knowing

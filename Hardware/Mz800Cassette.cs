@@ -52,7 +52,7 @@ public sealed class Mz800Cassette : CassetteTrapBase
     public ushort LastLoadAddr;
     public ushort LastSize;
     public bool LastWasMz700Mode;
-    public MZ800Memory.BankConfig LastConfig;
+    public string LastBankState = "";
 
     public override bool OnPreStep()
     {
@@ -96,11 +96,11 @@ public sealed class Mz800Cassette : CassetteTrapBase
             LastLoadAddr = loadAddr;
             LastSize = size;
             LastWasMz700Mode = _mem.Mz700Mode;
-            LastConfig = _mem.Config;
+            LastBankState = _mem.BankState;
 
             RaiseLoaded(
                 $"TRAP LOAD: {Pending!.Filename} exec=${execAddr:X4} load=${loadAddr:X4} size={size} " +
-                $"| ret=${LastDataRetPc:X4} mode={(_mem.Mz700Mode ? "MZ700" : "MZ800")} cfg={_mem.Config}");
+                $"| ret=${LastDataRetPc:X4} mode={(_mem.Mz700Mode ? "MZ700" : "MZ800")} bank={_mem.BankState}");
 
             // Clear delivered flags after Pending goes so a follow-up
             // Queue starts fresh. Same shape as MZ-700's Cassette.cs.

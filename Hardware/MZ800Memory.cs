@@ -5,41 +5,36 @@ namespace MZRaku.Hardware;
 
 /// <summary>
 /// Sharp MZ-800 memory + banking (per tech-ref pp. 3-5, 24). The
-/// MZ-800 has two operating modes, MZ-800 and MZ-700, plus a
-/// per-mode set of bank configurations selected by IN reads at
-/// I/O ports $E0-$E5 (data returned is discarded; the read is the
-/// trigger). The mode bit itself flips via OUT ($CE),A — bit 3 of
-/// the DMD register (see <see cref="Mz800IoBus"/>).
+/// MZ-800 has two operating modes, MZ-800 and MZ-700 — the mode flips
+/// via OUT ($CE),A (DMD register, see <see cref="SetDmdRegister"/>) —
+/// and a set of independent bank latches driven by the memory
+/// controller ports (tech-ref p. 4-5 "Memory Bank Control"):
 ///
-/// Full behaviour would need every one of the six-per-mode bank
-/// combinations from the tech-ref table on p. 4, but Phase 1 only
-/// wires the paths the cold-boot flow actually walks:
+///   port      MZ-700 mode                      MZ-800 mode
+///   OUT $E0   $0000-$7FFF → DRAM               same
+///   OUT $E1   $D000-$FFFF → DRAM               $E000-$FFFF → DRAM
+///   OUT $E2   $0000-$0FFF → monitor ROM        same
+///   OUT $E3   $D000-$FFFF → VRAM/key+timer/ROM $E000-$FFFF → monitor ROM
+///   OUT $E4   power-on map for the mode        power-on map for the mode
+///   OUT $E5   $D000-$FFFF prohibited           $E000-$FFFF prohibited
+///   OUT $E6   undo $E5                         undo $E5
+///   IN  $E0   CG-ROM at $1000, PCG at $C000    CG-ROM at $1000, VRAM at $8000
+///   IN  $E1   undo IN $E0                      undo IN $E0
 ///
-///   1. Power-on: config (a), MZ-800 mode. ROM at $0000-$0FFF (MZ-700
-///      monitor), CG-ROM at $1000-$1FFF, DRAM at $2000-$7FFF, VRAM at
-///      $8000-$BFFF (320×200 bitmap), DRAM $C000-$DFFF, MON (1Z-016B)
-///      at $E000-$FFFF. CPU boots at $0000 which is `JP $E800` —
-///      jumps into the MZ-800 IPL at ROM offset $2800.
+/// Modelled as four latches (<see cref="RomLow"/>, <see cref="CgRom"/>,
+/// <see cref="VramOn"/>, <see cref="RomHigh"/>) plus
+/// <see cref="Prohibited"/>; the current mode decides where VRAM
+/// appears ($8000-$BFFF bitmap planes in MZ-800 mode, $D000-$DFFF
+/// text/attribute VRAM + $E000-$E00F I/O in MZ-700 mode). Power-on
+/// has every latch set: MZ-700 monitor ROM at $0000, CG-ROM at $1000,
+/// VRAM, and the MZ-800 IPL/monitor (1Z-016B) at $E000 — the reset
+/// vector `JP $E800` lands in the IPL.
 ///
-///   2. IPL sets MZ-700 mode via OUT ($CE),A with A=$08 (DMD bit 3).
-///
-///   3. IPL flips to config (c) via IN ($E1),A — puts CG-ROM at
-///      $1000-$1FFF and VRAM (PCG area) at $D000-$DFFF, so the IPL
-///      can copy CG data into PCG.
-///
-///   4. IPL flips back to config (b) via IN ($E0),A — restores
-///      text/attribute VRAM at $D000-$D7FF/$D800-$DFFF, DRAM at
-///      $1000-$CFFF, I/O at $E000-$E00F, MON at $E010-$FFFF. CPU
-///      resumes the monitor at $0000.
-///
-///   5. Monitor writes the '*' prompt to VRAM at $D000.
-///
-/// So Phase 1 supports three configs — (a) at reset, (c) for the
-/// PCG copy, (b) for normal MZ-700-mode operation — plus DRAM-only
-/// config (d) which BASIC uses. The remaining transitions (IN $E2/$E3/
-/// $E4/$E5) get modeled well enough not to crash but aren't verified
-/// against a specific boot path yet. Phase 4 (BASIC + cassette) is
-/// the next flow that will exercise them.
+/// Phase 6.0 (2026-09-26) replaced the earlier four-config enum,
+/// which only reacted to IN $E0-$E6. BASIC calls its ROM services
+/// via `OUT ($E3),A` / `OUT ($E1),A` around a `JP $F4xx` (routine at
+/// $1517) — invisible to the enum model, so the first ROM call ran
+/// into empty DRAM.
 ///
 /// Underlying VRAM storage: real hardware has one 16 KB VRAM chip
 /// with different address decodes per mode (see tech-ref p. 13). For
@@ -90,19 +85,35 @@ public sealed class MZ800Memory : IMemory
     public byte[] PlaneIII = new byte[0x4000];
     public byte[] PlaneIV  = new byte[0x4000];
 
-    // Bank-configuration enum. Names follow the tech-ref diagram
-    // letters (a,b,c,d). Extra configs the tech-ref table hints at
-    // (e.g. after IN $E1 in MZ-800 mode) can be added when a specific
-    // boot path lands on them.
-    public enum BankConfig
-    {
-        A_Power,     // Power-on / after Reset (MZ-800 mode default)
-        B_Mz700,     // MZ-700-mode operating: ROM+DRAM+VRAM+IO+ROM
-        C_PcgWrite,  // MZ-700-mode PCG update: ROM+CGROM+DRAM+VRAM+ROM
-        D_AllRam,    // BASIC/user code: 64 KB DRAM (Phase 5.1: $8000-$BFFF routes to bitmap planes in MZ-800 mode)
-    }
+    // Bank latches — see the class comment for the port table.
+    /// <summary>$0000-$0FFF shows the MZ-700 monitor ROM (1Z-013B).</summary>
+    public bool RomLow = true;
+    /// <summary>$1000-$1FFF shows the CG-ROM (IN $E0 / IN $E1).</summary>
+    public bool CgRom = true;
+    /// <summary>VRAM is mapped: $8000-$BFFF planes (MZ-800 mode) or
+    /// $D000-$DFFF text/attribute VRAM (MZ-700 mode).</summary>
+    public bool VramOn = true;
+    /// <summary>$E000-$FFFF shows the MZ-800 IPL/monitor ROM (MZ-800
+    /// mode) or key/timer I/O + ROM (MZ-700 mode, from $E000).</summary>
+    public bool RomHigh = true;
+    /// <summary>OUT $E5 — the top block ($D000+ in MZ-700 mode, $E000+
+    /// in MZ-800 mode) is deselected until OUT $E6.</summary>
+    public bool Prohibited;
 
-    public BankConfig Config = BankConfig.A_Power;
+    /// <summary>Compact bank-state label for traces and logs.</summary>
+    public string BankState
+    {
+        get
+        {
+            var parts = new System.Collections.Generic.List<string>(5);
+            if (RomLow) parts.Add("ROM0");
+            if (CgRom) parts.Add("CG");
+            if (VramOn) parts.Add("VRAM");
+            if (RomHigh) parts.Add("ROMH");
+            if (Prohibited) parts.Add("PROH");
+            return parts.Count == 0 ? "DRAM" : string.Join("+", parts);
+        }
+    }
 
     /// <summary>
     /// Which display mode the machine is in. Set by DMD-register
@@ -294,22 +305,20 @@ public sealed class MZ800Memory : IMemory
     private const int ModeFlipLogCap = 1024;
 
     /// <summary>
-    /// Phase 5.1: does this address in the current mode/config route
-    /// through the bitmap-VRAM plane storage rather than DRAM? True
-    /// when the CPU is in MZ-800 mode and the address falls in the
-    /// $8000-$BFFF window. In MZ-700 mode this range is normal DRAM
-    /// (config B_Mz700 keeps VRAM at $D000-$DFFF instead).
-    ///
-    /// Applies to both A_Power and D_AllRam — the two MZ-800-mode
-    /// configs BASIC and the IPL land in. Our tech-ref comment on
-    /// D_AllRam said "VRAM windows disabled" but Phase 5.0 dump
-    /// analysis proved BASIC treats $8000-$BFFF as bitmap VRAM even
-    /// in D_AllRam. Since D_AllRam is where BASIC lives, plane
-    /// routing has to work there.
+    /// Does this address route through the bitmap-VRAM plane storage
+    /// rather than DRAM? MZ-800 mode with VRAM mapped: $8000-$BFFF in
+    /// 640×200 mode, $8000-$9FFF in 320×200 mode — tech-ref p. 4
+    /// NOTE: "In the case of 320 × 200 mode, contents of $8000-$9FFF
+    /// are transferred, instead, and those after $A000 are
+    /// transferred to DRAM."
     /// </summary>
     private bool RoutesToBitmapVram(ushort addr)
-        => !Mz700Mode && addr >= 0x8000 && addr <= 0xBFFF
-           && (Config == BankConfig.A_Power || Config == BankConfig.D_AllRam);
+        => !Mz700Mode && VramOn && addr >= 0x8000
+           && addr <= (Is640BitmapMode ? 0xBFFF : 0x9FFF);
+
+    // Top block the OUT $E5 "prohibited" latch deselects.
+    private bool InProhibitedBlock(ushort addr)
+        => Prohibited && addr >= (Mz700Mode ? 0xD000 : 0xE000);
 
     /// <summary>
     /// Phase 5.2 write path for the MZ-800-mode bitmap-VRAM window.
@@ -433,50 +442,25 @@ public sealed class MZ800Memory : IMemory
 
     public byte Read(ushort addr)
     {
-        switch (Config)
+        if (addr < 0x1000) return RomLow ? Rom[addr] : Ram[addr];       // MZ-700 monitor ROM
+        if (addr < 0x2000) return CgRom ? Rom[addr] : Ram[addr];        // CG-ROM
+        if (RoutesToBitmapVram(addr)) return ReadVideoPlane(addr);
+        if (addr < 0xD000) return Ram[addr];
+        if (InProhibitedBlock(addr)) return 0xFF;
+
+        if (Mz700Mode)
         {
-            case BankConfig.A_Power:
-                // MZ-800 mode power-on layout (tech-ref p. 3 config a)
-                if (addr < 0x1000) return Rom[addr];                    // MZ-700 monitor
-                if (addr < 0x2000) return Rom[addr];                    // CG ROM ($1000-$1FFF)
-                if (addr >= 0xE000) return Rom[0x2000 + (addr - 0xE000)]; // MZ-800 IPL/monitor (1Z-016B)
-                if (RoutesToBitmapVram(addr)) return ReadVideoPlane(addr);
-                return Ram[addr];                                       // DRAM elsewhere
-
-            case BankConfig.B_Mz700:
-                // MZ-700-mode operating layout (tech-ref p. 3 config b)
-                if (addr < 0x1000) return Rom[addr];                    // MZ-700 monitor
-                if (addr >= 0xD000 && addr <= 0xD7FF) return Vram[addr - 0xD000];
-                if (addr >= 0xD800 && addr <= 0xDFFF) return Aram[addr - 0xD800];
-                if (addr >= 0xE000 && addr <= 0xE00F)
-                    return IoBus?.MemIn(addr) ?? 0xFF;
-                if (addr >= 0xE010) return Rom[0x2000 + (addr - 0xE000)];
-                return Ram[addr];
-
-            case BankConfig.C_PcgWrite:
-                // MZ-700-mode PCG-update layout (tech-ref p. 3 config c).
-                // CG-ROM at $1000-$1FFF is visible; $D000-$DFFF still
-                // routes to VRAM/ARAM (same underlying buffers as (b))
-                // so the IPL's copy-from-$1000-to-$D000 loop lands in
-                // the buffers Phase 2's renderer will draw from.
-                if (addr < 0x1000) return Rom[addr];
-                if (addr < 0x2000) return Rom[addr];                    // CG-ROM window
-                if (addr >= 0xD000 && addr <= 0xD7FF) return Vram[addr - 0xD000];
-                if (addr >= 0xD800 && addr <= 0xDFFF) return Aram[addr - 0xD800];
-                if (addr >= 0xE000) return Rom[0x2000 + (addr - 0xE000)];
-                return Ram[addr];
-
-            case BankConfig.D_AllRam:
-                // All-DRAM layout (BASIC / large user code). ROM banked
-                // out entirely. Phase 5.1: the $8000-$BFFF window is
-                // routed through the bitmap-VRAM planes when in MZ-800
-                // mode — Phase 5.0 dump analysis proved BASIC treats it
-                // as bitmap VRAM even here (not "disabled" as originally
-                // documented). MZ-700 mode inside D_AllRam still sees
-                // $8000-$BFFF as DRAM.
-                if (RoutesToBitmapVram(addr)) return ReadVideoPlane(addr);
-                return Ram[addr];
+            if (addr < 0xE000)
+            {
+                if (!VramOn) return Ram[addr];
+                return addr < 0xD800 ? Vram[addr - 0xD000] : Aram[addr - 0xD800];
+            }
+            if (!RomHigh) return Ram[addr];
+            if (addr <= 0xE00F) return IoBus?.MemIn(addr) ?? 0xFF;      // key / timer
+            return Rom[0x2000 + (addr - 0xE000)];
         }
+
+        if (addr >= 0xE000 && RomHigh) return Rom[0x2000 + (addr - 0xE000)]; // MZ-800 IPL/monitor (1Z-016B)
         return Ram[addr];
     }
 
@@ -494,131 +478,101 @@ public sealed class MZ800Memory : IMemory
             ushort pc = Cpu != null ? Cpu.PC : (ushort)0;
             byte wf = WfRegister;
             VideoWriteLog.AppendLine(
-                $"PC=${pc:X4} W ${addr:X4}=${value:X2} cfg={Config} " +
+                $"PC=${pc:X4} W ${addr:X4}=${value:X2} bank={BankState} " +
                 $"mode={(Mz700Mode ? "MZ700" : "MZ800")} WF=${wf:X2}");
             if (_videoWriteLogEntries == VideoWriteLogCap)
                 VideoWriteLog.AppendLine($"[...cap {VideoWriteLogCap} entries, further writes suppressed]");
         }
 
-        // Writes to the ROM window always land in RAM beneath (same
-        // pattern as MZ-700 / MZ-80A — the ROM is read-only and RAM
-        // captures the writes for the future all-RAM state).
-        switch (Config)
+        // Writes to a ROM window land in the DRAM beneath (same pattern
+        // as MZ-700 / MZ-80A — the ROM is read-only and DRAM captures
+        // the writes for when the ROM is banked out).
+        if (RoutesToBitmapVram(addr)) { WriteVideoPlane(addr, value); return; }
+        if (addr < 0xD000) { Ram[addr] = value; return; }
+        if (InProhibitedBlock(addr)) return;
+
+        if (Mz700Mode && VramOn && addr < 0xE000)
         {
-            case BankConfig.A_Power:
-                if (RoutesToBitmapVram(addr)) { WriteVideoPlane(addr, value); return; }
-                if (addr >= 0xE000)
-                {
-                    // MZ-800 mode: writes to $E000-$FFFF go to RAM
-                    // beneath the MON-ROM.
-                    Ram[addr] = value;
-                    return;
-                }
-                Ram[addr] = value;
-                return;
-
-            case BankConfig.B_Mz700:
-                if (addr < 0x1000) { Ram[addr] = value; return; }        // ROM shadow
-                if (addr >= 0xD000 && addr <= 0xD7FF) { Vram[addr - 0xD000] = value; return; }
-                if (addr >= 0xD800 && addr <= 0xDFFF) { Aram[addr - 0xD800] = value; return; }
-                if (addr >= 0xE000 && addr <= 0xE00F) { IoBus?.MemOut(addr, value); return; }
-                if (addr >= 0xE010) { Ram[addr] = value; return; }       // ROM shadow
-                Ram[addr] = value;
-                return;
-
-            case BankConfig.C_PcgWrite:
-                if (addr < 0x1000) { Ram[addr] = value; return; }
-                if (addr >= 0x1000 && addr < 0x2000) { Ram[addr] = value; return; } // CG-ROM shadow
-                if (addr >= 0xD000 && addr <= 0xD7FF) { Vram[addr - 0xD000] = value; return; }
-                if (addr >= 0xD800 && addr <= 0xDFFF) { Aram[addr - 0xD800] = value; return; }
-                if (addr >= 0xE000) { Ram[addr] = value; return; }       // ROM shadow
-                Ram[addr] = value;
-                return;
-
-            case BankConfig.D_AllRam:
-                if (RoutesToBitmapVram(addr)) { WriteVideoPlane(addr, value); return; }
-                Ram[addr] = value;
-                return;
+            if (addr < 0xD800) Vram[addr - 0xD000] = value;
+            else Aram[addr - 0xD800] = value;
+            return;
         }
+        if (Mz700Mode && RomHigh && addr <= 0xE00F) { IoBus?.MemOut(addr, value); return; }
+        Ram[addr] = value;
     }
 
     /// <summary>
-    /// Handle a bank-switch trigger from an IN ($E0-$E5) read. Command
-    /// is the low nibble (0-5). The full tech-ref table (p. 4) has
-    /// per-mode entries for each command; Phase 1 wires the boot-path
-    /// transitions and stubs the rest so unknown commands are visible
-    /// in the log rather than silently corrupting state.
-    ///
-    /// Boot-path transitions this method handles (tech-ref p. 5,
-    /// "Memory Bank Control" table for IN reads):
-    ///   $E0  MZ-700 mode: → (c)  — expose CG-ROM at $1000, PCG VRAM at $C000
-    ///   $E1  MZ-700 mode: → (b)  — restore DRAM at $1000 and $C000
-    ///   $E1  MZ-800 mode: → (d)  — all DRAM (used by BASIC per feasibility)
-    ///   $E4  either mode: → default  — power-on-like restore
+    /// OUT ($E0-$E6) bank control — tech-ref p. 4-5. <paramref name="cmd"/>
+    /// is the port's low nibble. See the class comment for the table.
+    /// </summary>
+    public void HandleBankOut(byte cmd)
+    {
+        string prev = BankState;
+        switch (cmd)
+        {
+            case 0x00: RomLow = false; CgRom = false; break;           // $0000-$7FFF → DRAM
+            case 0x01:                                                 // top block → DRAM
+                RomHigh = false;
+                if (Mz700Mode) VramOn = false;                         // MZ-700: $D000-$FFFF
+                break;
+            case 0x02: RomLow = true; break;                           // monitor ROM at $0000
+            case 0x03:                                                 // top block → ROM (+VRAM/IO)
+                RomHigh = true;
+                if (Mz700Mode) VramOn = true;
+                break;
+            case 0x04:                                                 // power-on map
+                RomLow = true; RomHigh = true; VramOn = true;
+                CgRom = !Mz700Mode;                                    // MZ-700: $1000-$CFFF DRAM
+                break;
+            case 0x05: Prohibited = true; break;
+            case 0x06: Prohibited = false; break;
+        }
+        LogBank($"OUT ${0xE0 + cmd:X2}", prev);
+    }
+
+    /// <summary>
+    /// IN ($E0/$E1) bank control — tech-ref p. 5. The read is the
+    /// trigger; the data returned is discarded. IN $E0 maps the CG-ROM
+    /// at $1000-$1FFF (the IPL copies it into PCG this way) and, in
+    /// MZ-800 mode, VRAM at $8000; IN $E1 undoes both. The tech-ref
+    /// defines no IN behaviour for $E2-$E6.
     ///
     /// Phase 2.5 fix (2026-08-28): $E0 and $E1 were swapped, causing
     /// the IPL's LDIR at $E8B4 to copy from DRAM (zeros) instead of
     /// CG-ROM, and — worse — the subsequent CALL $001B (GETL) ran
-    /// with the stack ($10DE-$10F0) inside the CG-ROM window, so
-    /// every RET popped a font byte as the return address and
-    /// re-entered the MZ-700 monitor's cold-boot init at $007C in a
-    /// tight infinite loop. Swapping the two lines fixes both.
+    /// with the stack ($10DE-$10F0) inside the CG-ROM window.
     /// </summary>
-    public void HandleBankSwitch(byte cmd)
+    public void HandleBankIn(byte cmd)
     {
-        var prev = Config;
-        var prevMode = Mz700Mode;
-
+        string prev = BankState;
         switch (cmd)
         {
-            case 0x00:  // $E0
-                // MZ-700 mode: expose CG-ROM at $1000, VRAM (PCG) at $C000
-                // so the IPL's LDIR at $E8B4 copies CG-ROM into PCG.
-                if (Mz700Mode) Config = BankConfig.C_PcgWrite;
-                // In MZ-800 mode, $E0 puts DRAM at $0000-$7FFF per the
-                // tech-ref table. Not on a Phase-1 boot path; log only.
+            case 0x00:
+                CgRom = true;
+                if (!Mz700Mode) VramOn = true;
                 break;
-            case 0x01:  // $E1
-                // MZ-700 mode: revert the $E0 CG-ROM windowing — $1000
-                // and $C000 return to DRAM. Stack works normally again.
-                // MZ-800 mode: full DRAM (used by BASIC per feasibility).
-                if (Mz700Mode) Config = BankConfig.B_Mz700;
-                else Config = BankConfig.D_AllRam;
-                break;
-            case 0x02:  // $E2
-                // MON-ROM back at $0000-$0FFF only. On the boot path we
-                // start with ROM already visible, so this is a no-op
-                // relative to config (b)/(c).
-                if (Mz700Mode && Config == BankConfig.D_AllRam)
-                    Config = BankConfig.B_Mz700;
-                break;
-            case 0x03:  // $E3
-                // MZ-700 mode: put VRAM+MON back at $D000-$FFFF.
-                // Effectively means "back to config (b)".
-                if (Mz700Mode) Config = BankConfig.B_Mz700;
-                break;
-            case 0x04:  // $E4
-                // Default power-on-like restore for the current mode.
-                Config = Mz700Mode ? BankConfig.B_Mz700 : BankConfig.A_Power;
-                break;
-            case 0x05:  // $E5
-                // Tech-ref lists this as "prohibited" in both modes.
-                // Silent no-op; log so an accidental hit surfaces.
-                break;
-            case 0x06:  // $E6
-                // "Return to state before prohibited" — treat as no-op
-                // for Phase 1.
+            case 0x01:
+                CgRom = false;
+                if (!Mz700Mode) VramOn = false;
                 break;
         }
+        LogBank($"IN ${0xE0 + cmd:X2}", prev);
+    }
 
-        if (BankSwitchLog != null && (prev != Config || prevMode != Mz700Mode))
-        {
-            ushort pc = Cpu != null ? Cpu.PC : (ushort)0;
-            BankSwitchLog.AppendLine(
-                $"PC=${pc:X4} IN ${(0xE0 + cmd):X2} " +
-                $"mode={(prevMode ? "MZ700" : "MZ800")}→{(Mz700Mode ? "MZ700" : "MZ800")} " +
-                $"cfg={prev}→{Config}");
-        }
+    private int _bankLogEntries;
+    private const int BankLogCap = 4096;
+
+    private void LogBank(string op, string prev)
+    {
+        if (BankSwitchLog == null || _bankLogEntries >= BankLogCap) return;
+        string now = BankState;
+        if (now == prev) return;
+        _bankLogEntries++;
+        ushort pc = Cpu != null ? Cpu.PC : (ushort)0;
+        BankSwitchLog.AppendLine(
+            $"PC=${pc:X4} {op} mode={(Mz700Mode ? "MZ700" : "MZ800")} bank={prev}→{now}");
+        if (_bankLogEntries == BankLogCap)
+            BankSwitchLog.AppendLine($"[...cap {BankLogCap} entries, further switches suppressed]");
     }
 
     /// <summary>
@@ -631,60 +585,36 @@ public sealed class MZ800Memory : IMemory
     ///     $0C = prohibited
     ///   DMD1+DMD0 (mask $03) — frame/plane designation (Table-1).
     /// The full value is stashed in <see cref="DmdRegister"/> so the
-    /// renderer can inspect resolution and frame; this method acts on
-    /// the mode transition (MZ-800 ↔ MZ-700) and the associated bank
-    /// switch.
+    /// renderer can inspect resolution and frame; this method tracks
+    /// the MZ-700 ↔ MZ-800 mode transition.
     ///
-    /// Phase 5.8 makes the config auto-flip symmetric (see
-    /// research/08-mode-flip.md for the full rationale):
-    ///   • MZ-800 → MZ-700: if Config==A_Power → B_Mz700. Matches
-    ///     the IPL's first mode-change step (tech-ref implicit).
-    ///   • MZ-700 → MZ-800: if Config==B_Mz700 or C_PcgWrite →
-    ///     A_Power. Mirrors the above so an MC game that writes
-    ///     DMD=$00 without a subsequent IN $E-sequence still gets
-    ///     plane routing on $8000-$BFFF (which is where MZ-800
-    ///     software expects to draw). Not strict hardware fidelity
-    ///     — real DMD and bank switch are independent — but the
-    ///     other direction wasn't either, and this convention
-    ///     matches what MZ-800 software relies on in practice.
+    /// Bank latches are independent of DMD — the current mode only
+    /// changes where a mapped VRAM appears ($D000 vs $8000). Phase 5.8
+    /// added a config "auto-flip" here because the old four-config
+    /// enum had MZ-700-only configs that dropped plane writes after a
+    /// switch to MZ-800 mode; with latches (Phase 6.0) a DMD=$00 write
+    /// routes $8000 to the planes whenever VRAM is mapped, so the
+    /// auto-flip is gone. See research/08-mode-flip.md.
     ///
-    /// If <see cref="ModeFlipLog"/> is populated, every actual
-    /// mode transition (with or without auto-flip) is captured
-    /// there for diagnostic replay.
+    /// If <see cref="ModeFlipLog"/> is populated, every actual mode
+    /// transition is captured there for diagnostic replay.
     /// </summary>
     public void SetDmdRegister(byte value)
     {
         var prevMode = Mz700Mode;
-        var prevConfig = Config;
         ushort pc = Cpu != null ? Cpu.PC : (ushort)0;
 
         DmdRegister = value;
-        bool wantMz700 = (value & 0x0C) == 0x08;
-        if (wantMz700 && !Mz700Mode)
-        {
-            Mz700Mode = true;
-            if (Config == BankConfig.A_Power) Config = BankConfig.B_Mz700;
-        }
-        else if (!wantMz700 && Mz700Mode)
-        {
-            Mz700Mode = false;
-            // Symmetric auto-flip — see docstring above. B_Mz700
-            // and C_PcgWrite are MZ-700-mode-only configs; leaving
-            // them active while Mz700Mode=false silently drops
-            // plane writes into DRAM. D_AllRam is intentionally
-            // preserved (BASIC path).
-            if (Config == BankConfig.B_Mz700 || Config == BankConfig.C_PcgWrite)
-                Config = BankConfig.A_Power;
-        }
+        Mz700Mode = (value & 0x0C) == 0x08;
 
-        if (ModeFlipLog != null && (prevMode != Mz700Mode || prevConfig != Config)
+        if (ModeFlipLog != null && prevMode != Mz700Mode
             && _modeFlipLogEntries < ModeFlipLogCap)
         {
             _modeFlipLogEntries++;
             ModeFlipLog.AppendLine(
                 $"PC=${pc:X4} OUT ($CE),${value:X2}  " +
                 $"mode={(prevMode ? "MZ700" : "MZ800")}→{(Mz700Mode ? "MZ700" : "MZ800")}  " +
-                $"cfg={prevConfig}→{Config}");
+                $"bank={BankState}");
             if (_modeFlipLogEntries == ModeFlipLogCap)
                 ModeFlipLog.AppendLine($"[...cap {ModeFlipLogCap} entries, further transitions suppressed]");
         }
@@ -703,15 +633,16 @@ public sealed class MZ800Memory : IMemory
     }
 
     /// <summary>
-    /// Restore power-on state — MZ-800 mode, config (a), and blank
-    /// bitmap planes. Phase 5.1 added the plane-clear so a Reset
-    /// gives a defined black display in MZ-800 mode instead of
-    /// carrying pre-reset plane data forward.
+    /// Restore power-on state — MZ-800 mode, every bank latch set
+    /// (the OUT $E4 map), and blank bitmap planes. Phase 5.1 added the
+    /// plane-clear so a Reset gives a defined black display in MZ-800
+    /// mode instead of carrying pre-reset plane data forward.
     /// </summary>
     public void ResetBankState()
     {
         Mz700Mode = false;
-        Config = BankConfig.A_Power;
+        RomLow = CgRom = VramOn = RomHigh = true;
+        Prohibited = false;
         WfRegister = 0;
         RfRegister = 0;
         DmdRegister = 0;

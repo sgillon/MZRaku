@@ -25,14 +25,15 @@ namespace MZRaku.Hardware;
 ///   $F0     IN    joystick 1
 ///   $F1     IN    joystick 2
 ///   $F2     OUT   SN76489 PSG (write-only)
-///   $FC-$FF       Z80 PIO (printer + joystick strobes)
+///   $FC-$FF       Z80 PIO ($FC/$FD control A/B, $FE/$FF data A/B;
+///                 PA4 = inverted PIT OUT0 → timer interrupt)
 ///
-/// Phase 1 status: PPI + PIT are hot-wired in both mode dispatches;
-/// IN $E0-$E5 side-effects call <see cref="MZ800Memory.HandleBankSwitch"/>;
-/// OUT $CE dispatches to <see cref="MZ800Memory.SetDmdRegister"/>.
-/// CRTC other registers, palette, PSG, PIO, and joystick I/O are all
-/// stubbed — writes accepted-and-dropped, reads return $FF. Those
-/// come online with their respective phases (5, 5, 6, 7, 7).
+/// Status: PPI + PIT hot-wired in both mode dispatches; OUT $E0-$E6
+/// and IN $E0/$E1 drive the bank latches (<see cref="MZ800Memory.HandleBankOut"/>
+/// / <see cref="MZ800Memory.HandleBankIn"/>); CRTC + palette wired
+/// (Phase 5); PIO control/data wired (Phase 6.0). PSG writes are
+/// logged but not yet synthesised (Phase 6); joystick reads return
+/// $FF (Phase 7).
 /// </summary>
 public sealed class Mz800IoBus : IIoBus
 {
@@ -41,6 +42,7 @@ public sealed class Mz800IoBus : IIoBus
     public MZ800Memory Memory = null!;
     public Sound Sound = null!;
     public Z80Cpu Cpu = null!;
+    public Z80Pio Pio = null!;
 
     // WF/RF ownership moved to MZ800Memory in Phase 5.2 and DMD
     // followed in Phase 5.6 (the renderer needs the raw byte now to
@@ -71,6 +73,31 @@ public sealed class Mz800IoBus : IIoBus
             CrtcWriteLog.AppendLine($"PC=${pc:X4} OUT (${port:X2}),${value:X2}");
         if (_crtcWriteLogEntries == CrtcWriteLogCap)
             CrtcWriteLog.AppendLine($"[...cap {CrtcWriteLogCap} entries, further writes suppressed]");
+    }
+
+    /// <summary>
+    /// Optional log sink for PIO ($FC-$FF), PSG ($F2) and PPI
+    /// ($D0-$D3 port-space) writes. Phase 6.0 diagnostic to capture
+    /// how software sets up the interrupt path (PIO vector + control
+    /// words, PPI PC0/PC2 mask bits) before we wire it. Populated only
+    /// when --dump= is active. Capped at 4096 entries.
+    /// </summary>
+    public System.Text.StringBuilder? IntIoWriteLog;
+    private int _intIoWriteLogEntries;
+    private const int IntIoWriteLogCap = 4096;
+
+    private void LogIntIoWrite(byte port, byte value)
+        => LogIntIoNote($"PC=${Cpu.PC:X4} OUT (${port:X2}),${value:X2}  IM={Cpu.IM} I=${Cpu.I:X2}");
+
+    /// <summary>Append a free-form line (e.g. an interrupt request) to
+    /// <see cref="IntIoWriteLog"/>, sharing its cap.</summary>
+    public void LogIntIoNote(string line)
+    {
+        if (IntIoWriteLog == null || _intIoWriteLogEntries >= IntIoWriteLogCap) return;
+        _intIoWriteLogEntries++;
+        IntIoWriteLog.AppendLine(line);
+        if (_intIoWriteLogEntries == IntIoWriteLogCap)
+            IntIoWriteLog.AppendLine($"[...cap {IntIoWriteLogCap} entries, further writes suppressed]");
     }
 
     /// <summary>
@@ -115,18 +142,18 @@ public sealed class Mz800IoBus : IIoBus
     }
 
     /// <summary>
-    /// Z80 IN port — routed per tech-ref p. 6. Reads from $E0-$E5
-    /// carry the memory-bank-switch side effect; the returned byte
-    /// value is discarded by the CPU idiom `LD A,(nn)`.
+    /// Z80 IN port — routed per tech-ref p. 6. Reads from $E0/$E1
+    /// carry the CG-ROM / VRAM bank-switch side effect; the returned
+    /// byte is discarded.
     /// </summary>
     public byte In(ushort port)
     {
         byte p = (byte)(port & 0xFF);
 
-        // Memory bank control ($E0-$E5 trigger; $E6 return-to-previous).
+        // Memory bank control (IN $E0/$E1; $E2-$E6 undefined for IN).
         if (p >= 0xE0 && p <= 0xE6)
         {
-            Memory.HandleBankSwitch((byte)(p - 0xE0));
+            Memory.HandleBankIn((byte)(p - 0xE0));
             return 0xFF;
         }
 
@@ -153,9 +180,10 @@ public sealed class Mz800IoBus : IIoBus
         // return $FF (all lines high = nothing pressed).
         if (p == 0xF0 || p == 0xF1) return 0xFF;
 
-        // Z80 PIO ($FC-$FF). Phase 7 wires this properly; for now
-        // return $FF so any polling loop sees "printer not ready".
-        if (p >= 0xFC && p <= 0xFF) return 0xFF;
+        // Z80 PIO data ports ($FE port A, $FF port B). Control ports
+        // ($FC/$FD) are write-only.
+        if (p == 0xFE || p == 0xFF) return Pio.ReadData(p == 0xFF);
+        if (p == 0xFC || p == 0xFD) return 0xFF;
 
         return 0xFF;
     }
@@ -170,8 +198,11 @@ public sealed class Mz800IoBus : IIoBus
     {
         byte p = (byte)(port & 0xFF);
 
+        // Memory bank control (OUT $E0-$E6, tech-ref p. 4-5).
+        if (p >= 0xE0 && p <= 0xE6) { Memory.HandleBankOut((byte)(p - 0xE0)); return; }
+
         // 8255 PPI in MZ-800 mode ($D0-$D3).
-        if (p >= 0xD0 && p <= 0xD3) { Ppi.Write(p - 0xD0, value); return; }
+        if (p >= 0xD0 && p <= 0xD3) { Ppi.Write(p - 0xD0, value); LogIntIoWrite(p, value); return; }
         // 8253 PIT in MZ-800 mode ($D4-$D7).
         if (p >= 0xD4 && p <= 0xD7) { Pit.Write(p - 0xD4, value); return; }
 
@@ -213,10 +244,17 @@ public sealed class Mz800IoBus : IIoBus
         if (p == 0xF0) { Memory.WritePalette(value); LogCrtcWrite(p, value, 0); return; }
 
         // SN76489 PSG ($F2 OUT). Phase 6 wires this.
-        if (p == 0xF2) return;
+        if (p == 0xF2) { LogIntIoWrite(p, value); return; }
 
-        // Z80 PIO ($FC-$FF). Phase 7 wires this.
-        if (p >= 0xFC && p <= 0xFF) return;
+        // Z80 PIO: $FC/$FD control (A/B), $FE/$FF data (A/B). Phase
+        // 6.0 — carries the PIT c0 → PA4 interrupt path.
+        if (p >= 0xFC && p <= 0xFF)
+        {
+            LogIntIoWrite(p, value);
+            if (p <= 0xFD) Pio.WriteControl(p == 0xFD, value);
+            else Pio.WriteData(p == 0xFF, value);
+            return;
+        }
 
         // Anything else: silent no-op (real hardware would decode
         // nothing and drift on the bus).

@@ -706,6 +706,10 @@ public sealed class MainForm : Form
                 // for offline analysis of how software actually flips
                 // between MZ-700 and MZ-800 modes.
                 _mz800.Mem.ModeFlipLog = tracing ? new System.Text.StringBuilder() : null;
+                // Phase 6.0: log PIO / PSG / PPI writes so the interrupt
+                // setup (PIO vector + control words, PPI PC0/PC2 masks)
+                // software programs is visible offline.
+                _mz800.Io.IntIoWriteLog = tracing ? new System.Text.StringBuilder() : null;
             }
             Active.Sound.Start();
 
