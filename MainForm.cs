@@ -710,6 +710,8 @@ public sealed class MainForm : Form
                 // setup (PIO vector + control words, PPI PC0/PC2 masks)
                 // software programs is visible offline.
                 _mz800.Io.IntIoWriteLog = tracing ? new System.Text.StringBuilder() : null;
+                // Phase 6.1: capture rendered audio for a .wav alongside the dump.
+                _mz800.AudioCapture = tracing ? new System.IO.MemoryStream() : null;
             }
             Active.Sound.Start();
 
@@ -781,6 +783,8 @@ public sealed class MainForm : Form
                     _autoLoad.PendingCassette = null;
                 }
             }
+            _pace.Restart();
+            _pacedFrames = 0;
             _timer.Start();
             _statusLabel.Text = "Running.";
         }
@@ -1071,14 +1075,37 @@ public sealed class MainForm : Form
         Activate();
     }
 
+    // Frame pacing. The WinForms timer can't deliver 60 ticks/s — on
+    // Windows 11 a 16 ms interval measured ~40 ticks/s even with a 1 ms
+    // system timer resolution, so one-frame-per-tick ran every machine
+    // at ~2/3 speed. Each tick now runs as many emulated frames as
+    // real elapsed time calls for (usually 1-2) against a Stopwatch;
+    // UI refresh happens once per tick. Found in v1.3.0 Phase 6.1 when
+    // the MZ-800 PSG, rendered in emulated time, underran its buffer.
+    private readonly System.Diagnostics.Stopwatch _pace = new();
+    private long _pacedFrames;
+    // More than this many frames behind (a debugger stall, window drag,
+    // a slow machine) → resync to now instead of fast-forwarding.
+    private const int MaxCatchUpFrames = 4;
+
     private void Timer_Tick(object? s, EventArgs e)
     {
-        // Sample real gamepad state once per frame, before the emulated
-        // CPU runs — values get latched at the VBLK falling edge inside
-        // RunFrame, so they need to be fresh by then.
-        if (_machine != null) _joystickInput.Poll();
-        Active.RunFrame();
-        _bootFrames++;
+        long due = (long)(_pace.Elapsed.TotalSeconds * MZ700.FramesPerSecond);
+        long behind = due - _pacedFrames;
+        if (Active.Paused || behind > MaxCatchUpFrames)
+        {
+            // Paused: RunFrame only re-renders, one per tick is plenty.
+            _pacedFrames = due - 1;
+            behind = 1;
+        }
+        for (long i = 0; i < behind; i++)
+        {
+            _pacedFrames++;
+            RunOneFrame();
+            if (IsDisposed) return;   // --dump completion closes the form
+        }
+        if (behind <= 0) return;
+
         _debugger?.RefreshIfVisible();
         _memViewer?.RefreshIfVisible();
         RevertStatusIfIdle();
@@ -1087,6 +1114,21 @@ public sealed class MainForm : Form
 
         _hidDiag?.RefreshIfVisible();
         if (_machine != null) _soundDiag?.RefreshIfVisible();
+        _display.Invalidate();
+    }
+
+    /// <summary>
+    /// One emulated frame plus the per-frame (not per-tick) host work:
+    /// joystick sampling, auto-load pipelines, diagnostics, dump.
+    /// </summary>
+    private void RunOneFrame()
+    {
+        // Sample real gamepad state once per frame, before the emulated
+        // CPU runs — values get latched at the VBLK falling edge inside
+        // RunFrame, so they need to be fresh by then.
+        if (_machine != null) _joystickInput.Poll();
+        Active.RunFrame();
+        _bootFrames++;
 
         // BASIC + cassette + BASIC-source pipelines both machines run
         // (v1.2 audit F-055 extraction). Also handles the per-frame
@@ -1130,8 +1172,6 @@ public sealed class MainForm : Form
                 pb > 0     ? SystemColors.ControlText :
                              SystemColors.GrayText;
         }
-
-        _display.Invalidate();
 
         // Dump-and-trace flow (v1.2 audit F-055 extraction). No-op
         // when --dump wasn't passed; otherwise emits the periodic

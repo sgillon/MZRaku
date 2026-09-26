@@ -48,11 +48,15 @@ public sealed class MZ700 : MzMachineBase, IMachine
     private int _pitC1Accum;
     private int _tempoAccum;
     // CPU cycles per TempoBit toggle. CpuClockHz / (2 * targetHz) gives
-    // half-period in cycles. 3.5469MHz / (2 * 50) ≈ 35469 → 50 Hz toggle.
-    // Empirically tuned against real-hardware MUSIC playback length: a
-    // tune from Nightmare Park (np.mzf line 596) measured at 13 sec on
-    // real MZ-700 plays at ~13 sec with this rate.
-    private const int CyclesPerTempoToggle = 35469;
+    // half-period in cycles. Empirically tuned against real-hardware
+    // MUSIC playback length: a tune from Nightmare Park (np.mzf line
+    // 596) measured at 13 sec on real MZ-700. Originally 35469 (50 Hz),
+    // but that fit was made while the host ran ~40 frames/s instead of
+    // 60 (WinForms timer granularity, fixed in v1.3.0 Phase 6.1), so it
+    // absorbed a 1.5× slowdown. Rescaled ×1.5 → 53204 (≈33.3 Hz) to
+    // keep the same real-world duration at true speed; pending a
+    // stopwatch re-check against the 13 s reference.
+    public const int CyclesPerTempoToggle = 53204;
 
     // Debugger control (Paused, _stepFrameRequested, Pause/Resume/
     // StepInstruction/StepFrame) is inherited from MzMachineBase

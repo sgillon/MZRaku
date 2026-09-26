@@ -31,9 +31,8 @@ namespace MZRaku.Hardware;
 /// Status: PPI + PIT hot-wired in both mode dispatches; OUT $E0-$E6
 /// and IN $E0/$E1 drive the bank latches (<see cref="MZ800Memory.HandleBankOut"/>
 /// / <see cref="MZ800Memory.HandleBankIn"/>); CRTC + palette wired
-/// (Phase 5); PIO control/data wired (Phase 6.0). PSG writes are
-/// logged but not yet synthesised (Phase 6); joystick reads return
-/// $FF (Phase 7).
+/// (Phase 5); PIO control/data wired (Phase 6.0); PSG wired (Phase
+/// 6.1); joystick reads return $FF (Phase 7).
 /// </summary>
 public sealed class Mz800IoBus : IIoBus
 {
@@ -43,6 +42,7 @@ public sealed class Mz800IoBus : IIoBus
     public Sound Sound = null!;
     public Z80Cpu Cpu = null!;
     public Z80Pio Pio = null!;
+    public Sn76489 Psg = null!;
 
     // WF/RF ownership moved to MZ800Memory in Phase 5.2 and DMD
     // followed in Phase 5.6 (the renderer needs the raw byte now to
@@ -243,8 +243,8 @@ public sealed class Mz800IoBus : IIoBus
         // the target slot (0-3 = pixel palette), low nibble is IRGB.
         if (p == 0xF0) { Memory.WritePalette(value); LogCrtcWrite(p, value, 0); return; }
 
-        // SN76489 PSG ($F2 OUT). Phase 6 wires this.
-        if (p == 0xF2) { LogIntIoWrite(p, value); return; }
+        // SN76489 PSG ($F2 OUT, write-only). Phase 6.1.
+        if (p == 0xF2) { LogIntIoWrite(p, value); Psg.Write(value); return; }
 
         // Z80 PIO: $FC/$FD control (A/B), $FE/$FF data (A/B). Phase
         // 6.0 — carries the PIT c0 → PA4 interrupt path.

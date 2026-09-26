@@ -43,6 +43,9 @@ namespace MZRaku.Hardware;
 /// </summary>
 public sealed class Mz80aIoBus : IIoBus
 {
+    // $E008 D0 "H-Blank" half-period — see MemIn.
+    private const long HBlankHalfPeriodCycles = 30000;
+
     public Ppi8255 Ppi = null!;
     public Pit8253 Pit = null!;
     public MZ80AMemory Memory = null!;
@@ -92,12 +95,17 @@ public sealed class Mz80aIoBus : IIoBus
             // one full period of this signal, so B × period = note
             // duration. B=32 × 20 ms = 640 ms, matching reference.
             // The name "H-Blank" in the manual seems misleading; the
-            // signal is at a low-frequency rate (~50 Hz). Derived
-            // from the CPU cycle counter to stay independent of frame
-            // rendering. 20000 cyc/half-period @ 2 MHz = 50 Hz.
+            // signal is at a low-frequency rate. Derived from the CPU
+            // cycle counter to stay independent of frame rendering.
+            // Originally 20000 cyc/half-period (50 Hz), fitted while the
+            // host ran ~40 frames/s instead of 60 (WinForms timer
+            // granularity, fixed in v1.3.0 Phase 6.1); rescaled ×1.5 →
+            // 30000 (≈33.3 Hz) so MUSIC keeps its by-ear-correct
+            // real-world duration at true speed. Same correction as
+            // MZ700.CyclesPerTempoToggle.
             byte v = 0;
             if (Ppi.TempoBit) v |= 0x80;
-            if (((Cpu.TotalCycles / 20000) & 1) != 0) v |= 0x01;
+            if (((Cpu.TotalCycles / HBlankHalfPeriodCycles) & 1) != 0) v |= 0x01;
             return v;
         }
         return 0xFF;

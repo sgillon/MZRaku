@@ -14,6 +14,10 @@ namespace MZRaku.Hardware;
 ///     the single hard gate at $E008 D0.
 /// <see cref="InputClockHz"/> is set by the host machine: ~895 kHz
 /// for MZ-700's PIT counter 0, 1 MHz for MZ-80A's counter 0.
+///
+/// MZ-800 uses <see cref="ExternalPcm"/> mode instead: the machine
+/// renders PSG + counter-0 audio in emulated time and queues it via
+/// <see cref="PushSample"/>.
 /// </summary>
 public sealed class Sound : IDisposable
 {
@@ -23,6 +27,11 @@ public sealed class Sound : IDisposable
     private const int BytesPerChunk = SamplesPerChunk * 2;             // 1764 (16-bit mono)
     private const int BufferCount = 16;                                // ~320 ms of headroom
     private const double TargetBufferMs = 100.0;                       // feed-loop throttle
+    // External PCM mode: device queue + ring each held shorter. The
+    // ring must cover one emulated frame (~16.7 ms, rendered in a
+    // burst) plus timer jitter; ~110 ms total output latency.
+    private const double ExternalDeviceMs = 60.0;
+    private const int ExternalRingTargetMs = 50;
 
     private WinmmWaveOut? _wave;
     private System.Threading.Thread? _thread;
@@ -84,6 +93,96 @@ public sealed class Sound : IDisposable
 
     public void SetReload(int reload) { _reload = reload; }
 
+    /// <summary>
+    /// The raw $E008 D0 latch, without the pulse-hold stretch that
+    /// <see cref="HardGate"/> adds for the chunk-polled square wave.
+    /// External-PCM hosts render in emulated time and need the exact
+    /// level (the hold only decays inside the square-wave feed loop).
+    /// </summary>
+    public bool HardGateLatch => _hardGate;
+
+    // ---- External PCM mode (MZ-800 PSG) ----
+    //
+    // The square-wave path above snapshots gate/reload state once per
+    // 20 ms chunk — fine for a single beeper, too coarse for a PSG
+    // whose registers change every ~10 ms (BASIC MUSIC). In external
+    // mode the machine renders samples in emulated time via
+    // PushSample (emulation thread) and FeedLoop drains them. Frame
+    // pacing is locked to real time (MainForm), so producer and
+    // consumer rates match on average; the drain rate only trims ±0.5 %
+    // against a ~1 s moving average of the queue depth, to absorb
+    // audio-clock drift without audible pitch change. (A first cut
+    // steered on the instantaneous depth, which jumps by a frame's
+    // worth every timer tick — sustained notes wobbled.) On underrun it
+    // holds the last sample (no click) instead of inserting silence.
+
+    /// <summary>
+    /// When true, FeedLoop plays samples queued via
+    /// <see cref="PushSample"/> instead of generating the square wave.
+    /// Set once by the host machine before <see cref="Start"/>.
+    /// </summary>
+    public bool ExternalPcm;
+
+    /// <summary>Output sample rate the host must render at.</summary>
+    public const int OutputSampleRate = SampleRate;
+
+    private readonly short[] _ring = new short[SampleRate];   // 1 s
+    private volatile int _ringWrite;
+    private volatile int _ringRead;
+    private double _readFrac;
+    private short _lastSample;
+    private double _fillAverage = -1;
+
+    private int RingCount => (_ringWrite - _ringRead + _ring.Length) % _ring.Length;
+
+    /// <summary>
+    /// Queue one output sample (external PCM mode). Called from the
+    /// emulation thread. Drops the sample if the ring is full (the
+    /// emulator running far ahead of real time, e.g. while muted).
+    /// </summary>
+    public void PushSample(short s)
+    {
+        int w = _ringWrite;
+        int next = (w + 1) % _ring.Length;
+        if (next == _ringRead) return;
+        _ring[w] = s;
+        _ringWrite = next;
+    }
+
+    private void FillExternal(byte[] buf)
+    {
+        int target = SampleRate * ExternalRingTargetMs / 1000;
+        int available = RingCount;
+        // Chunks are 20 ms, so α = 0.02 averages over ~1 s.
+        _fillAverage = _fillAverage < 0 ? available : _fillAverage + 0.02 * (available - _fillAverage);
+        // >target → read slightly faster; <target → slightly slower.
+        double ratio = 1.0 + 0.01 * (_fillAverage - target) / target;
+        ratio = Math.Clamp(ratio, 0.995, 1.005);
+        // Far behind real time (e.g. a debugger stall refilled the ring
+        // late): drop the excess outright rather than play it back late.
+        if (available > 4 * target)
+        {
+            _ringRead = (_ringWrite - target + _ring.Length) % _ring.Length;
+            _fillAverage = target;
+        }
+
+        for (int i = 0; i < SamplesPerChunk; i++)
+        {
+            _readFrac += ratio;
+            int advance = (int)_readFrac;
+            _readFrac -= advance;
+            for (int k = 0; k < advance; k++)
+            {
+                int r = _ringRead;
+                if (r == _ringWrite) break;                     // underrun: hold level
+                _lastSample = _ring[r];
+                _ringRead = (r + 1) % _ring.Length;
+            }
+            buf[i * 2] = (byte)_lastSample;
+            buf[i * 2 + 1] = (byte)(_lastSample >> 8);
+        }
+    }
+
     public void Start()
     {
         _wave = new WinmmWaveOut(SampleRate, 16, 1, BytesPerChunk, BufferCount);
@@ -102,7 +201,22 @@ public sealed class Sound : IDisposable
             {
                 if (_muted)
                 {
+                    // Discard whatever the emulator queued so unmuting
+                    // doesn't replay stale audio.
+                    if (ExternalPcm) _ringRead = _ringWrite;
                     System.Threading.Thread.Sleep(ChunkMs);
+                    continue;
+                }
+                if (ExternalPcm)
+                {
+                    // Pace on the device queue first so the ring
+                    // (filled in emulated time) is sampled at the
+                    // moment the chunk is actually needed.
+                    if (_wave != null)
+                        while (_wave.BufferedDuration.TotalMilliseconds > ExternalDeviceMs && _running)
+                            System.Threading.Thread.Sleep(2);
+                    FillExternal(buf);
+                    _wave?.AddSamples(buf, 0, buf.Length);
                     continue;
                 }
                 int reload = _reload;

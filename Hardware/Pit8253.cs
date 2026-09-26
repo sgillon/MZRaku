@@ -37,9 +37,39 @@ public sealed class Pit8253
         public ushort Latched;
         public bool IsLatched;
         public bool Gate = true;
+        // Count written, not yet transferred into the counting element
+        // (see LoadOnNextClock).
+        public bool LoadPending;
     }
 
     public readonly Counter[] Counters = new Counter[3];
+
+    /// <summary>
+    /// Intel 8253 datasheet behaviour: a control word stops the counter
+    /// until a new count is written. Off by default — MZ-700 / MZ-80A
+    /// rely on the counter free-running across a repeated control word
+    /// (see the note in <see cref="Write"/>) and silence the speaker
+    /// with the $E008 D0 hard gate instead. MZ-800 turns it on: its
+    /// audio is rendered in emulated time, and MZ-800-mode software
+    /// has no $E008 gate, so the monitor's MSTP (`CTRL=$36`, no count)
+    /// must actually stop counter 0 or the boot beep drones on after a
+    /// switch to MZ-800 mode (Phase 6.1, observed with Jetpac).
+    /// </summary>
+    public bool HaltOnControlWord;
+
+    /// <summary>
+    /// Intel 8253 datasheet behaviour: a newly written count is
+    /// transferred into the counting element on the next CLK pulse and
+    /// decrementing starts on the pulse after, so the new value stays
+    /// readable for at least one full input period. Off by default
+    /// (MZ-700 / MZ-80A keep their tuned instant-load timing). MZ-800
+    /// turns it on: the 1Z-016B IOCS RTC init at $F92D reloads C2 with
+    /// $A8C0 and spins until a latched read returns exactly $A8C0 —
+    /// with instant load a C1-cascade tick could land before the first
+    /// read and the loop never exits (Phase 6.1, `--mz800 --basic`
+    /// black screen).
+    /// </summary>
+    public bool LoadOnNextClock;
     public System.Text.StringBuilder? WriteLog;
 
     public event Action<bool>? Counter2Out;  // cursor blink / interrupt source
@@ -164,6 +194,7 @@ public sealed class Pit8253
                 // previous note's terminal count and the loop hangs.
                 if (mode == 0) Counters[sc].Out = false;
                 else if (mode == 2 || mode == 3) Counters[sc].Out = true;
+                if (HaltOnControlWord) Counters[sc].Running = false;
             }
             return;
         }
@@ -175,6 +206,7 @@ public sealed class Pit8253
                 c.Reload = (ushort)((c.Reload & 0xFF00) | val);
                 c.Value = c.Reload == 0 ? (ushort)0xFFFF : c.Reload;
                 c.Running = true;
+                c.LoadPending = LoadOnNextClock;
                 if (c.Mode == 0) c.Out = false;
                 WriteLog?.AppendLine($"C{idx}<-${val:X2} (LSB only) reload now=${c.Reload:X4}");
                 break;
@@ -182,6 +214,7 @@ public sealed class Pit8253
                 c.Reload = (ushort)((c.Reload & 0x00FF) | (val << 8));
                 c.Value = c.Reload == 0 ? (ushort)0xFFFF : c.Reload;
                 c.Running = true;
+                c.LoadPending = LoadOnNextClock;
                 if (c.Mode == 0) c.Out = false;
                 WriteLog?.AppendLine($"C{idx}<-${val:X2} (MSB only) reload now=${c.Reload:X4}");
                 break;
@@ -198,6 +231,7 @@ public sealed class Pit8253
                     c.WriteHigh = false;
                     c.Value = c.Reload == 0 ? (ushort)0xFFFF : c.Reload;
                     c.Running = true;
+                    c.LoadPending = LoadOnNextClock;
                     // Mode 0: writing the new count starts a fresh countdown
                     // with OUT low until terminal count. See note in the
                     // control-word branch above.
@@ -227,6 +261,12 @@ public sealed class Pit8253
         if (!c.Running || c.Reload == 0 || ticks <= 0) return;
 
         int remaining = ticks;
+        if (c.LoadPending)
+        {
+            // This pulse transfers the count; it doesn't decrement.
+            c.LoadPending = false;
+            if (--remaining == 0) return;
+        }
         while (remaining > 0)
         {
             if (c.Value > remaining)

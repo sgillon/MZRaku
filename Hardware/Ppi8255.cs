@@ -12,9 +12,9 @@ namespace MZRaku.Hardware;
 /// One shared surface exposed here: the keyboard-matrix strobe path
 /// (<see cref="Keyboard"/> = <see cref="IKeyboardMatrix"/>) both
 /// machines wire the same way, and a separate fast TEMPO signal
-/// (~50 Hz signal, 100 toggles per second — driven from MZ700's
-/// <c>CyclesPerTempoToggle</c> empirical fit of 35469 CPU cycles per
-/// toggle at 3.5469 MHz) exposed via <see cref="TempoBit"/> for
+/// (driven from MZ700's <c>CyclesPerTempoToggle</c> empirical fit —
+/// see its comment for the calibration history) exposed via
+/// <see cref="TempoBit"/> for
 /// MZ-700's IoBus to read on $E008 bit 0.
 ///
 /// Control (0xE003 on MZ-700): 8255 control word (writes accepted,
@@ -126,8 +126,8 @@ public sealed class Ppi8255
 
     /// <summary>
     /// Fast tempo signal exposed on $E008 bit 0. Toggled from MZ700.cs by
-    /// counting CPU cycles (target rate ~100 Hz toggle, derived to give
-    /// MUSIC durations that match real MZ-700 hardware timing). Driven
+    /// counting CPU cycles (rate fitted so MUSIC durations match real
+    /// MZ-700 hardware timing — see MZ700.CyclesPerTempoToggle). Driven
     /// off the CPU clock rather than video frames because the underlying
     /// 555/556 timer's RC oscillator is independent of video timing on
     /// real hardware.

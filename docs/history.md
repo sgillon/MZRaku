@@ -1189,6 +1189,42 @@ ahead of the v1.4 settings work at the start of the arc
   BASIC boot; BASIC-side tape LOAD and the IPL "C" path for
   BASIC untested.
 
+- **Phase 6.1 — SN76489 PSG + real-time frame pacing (SHIPPED
+  2026-09-26).** `Hardware/Sn76489.cs`: three tone channels + noise
+  (15-bit LFSR, white/periodic), 2 dB attenuator steps, clocked at
+  CPU ÷ 16. `MZ800.RenderAudio` steps it every 16 CPU cycles, mixes
+  in PIT counter 0 through the PSG audio-in (gated by 8255 PC0 per
+  tech-ref p. 31, plus the $E008 D0 latch in MZ-700 mode), box-
+  filters to 44.1 kHz and DC-blocks. `Sound` gained an external-PCM
+  mode: a ring buffer filled in emulated time and drained by the
+  feed thread with a slow ±0.5 % rate trim. `--dump=` now writes a
+  `.wav` of everything rendered. Verified by ear: Manic Miner's
+  title tune, BASIC `MUSIC`, the IPL boot beep.
+
+  Bugs the PSG surfaced, all fixed:
+  - **Every machine ran at ~2/3 speed.** The WinForms timer
+    delivered ~40 ticks/s (a 16 ms interval, even with a 1 ms
+    system timer resolution) and each tick ran one frame. The old
+    chunk-polled beeper hid it because its pitch never depended on
+    emulated time; PSG samples do, so the buffer underran (crackle,
+    notes "in two pieces", slow). `Timer_Tick` now runs as many
+    frames as a Stopwatch says are due (cap 4, then resync).
+  - **MUSIC tempo calibrations absorbed that slowdown.** MZ-700
+    `CyclesPerTempoToggle` 35469 → 53204 (Nightmare Park tune
+    stopwatched at 12.8 s vs 13 s real hardware; MZ-800 shares the
+    constant); MZ-80A $E008 D0 half-period 20000 → 30000.
+  - **Boot-beep drone after a switch to MZ-800 mode.** The MZ-700
+    monitor's MSTP stops the beep with a counter-0 control word and
+    no count; a real 8253 halts there, ours kept counting. New
+    opt-in `Pit8253.HaltOnControlWord` (MZ-800 only).
+  - **`--mz800 --basic` black screen (race).** The 1Z-016B IOCS
+    RTC init reloads counter 2 with $A8C0 and spins until it reads
+    exactly that back; instant load let a cascade tick slip in
+    first. New opt-in `Pit8253.LoadOnNextClock` (count transfers on
+    the next CLK, as the datasheet says).
+  - First-cut resampler steered on instantaneous buffer depth →
+    sustained notes wobbled; now steers on a ~1 s average.
+
 ---
 
 ## Architectural decisions worth knowing

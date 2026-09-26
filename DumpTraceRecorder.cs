@@ -93,6 +93,8 @@ internal sealed class DumpTraceRecorder
                 // disassembly of code software relocates at runtime
                 // (e.g. BASIC's high-RAM routines above the .mzf image).
                 if (_mz800 != null) File.WriteAllBytes(_dumpPath + ".ram", _mz800.Mem.Ram);
+                // Phase 6.1: rendered PSG + counter-0 audio since boot.
+                if (_mz800?.AudioCapture != null) SaveWav(_dumpPath + ".wav", _mz800.AudioCapture);
                 SaveVideoFramePng();
             }
             catch (Exception ex)
@@ -102,6 +104,21 @@ internal sealed class DumpTraceRecorder
             }
             OnDumpComplete?.Invoke();
         }
+    }
+
+    private static void SaveWav(string path, MemoryStream pcm)
+    {
+        int dataLen = (int)pcm.Length;
+        int rate = Hardware.Sound.OutputSampleRate;
+        using var w = new BinaryWriter(File.Create(path));
+        w.Write("RIFF"u8.ToArray()); w.Write(36 + dataLen);
+        w.Write("WAVE"u8.ToArray());
+        w.Write("fmt "u8.ToArray()); w.Write(16);
+        w.Write((short)1); w.Write((short)1);          // PCM, mono
+        w.Write(rate); w.Write(rate * 2);              // sample rate, byte rate
+        w.Write((short)2); w.Write((short)16);         // block align, bits
+        w.Write("data"u8.ToArray()); w.Write(dataLen);
+        pcm.WriteTo(w.BaseStream);
     }
 
     /// <summary>

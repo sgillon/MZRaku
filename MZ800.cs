@@ -7,29 +7,19 @@ namespace MZRaku;
 
 /// <summary>
 /// Assembled Sharp MZ-800 machine: Z80 (3.547 MHz) + 8255 PPI + 8253
-/// PIT + 64 KiB DRAM + 16 KiB combined ROM + memory-banking (six
-/// configs per mode, keyed off IN $E0-$E5) + dual-mode I/O layout.
+/// PIT + Z80 PIO + SN76489 PSG + 64 KiB DRAM + 16 KiB combined ROM +
+/// bank latches (OUT $E0-$E6, IN $E0/$E1) + dual-mode I/O layout.
 ///
-/// Phase 1 status (v1.3.0, 2026-08-29): boot spike. This class boots
-/// the 1Z-013B monitor blind — CPU starts at $0000 (JP $E800), the
+/// Boot flow (Phase 1 spike, 2026-08-29): CPU starts at $0000 (JP $E800), the
 /// MZ-800 IPL (1Z-016B) runs from ROM at CPU $E800 (file offset
 /// $2800), flips to MZ-700 mode via OUT ($CE),A, banks the CG-ROM
 /// in/out to copy PCG data, then MZ-700 monitor at CPU $0000 takes
-/// over and writes the '*' prompt to VRAM at $D000. All that is verifiable via the
-/// debugger + memory viewer; no video renderer yet (Phase 2).
+/// over and writes the '*' prompt to VRAM at $D000.
 ///
-/// The peripheral classes are placeholders sized to Phase 1:
-/// <see cref="Mz800Video"/> returns null so MainForm paints nothing,
-/// <see cref="Mz800Keyboard"/> returns $FF from every row (no keys),
-/// <see cref="Mz800Cassette"/> traps but nothing queues an image,
-/// <see cref="Sound"/> is present but disabled (Enabled=false; no
-/// PSG path yet — that arrives in Phase 6).
-///
-/// Roadmap: Phase 2 lights up the MZ-700-mode video renderer, Phase 3
-/// wires the keyboard (matrix reference + PC-key mapping), Phase 4
-/// completes the cassette + BASIC LOAD flow, Phase 5 adds MZ-800-mode
-/// bitmap graphics + palette, Phase 6 replaces the PIT beeper with
-/// the SN76489 PSG, Phase 7 wires the Z80 PIO + joystick.
+/// Status (Phase 6.1): MZ-700-mode text + MZ-800 bitmap video,
+/// keyboard, cassette traps, Z80 PIO timer interrupt, bank latches and
+/// the SN76489 PSG are live. Remaining: joystick + PIO printer side
+/// (Phase 7), polish (Phase 8).
 /// </summary>
 public sealed class MZ800 : MzMachineBase, IMachine
 {
@@ -42,11 +32,12 @@ public sealed class MZ800 : MzMachineBase, IMachine
     public Mz800Video Video { get; } = new();
     public Mz800Keyboard Keyboard = new();
     public Mz800Cassette Cassette { get; } = new();
-    // MZ-800 sound arrives in Phase 6 (SN76489 PSG). Phase 1 wires
-    // the MZ-700-style Sound class as a placeholder — the $E008 D0
-    // gate write in MZ-700 mode flows through it — but Enabled=false
-    // so nothing ever actually plays.
+    // Audio output. Runs in external-PCM mode: RenderAudio mixes the
+    // PSG + gated PIT counter-0 audio-in in emulated time and queues
+    // samples; Sound's feed thread plays them. The $E008 D0 write in
+    // MZ-700 mode still lands on Sound.HardGate (counter-0 gate).
     public Sound Sound { get; } = new();
+    public Sn76489 Psg { get; } = new();
 
     public MachineType Kind => MachineType.MZ800;
     Z80Core.IMemory IMachine.Mem => Mem;
@@ -77,13 +68,13 @@ public sealed class MZ800 : MzMachineBase, IMachine
     private int _pitC0Accum;
     private int _pitC1Accum;
     private int _tempoAccum;
-    // Same CyclesPerTempoToggle as MZ-700 (fits 50 Hz TEMP signal at
-    // 3.5469 MHz CPU clock). The MZ-700 monitor at $02DB polls $E008
+    // Same TEMPO rate as MZ-700 (see MZ700.CyclesPerTempoToggle for
+    // the calibration history). The MZ-700 monitor at $02DB polls $E008
     // bit 0 for this signal to advance out of the boot beep-wait loop;
     // without the toggle, the CPU spins there forever. Confirmed by
     // Phase 1 boot spike (2026-08-29): stuck at PC=$02DB until this
     // toggle was added.
-    private const int CyclesPerTempoToggle = 35469;
+    private const int CyclesPerTempoToggle = MZ700.CyclesPerTempoToggle;
 
     public MZ800()
     {
@@ -95,6 +86,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
         Io.Sound = Sound;
         Io.Cpu = Cpu;
         Io.Pio = Pio;
+        Io.Psg = Psg;
         Mem.IoBus = Io;
         Mem.Cpu = Cpu;
         Ppi.Keyboard = Keyboard;
@@ -112,11 +104,12 @@ public sealed class MZ800 : MzMachineBase, IMachine
         Cassette.Cpu = Cpu;
         Cpu.PreStep = Cassette.OnPreStep;
 
-        // Sound present but disabled — the $E008 D0 writes in MZ-700
-        // mode flow to Sound.HardGate through Mz800IoBus (mirroring
-        // MZ-700's behaviour) but Enabled=false silences the output
-        // pipeline. Phase 6 replaces this whole path with the PSG.
+        // Phase 6.1: PSG path. Sound's square-wave generator is unused
+        // (Enabled stays false); samples come from RenderAudio.
         Sound.Enabled = false;
+        Sound.ExternalPcm = true;
+        Pit.HaltOnControlWord = true;
+        Pit.LoadOnNextClock = true;
 
         // Timer interrupt from PIT counter 2 — mirrors MZ-700. INTMSK
         // bit is PortC bit 2 (== INTMSK meaning D2=1 means interrupts
@@ -165,6 +158,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
         // IPL and starts the mode-selection dance.
         Mem.ResetBankState();
         Pio.Reset();
+        Psg.Reset();
         // Clear cassette state so a stale Pending image doesn't get
         // served to the freshly-booting monitor's tape traps.
         Cassette.ResetTrapState();
@@ -287,6 +281,8 @@ public sealed class MZ800 : MzMachineBase, IMachine
         // the PIO's edge detector.
         Pio.SetPortAPin(4, !Pit.Counters[0].Out);
 
+        RenderAudio(cpuCycles);
+
         // TEMP toggle — same shape as MZ-700's tempo bit. The MZ-800's
         // MZ-700-mode monitor polls $E008 bit 0 to time boot beep and
         // MUSIC-note duration; without this the monitor's beep-wait
@@ -296,6 +292,68 @@ public sealed class MZ800 : MzMachineBase, IMachine
         {
             _tempoAccum -= CyclesPerTempoToggle;
             Ppi.TempoBit = !Ppi.TempoBit;
+        }
+    }
+
+    // ---- Audio (Phase 6.1) ----
+    //
+    // The PSG divides its input clock (the CPU clock, 3.5469 MHz) by
+    // 16, so it steps every 16 CPU cycles (~221.7 kHz). Each output
+    // sample (44.1 kHz, ~5 PSG steps) is the average of the steps it
+    // spans — a box filter that tames the aliasing of high tones.
+    // Mixed in: PIT counter 0 through the PSG's audio-in, gated by
+    // 8255 PC0 (tech-ref p. 31: PC0 masks counter-0 sound so it can
+    // double as the MZ-800-mode timer) and, in MZ-700 mode, by the
+    // $E008 D0 latch driving GATE0 (p. 28). A one-pole high-pass
+    // (~35 Hz) removes the DC the unipolar chip output carries.
+    private const int CpuClockInt = 3_546_900;
+    private const int PsgDivider = 16;
+    private const float CounterZeroLevel = 0.25f;   // ≈ one PSG channel at full volume
+    private const float OutputGain = 24000f;
+    private const float DcBlockPole = 0.995f;
+    private int _psgCycleAccum;
+    private long _sampleAccum;
+    private float _mixSum;
+    private int _mixCount;
+    private float _dcPrevIn, _dcPrevOut;
+
+    /// <summary>
+    /// Optional capture of every rendered sample (16-bit LE mono PCM at
+    /// <see cref="Sound.OutputSampleRate"/>). Set under --dump=;
+    /// DumpTraceRecorder writes it out as a .wav for offline checks.
+    /// </summary>
+    public MemoryStream? AudioCapture;
+
+    private void RenderAudio(int cpuCycles)
+    {
+        bool c0Audible = Pit.Counters[0].Out
+                         && (Ppi.PortCOut & 0x01) != 0
+                         && (!Mem.Mz700Mode || Sound.HardGateLatch);
+        float c0 = c0Audible ? CounterZeroLevel : 0f;
+
+        _psgCycleAccum += cpuCycles;
+        while (_psgCycleAccum >= PsgDivider)
+        {
+            _psgCycleAccum -= PsgDivider;
+            _mixSum += Psg.Step() + c0;
+            _mixCount++;
+            _sampleAccum += (long)PsgDivider * Sound.OutputSampleRate;
+            if (_sampleAccum < CpuClockInt) continue;
+            _sampleAccum -= CpuClockInt;
+
+            float x = _mixSum / _mixCount;
+            _mixSum = 0f;
+            _mixCount = 0;
+            float y = x - _dcPrevIn + DcBlockPole * _dcPrevOut;
+            _dcPrevIn = x;
+            _dcPrevOut = y;
+            short sample = (short)Math.Clamp((int)(y * OutputGain), short.MinValue, short.MaxValue);
+            Sound.PushSample(sample);
+            if (AudioCapture != null)
+            {
+                AudioCapture.WriteByte((byte)sample);
+                AudioCapture.WriteByte((byte)(sample >> 8));
+            }
         }
     }
 
