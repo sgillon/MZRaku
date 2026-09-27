@@ -1091,7 +1091,7 @@ public sealed class MainForm : Form
 
     private void Timer_Tick(object? s, EventArgs e)
     {
-        long due = (long)(_pace.Elapsed.TotalSeconds * MZ700.FramesPerSecond);
+        long due = (long)(_pace.Elapsed.TotalSeconds * Active.FramesPerSecond);
         long behind = due - _pacedFrames;
         if (Active.Paused || behind > MaxCatchUpFrames)
         {

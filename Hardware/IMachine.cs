@@ -43,6 +43,13 @@ public interface IMachine
     Sound Sound { get; }
 
     /// <summary>
+    /// Emulated frames per second of real time — what MainForm paces
+    /// RunFrame against. 60 for MZ-700 / MZ-80A; ≈50.08 for MZ-800,
+    /// whose frame is a real PAL raster (312 × 227 cycles, Phase 7.2).
+    /// </summary>
+    double FramesPerSecond { get; }
+
+    /// <summary>
     /// The most recently rendered video frame. Null if the
     /// machine hasn't rendered yet (first frame not drawn). Both
     /// machines render into a <see cref="Bitmap"/> at their native

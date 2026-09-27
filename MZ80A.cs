@@ -35,6 +35,7 @@ public sealed class MZ80A : MzMachineBase, IMachine
     public Sound Sound { get; } = new();
 
     public MachineType Kind => MachineType.MZ80A;
+    double IMachine.FramesPerSecond => FramesPerSecond;
     Z80Core.IMemory IMachine.Mem => Mem;
     CassetteTrapBase IMachine.Cassette => Cassette;
     System.Drawing.Bitmap? IMachine.VideoFrame => Video.Frame;

@@ -40,6 +40,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
     public Sn76489 Psg { get; } = new();
 
     public MachineType Kind => MachineType.MZ800;
+    double IMachine.FramesPerSecond => FramesPerSecond;
     Z80Core.IMemory IMachine.Mem => Mem;
     CassetteTrapBase IMachine.Cassette => Cassette;
     // Video output surface: DMD-mode-aware. Phase 5.6 added the second
@@ -54,8 +55,30 @@ public sealed class MZ800 : MzMachineBase, IMachine
     // tech-ref p. 9). Matches MZ-700 exactly; MZ-80A is the slower
     // one at 2 MHz.
     public const double CpuClockHz = 3_546_900.0;
-    public const int FramesPerSecond = 60;
-    public const int CyclesPerFrame = (int)(CpuClockHz / FramesPerSecond);
+
+    // ---- Raster timing (Phase 7.2) ----
+    //
+    // PAL: 312 lines × 64 µs (= 227 CPU cycles) → 70,824 cycles, 50.08
+    // frames/s. Line 0 starts with vertical sync; the 200 display lines
+    // follow a blank/border band. Within each line the horizontal
+    // blank is the last HBlankCycles. Software syncs to this through
+    // the CRTC status port (IN $CE, see CrtcStatus) — G.P.S. counts
+    // lines from VSYNC to change the palette mid-frame for its rolling
+    // colour bars — so the renderer takes a per-display-row palette
+    // snapshot instead of using the end-of-frame registers.
+    public const int CyclesPerLine = 227;
+    public const int LinesPerFrame = 312;
+    public const int CyclesPerFrame = CyclesPerLine * LinesPerFrame;
+    public const double FramesPerSecond = CpuClockHz / CyclesPerFrame;   // ≈ 50.08
+    // First display line after the start of VSYNC. Calibrated against
+    // EmuZ-800 with G.P.S.'s title bars: its 40-line bar group sweeps
+    // from VSYNC-end + 1 + offset, offset 0..231, and EmuZ-800 turns it
+    // round exactly as the last bar reaches the bottom display row —
+    // so line 3 + 1 + 231 + 39 = 274 is display row 199.
+    public const int DisplayFirstLine = 75;
+    public const int DisplayLines = 200;
+    private const int VSyncLines = 3;
+    private const int HBlankCycles = 44;
 
     // PIT input clocks. C0 is CKMS = 17.7344 MHz ÷ 16 ≈ 1.108 MHz
     // (tech-ref p. 28 "1.10 MHz"), i.e. exactly 5/16 of the CPU clock
@@ -87,6 +110,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
         Io.Cpu = Cpu;
         Io.Pio = Pio;
         Io.Psg = Psg;
+        Io.CrtcStatus = CrtcStatus;
         Mem.IoBus = Io;
         Mem.Cpu = Cpu;
         Ppi.Keyboard = Keyboard;
@@ -204,46 +228,91 @@ public sealed class MZ800 : MzMachineBase, IMachine
         // this once per frame.
         Keyboard.TickStagedKeyBits();
 
-        Ppi.SetVBlank(false);
-        Pio.SetPortAPin(5, true);
-        int cyclesThisFrame = 0;
-        int cyclesToVBlank = (int)(CyclesPerFrame * 0.85);
-
         Cpu.BreakpointTripped = false;
         bool tripped = false;
 
-        while (cyclesThisFrame < cyclesToVBlank)
+        // _frameCycle persists across calls so a breakpoint mid-frame
+        // resumes at the same beam position.
+        while (_frameCycle < CyclesPerFrame)
         {
+            int line = _frameCycle / CyclesPerLine;
+            if (line != _currentLine) OnLineStart(line);
             int cyc = Cpu.Step();
             if (Cpu.BreakpointTripped) { tripped = true; break; }
-            cyclesThisFrame += cyc;
+            _frameCycle += cyc;
             AccumulatePit(cyc);
         }
-
         if (!tripped)
         {
-            Ppi.SetVBlank(true);
-            // PIO PA5 = /VBLANK (low during vertical blanking). Tech-ref
-            // p. 31 labels PA5 "horizontal blanking signal used for
-            // interrupt, active H", but software treats it as a
-            // once-per-frame active-low sync: Uridium programs port A
-            // mode 3 watching PA5 only, AND/active-low, then syncs its
-            // main loop with `EI; HALT; DI` ($8FA7) on an `EI; RETI`
-            // ISR — a per-scanline interrupt would sync nothing
-            // (Phase 7 prep, 2026-09-27).
-            Pio.SetPortAPin(5, false);
-            while (cyclesThisFrame < CyclesPerFrame)
-            {
-                int cyc = Cpu.Step();
-                if (Cpu.BreakpointTripped) { tripped = true; break; }
-                cyclesThisFrame += cyc;
-                AccumulatePit(cyc);
-            }
+            _frameCycle -= CyclesPerFrame;
+            _currentLine = -1;
         }
 
         if (tripped || stepFrame) Paused = true;
 
         RenderCurrentMode();
+    }
+
+    private int _frameCycle;
+    private int _currentLine = -1;
+    private bool _inDisplay;
+    // Palette state latched as each display row starts: PLT0-3 then
+    // the 16-colour group, per row.
+    private readonly byte[] _rowPalette = new byte[DisplayLines * 4];
+    private readonly byte[] _rowPaletteGroup = new byte[DisplayLines];
+
+    /// <summary>
+    /// Beam enters a new scanline: update the blanking signals and, on
+    /// display lines, latch the palette the row will be drawn with.
+    /// Writes made during the previous line's horizontal blank (where
+    /// raster code times them) therefore take effect from this row.
+    /// </summary>
+    private void OnLineStart(int line)
+    {
+        _currentLine = line;
+        bool display = line >= DisplayFirstLine && line < DisplayFirstLine + DisplayLines;
+        if (display != _inDisplay)
+        {
+            _inDisplay = display;
+            // VBLANK = outside the display lines: 8255 PC7 (MZ-700-mode
+            // $E008 path) and PIO PA5 (/VBLANK frame interrupt, Phase
+            // 7.0 — tech-ref p. 31 calls PA5 "horizontal blanking,
+            // active H", but Uridium/Jetpac use it as an active-low
+            // once-per-frame sync).
+            Ppi.SetVBlank(!display);
+            Pio.SetPortAPin(5, display);
+        }
+        if (display)
+        {
+            int row = line - DisplayFirstLine;
+            Array.Copy(Mem.Palette, 0, _rowPalette, row * 4, 4);
+            _rowPaletteGroup[row] = (byte)Mem.PaletteGroup;
+        }
+    }
+
+    /// <summary>
+    /// CRTC status, IN $CE. Undocumented in the tech-ref (p. 23 just
+    /// says "status read"); bit meanings inferred from software
+    /// (Phase 7.2):
+    ///   D7 /HBLANK  — 0 during horizontal blank. G.P.S. counts its
+    ///                 0→1 edges to step down the screen line by line.
+    ///   D6 /VBLANK  — 1 on display lines. BASIC spins while D6=1
+    ///                 before rewriting SOF, i.e. waits for blanking.
+    ///   D4 /VSYNC   — 0 during vertical sync. G.P.S. waits for its
+    ///                 0→1 edge once per frame.
+    ///   D1          — the IPL branches on it at $E853 (likely the SW1
+    ///                 MZ-700/MZ-800 switch); left 0, as before.
+    /// Phase 5.3 had D7 = VBLANK; no software found relies on that.
+    /// </summary>
+    public byte CrtcStatus()
+    {
+        int line = _frameCycle / CyclesPerLine;
+        int inLine = _frameCycle % CyclesPerLine;
+        byte status = 0;
+        if (inLine < CyclesPerLine - HBlankCycles) status |= 0x80;
+        if (line >= DisplayFirstLine && line < DisplayFirstLine + DisplayLines) status |= 0x40;
+        if (line >= VSyncLines) status |= 0x10;
+        return status;
     }
 
     /// <summary>
@@ -275,7 +344,8 @@ public sealed class MZ800 : MzMachineBase, IMachine
         int frame = Mem.DmdRegister & 0x03;
         byte[]? plIII = Mem.VramExpansion ? Mem.PlaneIII : null;
         byte[]? plIV  = Mem.VramExpansion ? Mem.PlaneIV : null;
-        var palette = Mz800Video.PaletteLut(Mem.Palette);
+        bool sixteen = !Mem.Is640BitmapMode && frame == 2;
+        var palette = BuildRowLuts(sixteen);
 
         if (Mem.Is640BitmapMode)
         {
@@ -291,10 +361,37 @@ public sealed class MZ800 : MzMachineBase, IMachine
         if (frame == 1)
             Video.RenderPlanes320(plIII, plIV, null, null, palette, scrollLines);
         else if (frame == 2)
-            Video.RenderPlanes320(Mem.PlaneI, Mem.PlaneII, plIII, plIV,
-                Mz800Video.SixteenColourLut(Mem.Palette, Mem.PaletteGroup), scrollLines);
+            Video.RenderPlanes320(Mem.PlaneI, Mem.PlaneII, plIII, plIV, palette, scrollLines);
         else
             Video.RenderPlanes320(Mem.PlaneI, Mem.PlaneII, null, null, palette, scrollLines);
+    }
+
+    private readonly int[][] _rowLuts = new int[DisplayLines][];
+
+    /// <summary>
+    /// One colour lookup per display row from the palette latched as
+    /// that row started (<see cref="OnLineStart"/>). Consecutive rows
+    /// with the same palette share a lookup.
+    /// </summary>
+    private int[][] BuildRowLuts(bool sixteenColour)
+    {
+        var pal = new byte[4];
+        int[]? prev = null;
+        for (int row = 0; row < DisplayLines; row++)
+        {
+            Array.Copy(_rowPalette, row * 4, pal, 0, 4);
+            int group = _rowPaletteGroup[row];
+            bool same = prev != null && row > 0
+                && _rowPalette[row * 4] == _rowPalette[row * 4 - 4]
+                && _rowPalette[row * 4 + 1] == _rowPalette[row * 4 - 3]
+                && _rowPalette[row * 4 + 2] == _rowPalette[row * 4 - 2]
+                && _rowPalette[row * 4 + 3] == _rowPalette[row * 4 - 1]
+                && group == _rowPaletteGroup[row - 1];
+            if (!same)
+                prev = sixteenColour ? Mz800Video.SixteenColourLut(pal, group) : Mz800Video.PaletteLut(pal);
+            _rowLuts[row] = prev!;
+        }
+        return _rowLuts;
     }
 
     protected override void AccumulatePit(int cpuCycles)

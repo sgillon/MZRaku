@@ -1275,6 +1275,31 @@ ahead of the v1.4 settings work at the start of the arc
     reference emulator; Manic Miner and Abu Simbel (both SEARCH
     users) render correctly for the first time.
 
+- **Phase 7.2 — raster timing + CRTC status (SHIPPED 2026-09-27).**
+  G.P.S. (Grand Prix Simulator II) turned out not to be "an all-black
+  palette" (Phase 5.9's verdict): its title screen rolls colour bars
+  by rewriting the palette mid-frame, line by line, synced to the
+  beam through `IN $CE` — and it hung waiting for a status bit we
+  never set.
+  - **PAL raster model** for the MZ-800: 312 lines × 227 CPU cycles
+    (70,824 cycles, ≈50.08 frames/s), VSYNC on lines 0-2, 200
+    display lines from line 75, horizontal blank the last 44 cycles
+    of each line. `IMachine.FramesPerSecond` makes pacing
+    per-machine (MZ-700 / MZ-80A stay at 60).
+  - **CRTC status bits** (undocumented — the tech-ref only says
+    "status read"), inferred from software: D7 /HBLANK (G.P.S.
+    counts its edges line by line), D6 /VBLANK (BASIC waits on it
+    before rewriting SOF), D4 /VSYNC (G.P.S. frame sync). D1 is read
+    by the IPL at $E853 — likely the SW1 mode switch — still 0.
+  - **Per-row palette:** each display row latches PLT0-3 and the
+    16-colour group as the beam reaches it; the renderers take one
+    colour lookup per row.
+  - `DisplayFirstLine` = 75, calibrated against EmuZ-800: G.P.S.'s
+    40-line bar group (offset 0..231 after VSYNC) turns round exactly
+    as its last line reaches display row 199. Border still not drawn
+    (deferred until a title needs it). User verified: bar sweep,
+    speed and text all match EmuZ-800.
+
 ---
 
 ## Architectural decisions worth knowing

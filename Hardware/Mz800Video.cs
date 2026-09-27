@@ -209,22 +209,30 @@ public sealed class Mz800Video
     /// patterns: 320×200 4-colour from planes I + II.
     /// </summary>
     public void RenderBitmap(byte[] planeI, byte[] planeII, byte[] palette, byte borderIrgb, int scrollLines = 0)
-        => RenderPlanes320(planeI, planeII, NoPlane, NoPlane, PaletteLut(palette), scrollLines);
+        => RenderPlanes320(planeI, planeII, NoPlane, NoPlane, SameLutEveryRow(PaletteLut(palette)), scrollLines);
 
     /// <summary>
     /// Phase 5.6 entry point, kept for the dump recorder's test
     /// patterns: 640×200 1-colour from plane I.
     /// </summary>
     public void RenderBitmap640Mono(byte[] planeI, byte[] palette, byte borderIrgb, int scrollLines = 0)
-        => RenderPlanes640(planeI, NoPlane, PaletteLut(palette), scrollLines);
+        => RenderPlanes640(planeI, NoPlane, SameLutEveryRow(PaletteLut(palette)), scrollLines);
+
+    private static int[][] SameLutEveryRow(int[] lut)
+    {
+        var rows = new int[PixelHeight][];
+        Array.Fill(rows, lut);
+        return rows;
+    }
 
     /// <summary>
     /// MZ-800-mode 320×200 renderer for every plane combination
     /// (Phase 7.1 generalisation of the Phase 5.5 Frame A renderer).
     /// Each pixel's code is <c>p0 | p1&lt;&lt;1 | p2&lt;&lt;2 | p3&lt;&lt;3</c>
-    /// and indexes <paramref name="lut"/> (see <see cref="PaletteLut"/>
-    /// / <see cref="SixteenColourLut"/>). Pass <c>null</c> for planes
-    /// the mode doesn't use.
+    /// and indexes the display row's lookup in <paramref name="rowLuts"/>
+    /// (see <see cref="PaletteLut"/> / <see cref="SixteenColourLut"/>) —
+    /// one per row so mid-frame palette changes (raster effects, Phase
+    /// 7.2) show. Pass <c>null</c> for planes the mode doesn't use.
     ///
     /// Layout: plane offset = addr - $8000, 40 bytes per scanline,
     /// LSB-first (bit 0 = leftmost pixel), research/02-plane-layout.md.
@@ -233,7 +241,7 @@ public sealed class Mz800Video
     /// (SSA/SEA windowing deferred). Border not painted — the 320×200
     /// active area fills <see cref="Frame"/>.
     /// </summary>
-    public void RenderPlanes320(byte[]? p0, byte[]? p1, byte[]? p2, byte[]? p3, int[] lut, int scrollLines = 0)
+    public void RenderPlanes320(byte[]? p0, byte[]? p1, byte[]? p2, byte[]? p3, int[][] rowLuts, int scrollLines = 0)
     {
         p0 ??= NoPlane; p1 ??= NoPlane; p2 ??= NoPlane; p3 ??= NoPlane;
         int scroll = ((scrollLines % PixelHeight) + PixelHeight) % PixelHeight;
@@ -253,6 +261,7 @@ public sealed class Mz800Video
                     if (planeRow >= PixelHeight) planeRow -= PixelHeight;
                     int rowBase = planeRow * bytesPerRow;
                     int* rowPix = pix + y * stride;
+                    int[] lut = rowLuts[y];
                     for (int col = 0; col < bytesPerRow; col++)
                     {
                         int offset = rowBase + col;
@@ -277,7 +286,7 @@ public sealed class Mz800Video
     /// <summary>
     /// MZ-800-mode 640×200 renderer (Phase 7.1 generalisation of the
     /// Phase 5.6 mono renderer). Pixel code = <c>a | b&lt;&lt;1</c>
-    /// indexing <paramref name="lut"/>: 1-colour passes plane I (Frame
+    /// indexing the row's entry in <paramref name="rowLuts"/>: 1-colour passes plane I (Frame
     /// A) or III (Frame B) as <paramref name="planeA"/>; 4-colour
     /// passes I and III (tech-ref p. 22).
     ///
@@ -286,7 +295,7 @@ public sealed class Mz800Video
     /// even c → offset row×40 + c/2, odd c → $2000 + row×40 + c/2.
     /// LSB-first pixels. Scroll as <see cref="RenderPlanes320"/>.
     /// </summary>
-    public void RenderPlanes640(byte[]? planeA, byte[]? planeB, int[] lut, int scrollLines = 0)
+    public void RenderPlanes640(byte[]? planeA, byte[]? planeB, int[][] rowLuts, int scrollLines = 0)
     {
         planeA ??= NoPlane;
         planeB ??= NoPlane;
@@ -309,6 +318,7 @@ public sealed class Mz800Video
                     int evenRowBase = planeRow * (bytesPerRow / 2);
                     int oddRowBase  = oddBankBase + planeRow * (bytesPerRow / 2);
                     int* rowPix = pix + y * stride;
+                    int[] lut = rowLuts[y];
                     for (int c = 0; c < bytesPerRow; c++)
                     {
                         int planeAddr = ((c & 1) == 0) ? evenRowBase + (c >> 1) : oddRowBase + (c >> 1);

@@ -27,6 +27,7 @@ public sealed class MZ700 : MzMachineBase, IMachine
     public RomKeyTables KeyTables = new();
 
     public MachineType Kind => MachineType.MZ700;
+    double IMachine.FramesPerSecond => FramesPerSecond;
     Z80Core.IMemory IMachine.Mem => Mem;
     // IMachine.Cassette upcasts to CassetteTrapBase for the interface
     // consumers; MZ-700-typed callers keep the concrete Cassette
