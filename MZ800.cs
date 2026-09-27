@@ -205,6 +205,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
         Keyboard.TickStagedKeyBits();
 
         Ppi.SetVBlank(false);
+        Pio.SetPortAPin(5, true);
         int cyclesThisFrame = 0;
         int cyclesToVBlank = (int)(CyclesPerFrame * 0.85);
 
@@ -222,6 +223,15 @@ public sealed class MZ800 : MzMachineBase, IMachine
         if (!tripped)
         {
             Ppi.SetVBlank(true);
+            // PIO PA5 = /VBLANK (low during vertical blanking). Tech-ref
+            // p. 31 labels PA5 "horizontal blanking signal used for
+            // interrupt, active H", but software treats it as a
+            // once-per-frame active-low sync: Uridium programs port A
+            // mode 3 watching PA5 only, AND/active-low, then syncs its
+            // main loop with `EI; HALT; DI` ($8FA7) on an `EI; RETI`
+            // ISR — a per-scanline interrupt would sync nothing
+            // (Phase 7 prep, 2026-09-27).
+            Pio.SetPortAPin(5, false);
             while (cyclesThisFrame < CyclesPerFrame)
             {
                 int cyc = Cpu.Step();

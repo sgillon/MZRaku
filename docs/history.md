@@ -1225,6 +1225,27 @@ ahead of the v1.4 settings work at the start of the arc
   - First-cut resampler steered on instantaneous buffer depth →
     sustained notes wobbled; now steers on a ~1 s average.
 
+- **Phase 7.0 — PIO PA5 frame interrupt + WF REPLACE/PSET fix
+  (SHIPPED 2026-09-27).**
+  - **PA5 = /VBLANK.** Tech-ref p. 31 calls PIO PA5 "horizontal
+    blanking, active H", but software treats it as an active-low
+    once-per-frame sync: Uridium watches PA5 only (AND/active-low)
+    and syncs its main loop with `EI; HALT; DI` on an `EI; RETI`
+    ISR; Jetpac takes ~1 PA5 interrupt per frame. Wired to the
+    existing VBLANK edges in `MZ800.RunFrame`. Uridium now reaches
+    its title/credits with 1-bit (PC0-toggled) title music.
+  - **WF write modes corrected against the p. 20 table.** REPLACE
+    writes WD to the enabled planes *and zeroes the frame's other
+    planes* — `WF=$80` is the screen-clear idiom; Phase 5.2 left the
+    other planes alone, so cleared graphics lingered (Jetpac sprite
+    trails, Uridium title/Hall-of-Fame overlay). PSET (previously a
+    no-op) now sets WD bits on enabled planes and clears them on the
+    frame's other planes. The frame follows Table-1 (320 4-colour:
+    I+II or III+IV by B/A; 16-colour: I-IV; 640: I / III / I+III);
+    SINGLE/XOR/OR/RESET plane bits are absolute. Both verified live.
+  - Still open: Uridium's in-game playfield doesn't show — it runs
+    DMD=$02 (320×200 16-colour, planes I-IV) and we render I+II.
+
 ---
 
 ## Architectural decisions worth knowing

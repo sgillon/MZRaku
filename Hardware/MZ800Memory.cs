@@ -321,38 +321,39 @@ public sealed class MZ800Memory : IMemory
         => Prohibited && addr >= (Mz700Mode ? 0xD000 : 0xE000);
 
     /// <summary>
-    /// Phase 5.2 write path for the MZ-800-mode bitmap-VRAM window.
-    /// Honours all six WF write modes (tech-ref pp. 10-13):
+    /// Write path for the MZ-800-mode bitmap-VRAM window, per the WF
+    /// table on tech-ref p. 20. WF layout: D7-D5 write mode, D4 B/A
+    /// (frame select), D3-D0 plane enables IV III II I. WD = CPU data,
+    /// VD = current VRAM byte.
     ///
-    ///   000 SINGLE  — write value to each enabled plane (treated as
-    ///                 REPLACE for now; the SINGLE/REPLACE distinction
-    ///                 in the tech-ref is subtle and worth re-reading
-    ///                 in Phase 5.5 verification if a game misbehaves)
-    ///   001 XOR     — plane_byte ^= value
-    ///   010 OR      — plane_byte |= value
-    ///   011 RESET   — plane_byte &amp;= ~value  (clear bits where value=1)
-    ///   100 REPLACE — plane_byte = value
-    ///   101 PSET    — colour-code write via a separate colour register
-    ///                 (deferred; needs a model we don't have yet — see
-    ///                 research/03-write-format.md)
-    ///   110 / 111   — prohibited per tech-ref; silent no-op
+    ///   000 SINGLE  — enabled planes ← WD
+    ///   001 XOR     — enabled planes ← WD ⊕ VD
+    ///   010 OR      — enabled planes ← WD + VD
+    ///   011 RESET   — enabled planes ← ¬WD · VD
+    ///       (disabled planes unchanged for all four; plane bits are
+    ///       absolute plane numbers)
+    ///   100 REPLACE — "writes WD in a specific colour": enabled planes
+    ///                 ← WD, the frame's other planes ← 0
+    ///   101 PSET    — "writes only bit 1 of WD in a specific colour":
+    ///                 enabled planes ← WD + VD, the frame's other
+    ///                 planes ← ¬WD · VD (pixels where WD=0 untouched)
+    ///   110 / 111   — undefined; no-op
     ///
-    /// FRAME (D4) selects the plane pair:
-    ///   0 → Frame A (planes I + II, enabled by D0/D1)
-    ///   1 → Frame B (planes III + IV, enabled by D2/D3)
+    /// REPLACE and PSET act on the planes of the frame being written,
+    /// which depends on the display mode (Table-1) and B/A — see
+    /// <see cref="WriteFramePlanes"/>. REPLACE with no planes enabled
+    /// ($80) clears the frame: Exploding Fist, Jetpac and Uridium rely
+    /// on it. Phase 5.2 treated REPLACE as "enabled planes only" and
+    /// left PSET as a no-op, so cleared graphics lingered on the other
+    /// plane (fixed 2026-09-27).
     ///
-    /// Address decode: plane offset = addr - $8000. Full 16 KB window
-    /// ($8000-$BFFF) maps 1:1 to plane storage. In 320×200 only the
-    /// low $2000 bytes hold display data (40 cols × 200 rows = 8000);
-    /// in 640×200 the full $4000 bytes are populated, with the CRTC
-    /// treating $0000-$1F3F as even display bytes and $2000-$3F3F as
-    /// odd (see research/02-plane-layout.md for the fetch pattern
-    /// the renderer applies).
+    /// Address decode: plane offset = addr - $8000 (see
+    /// research/02-plane-layout.md for the 640-mode interleave).
     ///
     /// Cold-boot fallback: WF=$00 decodes as SINGLE with no planes
-    /// enabled — semantically a no-op. Fall back to REPLACE plane I
-    /// so the very first writes (before any code programs WF) land
-    /// somewhere the debugger can see them.
+    /// enabled — semantically a no-op. Fall back to plane I so the
+    /// very first writes (before any code programs WF) land somewhere
+    /// the debugger can see them.
     /// </summary>
     private void WriteVideoPlane(ushort addr, byte value)
     {
@@ -362,44 +363,45 @@ public sealed class MZ800Memory : IMemory
         if (WfRegister == 0) { PlaneI[offset] = value; return; }
 
         int mode = (WfRegister >> 5) & 0x07;
+        int enabled = WfRegister & 0x0F;
+        int frame = mode >= 0b100 ? WriteFramePlanes() : 0;
+
+        for (int p = 0; p < 4; p++)
+        {
+            int bit = 1 << p;
+            byte[] plane = p switch { 0 => PlaneI, 1 => PlaneII, 2 => PlaneIII, _ => PlaneIV };
+            bool on = (enabled & bit) != 0;
+            switch (mode)
+            {
+                case 0b000: if (on) plane[offset] = value; break;                          // SINGLE
+                case 0b001: if (on) plane[offset] ^= value; break;                         // XOR
+                case 0b010: if (on) plane[offset] |= value; break;                         // OR
+                case 0b011: if (on) plane[offset] &= (byte)~value; break;                  // RESET
+                case 0b100:                                                                 // REPLACE
+                    if ((frame & bit) != 0) plane[offset] = on ? value : (byte)0;
+                    break;
+                case 0b101:                                                                 // PSET
+                    if ((frame & bit) != 0)
+                        plane[offset] = on ? (byte)(plane[offset] | value) : (byte)(plane[offset] & ~value);
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Planes (bit mask, bit 0 = plane I) that make up the frame a
+    /// REPLACE / PSET write targets — tech-ref Table-1 (p. 17) and the
+    /// WF table (p. 20). DMD1:0 = 10 selects the combined modes
+    /// (320 16-colour: I-IV; 640 4-colour: I+III); otherwise WF B/A
+    /// picks frame A or B.
+    /// </summary>
+    private int WriteFramePlanes()
+    {
         bool frameB = (WfRegister & 0x10) != 0;
-
-        byte[] plane0, plane1;
-        bool enable0, enable1;
-        if (!frameB)
-        {
-            plane0 = PlaneI;   enable0 = (WfRegister & 0x01) != 0;
-            plane1 = PlaneII;  enable1 = (WfRegister & 0x02) != 0;
-        }
-        else
-        {
-            plane0 = PlaneIII; enable0 = (WfRegister & 0x04) != 0;
-            plane1 = PlaneIV;  enable1 = (WfRegister & 0x08) != 0;
-        }
-
-        switch (mode)
-        {
-            case 0b000: // SINGLE (treated as REPLACE pending 5.5 verification)
-            case 0b100: // REPLACE
-                if (enable0) plane0[offset] = value;
-                if (enable1) plane1[offset] = value;
-                break;
-            case 0b001: // XOR
-                if (enable0) plane0[offset] ^= value;
-                if (enable1) plane1[offset] ^= value;
-                break;
-            case 0b010: // OR
-                if (enable0) plane0[offset] |= value;
-                if (enable1) plane1[offset] |= value;
-                break;
-            case 0b011: // RESET
-                if (enable0) plane0[offset] &= (byte)~value;
-                if (enable1) plane1[offset] &= (byte)~value;
-                break;
-            case 0b101: // PSET — deferred
-            default:    // 110 / 111 prohibited
-                break;
-        }
+        bool combined = (DmdRegister & 0x03) == 0x02;
+        if (Is640BitmapMode)
+            return combined ? 0b0101 : frameB ? 0b0100 : 0b0001;
+        return combined ? 0b1111 : frameB ? 0b1100 : 0b0011;
     }
 
     /// <summary>
