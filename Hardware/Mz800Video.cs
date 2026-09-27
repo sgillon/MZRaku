@@ -5,31 +5,26 @@ using System.Drawing.Imaging;
 namespace MZRaku.Hardware;
 
 /// <summary>
-/// MZ-800 video renderer — Phase 2 MZ-700-mode fork of <see cref="Video"/>.
+/// MZ-800 video output — two render paths, picked per frame by
+/// <see cref="MZRaku.MZ800"/> from the DMD register:
 ///
-/// The MZ-800 in MZ-700 mode uses the same 40×25 char-cell layout as
-/// the MZ-700: 8×8 cells → 320×200 logical pixels, 8-bit display codes
-/// in VRAM at $D000-$D7FF, attribute bytes in ARAM at $D800-$DFFF
-/// (bit 7 = char-set bank, bits 6-4 = FG, bits 2-0 = BG). Palette is
-/// the same 8-color BRG mapping. So the pixel path forks 1:1 from
-/// <see cref="Video"/>; only the font-load path differs — MZ-800 has
-/// no separate CG-ROM file, the character generator lives inside the
-/// combined 16 KB MZ800.ROM at offset $1000-$1FFF.
+///   • MZ-700 mode (<see cref="Render"/>): 40×25 character cells, 8×8
+///     glyphs, display codes at $D000-$D7FF and attributes at
+///     $D800-$DFFF (bit 7 = character set, bits 6-4 = foreground, bits
+///     2-0 = background), 8 fixed colours. Glyphs come straight from
+///     the CG-ROM inside MZ800.ROM ($1000-$1FFF). Real hardware draws
+///     from a PCG copy in VRAM that the IPL fills at boot (tech-ref
+///     p. 13); software that later redefines characters through the
+///     PCG window isn't reflected — not modelled yet.
+///   • MZ-800 bitmap modes (<see cref="RenderPlanes320"/> /
+///     <see cref="RenderPlanes640"/>): planes I-IV decoded through a
+///     per-row colour lookup (palette, 16-colour groups — tech-ref
+///     pp. 17-23) and the hardware-scroll address map (pp. 10-12).
 ///
-/// Real hardware actually uses a PCG (Programmable Character
-/// Generator) in VRAM that the IPL populates from CG-ROM at cold
-/// boot. Phase 2 simplifies by reading straight from the CG-ROM data
-/// in <see cref="MZ800Memory.Rom"/> — this matches what a
-/// freshly-booted machine displays. A program that later rewrites
-/// PCG bytes (writes to $D000-$DFFF while bank config (c) is active,
-/// which our memory model routes to Vram/Aram) wouldn't be reflected
-/// in the font here; Phase 5 refactors when the bitmap renderer
-/// arrives and PCG modelling becomes load-bearing.
-///
-/// Phase 5 will add the MZ-800-mode bitmap renderer (320×200 or
-/// 640×200 from bit-planes I-IV via the CRTC, with a 4-register
-/// palette and hardware scroll). Until then, this class covers the
-/// display when the machine is in MZ-700 mode.
+/// Output bitmaps: <see cref="Frame"/> (320×200, MZ-700 mode and
+/// 320-wide bitmap modes) and <see cref="FrameHi"/> (640×200). The
+/// border is not drawn. See _mz800info/MZ800_VideoRendering_Research/
+/// for the decode notes and citations.
 /// </summary>
 public sealed class Mz800Video
 {
@@ -40,12 +35,11 @@ public sealed class Mz800Video
     public const int PixelWidth = CharCols * CharWidth;      // 320
     public const int PixelHeight = CharRows * CharHeight;    // 200
 
-    // 4 KB font ROM (2 banks × 256 chars × 8 rows) — mirrors MZ-700's
-    // shape. Loaded from Mem.Rom[$1000-$1FFF] via
-    // <see cref="LoadFontFromRom"/> during MZ800.LoadRoms.
+    // 4 KB CG-ROM (2 character sets × 256 glyphs × 8 rows), copied
+    // from MZ800.ROM $1000-$1FFF by LoadFontFromRom.
     public byte[] FontRom = new byte[4096];
 
-    // Same 8-color palette as MZ-700 (BRG wiring).
+    // MZ-700-mode attribute colours (B R G bit order, as MZ-700).
     private static readonly int[] Palette = new int[]
     {
         unchecked((int)0xFF000000), // black
@@ -60,11 +54,8 @@ public sealed class Mz800Video
 
     public Bitmap Frame = new Bitmap(PixelWidth, PixelHeight, PixelFormat.Format32bppArgb);
 
-    // Phase 5.6 640×200 mono output. Kept as a second bitmap rather
-    // than resizing Frame so the existing 320-mode + MZ-700-mode paths
-    // stay byte-identical. MZ800.VideoFrame picks whichever matches
-    // the current DMD-selected resolution; MainForm scales from the
-    // returned bitmap's own Width/Height (mode-agnostic).
+    // 640×200 output. A second bitmap rather than a resized Frame;
+    // MZ800.VideoFrame returns whichever matches the DMD resolution.
     public const int HiPixelWidth = 640;
     public const int HiPixelHeight = 200;
     public Bitmap FrameHi = new Bitmap(HiPixelWidth, HiPixelHeight, PixelFormat.Format32bppArgb);
@@ -84,28 +75,16 @@ public sealed class Mz800Video
     }
 
     /// <summary>
-    /// Convert an MZ-800 4-bit IRGB colour code to 32-bit ARGB, for the
-    /// Phase 5.5 bitmap renderer to consume when it paints plane pixels
-    /// through the palette.
+    /// MZ-800 4-bit colour → 32-bit ARGB. Bit order I G R B (D3 =
+    /// intensity, D2 = green, D1 = red, D0 = blue — tech-ref p. 22), so
+    /// the low three bits run 0 black · 1 blue · 2 red · 3 magenta ·
+    /// 4 green · 5 cyan · 6 yellow · 7 white, the same order as the
+    /// MZ-700 attribute colours.
     ///
-    /// Bit layout (BRG wiring, matching MZ-700's <c>Video.Palette</c>
-    /// table — Sharp uses this ordering consistently across the 700/800
-    /// family): D3=I intensity, D2=G green, D1=R red, D0=B blue.
-    /// So the 3-bit RGB portion decodes as:
-    ///   0 black · 1 blue · 2 red · 3 magenta · 4 green · 5 cyan · 6 yellow · 7 white
-    /// Verified against Phase 5.0's BASIC-cold-boot palette writes
-    /// (`$00 $11 $22 $3F` for slots 0-3 = black / blue / red /
-    /// bright-white) — matches BASIC's intended "text on black,
-    /// alternate colours available" layout.
-    ///
-    /// Intensity formula (provisional): channels are 0 when off, 0xAA
-    /// when on without I, 0xFF when on with I — classic CGA-family
-    /// ramp. IRGB=$8 (intensity alone with no primary) renders as
-    /// dark grey (0x55 across channels) so a "bright black" palette
-    /// slot is visually distinct from natural black IRGB=$0. Phase 5.5
-    /// revisits both the wiring and the intensity ramp if visible
-    /// output doesn't match reference-emulator screenshots — see
-    /// research/05-palette.md.
+    /// Channel levels: 0 off, $AA on, $FF on with intensity; colour 8
+    /// (intensity alone) is dark grey ($55) so it stays distinct from
+    /// black. The ramp is an approximation — the tech-ref gives no
+    /// analogue levels.
     /// </summary>
     public static int IrgbToArgb(byte irgb)
     {
@@ -121,6 +100,11 @@ public sealed class Mz800Video
         return unchecked((int)0xFF000000) | (cr << 16) | (cg << 8) | cb;
     }
 
+    /// <summary>
+    /// MZ-700-mode character display: 40×25 cells from the display codes
+    /// in <paramref name="vram"/> and attributes in <paramref name="aram"/>,
+    /// glyphs from <see cref="FontRom"/> (LSB = leftmost pixel).
+    /// </summary>
     public void Render(byte[] vram, byte[] aram)
     {
         var rect = new Rectangle(0, 0, PixelWidth, PixelHeight);
@@ -204,21 +188,8 @@ public sealed class Mz800Video
         return lut;
     }
 
-    /// <summary>
-    /// Phase 5.5 entry point, kept for the dump recorder's test
-    /// patterns: 320×200 4-colour from planes I + II.
-    /// </summary>
-    public void RenderBitmap(byte[] planeI, byte[] planeII, byte[] palette, byte borderIrgb, int scrollLines = 0)
-        => RenderPlanes320(planeI, planeII, NoPlane, NoPlane, SameLutEveryRow(PaletteLut(palette)), scrollLines);
-
-    /// <summary>
-    /// Phase 5.6 entry point, kept for the dump recorder's test
-    /// patterns: 640×200 1-colour from plane I.
-    /// </summary>
-    public void RenderBitmap640Mono(byte[] planeI, byte[] palette, byte borderIrgb, int scrollLines = 0)
-        => RenderPlanes640(planeI, NoPlane, SameLutEveryRow(PaletteLut(palette)), scrollLines);
-
-    private static int[][] SameLutEveryRow(int[] lut)
+    /// <summary>The same colour lookup for every display row (no raster changes).</summary>
+    public static int[][] UniformRows(int[] lut)
     {
         var rows = new int[PixelHeight][];
         Array.Fill(rows, lut);
@@ -226,25 +197,62 @@ public sealed class Mz800Video
     }
 
     /// <summary>
-    /// MZ-800-mode 320×200 renderer for every plane combination
-    /// (Phase 7.1 generalisation of the Phase 5.5 Frame A renderer).
-    /// Each pixel's code is <c>p0 | p1&lt;&lt;1 | p2&lt;&lt;2 | p3&lt;&lt;3</c>
-    /// and indexes the display row's lookup in <paramref name="rowLuts"/>
-    /// (see <see cref="PaletteLut"/> / <see cref="SixteenColourLut"/>) —
-    /// one per row so mid-frame palette changes (raster effects, Phase
-    /// 7.2) show. Pass <c>null</c> for planes the mode doesn't use.
+    /// Hardware-scroll registers (tech-ref pp. 10-12), in register units:
+    /// SSA / SEA / SW count 64-byte blocks (5 = one 8-raster character
+    /// row), SOF counts 8-byte blocks (5 = one raster line).
+    /// </summary>
+    public readonly record struct ScrollRegs(int Ssa, int Sea, int Sw, int Sof)
+    {
+        /// <summary>Power-on "no scroll" state (p. 10 §2).</summary>
+        public static readonly ScrollRegs None = new(0x00, 0x7D, 0x7D, 0);
+    }
+
+    private const int DisplayBytes = 8000;              // 40 display addresses × 200 rasters
+    private readonly int[] _addressMap = new int[DisplayBytes];
+    private ScrollRegs _mappedScroll = new(-1, -1, -1, -1);
+
+    /// <summary>
+    /// Display address → VRAM address after scrolling (tech-ref p. 11
+    /// bit table, p. 12 "execution of scrolling by address
+    /// conversion"). The CRTC walks display addresses DA 0..7999 (40 per
+    /// raster). Inside the scroll window [SSA·64, SEA·64) it fetches
+    /// <c>SSA·64 + ((DA − SSA·64 + SOF·8) mod SW·64)</c>; outside, DA
+    /// itself — which is how a split screen keeps fixed bands above /
+    /// below the scrolling one (p. 10 §5). SOF that isn't a multiple of
+    /// 5 shifts by part of a raster line.
+    /// </summary>
+    private int[] AddressMap(ScrollRegs sc)
+    {
+        if (sc == _mappedScroll) return _addressMap;
+        _mappedScroll = sc;
+        int start = sc.Ssa * 64, end = Math.Min(sc.Sea * 64, DisplayBytes), width = sc.Sw * 64;
+        int offset = sc.Sof * 8;
+        for (int da = 0; da < DisplayBytes; da++)
+            _addressMap[da] = da >= start && da < end && width > 0
+                ? start + (da - start + offset) % width
+                : da;
+        return _addressMap;
+    }
+
+    /// <summary>
+    /// MZ-800 320×200 bitmap renderer for every plane combination
+    /// (Frame A, Frame B, 16-colour). Each pixel's code is
+    /// <c>p0 | p1&lt;&lt;1 | p2&lt;&lt;2 | p3&lt;&lt;3</c> and indexes its
+    /// display row's lookup in <paramref name="rowLuts"/> (see
+    /// <see cref="PaletteLut"/> / <see cref="SixteenColourLut"/>) — one
+    /// per row so mid-frame palette changes (raster effects) show. Pass
+    /// <c>null</c> for planes the mode doesn't use.
     ///
-    /// Layout: plane offset = addr - $8000, 40 bytes per scanline,
-    /// LSB-first (bit 0 = leftmost pixel), research/02-plane-layout.md.
-    /// <paramref name="scrollLines"/> (Phase 5.7) = <c>Sof / 5</c>;
-    /// plane row for display row Y is <c>(Y + scrollLines) mod 200</c>
-    /// (SSA/SEA windowing deferred). Border not painted — the 320×200
+    /// Layout: plane offset = VRAM address, 40 bytes per raster,
+    /// LSB-first (bit 0 = leftmost pixel), research/02-plane-layout.md;
+    /// each display address goes through the scroll map
+    /// (<see cref="AddressMap"/>). Border not painted — the 320×200
     /// active area fills <see cref="Frame"/>.
     /// </summary>
-    public void RenderPlanes320(byte[]? p0, byte[]? p1, byte[]? p2, byte[]? p3, int[][] rowLuts, int scrollLines = 0)
+    public void RenderPlanes320(byte[]? p0, byte[]? p1, byte[]? p2, byte[]? p3, int[][] rowLuts, ScrollRegs scroll)
     {
         p0 ??= NoPlane; p1 ??= NoPlane; p2 ??= NoPlane; p3 ??= NoPlane;
-        int scroll = ((scrollLines % PixelHeight) + PixelHeight) % PixelHeight;
+        int[] map = AddressMap(scroll);
 
         var rect = new Rectangle(0, 0, PixelWidth, PixelHeight);
         var data = Frame.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
@@ -257,14 +265,12 @@ public sealed class Mz800Video
                 const int bytesPerRow = PixelWidth / 8; // 40
                 for (int y = 0; y < PixelHeight; y++)
                 {
-                    int planeRow = y + scroll;
-                    if (planeRow >= PixelHeight) planeRow -= PixelHeight;
-                    int rowBase = planeRow * bytesPerRow;
+                    int rowBase = y * bytesPerRow;
                     int* rowPix = pix + y * stride;
                     int[] lut = rowLuts[y];
                     for (int col = 0; col < bytesPerRow; col++)
                     {
-                        int offset = rowBase + col;
+                        int offset = map[rowBase + col];
                         int b0 = p0[offset], b1 = p1[offset], b2 = p2[offset], b3 = p3[offset];
                         int pixX = col * 8;
                         for (int bit = 0; bit < 8; bit++)
@@ -284,22 +290,23 @@ public sealed class Mz800Video
     }
 
     /// <summary>
-    /// MZ-800-mode 640×200 renderer (Phase 7.1 generalisation of the
-    /// Phase 5.6 mono renderer). Pixel code = <c>a | b&lt;&lt;1</c>
-    /// indexing the row's entry in <paramref name="rowLuts"/>: 1-colour passes plane I (Frame
-    /// A) or III (Frame B) as <paramref name="planeA"/>; 4-colour
-    /// passes I and III (tech-ref p. 22).
+    /// MZ-800 640×200 bitmap renderer. Pixel code = <c>a | b&lt;&lt;1</c>,
+    /// indexing the row's lookup in <paramref name="rowLuts"/>: 1-colour
+    /// passes plane I (Frame A) or III (Frame B) as
+    /// <paramref name="planeA"/>; 4-colour passes I and III (tech-ref
+    /// p. 22).
     ///
-    /// Each plane packs 80 bytes per scanline interleaved across its
-    /// two 8 KB halves (tech-ref p. 15): display byte n = row×80 + c,
-    /// even c → offset row×40 + c/2, odd c → $2000 + row×40 + c/2.
-    /// LSB-first pixels. Scroll as <see cref="RenderPlanes320"/>.
+    /// Each plane packs 80 bytes per raster across its two 8 KB halves
+    /// (tech-ref p. 15): the CRTC fetches two bytes per display address
+    /// DA — the even screen byte from offset DA, the odd one from
+    /// $2000 + DA. DA goes through the same scroll map as 320 mode
+    /// (<see cref="AddressMap"/>). LSB-first pixels.
     /// </summary>
-    public void RenderPlanes640(byte[]? planeA, byte[]? planeB, int[][] rowLuts, int scrollLines = 0)
+    public void RenderPlanes640(byte[]? planeA, byte[]? planeB, int[][] rowLuts, ScrollRegs scroll)
     {
         planeA ??= NoPlane;
         planeB ??= NoPlane;
-        int scroll = ((scrollLines % HiPixelHeight) + HiPixelHeight) % HiPixelHeight;
+        int[] map = AddressMap(scroll);
 
         var rect = new Rectangle(0, 0, HiPixelWidth, HiPixelHeight);
         var data = FrameHi.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
@@ -313,15 +320,13 @@ public sealed class Mz800Video
                 const int oddBankBase = 0x2000;
                 for (int y = 0; y < HiPixelHeight; y++)
                 {
-                    int planeRow = y + scroll;
-                    if (planeRow >= HiPixelHeight) planeRow -= HiPixelHeight;
-                    int evenRowBase = planeRow * (bytesPerRow / 2);
-                    int oddRowBase  = oddBankBase + planeRow * (bytesPerRow / 2);
+                    int rowBase = y * (bytesPerRow / 2);
                     int* rowPix = pix + y * stride;
                     int[] lut = rowLuts[y];
                     for (int c = 0; c < bytesPerRow; c++)
                     {
-                        int planeAddr = ((c & 1) == 0) ? evenRowBase + (c >> 1) : oddRowBase + (c >> 1);
+                        int da = map[rowBase + (c >> 1)];
+                        int planeAddr = (c & 1) == 0 ? da : oddBankBase + da;
                         int a = planeA[planeAddr], b = planeB[planeAddr];
                         int pixX = c * 8;
                         for (int bit = 0; bit < 8; bit++)

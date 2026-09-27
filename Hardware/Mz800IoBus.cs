@@ -31,8 +31,8 @@ namespace MZRaku.Hardware;
 /// Status: PPI + PIT hot-wired in both mode dispatches; OUT $E0-$E6
 /// and IN $E0/$E1 drive the bank latches (<see cref="MZ800Memory.HandleBankOut"/>
 /// / <see cref="MZ800Memory.HandleBankIn"/>); CRTC + palette wired
-/// (Phase 5); PIO control/data wired (Phase 6.0); PSG wired (Phase
-/// 6.1); joystick reads return $FF (Phase 7).
+/// PIO control/data and the PSG wired; joystick reads return $FF (not
+/// yet emulated).
 /// </summary>
 public sealed class Mz800IoBus : IIoBus
 {
@@ -47,18 +47,13 @@ public sealed class Mz800IoBus : IIoBus
     /// owns the beam position (see MZ800.CrtcStatus).</summary>
     public Func<byte>? CrtcStatus;
 
-    // WF/RF ownership moved to MZ800Memory in Phase 5.2 and DMD
-    // followed in Phase 5.6 (the renderer needs the raw byte now to
-    // pick 320 vs 640 resolution) — MZ800Memory is the single source
-    // of truth for every CRTC register byte.
+    // Every CRTC register byte (WF, RF, DMD, palette, scroll, BCOL)
+    // lives in MZ800Memory — the one place CPU VRAM access and the
+    // renderer both read it.
 
     /// <summary>
-    /// Optional log sink for CRTC / palette register writes. Phase 5.0
-    /// diagnostic to capture the sequence BASIC (and later MC games)
-    /// programs into $CC/$CD/$CE/$CF/$F0 during cold-boot. See
-    /// _mz800info/MZ800_VideoRendering_Research/00-current-state.md
-    /// open questions. Populated only when --dump= is active. Capped
-    /// at 4096 entries.
+    /// Optional --dump= log of CRTC and palette writes ($CC / $CD / $CE /
+    /// $CF with its B selector / $F0), with PC. Capped at 4096 entries.
     /// </summary>
     public System.Text.StringBuilder? CrtcWriteLog;
     private int _crtcWriteLogEntries;
@@ -79,11 +74,9 @@ public sealed class Mz800IoBus : IIoBus
     }
 
     /// <summary>
-    /// Optional log sink for PIO ($FC-$FF), PSG ($F2) and PPI
-    /// ($D0-$D3 port-space) writes. Phase 6.0 diagnostic to capture
-    /// how software sets up the interrupt path (PIO vector + control
-    /// words, PPI PC0/PC2 mask bits) before we wire it. Populated only
-    /// when --dump= is active. Capped at 4096 entries.
+    /// Optional --dump= log of PIO ($FC-$FF), PSG ($F2) and PPI
+    /// ($D0-$D3) writes, plus PIO interrupt requests — how software
+    /// sets up its interrupt and sound paths. Capped at 4096 entries.
     /// </summary>
     public System.Text.StringBuilder? IntIoWriteLog;
     private int _intIoWriteLogEntries;
@@ -119,8 +112,8 @@ public sealed class Mz800IoBus : IIoBus
         {
             // MZ-700-mode $E008: TEMP bit + HBLK. Modelled the same
             // way MZ-700's IoBus does — TempoBit at D0 for MUSIC
-            // duration polling. Joystick bits deliberately zeroed
-            // in Phase 1 (Phase 7 wires the PIO joystick path).
+            // duration polling. Joystick bits zeroed (joystick not
+            // yet emulated).
             byte v = 0;
             if (Ppi.TempoBit) v |= 0x01;
             if ((Ppi.PortCIn & 0x80) != 0) v |= 0x80;   // VBLANK mirror
@@ -136,9 +129,9 @@ public sealed class Mz800IoBus : IIoBus
         if (off <= 7) { Pit.Write(off - 4, value); return; }
         if (off == 8)
         {
-            // MZ-700-mode $E008 write: D0 controls PIT C0 gate (per
-            // tech-ref p. 6 note). Model as the MZ-700 hard-gate for
-            // now — real behaviour arrives with Phase 6 PSG work.
+            // MZ-700-mode $E008 write: D0 is PIT counter 0's gate
+            // (tech-ref p. 6). Latched in Sound.HardGate; MZ800.RenderAudio
+            // gates counter-0 audio with it in MZ-700 mode.
             Sound.HardGate = (value & 0x01) != 0;
             return;
         }
@@ -166,11 +159,11 @@ public sealed class Mz800IoBus : IIoBus
         if (p >= 0xD4 && p <= 0xD7) return Pit.Read(p - 0xD4);
 
         // CRTC status ($CE IN) — beam-position bits from the machine's
-        // raster model (Phase 7.2; bit meanings in MZ800.CrtcStatus).
+        // raster model (bit meanings in MZ800.CrtcStatus).
         if (p == 0xCE) return CrtcStatus?.Invoke() ?? 0;
 
-        // Joystick ports ($F0/$F1). No stick connected in Phase 1;
-        // return $FF (all lines high = nothing pressed).
+        // Joystick ports ($F0/$F1). Not yet emulated: $FF (all lines
+        // high = nothing pressed).
         if (p == 0xF0 || p == 0xF1) return 0xFF;
 
         // Z80 PIO data ports ($FE port A, $FF port B). Control ports
@@ -212,10 +205,11 @@ public sealed class Mz800IoBus : IIoBus
         {
             // Indirect CRTC register write. B register (in high byte of
             // port word per tech-ref p. 23) selects sub-register:
-            //   B=1 SOF1 · B=2 SOF2 · B=3 SW · B=4 SSA · B=5 SEA (Phase 5.7)
-            //   B=6 BCOL border colour (Phase 5.4)
-            //   B=7 CKSW cursor/style (deferred — PCG cursor blink,
-            //       low priority)
+            //   B=1 SOF1 · B=2 SOF2 · B=3 SW · B=4 SSA · B=5 SEA
+            //   B=6 BCOL border colour
+            //   B=7 CKSW superimpose bit (D7, tech-ref p. 23) — selects
+            //       external-video superimposition; nothing to emulate,
+            //       dropped
             byte b = (byte)((port >> 8) & 0xFF);
             switch (b)
             {
@@ -225,22 +219,21 @@ public sealed class Mz800IoBus : IIoBus
                 case 4: Memory.SetSsa(value);        break;
                 case 5: Memory.SetSea(value);        break;
                 case 6: Memory.SetBorderColour(value); break;
-                // B=0 and B=7+ silently drop (write-log still captures)
+                // B=0 and B=7+ dropped (the CRTC write log still records them)
             }
             LogCrtcWrite(p, value, b);
             return;
         }
 
         // Palette write ($F0 OUT — same port as joystick-1 IN, direction
-        // decides which device). Phase 5.4 wires this: high nibble is
-        // the target slot (0-3 = pixel palette), low nibble is IRGB.
+        // decides which device). Decode in MZ800Memory.WritePalette.
         if (p == 0xF0) { Memory.WritePalette(value); LogCrtcWrite(p, value, 0); return; }
 
-        // SN76489 PSG ($F2 OUT, write-only). Phase 6.1.
+        // SN76489 PSG ($F2 OUT, write-only).
         if (p == 0xF2) { LogIntIoWrite(p, value); Psg.Write(value); return; }
 
-        // Z80 PIO: $FC/$FD control (A/B), $FE/$FF data (A/B). Phase
-        // 6.0 — carries the PIT c0 → PA4 interrupt path.
+        // Z80 PIO: $FC/$FD control (A/B), $FE/$FF data (A/B) — carries
+        // the PIT c0 → PA4 and /VBLANK → PA5 interrupt paths.
         if (p >= 0xFC && p <= 0xFF)
         {
             LogIntIoWrite(p, value);

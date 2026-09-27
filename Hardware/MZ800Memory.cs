@@ -30,19 +30,18 @@ namespace MZRaku.Hardware;
 /// VRAM, and the MZ-800 IPL/monitor (1Z-016B) at $E000 — the reset
 /// vector `JP $E800` lands in the IPL.
 ///
-/// Phase 6.0 (2026-09-26) replaced the earlier four-config enum,
-/// which only reacted to IN $E0-$E6. BASIC calls its ROM services
-/// via `OUT ($E3),A` / `OUT ($E1),A` around a `JP $F4xx` (routine at
-/// $1517) — invisible to the enum model, so the first ROM call ran
-/// into empty DRAM.
+/// BASIC, for example, calls its ROM services with `OUT ($E3),A` …
+/// `JP $F4xx` … `OUT ($E1),A` (routine at $1517) and maps VRAM in
+/// with IN $E0 only while it draws.
 ///
-/// Underlying VRAM storage: real hardware has one 16 KB VRAM chip
-/// with different address decodes per mode (see tech-ref p. 13). For
-/// Phase 1 we model separate 2 KB Vram + 2 KB Aram buffers matching
-/// MZ-700 semantics — the PCG copy in step 3 above lands in these
-/// same buffers because the CPU-facing address ($D000-$DFFF) is the
-/// same. Phase 5 refactors to a plane-oriented model when the CRTC
-/// bitmap renderer arrives.
+/// VRAM storage: real hardware has one 16 KB VRAM chip (two with the
+/// MZ-1R25) decoded differently per mode (tech-ref pp. 13-15). We keep
+/// MZ-700-mode text/attribute VRAM (<see cref="Vram"/> /
+/// <see cref="Aram"/>) and the four bitmap planes as separate buffers.
+///
+/// The MZ-800 bitmap side — WF/RF write and read formats, DMD, palette,
+/// scroll registers — lives here too because every CPU access to the
+/// $8000 window goes through it; <see cref="Mz800Video"/> only reads.
 /// </summary>
 public sealed class MZ800Memory : IMemory
 {
@@ -56,30 +55,17 @@ public sealed class MZ800Memory : IMemory
     // land here; reads from RAM-visible regions pull from here.
     public byte[] Ram = new byte[0x10000];
 
-    // 2 KB text VRAM + 2 KB attribute VRAM, visible at $D000-$DFFF in
-    // MZ-700 mode config (b). Same shape as MZ700Memory.Vram/Aram so
-    // Phase 2's Mz800Video can fork Mz700Video with minimal change.
+    // MZ-700-mode VRAM: 2 KB display codes + 2 KB attributes at
+    // $D000-$DFFF when VRAM is mapped. Same shape as MZ700Memory.
     public byte[] Vram = new byte[0x800];
     public byte[] Aram = new byte[0x800];
 
-    // MZ-800 native-mode bitmap VRAM — four bit-planes of 8 KB each.
-    // Phase 5.1: added as plane-oriented storage so writes to CPU
-    // $8000-$BFFF in MZ-800 mode land here (routed via WF register)
-    // instead of vanishing into Ram[]. Phase 5.0 dump analysis
-    // (research/07-basic-rendering-path.md) proved BASIC writes ~4 KB+
-    // to this window with WF=$83 (REPLACE, Frame A, planes I+II) and
-    // was silently absorbed by the old D_AllRam Ram[]-only path.
-    //
-    // Sizing: 16 KB per plane. In 320×200 mode only the low 8 KB
-    // (8000 bytes = 40 cols × 200 rows) is used; the upper half sits
-    // idle. In 640×200 mode a single "plane" spans the full 16 KB
-    // CPU window ($8000-$BFFF) with display bytes interleaved
-    // even/odd across the two halves — even bytes at offset
-    // $0000-$1F3F, odd at $2000-$3F3F (tech-ref p. 15). Frame A =
-    // Plane I (+ Plane II when 320×200 4-colour); Frame B = Plane III
-    // (+ Plane IV when 320×200 4-colour). Phase 5.6 grew this from
-    // 8 KB so 640-mode CPU writes to $A000-$BFFF no longer drop off
-    // the end.
+    // MZ-800 bitmap VRAM: four planes, indexed by CPU address − $8000
+    // through the WF / RF formats. 16 KB each: 320×200 uses the low
+    // 8000 bytes (40 per raster); 640×200 uses the whole 16 KB CPU
+    // window, even screen bytes at $0000-$1F3F and odd at $2000-$3F3F
+    // (tech-ref p. 15). Planes III / IV exist only with the MZ-1R25
+    // (<see cref="VramExpansion"/>).
     public byte[] PlaneI   = new byte[0x4000];
     public byte[] PlaneII  = new byte[0x4000];
     public byte[] PlaneIII = new byte[0x4000];
@@ -116,10 +102,10 @@ public sealed class MZ800Memory : IMemory
     }
 
     /// <summary>
-    /// Which display mode the machine is in. Set by DMD-register
-    /// writes at OUT ($CE),A — the DMD3+DMD2 field (mask $0C) selects
-    /// the mode: $00 = MZ-800 320×200, $04 = MZ-800 640×200, $08 =
-    /// MZ-700, $0C = prohibited. See tech-ref p. 17 Table-1.
+    /// MZ-700 mode (DMD3:2 = 10) rather than an MZ-800 bitmap mode. Set
+    /// by <see cref="SetDmdRegister"/>; decides where a mapped VRAM
+    /// appears. The prohibited value DMD3:2 = 11 is treated as the
+    /// 320×200 bitmap mode (real behaviour undefined, tech-ref p. 17).
     /// </summary>
     public bool Mz700Mode;
 
@@ -127,52 +113,35 @@ public sealed class MZ800Memory : IMemory
     public Z80Cpu? Cpu;
 
     /// <summary>
-    /// CRTC Write Format register — set by OUT ($CC),A. Bit layout
-    /// (tech-ref pp. 10-13): D7-D5 = write MODE (000 SINGLE / 001 XOR /
-    /// 010 OR / 011 RESET / 100 REPLACE / 101 PSET); D4 = FRAME
-    /// (0 = Frame A, planes I+II; 1 = Frame B, planes III+IV);
-    /// D3-D0 = per-plane enable (D0 plane I, D1 plane II, D2 plane III,
-    /// D3 plane IV). Consumed by <see cref="WriteVideoPlane"/> on every
-    /// CPU write to $8000-$BFFF in MZ-800 mode.
+    /// Write Format register, OUT ($CC),A (tech-ref p. 20): D7-D5 write
+    /// mode, D4 B/A frame select, D3-D0 plane enables IV III II I.
+    /// Decoded per CPU write by <see cref="WriteVideoPlane"/>.
     /// </summary>
     public byte WfRegister;
 
     /// <summary>
-    /// CRTC Read Format register — set by OUT ($CD),A. Selects which
-    /// plane <see cref="ReadVideoPlane"/> returns and (bit 4) whether
-    /// SEARCH mode is active. Phase 5.2 captures the value; Phase 5.3
-    /// wires the read decode.
+    /// Read Format register, OUT ($CD),A (tech-ref pp. 18-19): D7
+    /// SEARCH / single, D4 B/A, D3-D0 plane (or search colour) IV III
+    /// II I. Decoded per CPU read by <see cref="ReadVideoPlane"/>.
     /// </summary>
     public byte RfRegister;
 
-    /// <summary>
-    /// Phase 5.2: OUT ($CC),A hook. Ownership of the WF register byte
-    /// moved from Mz800IoBus to Memory in 5.2 because Memory is the
-    /// consumer. Pass-through today — kept as a method so future phases
-    /// (renderer cache invalidation, Phase 5.7 scroll) can hook cleanly.
-    /// </summary>
+    /// <summary>OUT ($CC),A.</summary>
     public void SetWfRegister(byte value) => WfRegister = value;
 
-    /// <summary>Phase 5.2 companion to <see cref="SetWfRegister"/> for the RF register.</summary>
+    /// <summary>OUT ($CD),A.</summary>
     public void SetRfRegister(byte value) => RfRegister = value;
 
     /// <summary>
-    /// CRTC Display Mode register — full value from the last OUT ($CE),A.
-    /// Bit layout per tech-ref p. 17 Table-1:
-    ///   DMD3+DMD2 = combined mode/resolution field:
-    ///     00 → MZ-800 bitmap 320×200
-    ///     01 → MZ-800 bitmap 640×200
-    ///     10 → MZ-700 mode (40×25 char cells)
-    ///     11 → prohibited
-    ///   DMD1+DMD0 = combined frame/plane designation (see Table-1):
-    ///     for 320×200: 00 Frame A · 01 Frame B · 10 both (16-colour,
-    ///     32-KB VRAM only) · 11 prohibited
-    ///     for 640×200: 00 Frame A (Plane I) · 01 Frame B (Plane III,
-    ///     32-KB VRAM only) · 10 both (4-colour, 32-KB VRAM only) ·
-    ///     11 prohibited
-    /// Phase 5.6 wired the combined decode; Phase 5.0-5.5 had only
-    /// bit 3 acted on (which happened to be right for the two values
-    /// the IPL and BASIC actually write: $00 and $08).
+    /// Display Mode register, OUT ($CE),A (tech-ref p. 17 Table-1):
+    ///   DMD3:2  00 bitmap 320×200 · 01 bitmap 640×200 · 10 MZ-700 ·
+    ///           11 prohibited
+    ///   DMD1:0  320: 00 Frame A (I+II) · 01 Frame B (III+IV) ·
+    ///                10 16-colour (I-IV)
+    ///           640: 00 Frame A (I) · 01 Frame B (III) ·
+    ///                10 4-colour (I+III)
+    ///           11 prohibited. Frame B and the combined modes need the
+    ///           MZ-1R25.
     /// </summary>
     public byte DmdRegister;
 
@@ -204,9 +173,8 @@ public sealed class MZ800Memory : IMemory
     /// <summary>
     /// OUT ($F0),A palette write (tech-ref p. 22). D6-D4 = register
     /// select S2-S0: 0-3 → PLT0-3 with D3-D0 = I G R B; 4 → palette
-    /// switch SW0/SW1 in D1-D0. Resolves the Phase 5.4 "slot 4
-    /// mystery": Exploding Fist's $40 selects palette group 0, it is
-    /// not a border write. (Phase 7.1.)
+    /// switch SW0/SW1 in D1-D0 (Exploding Fist's $40 selects palette
+    /// group 0 — it is not a border write).
     ///
     /// The tech-ref marks D7 "x", but a write with D7=1 must not reach
     /// the palette: Uridium initialises with `$00 $11 … $EE` and
@@ -231,39 +199,22 @@ public sealed class MZ800Memory : IMemory
     /// </summary>
     public bool VramExpansion = true;
 
-    /// <summary>Phase 5.4: OUT ($CF),A with B=6 border-colour write.
-    /// Low nibble is IRGB, high nibble unused per tech-ref p. 23.</summary>
+    /// <summary>OUT ($CF),A with B=6 (BCOL): low nibble I G R B,
+    /// high nibble unused (tech-ref p. 23).</summary>
     public void SetBorderColour(byte value) => BorderColour = (byte)(value & 0x0F);
 
     /// <summary>
-    /// Scroll registers (tech-ref pp. 10-11). CRTC uses these to
-    /// window and offset the plane addresses driven onto the display,
-    /// giving smooth vertical scroll and split-screen scroll windows
-    /// without the CPU having to memmove any VRAM. Programmed via
-    /// OUT ($CF),A with B=1..5.
-    ///
-    ///   <see cref="Ssa"/> B=4 (7-bit): scroll start address — top
-    ///                    of the scroll window in units of $5 (each
-    ///                    unit = 1 character row = 8 scanlines).
-    ///                    Range $0-$78; default $0.
-    ///   <see cref="Sea"/> B=5 (7-bit): scroll end address, same
-    ///                    units. Range $5-$7D; default $7D
-    ///                    (covers full 200 scanlines).
-    ///   <see cref="Sw"/>  B=3 (7-bit): scroll width = SEA - SSA.
-    ///                    Default $7D (whole display is one scroll
-    ///                    region). Constraint: SW &gt; SOF.
-    ///   <see cref="Sof"/> B=1 (SOF1, low 8 bits) + B=2 (SOF2, high
-    ///                    2 bits) — 10-bit scroll offset. Increment
-    ///                    $5 = shift display up by 1 scanline
-    ///                    (tech-ref §3 smooth-scroll example).
-    ///                    Range $0-$3E8; default $0.
-    ///
-    /// Phase 5.7 MVP: only SOF is fed into the renderers (both 320
-    /// and 640) as a full-screen circular scroll wrapping within the
-    /// full 200-scanline plane extent. SSA/SEA/SW are stored but not
-    /// yet used to define a windowed scroll region — that arrives
-    /// when either BASIC's split CONSOLE or an MC game (Uridium's
-    /// candidate) exercises it. See research/06-hardware-scroll.md.
+    /// Hardware-scroll registers (tech-ref pp. 10-12), OUT ($CF),A with
+    /// B=1..5. The CRTC remaps display addresses inside the window
+    /// [SSA, SEA) — see <see cref="Mz800Video"/>'s scroll address map —
+    /// so the CPU never moves VRAM to scroll.
+    ///   <see cref="Ssa"/> B=4, 7-bit window start, 64-byte units
+    ///                     (5 = one 8-raster character row); default $00.
+    ///   <see cref="Sea"/> B=5, window end, same units; default $7D.
+    ///   <see cref="Sw"/>  B=3, window width = SEA − SSA; default $7D.
+    ///   <see cref="Sof"/> B=1 (low 8 bits) + B=2 (high 2 bits), 10-bit
+    ///                     offset in 8-byte units (5 = one raster);
+    ///                     must stay ≤ SW. Default 0.
     /// </summary>
     public byte Ssa = 0x00;
     /// <inheritdoc cref="Ssa" />
@@ -292,35 +243,24 @@ public sealed class MZ800Memory : IMemory
         => Sof = (ushort)((Sof & 0x00FF) | ((value & 0x03) << 8));
 
     /// <summary>
-    /// Optional log sink (mirror of MZ700Memory.BankSwitchLog).
-    /// Useful during Phase 1 bring-up to see the IPL's bank-switch
-    /// sequence in the debugger.
+    /// Optional --dump= log of every bank-latch change (PC, port, before
+    /// → after). Capped at 4096 entries.
     /// </summary>
     public System.Text.StringBuilder? BankSwitchLog;
 
     /// <summary>
-    /// Optional log sink for CPU writes into the MZ-800-mode bitmap
-    /// VRAM window ($8000-$BFFF). Phase 5.0 diagnostic to answer
-    /// "does BASIC actually write here, and if so what WF register
-    /// is active?" — see _mz800info/MZ800_VideoRendering_Research/
-    /// 00-current-state.md open questions. Populated only when
-    /// --dump= is active; the null-conditional check inside Write()
-    /// keeps the hot path free otherwise. Capped at 4096 entries so
-    /// a runaway boot doesn't OOM the trace.
+    /// Optional --dump= log of CPU writes to $8000-$BFFF (PC, address,
+    /// value, bank state, mode, WF). Capped at 4096 entries.
     /// </summary>
     public System.Text.StringBuilder? VideoWriteLog;
     private int _videoWriteLogEntries;
     private const int VideoWriteLogCap = 4096;
 
     /// <summary>
-    /// Phase 5.8 diagnostic: every OUT ($CE),A that actually changes
-    /// <see cref="Mz700Mode"/> or <see cref="Config"/> emits a line
-    /// with PC + before/after state. Answers "what mode transitions
-    /// does software do during boot/game-load?" without needing to
-    /// grep the (much noisier) CrtcWriteLog. Populated only under
-    /// --dump=; capped at 1024 entries — mode transitions are rare so
-    /// this cap is much lower than the plane-write log's.
-    /// See research/08-mode-flip.md.
+    /// Optional --dump= log of DMD writes that switch between MZ-700 and
+    /// MZ-800 mode (PC, value, bank state) — the quick answer to "when
+    /// does this program change mode?" without reading the full CRTC
+    /// log. Capped at 1024 entries.
     /// </summary>
     public System.Text.StringBuilder? ModeFlipLog;
     private int _modeFlipLogEntries;
@@ -359,25 +299,15 @@ public sealed class MZ800Memory : IMemory
     ///   11x PSET    — "writes only bit 1 of WD in a specific colour":
     ///                 enabled planes ← WD + VD, the frame's other
     ///                 planes ← ¬WD · VD (pixels where WD=0 untouched)
-    ///       (the table lists WMD0 as "x" for both; Wheelie draws with
-    ///       WF=$F0/$F7 = PSET via WMD=111 — Phase 7.0 had 101 = PSET
-    ///       and 110/111 as no-ops, fixed in 7.1)
+    ///       (WMD0 is "x" for both — Wheelie draws with WF=$F0/$F7)
     ///
     /// REPLACE and PSET act on the planes of the frame being written,
     /// which depends on the display mode (Table-1) and B/A — see
-    /// <see cref="WriteFramePlanes"/>. REPLACE with no planes enabled
-    /// ($80) clears the frame: Exploding Fist, Jetpac and Uridium rely
-    /// on it. Phase 5.2 treated REPLACE as "enabled planes only" and
-    /// left PSET as a no-op, so cleared graphics lingered on the other
-    /// plane (fixed 2026-09-27).
+    /// <see cref="FramePlanes"/>. REPLACE with no planes enabled ($80)
+    /// clears the frame (Exploding Fist, Jetpac, Uridium).
     ///
-    /// Address decode: plane offset = addr - $8000 (see
-    /// research/02-plane-layout.md for the 640-mode interleave).
-    ///
-    /// Cold-boot fallback: WF=$00 decodes as SINGLE with no planes
-    /// enabled — semantically a no-op. Fall back to plane I so the
-    /// very first writes (before any code programs WF) land somewhere
-    /// the debugger can see them.
+    /// WF=$00 (nothing programmed yet) writes plane I so pre-init
+    /// writes stay visible in the debugger.
     /// </summary>
     private void WriteVideoPlane(ushort addr, byte value)
     {
@@ -389,7 +319,7 @@ public sealed class MZ800Memory : IMemory
         int mode = (WfRegister >> 5) & 0x07;
         if (mode >= 0b100) mode &= 0b110;                  // WMD0 is don't-care for REPLACE / PSET
         int enabled = WfRegister & 0x0F;
-        int frame = mode >= 0b100 ? WriteFramePlanes() : 0;
+        int frame = mode >= 0b100 ? FramePlanes(WfRegister) : 0;
 
         int planes = VramExpansion ? 4 : 2;
         for (int p = 0; p < planes; p++)
@@ -415,17 +345,11 @@ public sealed class MZ800Memory : IMemory
     }
 
     /// <summary>
-    /// Planes (bit mask, bit 0 = plane I) that make up the frame a
-    /// REPLACE / PSET write targets — tech-ref Table-1 (p. 17) and the
-    /// WF table (p. 20). DMD1:0 = 10 selects the combined modes
-    /// (320 16-colour: I-IV; 640 4-colour: I+III); otherwise WF B/A
-    /// picks frame A or B.
-    /// </summary>
-    private int WriteFramePlanes() => FramePlanes(WfRegister);
-
-    /// <summary>
-    /// Frame plane mask for a WF or RF value — both carry B/A at D4
-    /// (tech-ref pp. 18, 20).
+    /// Planes (bit mask, bit 0 = plane I) making up the frame a REPLACE /
+    /// PSET write or a SEARCH read targets — Table-1 (p. 17) with the
+    /// WF / RF tables (pp. 19-20). DMD1:0 = 10 selects the combined
+    /// modes (320 16-colour: I-IV; 640 4-colour: I+III); otherwise B/A
+    /// (D4 of WF or RF) picks Frame A or B.
     /// </summary>
     private int FramePlanes(byte formatRegister)
     {
@@ -437,22 +361,14 @@ public sealed class MZ800Memory : IMemory
     }
 
     /// <summary>
-    /// Phase 5.3 read path for the MZ-800-mode bitmap-VRAM window.
-    /// Honours the RF register (tech-ref pp. 18-19):
-    ///
-    ///   D7 = 0 → single-plane read. Low nibble is per-plane enables
-    ///           (D0=I, D1=II, D2=III, D3=IV), same convention as WF.
-    ///           First-enabled plane wins if multiple bits set.
-    ///   D7 = 1 → SEARCH: see <see cref="SearchRead"/>.
-    ///   D4 = B/A (frame select; used by SEARCH).
-    ///
-    /// Cold-boot fallback: RF=$00 decodes as single-plane with no
-    /// enables set — semantically "no plane". Fall back to PlaneI
-    /// so any read before the IPL programs RF (WF=$00 case too)
-    /// still returns something the CPU can work with.
-    ///
-    /// Off-window addresses (past the plane storage size) return
-    /// $FF (bus-idle).
+    /// Read path for the MZ-800-mode bitmap-VRAM window, per the RF
+    /// register (tech-ref pp. 18-19):
+    ///   D7 = 0 → single-plane read of the plane selected in D3-D0
+    ///           (only one should be set; the tech-ref leaves several
+    ///           "not assured" — the lowest wins here).
+    ///   D7 = 1 → SEARCH, see <see cref="SearchRead"/>.
+    /// RF=$00 (nothing programmed yet) reads plane I. Reads of an
+    /// absent plane (no MZ-1R25) float high.
     /// </summary>
     private byte ReadVideoPlane(ushort addr)
     {
@@ -476,9 +392,7 @@ public sealed class MZ800Memory : IMemory
     /// frame's planes — equals the RF plane bits (D3-D0 = IV III II I).
     /// Planes outside the frame are "disregarded" (don't-care). The
     /// frame follows the display mode and RF B/A, as for writes.
-    /// Wheelie programs RF=$FF (search colour 15, 16-colour mode).
-    /// Phase 5.3 deferred this (and tested the wrong bit — D4 is B/A,
-    /// not SEARCH); implemented in Phase 7.1.
+    /// Used by Wheelie (RF=$FF, colour 15), Manic Miner, Abu Simbel.
     /// </summary>
     private byte SearchRead(int offset)
     {
@@ -522,10 +436,8 @@ public sealed class MZ800Memory : IMemory
 
     public void Write(ushort addr, byte value)
     {
-        // Phase 5.0 diagnostic: log every write to the MZ-800 bitmap
-        // VRAM window in every config, so we can settle whether BASIC
-        // does write here (currently absorbed into Ram[] by D_AllRam).
-        // Deliberately outside the switch so it fires for every mode.
+        // --dump= diagnostic: every write to $8000-$BFFF, whatever the
+        // mode or bank state.
         if (VideoWriteLog != null
             && addr >= 0x8000 && addr <= 0xBFFF
             && _videoWriteLogEntries < VideoWriteLogCap)
@@ -592,11 +504,6 @@ public sealed class MZ800Memory : IMemory
     /// at $1000-$1FFF (the IPL copies it into PCG this way) and, in
     /// MZ-800 mode, VRAM at $8000; IN $E1 undoes both. The tech-ref
     /// defines no IN behaviour for $E2-$E6.
-    ///
-    /// Phase 2.5 fix (2026-08-28): $E0 and $E1 were swapped, causing
-    /// the IPL's LDIR at $E8B4 to copy from DRAM (zeros) instead of
-    /// CG-ROM, and — worse — the subsequent CALL $001B (GETL) ran
-    /// with the stack ($10DE-$10F0) inside the CG-ROM window.
     /// </summary>
     public void HandleBankIn(byte cmd)
     {
@@ -640,20 +547,11 @@ public sealed class MZ800Memory : IMemory
     ///     $08 = MZ-700 mode
     ///     $0C = prohibited
     ///   DMD1+DMD0 (mask $03) — frame/plane designation (Table-1).
-    /// The full value is stashed in <see cref="DmdRegister"/> so the
-    /// renderer can inspect resolution and frame; this method tracks
-    /// the MZ-700 ↔ MZ-800 mode transition.
-    ///
-    /// Bank latches are independent of DMD — the current mode only
-    /// changes where a mapped VRAM appears ($D000 vs $8000). Phase 5.8
-    /// added a config "auto-flip" here because the old four-config
-    /// enum had MZ-700-only configs that dropped plane writes after a
-    /// switch to MZ-800 mode; with latches (Phase 6.0) a DMD=$00 write
-    /// routes $8000 to the planes whenever VRAM is mapped, so the
-    /// auto-flip is gone. See research/08-mode-flip.md.
-    ///
-    /// If <see cref="ModeFlipLog"/> is populated, every actual mode
-    /// transition is captured there for diagnostic replay.
+    /// The full value is kept in <see cref="DmdRegister"/> for the
+    /// renderer and the write / read frame logic; this method also
+    /// tracks the MZ-700 ↔ MZ-800 switch. Bank latches are independent
+    /// of DMD — the mode only decides where a mapped VRAM appears
+    /// ($D000 vs $8000).
     /// </summary>
     public void SetDmdRegister(byte value)
     {
@@ -677,8 +575,7 @@ public sealed class MZ800Memory : IMemory
     }
 
     /// <summary>
-    /// True when DMD selects MZ-800 640×200 bitmap mode (DMD3+DMD2 =
-    /// 01). Consumed by the renderer dispatch in <see cref="MZ800"/>.
+    /// True when DMD selects the 640×200 bitmap mode (DMD3:2 = 01).
     /// </summary>
     public bool Is640BitmapMode => (DmdRegister & 0x0C) == 0x04;
 
@@ -690,9 +587,8 @@ public sealed class MZ800Memory : IMemory
 
     /// <summary>
     /// Restore power-on state — MZ-800 mode, every bank latch set
-    /// (the OUT $E4 map), and blank bitmap planes. Phase 5.1 added the
-    /// plane-clear so a Reset gives a defined black display in MZ-800
-    /// mode instead of carrying pre-reset plane data forward.
+    /// (the OUT $E4 map), CRTC registers at their defaults, and blank
+    /// bitmap planes.
     /// </summary>
     public void ResetBankState()
     {

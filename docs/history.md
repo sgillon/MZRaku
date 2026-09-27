@@ -1300,6 +1300,32 @@ ahead of the v1.4 settings work at the start of the arc
     (deferred until a title needs it). User verified: bar sweep,
     speed and text all match EmuZ-800.
 
+- **Phase 7.3 — MZ-800 video review pass (SHIPPED 2026-09-27).**
+  After ten-plus video sub-phases (three of which fixed earlier
+  decode bugs), a deliberate consolidation:
+  - **Golden-image regression harness** (local, since the images are
+    ROM/game screenshots): 15 cases — IPL, BASIC, eleven MZ-800
+    titles, MZ-700 and MZ-80A BASIC — run through `--dump` at fixed
+    frames, comparing frame PNGs pixel-exact, the dump test patterns
+    and rendered audio. Emulation is frame-deterministic, so an
+    unchanged build reproduces the golden set exactly.
+  - **Tech-ref audit** of the CRTC decode against pp. 10-23. One real
+    discrepancy fixed: scroll units and windowing. SOF counts 8-byte
+    units (5 = one raster, so non-multiples shift within a line) and
+    SSA/SEA/SW 64-byte units (5 = one character row); only the window
+    [SSA, SEA) scrolls, which is how split screens work. The renderers
+    now map every display address through
+    `SSA·64 + ((DA − SSA·64 + SOF·8) mod SW·64)` inside the window.
+    Verified row by row with the tech-ref's own split-screen example
+    via a new `.testsplit.png` dump pattern. Documented only: CKSW
+    (superimpose — nothing to emulate), VRAM access wait states (p. 16,
+    not modelled), prohibited DMD value.
+  - **Consistency cleanup**: comments now describe current behaviour
+    (phase narratives moved to the research notes), the pre-7.1
+    render wrappers are gone (dump test patterns use the real render
+    path), the MZ-800 state dump reports all CRTC registers and plane
+    occupancy. All 15 regression cases unchanged throughout.
+
 ---
 
 ## Architectural decisions worth knowing

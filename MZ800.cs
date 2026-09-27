@@ -10,16 +10,16 @@ namespace MZRaku;
 /// PIT + Z80 PIO + SN76489 PSG + 64 KiB DRAM + 16 KiB combined ROM +
 /// bank latches (OUT $E0-$E6, IN $E0/$E1) + dual-mode I/O layout.
 ///
-/// Boot flow (Phase 1 spike, 2026-08-29): CPU starts at $0000 (JP $E800), the
-/// MZ-800 IPL (1Z-016B) runs from ROM at CPU $E800 (file offset
-/// $2800), flips to MZ-700 mode via OUT ($CE),A, banks the CG-ROM
-/// in/out to copy PCG data, then MZ-700 monitor at CPU $0000 takes
-/// over and writes the '*' prompt to VRAM at $D000.
+/// Boot flow: CPU starts at $0000 (JP $E800), the MZ-800 IPL (1Z-016B)
+/// runs from ROM at CPU $E800 (file offset $2800), switches to MZ-700
+/// mode via OUT ($CE),A, banks the CG-ROM in/out to copy PCG data,
+/// then the MZ-700 monitor at CPU $0000 takes over.
 ///
-/// Status (Phase 6.1): MZ-700-mode text + MZ-800 bitmap video,
-/// keyboard, cassette traps, Z80 PIO timer interrupt, bank latches and
-/// the SN76489 PSG are live. Remaining: joystick + PIO printer side
-/// (Phase 7), polish (Phase 8).
+/// Frames follow a PAL raster (see "Raster timing"): the CPU runs
+/// line by line, blanking signals and the per-row palette latch track
+/// the beam, and the frame is rendered at the end. Not yet emulated:
+/// joystick, PIO printer side, border, PCG redefinition in MZ-700
+/// mode, VRAM wait states.
 /// </summary>
 public sealed class MZ800 : MzMachineBase, IMachine
 {
@@ -43,12 +43,8 @@ public sealed class MZ800 : MzMachineBase, IMachine
     double IMachine.FramesPerSecond => FramesPerSecond;
     Z80Core.IMemory IMachine.Mem => Mem;
     CassetteTrapBase IMachine.Cassette => Cassette;
-    // Video output surface: DMD-mode-aware. Phase 5.6 added the second
-    // bitmap (FrameHi, 640×200) so 640-mode gets its native resolution
-    // without stretching or downsampling the 320-mode/MZ-700-mode
-    // output. MainForm.Display_Paint scales from whichever bitmap
-    // comes back here — it reads size from the bitmap itself, not
-    // from any constant.
+    // 640×200 modes render into Video.FrameHi, everything else into
+    // Video.Frame; MainForm scales whichever comes back.
     System.Drawing.Bitmap? IMachine.VideoFrame => Mem.Is640BitmapMode ? Video.FrameHi : Video.Frame;
 
     // MZ-800 CPU runs at 3.547 MHz (17.734 MHz crystal ÷ 5, per
@@ -56,7 +52,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
     // one at 2 MHz.
     public const double CpuClockHz = 3_546_900.0;
 
-    // ---- Raster timing (Phase 7.2) ----
+    // ---- Raster timing ----
     //
     // PAL: 312 lines × 64 µs (= 227 CPU cycles) → 70,824 cycles, 50.08
     // frames/s. Line 0 starts with vertical sync; the 200 display lines
@@ -275,10 +271,10 @@ public sealed class MZ800 : MzMachineBase, IMachine
         {
             _inDisplay = display;
             // VBLANK = outside the display lines: 8255 PC7 (MZ-700-mode
-            // $E008 path) and PIO PA5 (/VBLANK frame interrupt, Phase
-            // 7.0 — tech-ref p. 31 calls PA5 "horizontal blanking,
-            // active H", but Uridium/Jetpac use it as an active-low
-            // once-per-frame sync).
+            // $E008 path) and PIO PA5 (/VBLANK frame interrupt — tech-ref
+            // p. 31 calls PA5 "horizontal blanking, active H", but
+            // Uridium / Jetpac use it as an active-low once-per-frame
+            // sync).
             Ppi.SetVBlank(!display);
             Pio.SetPortAPin(5, display);
         }
@@ -292,8 +288,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
 
     /// <summary>
     /// CRTC status, IN $CE. Undocumented in the tech-ref (p. 23 just
-    /// says "status read"); bit meanings inferred from software
-    /// (Phase 7.2):
+    /// says "status read"); bit meanings inferred from software:
     ///   D7 /HBLANK  — 0 during horizontal blank. G.P.S. counts its
     ///                 0→1 edges to step down the screen line by line.
     ///   D6 /VBLANK  — 1 on display lines. BASIC spins while D6=1
@@ -301,8 +296,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
     ///   D4 /VSYNC   — 0 during vertical sync. G.P.S. waits for its
     ///                 0→1 edge once per frame.
     ///   D1          — the IPL branches on it at $E853 (likely the SW1
-    ///                 MZ-700/MZ-800 switch); left 0, as before.
-    /// Phase 5.3 had D7 = VBLANK; no software found relies on that.
+    ///                 MZ-700/MZ-800 switch); returned as 0.
     /// </summary>
     public byte CrtcStatus()
     {
@@ -330,8 +324,9 @@ public sealed class MZ800 : MzMachineBase, IMachine
     /// DMD1:0 = 11 is prohibited; treated as Frame A. Without the
     /// MZ-1R25, planes III/IV stay zero (their writes are dropped), so
     /// the expansion-only modes degrade the way real hardware's "not
-    /// assured" output would rather than showing stale data. SOF
-    /// scroll (Phase 5.7): <c>Sof / 5</c> scanlines.
+    /// assured" output would rather than showing stale data. Rows use
+    /// the palette latched as the beam reached them; the scroll
+    /// registers feed the renderers' address map.
     /// </summary>
     private void RenderCurrentMode()
     {
@@ -340,7 +335,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
             Video.Render(Mem.Vram, Mem.Aram);
             return;
         }
-        int scrollLines = Mem.Sof / 5;
+        var scroll = new Mz800Video.ScrollRegs(Mem.Ssa, Mem.Sea, Mem.Sw, Mem.Sof);
         int frame = Mem.DmdRegister & 0x03;
         byte[]? plIII = Mem.VramExpansion ? Mem.PlaneIII : null;
         byte[]? plIV  = Mem.VramExpansion ? Mem.PlaneIV : null;
@@ -350,20 +345,20 @@ public sealed class MZ800 : MzMachineBase, IMachine
         if (Mem.Is640BitmapMode)
         {
             if (frame == 1)
-                Video.RenderPlanes640(plIII, null, palette, scrollLines);
+                Video.RenderPlanes640(plIII, null, palette, scroll);
             else if (frame == 2)
-                Video.RenderPlanes640(Mem.PlaneI, plIII, palette, scrollLines);
+                Video.RenderPlanes640(Mem.PlaneI, plIII, palette, scroll);
             else
-                Video.RenderPlanes640(Mem.PlaneI, null, palette, scrollLines);
+                Video.RenderPlanes640(Mem.PlaneI, null, palette, scroll);
             return;
         }
 
         if (frame == 1)
-            Video.RenderPlanes320(plIII, plIV, null, null, palette, scrollLines);
+            Video.RenderPlanes320(plIII, plIV, null, null, palette, scroll);
         else if (frame == 2)
-            Video.RenderPlanes320(Mem.PlaneI, Mem.PlaneII, plIII, plIV, palette, scrollLines);
+            Video.RenderPlanes320(Mem.PlaneI, Mem.PlaneII, plIII, plIV, palette, scroll);
         else
-            Video.RenderPlanes320(Mem.PlaneI, Mem.PlaneII, null, null, palette, scrollLines);
+            Video.RenderPlanes320(Mem.PlaneI, Mem.PlaneII, null, null, palette, scroll);
     }
 
     private readonly int[][] _rowLuts = new int[DisplayLines][];

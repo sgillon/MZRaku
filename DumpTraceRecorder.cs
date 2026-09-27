@@ -89,11 +89,11 @@ internal sealed class DumpTraceRecorder
                 AppendPcTrace();
                 AppendMz700WriteLogs();
                 File.WriteAllText(_dumpPath + ".trace", _traceLog.ToString());
-                // Phase 6.0: raw 64 KB DRAM image for offline
+                // Raw 64 KB DRAM image for offline
                 // disassembly of code software relocates at runtime
                 // (e.g. BASIC's high-RAM routines above the .mzf image).
                 if (_mz800 != null) File.WriteAllBytes(_dumpPath + ".ram", _mz800.Mem.Ram);
-                // Phase 6.1: rendered PSG + counter-0 audio since boot.
+                // Rendered PSG + counter-0 audio since boot.
                 if (_mz800?.AudioCapture != null) SaveWav(_dumpPath + ".wav", _mz800.AudioCapture);
                 SaveVideoFramePng();
             }
@@ -122,10 +122,9 @@ internal sealed class DumpTraceRecorder
     }
 
     /// <summary>
-    /// Phase 5.5: alongside the .txt + .trace, also emit a .png of the
-    /// current video frame. Gives visual verification of the renderer's
-    /// output without needing a live GUI session — the CI-friendly form
-    /// of "look at the screen".
+    /// Alongside the .txt + .trace, emit a .png of the current video
+    /// frame — visual verification without a live GUI session (and what
+    /// the local golden-image regression harness compares).
     ///
     /// For MZ-800 dumps we also emit a `.test.png` where we seed the
     /// planes with a known 4-colour-bar pattern (black/blue/red/white
@@ -146,6 +145,7 @@ internal sealed class DumpTraceRecorder
             SaveMz800TestPatternPng(_dumpPath + ".test.png");
             SaveMz800Test640PatternPng(_dumpPath + ".test640.png");
             SaveMz800TestScrollPng(_dumpPath + ".testscroll.png");
+            SaveMz800TestSplitPng(_dumpPath + ".testsplit.png");
         }
     }
 
@@ -180,7 +180,7 @@ internal sealed class DumpTraceRecorder
                     mem.PlaneII[rowBase + col] = p2Bits;
                 }
             }
-            _mz800.Video.RenderBitmap(mem.PlaneI, mem.PlaneII, mem.Palette, mem.BorderColour);
+            _mz800.Video.RenderPlanes320(mem.PlaneI, mem.PlaneII, null, null, Mz800Video.UniformRows(Mz800Video.PaletteLut(mem.Palette)), Mz800Video.ScrollRegs.None);
             using var snapshot = new System.Drawing.Bitmap(_mz800.Video.Frame);
             snapshot.Save(path, System.Drawing.Imaging.ImageFormat.Png);
         }
@@ -190,12 +190,12 @@ internal sealed class DumpTraceRecorder
             Array.Copy(savedII, mem.PlaneII, savedII.Length);
             // Re-render so the live frame reflects the real (post-restore)
             // plane state, not the test pattern.
-            _mz800.Video.RenderBitmap(mem.PlaneI, mem.PlaneII, mem.Palette, mem.BorderColour);
+            _mz800.Video.RenderPlanes320(mem.PlaneI, mem.PlaneII, null, null, Mz800Video.UniformRows(Mz800Video.PaletteLut(mem.Palette)), Mz800Video.ScrollRegs.None);
         }
     }
 
     /// <summary>
-    /// Phase 5.6 companion: seed Plane I with a pattern that exercises
+    /// 640-mode pattern: seed Plane I with a pattern that exercises
     /// both bit-ordering (LSB-first) and the even/odd-bank decode of
     /// 640-mode, render FrameHi, save, restore.
     ///
@@ -228,19 +228,19 @@ internal sealed class DumpTraceRecorder
                     mem.PlaneI[rowBaseOdd  + c] = 0x00; // odd  display byte → all pixels off
                 }
             }
-            _mz800.Video.RenderBitmap640Mono(mem.PlaneI, mem.Palette, mem.BorderColour);
+            _mz800.Video.RenderPlanes640(mem.PlaneI, null, Mz800Video.UniformRows(Mz800Video.PaletteLut(mem.Palette)), Mz800Video.ScrollRegs.None);
             using var snapshot = new System.Drawing.Bitmap(_mz800.Video.FrameHi);
             snapshot.Save(path, System.Drawing.Imaging.ImageFormat.Png);
         }
         finally
         {
             Array.Copy(savedI, mem.PlaneI, savedI.Length);
-            _mz800.Video.RenderBitmap640Mono(mem.PlaneI, mem.Palette, mem.BorderColour);
+            _mz800.Video.RenderPlanes640(mem.PlaneI, null, Mz800Video.UniformRows(Mz800Video.PaletteLut(mem.Palette)), Mz800Video.ScrollRegs.None);
         }
     }
 
     /// <summary>
-    /// Phase 5.7 scroll-verification pattern: seed 320-mode Plane I +
+    /// Scroll-verification pattern: seed 320-mode Plane I +
     /// Plane II with the same 4-horizontal-bar pattern as .test.png,
     /// then apply SOF = 250 (scrolls display up 50 scanlines = one
     /// full bar), render, save, restore. Expected: the bars appear
@@ -270,11 +270,11 @@ internal sealed class DumpTraceRecorder
                     mem.PlaneII[rowBase + col] = p2Bits;
                 }
             }
-            // SOF unit is 5 scanlines. SOF=250 → shift up 50 scanlines
-            // = one full 4-band bar. Result: the bar order visibly
+            // SOF unit is 8 bytes (5 = one raster line). SOF=250 → shift
+            // up 50 scanlines = one full 4-band bar. Result: the bar order visibly
             // rotates (black moves from top to bottom).
             mem.Sof = 250;
-            _mz800.Video.RenderBitmap(mem.PlaneI, mem.PlaneII, mem.Palette, mem.BorderColour, mem.Sof / 5);
+            _mz800.Video.RenderPlanes320(mem.PlaneI, mem.PlaneII, null, null, Mz800Video.UniformRows(Mz800Video.PaletteLut(mem.Palette)), new Mz800Video.ScrollRegs(0x00, 0x7D, 0x7D, mem.Sof));
             using var snapshot = new System.Drawing.Bitmap(_mz800.Video.Frame);
             snapshot.Save(path, System.Drawing.Imaging.ImageFormat.Png);
         }
@@ -283,7 +283,43 @@ internal sealed class DumpTraceRecorder
             Array.Copy(savedI,  mem.PlaneI,  savedI.Length);
             Array.Copy(savedII, mem.PlaneII, savedII.Length);
             mem.Sof = savedSof;
-            _mz800.Video.RenderBitmap(mem.PlaneI, mem.PlaneII, mem.Palette, mem.BorderColour, mem.Sof / 5);
+            _mz800.Video.RenderPlanes320(mem.PlaneI, mem.PlaneII, null, null, Mz800Video.UniformRows(Mz800Video.PaletteLut(mem.Palette)), new Mz800Video.ScrollRegs(0x00, 0x7D, 0x7D, mem.Sof));
+        }
+    }
+
+    /// <summary>
+    /// Split-screen scroll pattern: the tech-ref's own example (p. 10
+    /// §5 — SSA=$19, SEA=$5A, SW=$41, fixed bands above raster 40 and
+    /// from raster 144) with SOF=$5 (one raster). Plane I byte for raster
+    /// r is r itself (plane II zero), drawn with a fixed black / white
+    /// palette, so every display row shows which VRAM raster it fetched:
+    /// rows 0-39 and 144-199 unchanged, 40-143 advanced by one raster
+    /// with raster 40 wrapping to row 143.
+    /// </summary>
+    private void SaveMz800TestSplitPng(string path)
+    {
+        if (_mz800 == null) return;
+        var mem = _mz800.Mem;
+        var savedI  = (byte[])mem.PlaneI.Clone();
+        var savedII = (byte[])mem.PlaneII.Clone();
+        try
+        {
+            for (int y = 0; y < 200; y++)
+                for (int col = 0; col < 40; col++)
+                {
+                    mem.PlaneI[y * 40 + col]  = (byte)y;
+                    mem.PlaneII[y * 40 + col] = 0;
+                }
+            var lut = Mz800Video.PaletteLut(new byte[] { 0x0, 0xF, 0x0, 0x0 });
+            _mz800.Video.RenderPlanes320(mem.PlaneI, mem.PlaneII, null, null,
+                Mz800Video.UniformRows(lut), new Mz800Video.ScrollRegs(0x19, 0x5A, 0x41, 0x05));
+            using var snapshot = new System.Drawing.Bitmap(_mz800.Video.Frame);
+            snapshot.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+        }
+        finally
+        {
+            Array.Copy(savedI,  mem.PlaneI,  savedI.Length);
+            Array.Copy(savedII, mem.PlaneII, savedII.Length);
         }
     }
 
@@ -326,40 +362,21 @@ internal sealed class DumpTraceRecorder
             var sbATB = new StringBuilder("ARAM @ $D800: ");
             for (int i = 0; i < 32; i++) sbATB.Append($"{_mz800.Mem.Aram[i]:X2} ");
             w.WriteLine(sbATB.ToString());
-            // Phase 5.1: plane samples. Prove BASIC's writes now land
-            // in plane storage rather than vanishing. Address $9F00 is
-            // near the end of a 320×200 plane (row 199 area) where the
-            // clear loop starts; $8000 is row 0 (should stay zero if
-            // nothing wrote there yet). PlaneIII[$1FFF] captures the
-            // two probe writes BASIC does with WF=$94 at CPU $9FFF.
-            var sbP1a = new StringBuilder("PlaneI  @ $8000: ");
-            for (int i = 0; i < 16; i++) sbP1a.Append($"{_mz800.Mem.PlaneI[i]:X2} ");
-            w.WriteLine(sbP1a.ToString());
-            var sbP1b = new StringBuilder("PlaneI  @ $9F00: ");
-            for (int i = 0; i < 16; i++) sbP1b.Append($"{_mz800.Mem.PlaneI[0x1F00 + i]:X2} ");
-            w.WriteLine(sbP1b.ToString());
-            var sbP2 = new StringBuilder("PlaneII @ $9F00: ");
-            for (int i = 0; i < 16; i++) sbP2.Append($"{_mz800.Mem.PlaneII[0x1F00 + i]:X2} ");
-            w.WriteLine(sbP2.ToString());
-            var sbP3 = new StringBuilder("PlaneIII @ $9FF0: ");
-            for (int i = 0; i < 16; i++) sbP3.Append($"{_mz800.Mem.PlaneIII[0x1FF0 + i]:X2} ");
-            w.WriteLine(sbP3.ToString());
-            // Sanity check: Ram[$8000-$800F] should now stay zero (writes
-            // route to planes instead). Contrast against Phase 5.0 where
-            // the whole $8000-$BFFF area was Ram[] and was still zero
-            // only because BASIC's writes were being absorbed into DRAM.
-            var sbRam8000 = new StringBuilder("Ram @ $8000: ");
-            for (int i = 0; i < 16; i++) sbRam8000.Append($"{_mz800.Mem.Ram[0x8000 + i]:X2} ");
-            w.WriteLine(sbRam8000.ToString());
-            // Phase 5.4: palette + border in resolved form so the dump
-            // reader can eyeball whether BASIC's cold-boot palette
-            // (research/05-palette.md predicts black/blue/red/white
-            // from $00 $11 $22 $3F) landed correctly.
-            var sbPal = new StringBuilder("Palette IRGB: ");
+            // CRTC registers and plane occupancy — enough to tell which
+            // display mode a program is in and which planes it drew on.
+            var m = _mz800.Mem;
+            w.WriteLine($"CRTC DMD=${m.DmdRegister:X2} WF=${m.WfRegister:X2} RF=${m.RfRegister:X2} " +
+                        $"SSA=${m.Ssa:X2} SEA=${m.Sea:X2} SW=${m.Sw:X2} SOF=${m.Sof:X3} " +
+                        $"MZ-1R25={(m.VramExpansion ? "fitted" : "absent")}");
+            var sbPal = new StringBuilder("Palette IGRB: ");
             for (int i = 0; i < 4; i++)
-                sbPal.Append($"[{i}]=${_mz800.Mem.Palette[i]:X1}→ARGB={Mz800Video.IrgbToArgb(_mz800.Mem.Palette[i]):X8} ");
+                sbPal.Append($"[{i}]=${m.Palette[i]:X1}→ARGB={Mz800Video.IrgbToArgb(m.Palette[i]):X8} ");
+            sbPal.Append($"group={m.PaletteGroup}");
             w.WriteLine(sbPal.ToString());
-            w.WriteLine($"Border IRGB: ${_mz800.Mem.BorderColour:X1}→ARGB={Mz800Video.IrgbToArgb(_mz800.Mem.BorderColour):X8}");
+            w.WriteLine($"Border IGRB: ${m.BorderColour:X1}→ARGB={Mz800Video.IrgbToArgb(m.BorderColour):X8}");
+            static int NonZero(byte[] plane) { int n = 0; foreach (var b in plane) if (b != 0) n++; return n; }
+            w.WriteLine($"Plane non-zero bytes: I={NonZero(m.PlaneI)} II={NonZero(m.PlaneII)} " +
+                        $"III={NonZero(m.PlaneIII)} IV={NonZero(m.PlaneIV)}");
             w.WriteLine($"Tape trap hits: Header={_mz800.Cassette.HeaderTrapHits} Data={_mz800.Cassette.DataTrapHits}");
         }
 
@@ -433,7 +450,7 @@ internal sealed class DumpTraceRecorder
             _traceLog.Append(memLog);
         }
 
-        // Phase 5.0 diagnostics — MZ-800 only.
+        // MZ-800 diagnostics.
         if (_mz800 != null)
         {
             if (_mz800.Io.CrtcWriteLog != null)
