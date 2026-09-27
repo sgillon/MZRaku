@@ -171,50 +171,71 @@ public sealed class Mz800Video
         }
     }
 
+    // Stand-in for a plane that isn't part of the current mode (or,
+    // without the MZ-1R25, doesn't exist): always reads as zero.
+    private static readonly byte[] NoPlane = new byte[0x4000];
+
     /// <summary>
-    /// Phase 5.5 MZ-800-mode 320×200 4-colour Frame A renderer.
-    /// Reads planes I and II, combines each pair of bits into a 2-bit
-    /// pixel colour code, resolves through the palette + IrgbToArgb,
-    /// and paints into <see cref="Frame"/> — the same bitmap the
-    /// MZ-700-mode <see cref="Render"/> path uses, so
-    /// <see cref="MainForm"/>'s Display_Paint doesn't need to know
-    /// which mode is active.
-    ///
-    /// Plane offset per CPU-visible address is
-    /// <c>plane_offset = addr - $8000</c> (see research/02-plane-layout.md).
-    /// 40 bytes cover one scanline × 200 scanlines = 8000 bytes total.
-    /// Bit ordering per byte: LSB-first (bit 0 = leftmost pixel),
-    /// matching the MZ-700 CG-ROM convention above. If Phase 5.9
-    /// verification shows mirrored pixels, flip the shift index.
-    ///
-    /// Colour code: <c>(planeII_bit &lt;&lt; 1) | planeI_bit</c>. If
-    /// verification shows colours consistently swapped across all
-    /// non-black pixels, swap the two plane arguments at the call
-    /// site (simpler than adjusting the shift here).
-    ///
-    /// Border is not painted here — the 320×200 pixel area fills the
-    /// full <see cref="Frame"/>. Real hardware surrounds the active
-    /// image with a coloured border on an overscanned CRT area; if we
-    /// later want to model that, grow Frame and paint BorderColour
-    /// around a centred 320×200 active rect.
-    ///
-    /// Phase 5.7 added <paramref name="scrollLines"/> for hardware
-    /// vertical scroll: the plane row read for display row Y becomes
-    /// <c>(Y + scrollLines) mod 200</c>, giving a circular wrap. Pass
-    /// <c>Mem.Sof / 5</c> (tech-ref p. 10 §3 — SOF unit is 5 = 1
-    /// scanline). SSA/SEA windowing (split-screen scroll) is deferred
-    /// so the wrap always covers the full 200 rows.
+    /// Colour lookup for the palette modes: entries 0-3 = PLT0-3.
+    /// Pixel code = planeA_bit + 2 × planeB_bit — tech-ref p. 22
+    /// "output select" A/B (320 4-colour: A = plane I / III, B = plane
+    /// II / IV; 640 4-colour: A = I, B = III; 640 1-colour: A only).
+    /// </summary>
+    public static int[] PaletteLut(byte[] palette)
+    {
+        var lut = new int[16];
+        for (int c = 0; c < 16; c++) lut[c] = IrgbToArgb(palette[c & 3]);
+        return lut;
+    }
+
+    /// <summary>
+    /// Colour lookup for 320×200 16-colour mode (tech-ref pp. 22-23).
+    /// Pixel code = I | II&lt;&lt;1 | III&lt;&lt;2 | IV&lt;&lt;3, which is
+    /// directly an IGRB colour (plane I = B, II = R, III = G, IV = I).
+    /// Codes whose group bits (III, IV) equal the palette switch
+    /// SW0/SW1 (<paramref name="paletteGroup"/>, set by OUT $F0 with
+    /// register select 4) go through PLT0-3 instead.
+    /// </summary>
+    public static int[] SixteenColourLut(byte[] palette, int paletteGroup)
+    {
+        var lut = new int[16];
+        for (int c = 0; c < 16; c++)
+            lut[c] = (c >> 2) == paletteGroup ? IrgbToArgb(palette[c & 3]) : IrgbToArgb((byte)c);
+        return lut;
+    }
+
+    /// <summary>
+    /// Phase 5.5 entry point, kept for the dump recorder's test
+    /// patterns: 320×200 4-colour from planes I + II.
     /// </summary>
     public void RenderBitmap(byte[] planeI, byte[] planeII, byte[] palette, byte borderIrgb, int scrollLines = 0)
-    {
-        // Resolve the 4-entry palette to ARGB once per frame.
-        int c0 = IrgbToArgb(palette[0]);
-        int c1 = IrgbToArgb(palette[1]);
-        int c2 = IrgbToArgb(palette[2]);
-        int c3 = IrgbToArgb(palette[3]);
-        int _ = IrgbToArgb(borderIrgb); // reserved: border painting arrives when we grow Frame past 320×200
+        => RenderPlanes320(planeI, planeII, NoPlane, NoPlane, PaletteLut(palette), scrollLines);
 
-        // Normalise scroll offset into [0, 200) so the modulo below is cheap
+    /// <summary>
+    /// Phase 5.6 entry point, kept for the dump recorder's test
+    /// patterns: 640×200 1-colour from plane I.
+    /// </summary>
+    public void RenderBitmap640Mono(byte[] planeI, byte[] palette, byte borderIrgb, int scrollLines = 0)
+        => RenderPlanes640(planeI, NoPlane, PaletteLut(palette), scrollLines);
+
+    /// <summary>
+    /// MZ-800-mode 320×200 renderer for every plane combination
+    /// (Phase 7.1 generalisation of the Phase 5.5 Frame A renderer).
+    /// Each pixel's code is <c>p0 | p1&lt;&lt;1 | p2&lt;&lt;2 | p3&lt;&lt;3</c>
+    /// and indexes <paramref name="lut"/> (see <see cref="PaletteLut"/>
+    /// / <see cref="SixteenColourLut"/>). Pass <c>null</c> for planes
+    /// the mode doesn't use.
+    ///
+    /// Layout: plane offset = addr - $8000, 40 bytes per scanline,
+    /// LSB-first (bit 0 = leftmost pixel), research/02-plane-layout.md.
+    /// <paramref name="scrollLines"/> (Phase 5.7) = <c>Sof / 5</c>;
+    /// plane row for display row Y is <c>(Y + scrollLines) mod 200</c>
+    /// (SSA/SEA windowing deferred). Border not painted — the 320×200
+    /// active area fills <see cref="Frame"/>.
+    /// </summary>
+    public void RenderPlanes320(byte[]? p0, byte[]? p1, byte[]? p2, byte[]? p3, int[] lut, int scrollLines = 0)
+    {
+        p0 ??= NoPlane; p1 ??= NoPlane; p2 ??= NoPlane; p3 ??= NoPlane;
         int scroll = ((scrollLines % PixelHeight) + PixelHeight) % PixelHeight;
 
         var rect = new Rectangle(0, 0, PixelWidth, PixelHeight);
@@ -225,7 +246,7 @@ public sealed class Mz800Video
             {
                 int stride = data.Stride / 4;
                 int* pix = (int*)data.Scan0;
-                const int bytesPerRow = PixelWidth / 8; // 40 bytes per scanline for 320 pixels
+                const int bytesPerRow = PixelWidth / 8; // 40
                 for (int y = 0; y < PixelHeight; y++)
                 {
                     int planeRow = y + scroll;
@@ -235,21 +256,13 @@ public sealed class Mz800Video
                     for (int col = 0; col < bytesPerRow; col++)
                     {
                         int offset = rowBase + col;
-                        byte b1 = planeI[offset];
-                        byte b2 = planeII[offset];
+                        int b0 = p0[offset], b1 = p1[offset], b2 = p2[offset], b3 = p3[offset];
                         int pixX = col * 8;
                         for (int bit = 0; bit < 8; bit++)
                         {
-                            int mask = 1 << bit;
-                            int code = ((b2 & mask) != 0 ? 2 : 0) | ((b1 & mask) != 0 ? 1 : 0);
-                            int argb = code switch
-                            {
-                                0 => c0,
-                                1 => c1,
-                                2 => c2,
-                                _ => c3,
-                            };
-                            rowPix[pixX + bit] = argb;
+                            int code = ((b0 >> bit) & 1) | (((b1 >> bit) & 1) << 1)
+                                     | (((b2 >> bit) & 1) << 2) | (((b3 >> bit) & 1) << 3);
+                            rowPix[pixX + bit] = lut[code];
                         }
                     }
                 }
@@ -262,35 +275,21 @@ public sealed class Mz800Video
     }
 
     /// <summary>
-    /// Phase 5.6 MZ-800-mode 640×200 1-colour renderer. Stock 16 KB
-    /// MZ-800 supports exactly two bitmap resolutions: 320×200 4-colour
-    /// (<see cref="RenderBitmap"/>) and 640×200 1-colour (this method).
-    /// 640×200 4-colour is a 32-KB-VRAM-option mode and out of scope.
+    /// MZ-800-mode 640×200 renderer (Phase 7.1 generalisation of the
+    /// Phase 5.6 mono renderer). Pixel code = <c>a | b&lt;&lt;1</c>
+    /// indexing <paramref name="lut"/>: 1-colour passes plane I (Frame
+    /// A) or III (Frame B) as <paramref name="planeA"/>; 4-colour
+    /// passes I and III (tech-ref p. 22).
     ///
-    /// The hi-res mode packs 80 bytes per scanline × 200 rows =
-    /// 16000 bytes across a single 16 KB Plane I, interleaved
-    /// even/odd across the two halves per tech-ref p. 15:
-    ///   display byte index n = row×80 + col_byte
-    ///   n even → planeI[$0000 + n/2]     (n/2 in [0,  $1F40))
-    ///   n odd  → planeI[$2000 + (n-1)/2] (offset in [$2000, $3F40))
-    /// Simplified: n even offset = row×40 + col_byte/2;
-    /// n odd  offset = $2000 + row×40 + (col_byte-1)/2.
-    ///
-    /// Colour: each bit picks palette[0] (off) or palette[1] (on).
-    /// Palette entries 2 and 3 are unused in mono mode. Bit ordering
-    /// per byte matches 320-mode (LSB-first = leftmost pixel).
-    ///
-    /// Phase 5.7 added <paramref name="scrollLines"/> for hardware
-    /// scroll (same semantics as <see cref="RenderBitmap"/> — pass
-    /// <c>Mem.Sof / 5</c>). Wrap is at the full 200-scanline extent;
-    /// SSA/SEA windowing deferred.
+    /// Each plane packs 80 bytes per scanline interleaved across its
+    /// two 8 KB halves (tech-ref p. 15): display byte n = row×80 + c,
+    /// even c → offset row×40 + c/2, odd c → $2000 + row×40 + c/2.
+    /// LSB-first pixels. Scroll as <see cref="RenderPlanes320"/>.
     /// </summary>
-    public void RenderBitmap640Mono(byte[] planeI, byte[] palette, byte borderIrgb, int scrollLines = 0)
+    public void RenderPlanes640(byte[]? planeA, byte[]? planeB, int[] lut, int scrollLines = 0)
     {
-        int cOff = IrgbToArgb(palette[0]);
-        int cOn  = IrgbToArgb(palette[1]);
-        int _ = IrgbToArgb(borderIrgb); // reserved: border painting arrives when FrameHi grows past 640×200
-
+        planeA ??= NoPlane;
+        planeB ??= NoPlane;
         int scroll = ((scrollLines % HiPixelHeight) + HiPixelHeight) % HiPixelHeight;
 
         var rect = new Rectangle(0, 0, HiPixelWidth, HiPixelHeight);
@@ -301,27 +300,22 @@ public sealed class Mz800Video
             {
                 int stride = data.Stride / 4;
                 int* pix = (int*)data.Scan0;
-                const int bytesPerRow = HiPixelWidth / 8; // 80 bytes per scanline
+                const int bytesPerRow = HiPixelWidth / 8; // 80
                 const int oddBankBase = 0x2000;
                 for (int y = 0; y < HiPixelHeight; y++)
                 {
                     int planeRow = y + scroll;
                     if (planeRow >= HiPixelHeight) planeRow -= HiPixelHeight;
-                    int evenRowBase = planeRow * (bytesPerRow / 2);       // 40 bytes worth of even displayed indices
+                    int evenRowBase = planeRow * (bytesPerRow / 2);
                     int oddRowBase  = oddBankBase + planeRow * (bytesPerRow / 2);
                     int* rowPix = pix + y * stride;
                     for (int c = 0; c < bytesPerRow; c++)
                     {
-                        int planeAddr = ((c & 1) == 0)
-                            ? evenRowBase + (c >> 1)
-                            : oddRowBase  + (c >> 1);
-                        byte b = planeI[planeAddr];
+                        int planeAddr = ((c & 1) == 0) ? evenRowBase + (c >> 1) : oddRowBase + (c >> 1);
+                        int a = planeA[planeAddr], b = planeB[planeAddr];
                         int pixX = c * 8;
                         for (int bit = 0; bit < 8; bit++)
-                        {
-                            int mask = 1 << bit;
-                            rowPix[pixX + bit] = ((b & mask) != 0) ? cOn : cOff;
-                        }
+                            rowPix[pixX + bit] = lut[((a >> bit) & 1) | (((b >> bit) & 1) << 1)];
                     }
                 }
             }

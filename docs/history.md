@@ -1246,6 +1246,35 @@ ahead of the v1.4 settings work at the start of the arc
   - Still open: Uridium's in-game playfield doesn't show — it runs
     DMD=$02 (320×200 16-colour, planes I-IV) and we render I+II.
 
+- **Phase 7.1 — MZ-1R25 VRAM expansion, all display modes, SEARCH
+  read (SHIPPED 2026-09-27).**
+  - **Every Table-1 display mode renders** (tech-ref p. 17): 320×200
+    Frame A / Frame B / 16-colour, 640×200 Frame A / Frame B /
+    4-colour. `Mz800Video` now has two plane renderers driven by a
+    16-entry colour lookup.
+  - **16-colour palette (pp. 22-23):** pixel = I|II<<1|III<<2|IV<<3,
+    itself an IGRB colour; pixels whose (III, IV) group equals the
+    SW0/SW1 switch go through PLT0-3 instead. `OUT $F0` register
+    select 4 sets SW0/SW1 — resolving the Phase 5.4 "slot 4 mystery"
+    (Exploding Fist's `$40` = palette group 0, not a border write).
+    The select is the whole high nibble: the tech-ref marks D7 "x",
+    but Uridium's `$00 $11 … $EE` init would turn the background
+    grey if D7 were ignored.
+  - **MZ-1R25 is a setting**, `[Hardware.MZ800] MZ1R25=` (default
+    true). Off: planes III/IV absent (writes dropped, reads $FF),
+    expansion-only modes show planes I/II only. User-verified both
+    ways with Uridium.
+  - **Two more Phase 5 decode bugs, found via Wheelie:** WF WMD0 is
+    don't-care for REPLACE (`10x`) and PSET (`11x`) — 7.0 had
+    `101` = PSET and `11x` as no-ops, dropping Wheelie's PSET
+    drawing; and RF SEARCH (D7, not D4 which is B/A) was never
+    implemented — now returns 1 where a pixel's colour across the
+    frame's planes equals the RF colour bits (Table-2, p. 19).
+  - Result, all user-verified: Uridium title and in-game playfield
+    in full colour; Wheelie title and in-game colours match a
+    reference emulator; Manic Miner and Abu Simbel (both SEARCH
+    users) render correctly for the first time.
+
 ---
 
 ## Architectural decisions worth knowing

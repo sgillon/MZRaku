@@ -247,13 +247,22 @@ public sealed class MZ800 : MzMachineBase, IMachine
     }
 
     /// <summary>
-    /// Pick a renderer per <see cref="MZ800Memory.Mz700Mode"/> and (in
-    /// MZ-800 mode) the DMD resolution field: MZ-700-mode text →
-    /// <see cref="Mz800Video.Render"/>; MZ-800 320×200 →
-    /// <see cref="Mz800Video.RenderBitmap"/> (fills <see cref="Mz800Video.Frame"/>);
-    /// MZ-800 640×200 → <see cref="Mz800Video.RenderBitmap640Mono"/>
-    /// (fills <see cref="Mz800Video.FrameHi"/>). VideoFrame downstream
-    /// picks the matching bitmap.
+    /// Pick a renderer per <see cref="MZ800Memory.Mz700Mode"/> and, in
+    /// MZ-800 mode, the DMD register (tech-ref p. 17 Table-1):
+    ///
+    ///   DMD  resolution  colours  planes shown        lookup
+    ///   $00  320×200     4        I + II   (Frame A)  PLT0-3
+    ///   $01  320×200     4        III + IV (Frame B)  PLT0-3   [MZ-1R25]
+    ///   $02  320×200     16       I-IV                16-colour [MZ-1R25]
+    ///   $04  640×200     1        I        (Frame A)  PLT0/1
+    ///   $05  640×200     1        III      (Frame B)  PLT0/1   [MZ-1R25]
+    ///   $06  640×200     4        I + III             PLT0-3   [MZ-1R25]
+    ///
+    /// DMD1:0 = 11 is prohibited; treated as Frame A. Without the
+    /// MZ-1R25, planes III/IV stay zero (their writes are dropped), so
+    /// the expansion-only modes degrade the way real hardware's "not
+    /// assured" output would rather than showing stale data. SOF
+    /// scroll (Phase 5.7): <c>Sof / 5</c> scanlines.
     /// </summary>
     private void RenderCurrentMode()
     {
@@ -262,15 +271,30 @@ public sealed class MZ800 : MzMachineBase, IMachine
             Video.Render(Mem.Vram, Mem.Aram);
             return;
         }
-        // SOF register increment $5 = shift display up by 1 scanline
-        // (tech-ref p. 10 §3). Renderer wraps within the full 200-row
-        // plane extent; SSA/SEA split-screen windowing is Phase 5.7
-        // follow-up work.
         int scrollLines = Mem.Sof / 5;
+        int frame = Mem.DmdRegister & 0x03;
+        byte[]? plIII = Mem.VramExpansion ? Mem.PlaneIII : null;
+        byte[]? plIV  = Mem.VramExpansion ? Mem.PlaneIV : null;
+        var palette = Mz800Video.PaletteLut(Mem.Palette);
+
         if (Mem.Is640BitmapMode)
-            Video.RenderBitmap640Mono(Mem.PlaneI, Mem.Palette, Mem.BorderColour, scrollLines);
+        {
+            if (frame == 1)
+                Video.RenderPlanes640(plIII, null, palette, scrollLines);
+            else if (frame == 2)
+                Video.RenderPlanes640(Mem.PlaneI, plIII, palette, scrollLines);
+            else
+                Video.RenderPlanes640(Mem.PlaneI, null, palette, scrollLines);
+            return;
+        }
+
+        if (frame == 1)
+            Video.RenderPlanes320(plIII, plIV, null, null, palette, scrollLines);
+        else if (frame == 2)
+            Video.RenderPlanes320(Mem.PlaneI, Mem.PlaneII, plIII, plIV,
+                Mz800Video.SixteenColourLut(Mem.Palette, Mem.PaletteGroup), scrollLines);
         else
-            Video.RenderBitmap(Mem.PlaneI, Mem.PlaneII, Mem.Palette, Mem.BorderColour, scrollLines);
+            Video.RenderPlanes320(Mem.PlaneI, Mem.PlaneII, null, null, palette, scrollLines);
     }
 
     protected override void AccumulatePit(int cpuCycles)

@@ -64,6 +64,14 @@ public sealed class Settings
     // Persisted at [Display.MZ80A] GreenScreen=.
     public bool Mz80aGreenScreen { get; set; } = true;
 
+    // MZ-1R25 VRAM expansion (second 16 KB VRAM chip → planes III and
+    // IV). A stock MZ-800 has only 16 KB (planes I+II: 320×200 4-colour
+    // Frame A, 640×200 1-colour); the MZ-1R25 adds Frame B, 320×200
+    // 16-colour and 640×200 4-colour (tech-ref p. 17 Table-1). Default
+    // on — software such as Uridium needs it and it costs nothing when
+    // unused. Persisted at [Hardware.MZ800] MZ1R25=.
+    public bool Mz800VramExpansion { get; set; } = true;
+
     // Paths to the system files (monitor ROM, character font, BASIC
     // cassette image), split by machine so both machines can coexist
     // in one settings.ini. Auto-detected on first run by scanning the
@@ -217,6 +225,7 @@ public sealed class Settings
         "Machine",
         "Display.MZ80A",
         "Keyboard.MZ80A",
+        "Hardware.MZ800",
         "DebugPanes",
         "Joystick",
         "Roms.MZ700",
@@ -268,6 +277,8 @@ public sealed class Settings
                     "InvertLetterShift", s.Mz80aInvertLetterShift);
                 s.Mz80aGreenScreen = GetBool(ini, "Display.MZ80A",
                     "GreenScreen", s.Mz80aGreenScreen);
+                s.Mz800VramExpansion = GetBool(ini, "Hardware.MZ800",
+                    "MZ1R25", s.Mz800VramExpansion);
 
                 s.Mz700Roms.MonitorRomPath = GetString(ini, "Roms.MZ700", "Monitor", "");
                 s.Mz700Roms.FontPath = GetString(ini, "Roms.MZ700", "Font", "");
@@ -372,12 +383,7 @@ public sealed class Settings
             sb.AppendLine("; Which Sharp MZ machine to boot into. Values:");
             sb.AppendLine(";   DefaultMachine=MZ700   Sharp MZ-700 (default; original MZRaku target)");
             sb.AppendLine(";   DefaultMachine=MZ80A   Sharp MZ-80A");
-            sb.AppendLine(";   DefaultMachine=MZ800   Sharp MZ-800 (v1.3.0 in-progress — Phase 0");
-            sb.AppendLine(";                          scaffolding only; picking this falls back");
-            sb.AppendLine(";                          to MZ-700 with a friendly message until the");
-            sb.AppendLine(";                          boot phase lands. Filed here as a real slot");
-            sb.AppendLine(";                          so [Roms.MZ800] auto-population can already");
-            sb.AppendLine(";                          find MZ800.ROM if you've dropped it in.)");
+            sb.AppendLine(";   DefaultMachine=MZ800   Sharp MZ-800 (v1.3.0, in development)");
             sb.AppendLine("; Overridable per-run via the --mz700 / --mz80a / --mz800 CLI flags");
             sb.AppendLine("; without touching this file. The File → Machine menu triggers an");
             sb.AppendLine("; ad-hoc restart in the chosen machine (via a --mz-flag arg) and does");
@@ -392,6 +398,16 @@ public sealed class Settings
             sb.AppendLine(";                shipped P1-phosphor monitor. Set false for plain");
             sb.AppendLine(";                white-on-black.");
             sb.AppendLine($"GreenScreen={(Mz80aGreenScreen ? "true" : "false")}");
+            sb.AppendLine();
+
+            sb.AppendLine("[Hardware.MZ800]");
+            sb.AppendLine("; MZ-800-only hardware options. Ignored while another machine is active.");
+            sb.AppendLine(";   MZ1R25  true / false (default true). Fits the MZ-1R25 16 KB VRAM");
+            sb.AppendLine(";           expansion (planes III + IV). Enables the 320×200 16-colour,");
+            sb.AppendLine(";           640×200 4-colour and second-frame display modes some games");
+            sb.AppendLine(";           need (e.g. Uridium). Set false to emulate a stock 16 KB");
+            sb.AppendLine(";           MZ-800. Takes effect at the next start.");
+            sb.AppendLine($"MZ1R25={(Mz800VramExpansion ? "true" : "false")}");
             sb.AppendLine();
 
             sb.AppendLine("[Keyboard.MZ80A]");

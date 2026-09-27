@@ -190,6 +190,7 @@ public sealed class MainForm : Form
         else /* MachineType.MZ800 */
         {
             _mz800 = new MZ800();
+            _mz800.Mem.VramExpansion = _settings.Mz800VramExpansion;
         }
 
         // JoystickInput needs a non-null Joystick reference to

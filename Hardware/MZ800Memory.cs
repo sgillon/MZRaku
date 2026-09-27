@@ -177,37 +177,59 @@ public sealed class MZ800Memory : IMemory
     public byte DmdRegister;
 
     /// <summary>
-    /// 4-entry pixel palette. Each byte holds a 4-bit IRGB code
-    /// (D3=I intensity, D2=R, D1=G, D0=B) — same layout as CGA/EGA.
-    /// A 2-plane pixel decodes to <c>(planeI_bit &lt;&lt; 1) | planeII_bit</c>
-    /// = colour code 0..3 which indexes here. Phase 5.5 renderer
-    /// resolves each entry through <see cref="Mz800Video.IrgbToArgb"/>.
-    /// See tech-ref p. 22 and research/05-palette.md.
+    /// Palette registers PLT0-3 (tech-ref p. 22). Each byte holds a
+    /// 4-bit colour in I G R B order (D3 = intensity, D2 = G, D1 = R,
+    /// D0 = B), resolved by <see cref="Mz800Video.IrgbToArgb"/>. In
+    /// the 4-colour modes a pixel indexes here with
+    /// <c>planeA_bit + 2 × planeB_bit</c>; in 320×200 16-colour mode
+    /// only pixels in the group selected by <see cref="PaletteGroup"/>
+    /// do (see <see cref="Mz800Video.SixteenColourLut"/>).
     /// </summary>
     public byte[] Palette = new byte[4];
 
     /// <summary>
-    /// Border colour — 4-bit IRGB same shape as a palette entry.
-    /// Written via OUT ($CF),A with B=6 per plan (tech-ref p. 23).
-    /// Real hardware wiring TBC; the ambiguity between $CF B=6 and
-    /// an alternative $F0 high-nibble=4 encoding is captured in
-    /// research/05-palette.md. Phase 5.5 renderer paints this
-    /// around the 320×200 active area.
+    /// Palette switch SW0/SW1 (tech-ref p. 22): which of the four
+    /// 16-colour groups — selected by the pixel's plane III / IV bits —
+    /// is shown through PLT0-3 in 320×200 16-colour mode.
+    /// </summary>
+    public int PaletteGroup;
+
+    /// <summary>
+    /// Border colour — 4-bit IGRB, written via OUT ($CF),A with B=6
+    /// (BCOL, tech-ref p. 23). The palette does not apply to the
+    /// border (p. 22).
     /// </summary>
     public byte BorderColour;
 
-    /// <summary>Phase 5.4: OUT ($F0),A palette write. High nibble is the
-    /// target slot (0-3 = pixel palette; 4-15 currently no-op pending
-    /// tech-ref clarification), low nibble is the IRGB value.</summary>
+    /// <summary>
+    /// OUT ($F0),A palette write (tech-ref p. 22). D6-D4 = register
+    /// select S2-S0: 0-3 → PLT0-3 with D3-D0 = I G R B; 4 → palette
+    /// switch SW0/SW1 in D1-D0. Resolves the Phase 5.4 "slot 4
+    /// mystery": Exploding Fist's $40 selects palette group 0, it is
+    /// not a border write. (Phase 7.1.)
+    ///
+    /// The tech-ref marks D7 "x", but a write with D7=1 must not reach
+    /// the palette: Uridium initialises with `$00 $11 … $EE` and
+    /// real hardware shows a black background — if D7 were ignored,
+    /// `$88` would set PLT0 to grey. So the whole high nibble is the
+    /// select and anything other than 0-4 is dropped.
+    /// </summary>
     public void WritePalette(byte value)
     {
-        int index = (value >> 4) & 0x0F;
-        byte irgb = (byte)(value & 0x0F);
-        if (index < Palette.Length) Palette[index] = irgb;
-        // High-nibble 4-15 is captured in the CRTC write log; not
-        // routed to any state today. Phase 5.5 visual verification
-        // decides whether index 4 is border colour (see research doc).
+        int select = value >> 4;
+        if (select < 4) Palette[select] = (byte)(value & 0x0F);
+        else if (select == 4) PaletteGroup = value & 0x03;
     }
+
+    /// <summary>
+    /// MZ-1R25 VRAM expansion fitted (planes III + IV exist). Set from
+    /// settings at machine construction; default true. Without it,
+    /// plane III/IV writes are dropped and reads float high, and the
+    /// display modes that need them (Frame B, 320×200 16-colour,
+    /// 640×200 4-colour) show only what planes I/II hold (tech-ref
+    /// p. 17: "not assured").
+    /// </summary>
+    public bool VramExpansion = true;
 
     /// <summary>Phase 5.4: OUT ($CF),A with B=6 border-colour write.
     /// Low nibble is IRGB, high nibble unused per tech-ref p. 23.</summary>
@@ -332,12 +354,14 @@ public sealed class MZ800Memory : IMemory
     ///   011 RESET   — enabled planes ← ¬WD · VD
     ///       (disabled planes unchanged for all four; plane bits are
     ///       absolute plane numbers)
-    ///   100 REPLACE — "writes WD in a specific colour": enabled planes
+    ///   10x REPLACE — "writes WD in a specific colour": enabled planes
     ///                 ← WD, the frame's other planes ← 0
-    ///   101 PSET    — "writes only bit 1 of WD in a specific colour":
+    ///   11x PSET    — "writes only bit 1 of WD in a specific colour":
     ///                 enabled planes ← WD + VD, the frame's other
     ///                 planes ← ¬WD · VD (pixels where WD=0 untouched)
-    ///   110 / 111   — undefined; no-op
+    ///       (the table lists WMD0 as "x" for both; Wheelie draws with
+    ///       WF=$F0/$F7 = PSET via WMD=111 — Phase 7.0 had 101 = PSET
+    ///       and 110/111 as no-ops, fixed in 7.1)
     ///
     /// REPLACE and PSET act on the planes of the frame being written,
     /// which depends on the display mode (Table-1) and B/A — see
@@ -363,10 +387,12 @@ public sealed class MZ800Memory : IMemory
         if (WfRegister == 0) { PlaneI[offset] = value; return; }
 
         int mode = (WfRegister >> 5) & 0x07;
+        if (mode >= 0b100) mode &= 0b110;                  // WMD0 is don't-care for REPLACE / PSET
         int enabled = WfRegister & 0x0F;
         int frame = mode >= 0b100 ? WriteFramePlanes() : 0;
 
-        for (int p = 0; p < 4; p++)
+        int planes = VramExpansion ? 4 : 2;
+        for (int p = 0; p < planes; p++)
         {
             int bit = 1 << p;
             byte[] plane = p switch { 0 => PlaneI, 1 => PlaneII, 2 => PlaneIII, _ => PlaneIV };
@@ -380,7 +406,7 @@ public sealed class MZ800Memory : IMemory
                 case 0b100:                                                                 // REPLACE
                     if ((frame & bit) != 0) plane[offset] = on ? value : (byte)0;
                     break;
-                case 0b101:                                                                 // PSET
+                case 0b110:                                                                 // PSET
                     if ((frame & bit) != 0)
                         plane[offset] = on ? (byte)(plane[offset] | value) : (byte)(plane[offset] & ~value);
                     break;
@@ -395,9 +421,15 @@ public sealed class MZ800Memory : IMemory
     /// (320 16-colour: I-IV; 640 4-colour: I+III); otherwise WF B/A
     /// picks frame A or B.
     /// </summary>
-    private int WriteFramePlanes()
+    private int WriteFramePlanes() => FramePlanes(WfRegister);
+
+    /// <summary>
+    /// Frame plane mask for a WF or RF value — both carry B/A at D4
+    /// (tech-ref pp. 18, 20).
+    /// </summary>
+    private int FramePlanes(byte formatRegister)
     {
-        bool frameB = (WfRegister & 0x10) != 0;
+        bool frameB = (formatRegister & 0x10) != 0;
         bool combined = (DmdRegister & 0x03) == 0x02;
         if (Is640BitmapMode)
             return combined ? 0b0101 : frameB ? 0b0100 : 0b0001;
@@ -406,18 +438,13 @@ public sealed class MZ800Memory : IMemory
 
     /// <summary>
     /// Phase 5.3 read path for the MZ-800-mode bitmap-VRAM window.
-    /// Honours the RF register (tech-ref pp. 13-14):
+    /// Honours the RF register (tech-ref pp. 18-19):
     ///
-    ///   D4 = 0 → single-plane read. Low nibble is per-plane enables
+    ///   D7 = 0 → single-plane read. Low nibble is per-plane enables
     ///           (D0=I, D1=II, D2=III, D3=IV), same convention as WF.
     ///           First-enabled plane wins if multiple bits set.
-    ///   D4 = 1 → SEARCH mode: return a bitmask where each bit=1 marks
-    ///           a pixel whose across-plane colour code matches a
-    ///           search-colour register. Used by MC games for
-    ///           collision detection / sprite masking. Deferred —
-    ///           returns $FF today. Revisit when an MC game exercises
-    ///           it and the tech-ref colour-register semantics are
-    ///           settled (see research/04-read-format.md).
+    ///   D7 = 1 → SEARCH: see <see cref="SearchRead"/>.
+    ///   D4 = B/A (frame select; used by SEARCH).
     ///
     /// Cold-boot fallback: RF=$00 decodes as single-plane with no
     /// enables set — semantically "no plane". Fall back to PlaneI
@@ -433,13 +460,40 @@ public sealed class MZ800Memory : IMemory
         if (offset < 0 || offset >= 0x4000) return 0xFF;
 
         if (RfRegister == 0) return PlaneI[offset];         // cold-boot fallback
-        if ((RfRegister & 0x10) != 0) return 0xFF;          // SEARCH mode - deferred
+        if ((RfRegister & 0x80) != 0) return SearchRead(offset);
 
         if ((RfRegister & 0x01) != 0) return PlaneI[offset];
         if ((RfRegister & 0x02) != 0) return PlaneII[offset];
+        if (!VramExpansion) return 0xFF;                     // planes III/IV absent
         if ((RfRegister & 0x04) != 0) return PlaneIII[offset];
         if ((RfRegister & 0x08) != 0) return PlaneIV[offset];
         return 0xFF;
+    }
+
+    /// <summary>
+    /// RF SEARCH read (RF D7 = 1, tech-ref pp. 18-19 Table-2): bit n of
+    /// the result is 1 where pixel n's colour — its bits across the
+    /// frame's planes — equals the RF plane bits (D3-D0 = IV III II I).
+    /// Planes outside the frame are "disregarded" (don't-care). The
+    /// frame follows the display mode and RF B/A, as for writes.
+    /// Wheelie programs RF=$FF (search colour 15, 16-colour mode).
+    /// Phase 5.3 deferred this (and tested the wrong bit — D4 is B/A,
+    /// not SEARCH); implemented in Phase 7.1.
+    /// </summary>
+    private byte SearchRead(int offset)
+    {
+        int frame = FramePlanes(RfRegister);
+        if (!VramExpansion) frame &= 0b0011;
+        int result = 0xFF;
+        for (int p = 0; p < 4; p++)
+        {
+            int bit = 1 << p;
+            if ((frame & bit) == 0) continue;
+            byte plane = p switch { 0 => PlaneI[offset], 1 => PlaneII[offset], 2 => PlaneIII[offset], _ => PlaneIV[offset] };
+            // Keep pixels whose plane bit matches the wanted colour bit.
+            result &= (RfRegister & bit) != 0 ? plane : ~plane;
+        }
+        return (byte)result;
     }
 
     public byte Read(ushort addr)
@@ -649,6 +703,7 @@ public sealed class MZ800Memory : IMemory
         RfRegister = 0;
         DmdRegister = 0;
         BorderColour = 0;
+        PaletteGroup = 0;
         // Scroll defaults per tech-ref p. 10 §2 — "no scroll" state
         // that covers the full 200-scanline display.
         Ssa = 0x00;
