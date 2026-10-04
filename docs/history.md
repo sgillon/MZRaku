@@ -1326,6 +1326,35 @@ ahead of the v1.4 settings work at the start of the arc
     path), the MZ-800 state dump reports all CRTC registers and plane
     occupancy. All 15 regression cases unchanged throughout.
 
+- **Phase 7.4 — per-title pass (2026-10-04).** No code change. Two
+  "broken" titles (A-T-W, PSSST3) turned out to be non-standalone
+  files — A-T-W execs under the IPL ROM, PSSST3 execs the IPL's own
+  monitor loop — and black-screen in EmuZ-800 too; dropped. Bruce Lee,
+  Chequered Flag, Flappy and Jetman (colour) added to the regression
+  set; all four match EmuZ-800.
+
+- **Phase 7.5 — MZ-800 tape + BASIC loading, RTC rate (2026-10-04).**
+  - **BASIC `Dev. name error` at boot**: 1Z-016's start-up reads B as
+    the boot device the IPL left behind (cassette = 1, floppy = 2) and
+    queues `RUN "AUTO RUN"` for 2 and up. AutoLoadBasic now hands over
+    with BC=$0100 as the IPL does.
+  - **MZ-800 tape**: a mounted cassette is now a sequence of files (a
+    zip or `.mzt` contributes all of them); a header read past an
+    unread file skips it, so named LOADs search like a real tape.
+    Served to the 1Z-013B monitor primitives (IPL C option, monitor L —
+    now only while that ROM is mapped) and to 1Z-016 BASIC's own
+    bit-banged tape code, trapped at its common read entry $3872. A
+    tape inserted while BASIC waits for PLAY is served through the
+    routine's own exit. MZ-800 BASIC programs (type 05) from the
+    command line or Load cassette now boot BASIC and run through
+    BASIC's LOAD + RUN, queued via its key buffer ($1352). EGG.BAS
+    loading EGG.OBJ by name works; File > Insert cassette for LOAD
+    (renamed from Queue cassette) mounts a whole tape.
+  - **RTC 2× fast on all three machines**: the 8253 C1→C2 cascade
+    clocked C2 on both OUT1 edges; it counts once per C1 period. TI$
+    now keeps time (user-verified against a stopwatch); Flappy, which
+    times its game off C1/C2, now runs at EmuZ-800's speed.
+
 ---
 
 ## Architectural decisions worth knowing

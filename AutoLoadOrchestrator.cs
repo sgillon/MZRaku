@@ -391,6 +391,8 @@ internal sealed class AutoLoadOrchestrator
                 _mz800!.AutoLoadBasic(_settings.BasicFullPath);
                 _setStatus("BASIC loaded.");
                 _pendingLoadBasic = false;
+                _basicLoadedFrame = bootFrames;
+                if (_pendingCassette != null) MountTapeForBasic();
             }
             catch (Exception ex)
             {
@@ -407,6 +409,9 @@ internal sealed class AutoLoadOrchestrator
             _setStatus("BASIC source typing not yet supported on MZ-800 (Phase 4d).");
             _pendingBasicSource = null;
         }
+
+        // A cassette alongside an already-running BASIC: just mount it.
+        if (_pendingCassette != null && _basicLoadedFrame >= 0) MountTapeForBasic();
 
         if (_pendingCassette != null && _mz800MonitorReady())
         {
@@ -440,5 +445,30 @@ internal sealed class AutoLoadOrchestrator
             }
             _pendingCassette = null;
         }
+    }
+
+    /// <summary>
+    /// Mount the pending cassette for MZ-800 BASIC: the whole tape, read
+    /// by BASIC's own LOAD through the tape trap, so a program can LOAD
+    /// further files by name. Called straight after BASIC is loaded, before
+    /// it runs: a BASIC program (type 05) gets LOAD + RUN queued in BASIC's
+    /// key buffer, which BASIC only checks on entering its key-input wait.
+    /// </summary>
+    private void MountTapeForBasic()
+    {
+        try
+        {
+            var tape = CassetteFile.ReadTape(_pendingCassette!);
+            _mz800!.Cassette.Mount(tape);
+            if (tape[0].Type == 0x05 && _mz800.TypeIntoBasic("LOAD\rRUN\r"))
+                _setStatus($"Loading {tape[0].Filename}. Running.");
+            else
+                _setStatus($"Tape inserted: {tape[0].Filename}. Type LOAD.");
+        }
+        catch (Exception ex)
+        {
+            _setStatus("Cassette load failed: " + ex.Message);
+        }
+        _pendingCassette = null;
     }
 }

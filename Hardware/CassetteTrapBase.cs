@@ -59,7 +59,7 @@ public abstract class CassetteTrapBase
     /// </summary>
     public event Action<string>? OnLoaded;
 
-    public void Queue(MzfImage image)
+    public virtual void Queue(MzfImage image)
     {
         Pending = image;
         HeaderDelivered = false;
@@ -71,7 +71,7 @@ public abstract class CassetteTrapBase
     /// flags. Called from the machine reset path so a Pending image
     /// doesn't get served to a freshly-booting monitor's tape traps.
     /// </summary>
-    public void ResetTrapState()
+    public virtual void ResetTrapState()
     {
         Pending = null;
         HeaderDelivered = false;

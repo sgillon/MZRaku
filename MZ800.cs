@@ -496,13 +496,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
         // cold-boot handler. To land there the CPU has to see DRAM at
         // $0000, not the MZ-700 monitor ROM (OUT $E0 below).
         //
-        // Trap-driven LOAD via M/L or the IPL's C option also loads
-        // the binary, but during Phase 4c bring-up 1Z-016B's
-        // JP <header exec = $0000> landed on the monitor ROM's
-        // `JP $E800` and restarted the IPL ("load then boot menu
-        // again"). That was before OUT $E0-$E6 banking existed
-        // (Phase 6.0), so the C path may work now — unverified.
-        // AutoLoadBasic skips that dance entirely: write to Ram[]
+        // AutoLoadBasic skips the IPL's tape-boot dance: write to Ram[]
         // directly, set the banks, hand off to BASIC's own cold-boot
         // at PC=$0000.
         //
@@ -523,7 +517,39 @@ public sealed class MZ800 : MzMachineBase, IMachine
         Mem.Mz700Mode = false;
         Mem.HandleBankOut(0x00);
         Mem.HandleBankOut(0x01);
+        // B = boot device, as the IPL leaves it at its JP (IX) hand-off
+        // (`LD BC,$0100` on the cassette path, $E99D; $0200 for floppy).
+        // BASIC's start-up ($5800) types RUN "AUTO RUN" for B >= 2, so a
+        // stale B gave `Dev. name error` at every cold boot.
+        Cpu.BC = 0x0100;
         Cpu.PC = img.ExecAddr; // = $0000 for 1Z-016
+    }
+
+    // 1Z-016's typed-ahead key buffer: $1352 = read position, $1353 =
+    // length, then the characters ($0BAB serves them to input before the
+    // keyboard). BASIC's own boot path fills it with RUN "AUTO RUN"
+    // ($5800, from the template at $584D); the bytes up to $1365 are free.
+    private const ushort BasicKeyBufferPos = 0x1352;
+    private const ushort BasicKeyBufferLen = 0x1353;
+    private const int BasicKeyBufferMax = 0x1365 - 0x1354;
+
+    /// <summary>
+    /// Queue <paramref name="text"/> ('\r' = CR) as typed input for
+    /// MZ-800 BASIC through its key buffer. BASIC checks the buffer only
+    /// on entering its key-input wait, so call this before BASIC first
+    /// waits for a key (straight after <see cref="AutoLoadBasic"/>), as
+    /// BASIC's own boot does. False if the text is too long or the
+    /// previous text hasn't been consumed.
+    /// </summary>
+    public bool TypeIntoBasic(string text)
+    {
+        if (text.Length > BasicKeyBufferMax) return false;
+        if (Mem.Ram[BasicKeyBufferPos] != Mem.Ram[BasicKeyBufferLen]) return false;
+        for (int i = 0; i < text.Length; i++)
+            Mem.Ram[BasicKeyBufferLen + 1 + i] = (byte)text[i];
+        Mem.Ram[BasicKeyBufferPos] = 0;
+        Mem.Ram[BasicKeyBufferLen] = (byte)text.Length;
+        return true;
     }
 
     public void AutoLoadCassette(string path, bool autoRun)

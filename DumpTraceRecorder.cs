@@ -67,17 +67,20 @@ internal sealed class DumpTraceRecorder
             {
                 var c0 = _mz700.Pit.Counters[0];
                 var c2 = _mz700.Pit.Counters[2];
-                _traceLog.AppendLine($"[F{bootFrames:D4}] PC=${_mz700.Cpu.PC:X4} SP=${_mz700.Cpu.SP:X4} IFF1={_mz700.Cpu.IFF1} C0.rel={c0.Reload} run={c0.Running} out={c0.Out} C2.rel={c2.Reload} run={c2.Running} out={c2.Out} INTMSK={_mz700.Ppi.InterruptMask} hdr={_mz700.Cassette.HeaderDelivered} dat={_mz700.Cassette.DataDelivered}");
+                _traceLog.AppendLine($"[F{bootFrames:D4}] PC=${_mz700.Cpu.PC:X4} SP=${_mz700.Cpu.SP:X4} IFF1={_mz700.Cpu.IFF1} C0.rel={c0.Reload} run={c0.Running} out={c0.Out} C2.rel={c2.Reload} val={c2.Value} run={c2.Running} out={c2.Out} INTMSK={_mz700.Ppi.InterruptMask} hdr={_mz700.Cassette.HeaderDelivered} dat={_mz700.Cassette.DataDelivered}");
             }
             else if (_mz800 != null)
             {
                 var c0 = _mz800.Pit.Counters[0];
                 var c2 = _mz800.Pit.Counters[2];
-                _traceLog.AppendLine($"[F{bootFrames:D4}] PC=${_mz800.Cpu.PC:X4} SP=${_mz800.Cpu.SP:X4} IFF1={_mz800.Cpu.IFF1} IM={_mz800.Cpu.IM} I=${_mz800.Cpu.I:X2} bank={_mz800.Mem.BankState} mz700={_mz800.Mem.Mz700Mode} C0.rel={c0.Reload} run={c0.Running} out={c0.Out} C2.rel={c2.Reload} run={c2.Running} out={c2.Out} INTMSK={_mz800.Ppi.InterruptMask}");
+                _traceLog.AppendLine($"[F{bootFrames:D4}] PC=${_mz800.Cpu.PC:X4} SP=${_mz800.Cpu.SP:X4} IFF1={_mz800.Cpu.IFF1} IM={_mz800.Cpu.IM} I=${_mz800.Cpu.I:X2} bank={_mz800.Mem.BankState} mz700={_mz800.Mem.Mz700Mode} C0.rel={c0.Reload} run={c0.Running} out={c0.Out} C2.rel={c2.Reload} val={c2.Value} run={c2.Running} out={c2.Out} INTMSK={_mz800.Ppi.InterruptMask}");
             }
             else
             {
-                _traceLog.AppendLine($"[F{bootFrames:D4}] PC=${_active.Cpu.PC:X4} SP=${_active.Cpu.SP:X4} IFF1={_active.Cpu.IFF1}");
+                string pit = _active is MZ80A a
+                    ? $" C2.rel={a.Pit.Counters[2].Reload} val={a.Pit.Counters[2].Value}"
+                    : "";
+                _traceLog.AppendLine($"[F{bootFrames:D4}] PC=${_active.Cpu.PC:X4} SP=${_active.Cpu.SP:X4} IFF1={_active.Cpu.IFF1}{pit}");
             }
         }
 

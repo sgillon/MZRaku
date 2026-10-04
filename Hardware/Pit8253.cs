@@ -306,10 +306,12 @@ public sealed class Pit8253
                     // 2× longer than the tempo cycle they're polling for.
                     c.Value = (ushort)Math.Max(1, c.Reload >> 1);
                     c.Out = !c.Out;
-                    // Real-hardware cascade: OUT1 -> CLK2 (every C1 OUT
-                    // edge clocks C2 — service manual: "C2 counts those
-                    // pulses"). Drives the 12-hour RTC interrupt.
-                    if (idx == 1) TickCounter(2, 1);
+                    // Real-hardware cascade: OUT1 -> CLK2. The 8253 counts
+                    // once per input-clock period, so C2 ticks on one OUT1
+                    // edge per C1 period, not both (both made every RTC
+                    // run 2x: MZ-700/MZ-80A C1 = 1 s, MZ-800 BASIC = 2 s,
+                    // tech-ref p. 28 "a pulse on OUT1 at every second").
+                    if (idx == 1 && !c.Out) TickCounter(2, 1);
                     if (idx == 2) Counter2Out?.Invoke(c.Out);
                 }
             }

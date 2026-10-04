@@ -351,7 +351,7 @@ public sealed class MainForm : Form
         // wiring on MZ-800 until Phase 4c wires BASIC (which uses the
         // same traps). Available on MZ-700 and MZ-800; MZ-80A skips
         // Monitor-L entirely (SA-5510 goes through BASIC's LOAD).
-        file.DropDownItems.Add(new ToolStripMenuItem("Queue cassette for &monitor LOAD...", null, (_, _) => BrowseAndQueue()));
+        file.DropDownItems.Add(new ToolStripMenuItem("Insert cassette for &LOAD...", null, (_, _) => BrowseAndQueue()));
         file.DropDownItems.Add(new ToolStripMenuItem("Load &BASIC", null, (_, _) => LoadBasic()) { ShortcutKeys = Keys.Control | Keys.B });
         file.DropDownItems.Add(new ToolStripMenuItem("Load BASIC &source...", null, (_, _) => BrowseAndLoadBasicSource()) { ShortcutKeys = Keys.Control | Keys.Shift | Keys.B });
         file.DropDownItems.Add(new ToolStripSeparator());
@@ -741,7 +741,7 @@ public sealed class MainForm : Form
                 try
                 {
                     var img = Hardware.MzfImage.Parse(Hardware.CassetteFile.ReadBytes(_initialCassette));
-                    if (img.Type == 0x02 || img.Type == 0x05) { loadBasic = true; cassetteNeedsBasic = true; }
+                    if (NeedsBasic(img.Type)) { loadBasic = true; cassetteNeedsBasic = true; }
                 }
                 catch { /* let the Timer_Tick load path surface the error with a clearer status */ }
                 _autoLoad.PendingCassette = _initialCassette;
@@ -1284,19 +1284,20 @@ public sealed class MainForm : Form
     }
 
     /// <summary>
-    /// v1.3.0 Phase 4a: pick a .mzf and queue it for the monitor's L
-    /// command to fetch via RDINF/RDDAT traps. No direct-inject, no
-    /// jump — the user drives the load from within the emulator by
-    /// typing L at the Monitor prompt. Exercises the cassette-trap
-    /// path end-to-end for MZ-700 and MZ-800. MZ-80A is filtered out
-    /// (SA-5510 goes through BASIC's LOAD, not Monitor's).
+    /// Insert a cassette for the emulated machine's own LOAD to read
+    /// through the tape traps — no direct-inject, no jump; the user
+    /// drives the load. MZ-700: one image for the monitor's L command.
+    /// MZ-800: the whole tape (every file of a zip / .mzt), read by the
+    /// IPL's C option, the monitor's L, or 1Z-016 BASIC's LOAD. MZ-80A
+    /// is filtered out (SA-5510 goes through BASIC's LOAD, not the
+    /// monitor's).
     /// </summary>
     private void BrowseAndQueue()
     {
         if (_machine == null && _mz800 == null)
         {
             MessageBox.Show(this,
-                "Queue-for-LOAD is available on MZ-700 and MZ-800 only.\n" +
+                "Insert cassette is available on MZ-700 and MZ-800 only.\n" +
                 "MZ-80A cassette LOAD runs through BASIC's SA-5510, not " +
                 "the SA-1510 monitor's L command — use Load cassette instead.",
                 "Not supported on this machine",
@@ -1306,15 +1307,25 @@ public sealed class MainForm : Form
         using var dlg = new OpenFileDialog
         {
             Filter = "MZ cassette images (*.mzf;*.m12;*.mzt;*.zip)|*.mzf;*.m12;*.mzt;*.zip|All files|*.*",
-            Title = "Queue cassette image for monitor LOAD"
+            Title = "Insert cassette for LOAD"
         };
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
         try
         {
-            var img = Hardware.MzfImage.Parse(Hardware.CassetteFile.ReadBytes(dlg.FileName));
-            if (_machine != null) _machine.Cassette.Queue(img);
-            else                  _mz800!.Cassette.Queue(img);
-            _statusLabel.Text = $"Queued: {img.Filename}. Type L in Monitor mode to fetch.";
+            if (_machine != null)
+            {
+                var img = Hardware.MzfImage.Parse(Hardware.CassetteFile.ReadBytes(dlg.FileName));
+                _machine.Cassette.Queue(img);
+                _statusLabel.Text = $"Queued: {img.Filename}. Type L in Monitor mode to fetch.";
+            }
+            else
+            {
+                var tape = Hardware.CassetteFile.ReadTape(dlg.FileName);
+                _mz800!.Cassette.Mount(tape);
+                _statusLabel.Text = tape.Count == 1
+                    ? $"Tape inserted: {tape[0].Filename}."
+                    : $"Tape inserted: {tape.Count} files, first {tape[0].Filename}.";
+            }
         }
         catch (Exception ex)
         {
@@ -1322,6 +1333,15 @@ public sealed class MainForm : Form
                 "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
+
+    /// <summary>
+    /// Whether a cassette of this type is a BASIC program, so loading it
+    /// boots BASIC first. MZ-700: S-BASIC text (02) and 05. MZ-800: 1Z-016
+    /// programs are type 05; an MZ-700 BASIC (02) program would need
+    /// S-BASIC in MZ-700 mode, which isn't automated.
+    /// </summary>
+    private bool NeedsBasic(byte type)
+        => _mz800 != null ? type == 0x05 : type == 0x02 || type == 0x05;
 
     private void LoadCassetteFile(string path)
     {
@@ -1340,7 +1360,7 @@ public sealed class MainForm : Form
             // existing pending-cassette path in Timer_Tick handles the
             // rest (monitor banner detection, post-BASIC 60-frame wait,
             // direct-inject + auto-RUN for BASIC, jump-to-exec for MC).
-            bool needsBasic = img.Type == 0x02 || img.Type == 0x05;
+            bool needsBasic = NeedsBasic(img.Type);
             bool basicLoaded = _autoLoad.BasicLoadedFrame >= 0;
 
             if (basicLoaded || needsBasic)
