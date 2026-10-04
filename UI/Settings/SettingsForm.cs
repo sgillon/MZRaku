@@ -102,6 +102,7 @@ public sealed class SettingsForm : Form
     // they'll open again).
     private readonly RadioButton _rbDefaultMz700 = new() { Text = "MZ-&700", AutoSize = true };
     private readonly RadioButton _rbDefaultMz80a = new() { Text = "MZ-&80A", AutoSize = true };
+    private readonly RadioButton _rbDefaultMz800 = new() { Text = "MZ-8&00", AutoSize = true };
     private readonly Label _lblCliOverrideHint = new() { AutoSize = true, ForeColor = SystemColors.GrayText };
     private readonly CheckBox _chkDebuggerAtStartup = new() { Text = "&Debugger (Ctrl+D)", AutoSize = true };
     private readonly CheckBox _chkMemoryViewerAtStartup = new() { Text = "&Memory Viewer (Ctrl+M)", AutoSize = true };
@@ -213,9 +214,10 @@ public sealed class SettingsForm : Form
         };
         machineStack.Controls.Add(_rbDefaultMz700);
         machineStack.Controls.Add(_rbDefaultMz80a);
+        machineStack.Controls.Add(_rbDefaultMz800);
         machineStack.Controls.Add(new Label
         {
-            Text = "Overridable per-run with the --mz700 / --mz80a CLI flag (which does not rewrite this setting).",
+            Text = "Overridable per-run with the --mz700 / --mz80a / --mz800 CLI flag or System → Machine (neither rewrites this setting).",
             AutoSize = true,
             MaximumSize = new Size(650, 0),
             ForeColor = SystemColors.GrayText,
@@ -267,23 +269,23 @@ public sealed class SettingsForm : Form
         // Tooltips explain the grey-out reasoning.
         _startupTooltips = new ToolTip();
         _startupTooltips.SetToolTip(_chkSoundDiagnosticAtStartup,
-            "MZ-700 only. Won't open at boot when DefaultMachine=MZ-80A.");
+            "MZ-700 only for now. Won't open at boot when the default machine is MZ-80A or MZ-800.");
         // Live grey-out on radio change.
         _rbDefaultMz700.CheckedChanged += (_, _) => RefreshDebugPaneEnabledState();
         _rbDefaultMz80a.CheckedChanged += (_, _) => RefreshDebugPaneEnabledState();
+        _rbDefaultMz800.CheckedChanged += (_, _) => RefreshDebugPaneEnabledState();
 
         return BuildTabPage("Startup", stack);
     }
 
     /// <summary>
     /// Grey out MZ-700-only debug panes when the DefaultMachine radio
-    /// is set to MZ-80A. Stored values survive — disabling only masks
-    /// the checkbox visually, doesn't alter its Checked state.
+    /// is set to another machine. Stored values survive — disabling only
+    /// masks the checkbox visually, doesn't alter its Checked state.
     /// </summary>
     private void RefreshDebugPaneEnabledState()
     {
-        bool mz80aDefault = _rbDefaultMz80a.Checked;
-        _chkSoundDiagnosticAtStartup.Enabled = !mz80aDefault;
+        _chkSoundDiagnosticAtStartup.Enabled = _rbDefaultMz700.Checked;
     }
 
     private TabPage BuildDisplayTab()
@@ -911,15 +913,21 @@ public sealed class SettingsForm : Form
     private void LoadFromSettings()
     {
         // Startup — DefaultMachine radio + CLI-override hint.
-        if (_settings.DefaultMachine == MachineType.MZ80A)
-            _rbDefaultMz80a.Checked = true;
-        else
-            _rbDefaultMz700.Checked = true;
+        switch (_settings.DefaultMachine)
+        {
+            case MachineType.MZ80A: _rbDefaultMz80a.Checked = true; break;
+            case MachineType.MZ800: _rbDefaultMz800.Checked = true; break;
+            default:                _rbDefaultMz700.Checked = true; break;
+        }
         if (_settings.CurrentMachine != _settings.DefaultMachine)
         {
-            var flag = _settings.CurrentMachine == MachineType.MZ700 ? "--mz700" : "--mz80a";
-            var name = _settings.CurrentMachine == MachineType.MZ700 ? "MZ-700" : "MZ-80A";
-            _lblCliOverrideHint.Text = $"Current session: {name} (via {flag} CLI flag).";
+            var (name, flag) = _settings.CurrentMachine switch
+            {
+                MachineType.MZ80A => ("MZ-80A", "--mz80a"),
+                MachineType.MZ800 => ("MZ-800", "--mz800"),
+                _                 => ("MZ-700", "--mz700"),
+            };
+            _lblCliOverrideHint.Text = $"Current session: {name} (via {flag} or System → Machine).";
             _lblCliOverrideHint.Visible = true;
         }
         else
@@ -983,7 +991,9 @@ public sealed class SettingsForm : Form
         var baseSnap = SettingsSnapshot.Capture(_settings);
         return new SettingsSnapshot
         {
-            DefaultMachine = _rbDefaultMz80a.Checked ? MachineType.MZ80A : MachineType.MZ700,
+            DefaultMachine = _rbDefaultMz80a.Checked ? MachineType.MZ80A
+                           : _rbDefaultMz800.Checked ? MachineType.MZ800
+                           : MachineType.MZ700,
             PaneDebugger = _chkDebuggerAtStartup.Checked,
             PaneMemoryViewer = _chkMemoryViewerAtStartup.Checked,
             PaneHidDiagnostic = _chkHidDiagnosticAtStartup.Checked,

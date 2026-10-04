@@ -54,6 +54,7 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
         {
             MZ700 mz7  => mz7.Keyboard,
             MZ80A mz8a => mz8a.Keyboard,
+            MZ800 mz80 => mz80.Keyboard,
             _          => throw new System.ArgumentException(
                 $"HidDiagnosticForm doesn't know how to reach the keyboard on {machine.GetType().Name}"),
         };
@@ -90,6 +91,7 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
     {
         MachineType.MZ700 => "MZ-700",
         MachineType.MZ80A => "MZ-80A",
+        MachineType.MZ800 => "MZ-800",
         _ => kind.ToString(),
     };
 
@@ -233,6 +235,16 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
             byte modeByte = _machine.Mem.Read(0x0060);
             string mode = (modeByte & 0x10) != 0 ? "GRAPH" : "ALPHA";
             sb.AppendLine($"Mode: {mode}  (source: $0060 bit 4 = ${modeByte:X2} — only valid once BASIC is loaded)");
+        }
+        else if (_machine is MZ800 mz8)
+        {
+            // Shift is strobe 8 bit 0 (as MZ-700); the keyboard also
+            // mirrors it into $1170 for the MZ-700-mode monitor's GETKY.
+            byte strobe8 = _kb.PeekMatrixRow(8);
+            sb.AppendLine($"MZ shift bit: {Bit((strobe8 & 0x01) == 0)}  (source: matrix strobe 8 bit 0 = ${strobe8:X2}, active-low; mirror $1170 = ${mz8.Mem.Ram[0x1170]:X2})");
+            var m = mz8.Mem;
+            string video = m.Mz700Mode ? "MZ-700 text" : m.Is640BitmapMode ? "640x200" : "320x200";
+            sb.AppendLine($"Mode: {(m.Mz700Mode ? "MZ-700" : "MZ-800")}  display {video}  (DMD=${m.DmdRegister:X2}, banks {m.BankState})");
         }
         else
         {

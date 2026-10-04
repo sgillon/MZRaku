@@ -1368,6 +1368,22 @@ ahead of the v1.4 settings work at the start of the arc
   `--dump` runs no longer poll the gamepad, so regression captures
   don't depend on what's plugged in.
 
+- **Phase 8 — UI and settings integration (from 2026-10-04).** With the
+  MZ-800 complete for games, a pass to make it a first-class citizen of
+  the existing UI and settings before the v1.3.0 release, driven by a
+  full code survey (parity with MZ-700 / MZ-80A, not the v1.4 settings
+  redesign).
+  - **8.0 — crash and data-loss fixes.** HID Diagnostic and Font Sheet
+    crashed on the MZ-800 (both now support it: matrix, shift, mode and
+    joystick ports; the MZ-800 character ROM, view-only). The Settings
+    dialog's two-way default-machine radios silently rewrote
+    `DefaultMachine=MZ800` to MZ700 on every Apply — now three-way.
+    Load BASIC source on the MZ-80A / MZ-800 reset into BASIC and typed
+    nothing, or threw; it now says it's MZ-700-only for now. Loading a
+    tape over a running MZ-800 title could garble the new one (display
+    mode, palette, planes, banks, PIO and PSG state carried over); MZ-800
+    loads now reset and wait for the IPL first, as the CLI always did.
+
 ---
 
 ## Architectural decisions worth knowing

@@ -23,6 +23,10 @@ namespace MZRaku;
 /// display-code → key-slot table needed for click-to-type doesn't
 /// exist for MZ-80A yet, and lives with the same graphic-glyph work
 /// that will eventually unpark MZ-700 bank 1.
+///
+/// MZ-800: the CG-ROM inside MZ800.ROM, in the MZ-700's two-bank
+/// layout (bank 1 = attribute bit 7), used by MZ-700-mode text. View-
+/// only until MZ-800 has an auto-typer.
 /// </summary>
 public sealed class FontSheetForm : Form
 {
@@ -34,6 +38,7 @@ public sealed class FontSheetForm : Form
 
     private readonly MZ700? _mz700;
     private readonly MZ80A? _mz80a;
+    private readonly MZ800? _mz800;
 
     // For MZ-700 the section index doubles as the font-bank index
     // (0 = ALPHA, 1 = GRAPH). For MZ-80A the font is single-bank; the
@@ -66,8 +71,18 @@ public sealed class FontSheetForm : Form
     {
         _mz700 = machine as MZ700;
         _mz80a = machine as MZ80A;
+        _mz800 = machine as MZ800;
 
-        if (_mz700 != null)
+        if (_mz800 != null)
+        {
+            _sections = new List<Section>
+            {
+                new("Bank 0", 0x00, 16),
+                new("Bank 1", 0x00, 16),
+            };
+            _headerLabel.Text = "MZ-800 character ROM (MZ-700-mode text). View-only for now.";
+        }
+        else if (_mz700 != null)
         {
             _sections = new List<Section>
             {
@@ -159,9 +174,9 @@ public sealed class FontSheetForm : Form
             {
                 byte code = (byte)(section.FirstCode + r * CellsPerRow + c);
                 int cellX = MarginPx + c * CellPx;
-                var glyph = _mz700 != null
-                    ? _mz700.Video.GetGlyph(code, sectionIndex, GlyphScale)
-                    : _mz80a!.Video.GetGlyph(code, GlyphScale);
+                var glyph = _mz700 != null ? _mz700.Video.GetGlyph(code, sectionIndex, GlyphScale)
+                          : _mz800 != null ? _mz800.Video.GetGlyph(code, sectionIndex, GlyphScale)
+                          : _mz80a!.Video.GetGlyph(code, GlyphScale);
                 g.DrawImageUnscaled(glyph, cellX, cellY);
 
                 // MZ-700: outline cells the keyboard can produce in this
@@ -183,7 +198,7 @@ public sealed class FontSheetForm : Form
             return;
         }
 
-        if (_mz80a != null)
+        if (_mz80a != null || _mz800 != null)
         {
             string half = _sections[sectionIndex].Label;
             _statusLabel.Text = $"{half} code ${code:X2}";

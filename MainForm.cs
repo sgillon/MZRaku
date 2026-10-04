@@ -1361,10 +1361,14 @@ public sealed class MainForm : Form
             // existing pending-cassette path in Timer_Tick handles the
             // rest (monitor banner detection, post-BASIC 60-frame wait,
             // direct-inject + auto-RUN for BASIC, jump-to-exec for MC).
+            // The MZ-800 always resets: a running title leaves display
+            // mode, palette, VRAM planes, scroll, bank, PIO and PSG state
+            // behind, and a new title that assumes a fresh boot draws over
+            // it. The pending path waits for the IPL before loading.
             bool needsBasic = NeedsBasic(img.Type);
             bool basicLoaded = _autoLoad.BasicLoadedFrame >= 0;
 
-            if (basicLoaded || needsBasic)
+            if (basicLoaded || needsBasic || _mz800 != null)
             {
                 // Pre-flight the BASIC file. If the cassette needs BASIC and
                 // it's missing, abort the whole load: a BASIC program can't
@@ -1384,8 +1388,6 @@ public sealed class MainForm : Form
                 // jump straight to its exec entry. No reset needed.
                 if (_mz80a != null)
                     _mz80a.Cassette.DirectInject(img, jumpExec: true);
-                else if (_mz800 != null)
-                    _mz800.Cassette.DirectInject(img, jumpExec: true);
                 else
                     _machine!.Cassette.DirectInject(img, jumpExec: true);
                 _statusLabel.Text = $"Loaded & run: {img.Filename} exec=${img.ExecAddr:X4}";
@@ -1393,18 +1395,13 @@ public sealed class MainForm : Form
             else
             {
                 // Other type at the monitor: queue for monitor LOAD command
-                // (MZ-700) or direct-inject as best-effort (MZ-80A / MZ-800
-                // don't have the L-command auto-typer path yet). Non-MC
+                // (MZ-700) or direct-inject as best-effort (MZ-80A doesn't
+                // have the L-command auto-typer path yet). Non-MC
                 // .mzf types (03 BASIC data, 04 ASCII, A0/A1 PASCAL) don't
                 // have a reliable exec address — inject-only.
                 if (_mz80a != null)
                 {
                     _mz80a.Cassette.DirectInject(img, jumpExec: false);
-                    _statusLabel.Text = $"Loaded (no exec): {img.Filename}";
-                }
-                else if (_mz800 != null)
-                {
-                    _mz800.Cassette.DirectInject(img, jumpExec: false);
                     _statusLabel.Text = $"Loaded (no exec): {img.Filename}";
                 }
                 else
@@ -1480,6 +1477,16 @@ public sealed class MainForm : Form
     /// </summary>
     private void LoadBasicSourceFile(string path)
     {
+        // Typing a source needs the MZ-700's keyboard auto-typer; the
+        // MZ-80A and MZ-800 have no line-typing pipeline yet. Say so
+        // rather than resetting into BASIC and typing nothing.
+        if (_machine == null)
+        {
+            MessageBox.Show(this,
+                $"Load BASIC source is available on the MZ-700 only for now.\n\n{MachineLabel} support is planned.",
+                "Not supported on this machine", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
         try
         {
             if (_autoLoad.BasicLoadedFrame < 0)
@@ -1688,9 +1695,9 @@ public sealed class MainForm : Form
 
     private void OpenHidDiag()
     {
-        // Pick whichever machine is active. MZ-700 / MZ-80A / MZ-800 all
-        // supported since the form was made machine-aware (v1.1.0
-        // Phase 4); MZ-800 joined in v1.3.0 Phase 3.
+        // Pick whichever machine is active. MZ-700 / MZ-80A since the
+        // form was made machine-aware (v1.1.0 Phase 4); MZ-800 since
+        // v1.3.0 Phase 8.
         IMachine? active = (IMachine?)_machine ?? (IMachine?)_mz80a ?? _mz800;
         if (active == null) return;
         if (_hidDiag == null || _hidDiag.IsDisposed)

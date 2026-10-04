@@ -70,18 +70,19 @@ Sharp tech-ref + service manuals.
 **Independent polish that doesn't want MZ-800 or settings v2 in
 scope:**
 
-- **`--settings=<path>` CLI flag** — read-only alternate INI for
-  presets and reproducible bug reports. Doubles as a way to test
-  MZ-800 with preset INIs during landing.
 - **MZ-80A cursor blink rate** ([#1](https://github.com/sgillon/MZRaku/issues/1))
-  — currently ~2× slower than real hardware / EmuZ-80A. The v1.1.0
-  Phase 2 C1 tick-rate fix didn't affect it, so derivation is
-  likely independent of C1/C2 and needs its own investigation.
+  — PARKED 2026-10-04: rechecked against EmuZ-80A and now blinks at
+  about the same rate. The "~2× slower" report predates the v1.3.0
+  Phase 6.1 frame-pacing fix (every machine ran at ~2/3 speed); the
+  blink is frame-driven (PPI toggle every 20 frames), independent of
+  C1/C2. Revisit only if it causes problems — the real source is a
+  separate cursor timer reset via $E000 D7, not modelled.
 - **MZ-80A BASIC load UX-parity** ([#2](https://github.com/sgillon/MZRaku/issues/2))
-  — SA-5510 has an authentic ~1s post-tone wait for the RTC to
-  tick, exposed as a raw pause by our DirectInject. Switching
-  `AutoLoadBasic` for MZ-80A to the typed-LOAD path (already used
-  for MC cassettes) would hide it in perceived loading time.
+  — PARKED 2026-10-04: the pause is now much shorter (user
+  rechecked) — it was inflated by the pre-Phase-6.1 ~2/3-speed
+  frame pacing. SA-5510 still has an authentic up-to-1 s post-tone
+  wait for the RTC to tick; if it ever matters, switching MZ-80A
+  `AutoLoadBasic` to the typed-LOAD path would hide it.
 - **Invisible-LOAD path for MZ-80A cassette autorun** — dormant
   follow-up to skip the typed-LOAD ceremony; blocked on identifying
   which SA-5510 state RUN needs that LOAD doesn't currently set.
@@ -101,6 +102,14 @@ three-machine surface. Deferred from v1.3.0 so the settings sweep
 designs against the full gamut of settings — MZ-700, MZ-80A, and
 MZ-800 — in one coherent pass, rather than being retrofitted after
 MZ-800 lands under a two-machine design.
+
+**Moved from v1.3.0 (2026-10-04):**
+
+- **MZ-800 BASIC SAVE** — completeness: trap 1Z-016's own tape-write
+  entries ($382E header / $3832 data, common $3834) so SAVE writes a
+  .mzf like MZ-700's S-BASIC SAVE. Today SAVE waits for a tape forever.
+- **`--settings=<path>` CLI flag** — read-only alternate INI for
+  presets and reproducible bug reports.
 
 **Main sweep:**
 
@@ -160,6 +169,14 @@ Larger features that benefit from all three machines being in place.
 - **MZ-1P01 plotter emulation** — MZ-700-only. Separate window
   consuming the plotter command stream; needs command-protocol
   research. Substantial work.
+- **MZ-800 printer port** — the printer side of the Z80 PIO (port B
+  = 8-bit data, port A handshake lines; DIP switches pick the MZ-1P16
+  plotter-printer or Centronics). Two steps: (1) an always-ready
+  printer capturing text to a file next to the exe, so `LPRINT` /
+  `LLIST` / `PRINT/P` work instead of waiting forever — handy for
+  getting BASIC listings out of `.mzf` files; (2) MZ-1P16 graphics
+  (hard copies, plots) in a plotter window, sharing design and
+  rendering with the MZ-1P01 item above.
 
 ## v2.0.0 — Avalonia + shell redesign
 

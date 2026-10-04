@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 
@@ -72,6 +73,38 @@ public sealed class Mz800Video
         const int cgOffset = 0x1000;
         int n = Math.Min(rom.Length - cgOffset, FontRom.Length);
         if (n > 0) Array.Copy(rom, cgOffset, FontRom, 0, n);
+        foreach (var bmp in _glyphCache.Values) bmp.Dispose();
+        _glyphCache.Clear();
+    }
+
+    private readonly Dictionary<(byte, int, int), Bitmap> _glyphCache = new();
+
+    /// <summary>
+    /// One CG-ROM glyph, black on white, for the Font Sheet. Same two
+    /// 2 KB banks as the MZ-700 (bank 1 = the attribute bit-7 set), LSB
+    /// = leftmost pixel. Cached; the caller must not dispose it.
+    /// </summary>
+    public Bitmap GetGlyph(byte code, int bank, int scale)
+    {
+        if (scale < 1) scale = 1;
+        var key = (code, bank, scale);
+        if (_glyphCache.TryGetValue(key, out var cached)) return cached;
+        int size = CharWidth * scale;
+        var bmp = new Bitmap(size, size, PixelFormat.Format32bppArgb);
+        int fontOff = (bank & 1) * 2048 + code * CharHeight;
+        for (int r = 0; r < CharHeight; r++)
+        {
+            byte fb = FontRom[fontOff + r];
+            for (int c = 0; c < CharWidth; c++)
+            {
+                var color = (fb & (1 << c)) != 0 ? Color.Black : Color.White;
+                for (int sy = 0; sy < scale; sy++)
+                    for (int sx = 0; sx < scale; sx++)
+                        bmp.SetPixel(c * scale + sx, r * scale + sy, color);
+            }
+        }
+        _glyphCache[key] = bmp;
+        return bmp;
     }
 
     /// <summary>
