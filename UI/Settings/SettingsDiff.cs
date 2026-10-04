@@ -53,6 +53,11 @@ internal sealed class SettingsSnapshot
     public string Mz80aMonitorPath { get; init; } = "";
     public string Mz80aFontPath { get; init; } = "";
     public string Mz80aBasicPath { get; init; } = "";
+    // MZ-800 (Phase 8.1): monitor + BASIC only — its CG font is inside
+    // MZ800.ROM — plus the MZ-1R25 VRAM-expansion option.
+    public string Mz800MonitorPath { get; init; } = "";
+    public string Mz800BasicPath { get; init; } = "";
+    public bool Mz800VramExpansion { get; init; }
     public int JoyButton1Index { get; init; }
     public int JoyButton2Index { get; init; }
 
@@ -92,6 +97,9 @@ internal sealed class SettingsSnapshot
         Mz80aMonitorPath = settings.Mz80aRoms.MonitorRomPath ?? "",
         Mz80aFontPath = settings.Mz80aRoms.FontPath ?? "",
         Mz80aBasicPath = settings.Mz80aRoms.BasicPath ?? "",
+        Mz800MonitorPath = settings.Mz800Roms.MonitorRomPath ?? "",
+        Mz800BasicPath = settings.Mz800Roms.BasicPath ?? "",
+        Mz800VramExpansion = settings.Mz800VramExpansion,
         JoyButton1Index = settings.JoyButton1Index,
         JoyButton2Index = settings.JoyButton2Index,
         CharOverrides = settings.CharMapOverrides.All.ToDictionary(
@@ -133,6 +141,9 @@ internal sealed class SettingsSnapshot
         settings.Mz80aRoms.MonitorRomPath = Mz80aMonitorPath;
         settings.Mz80aRoms.FontPath = Mz80aFontPath;
         settings.Mz80aRoms.BasicPath = Mz80aBasicPath;
+        settings.Mz800Roms.MonitorRomPath = Mz800MonitorPath;
+        settings.Mz800Roms.BasicPath = Mz800BasicPath;
+        settings.Mz800VramExpansion = Mz800VramExpansion;
         settings.JoyButton1Index = JoyButton1Index;
         settings.JoyButton2Index = JoyButton2Index;
     }
@@ -194,6 +205,12 @@ internal static class SettingsDiff
             lines.Add($"MZ-80A Font ROM: \"{before.Mz80aFontPath}\" → \"{after.Mz80aFontPath}\"");
         if (before.Mz80aBasicPath != after.Mz80aBasicPath)
             lines.Add($"MZ-80A BASIC image: \"{before.Mz80aBasicPath}\" → \"{after.Mz80aBasicPath}\"");
+        if (before.Mz800MonitorPath != after.Mz800MonitorPath)
+            lines.Add($"MZ-800 ROM: \"{before.Mz800MonitorPath}\" → \"{after.Mz800MonitorPath}\"");
+        if (before.Mz800BasicPath != after.Mz800BasicPath)
+            lines.Add($"MZ-800 BASIC image: \"{before.Mz800BasicPath}\" → \"{after.Mz800BasicPath}\"");
+        if (before.Mz800VramExpansion != after.Mz800VramExpansion)
+            lines.Add($"MZ-800 MZ-1R25 VRAM expansion: {(before.Mz800VramExpansion ? "fitted" : "not fitted")} → {(after.Mz800VramExpansion ? "fitted" : "not fitted")}");
         if (before.JoyButton1Index != after.JoyButton1Index)
             lines.Add($"Joystick button 1: index {before.JoyButton1Index} → {after.JoyButton1Index}");
         if (before.JoyButton2Index != after.JoyButton2Index)

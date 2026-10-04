@@ -407,7 +407,8 @@ public sealed class Settings
             sb.AppendLine(";           expansion (planes III + IV). Enables the 320×200 16-colour,");
             sb.AppendLine(";           640×200 4-colour and second-frame display modes some games");
             sb.AppendLine(";           need (e.g. Uridium). Set false to emulate a stock 16 KB");
-            sb.AppendLine(";           MZ-800. Takes effect at the next start.");
+            sb.AppendLine(";           MZ-800. Also in Settings → Display, where a change applies");
+            sb.AppendLine(";           immediately; an edit here takes effect at the next start.");
             sb.AppendLine($"MZ1R25={(Mz800VramExpansion ? "true" : "false")}");
             sb.AppendLine();
 

@@ -1627,6 +1627,10 @@ public sealed class MainForm : Form
             ApplyMz80aScreenColor();
             _mz80a.Keyboard.InvertLetterShift = _settings.Mz80aInvertLetterShift;
         }
+        // MZ-800 live-apply (Phase 8.1): the MZ-1R25 board toggles
+        // straight away, so the same title can be compared with and
+        // without it.
+        if (_mz800 != null) _mz800.Mem.VramExpansion = _settings.Mz800VramExpansion;
         _display.Invalidate();
         // Joystick button bindings can be re-pushed live; ROM paths take
         // effect on the next Reset, so we don't touch the running machine.

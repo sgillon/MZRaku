@@ -1383,6 +1383,12 @@ ahead of the v1.4 settings work at the start of the arc
     tape over a running MZ-800 title could garble the new one (display
     mode, palette, planes, banks, PIO and PSG state carried over); MZ-800
     loads now reset and wait for the IPL first, as the CLI always did.
+  - **8.1 — Settings dialog.** ROMs tab gains an MZ-800 group (the
+    combined `MZ800.ROM` — monitor, IPL and character ROM — plus
+    `1Z-016.mzf`); Display tab gains an MZ-800 hardware group with the
+    MZ-1R25 VRAM-expansion checkbox (previously INI-only), live-applied
+    on a running MZ-800; the Apply summary and save path cover the new
+    fields.
 
 ---
 
