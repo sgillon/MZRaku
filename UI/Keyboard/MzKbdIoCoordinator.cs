@@ -111,7 +111,7 @@ internal static class MzKbdIoCoordinator
             MessageBox.Show(owner,
                 $"This file is a {loaded.Machine} keyboard mapping, but the current session is running {activeMachine}.\n\n" +
                 "Matrix coordinates don't align between the two machines, so importing here would land bindings on the wrong slots.\n\n" +
-                $"Switch machines (File → Machine → {loaded.Machine}) first, then import.",
+                $"Switch machines (System → Machine → {loaded.Machine}) first, then import.",
                 "Machine mismatch",
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;

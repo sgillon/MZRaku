@@ -436,7 +436,9 @@ internal sealed class AutoLoadOrchestrator
                     // jumping so the debugger / memory viewer can
                     // still see the payload.
                     _mz800!.Cassette.DirectInject(img, jumpExec: false);
-                    _setStatus($"Loaded (no exec, type {img.Type:X2}): {img.Filename}");
+                    _setStatus(img.Type == 0x02
+                        ? $"{img.Filename} is an MZ-700 BASIC program; run it on the MZ-700 machine."
+                        : $"Loaded (no exec, type {img.Type:X2}): {img.Filename}");
                 }
             }
             catch (Exception ex)

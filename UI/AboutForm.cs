@@ -134,7 +134,12 @@ public sealed class AboutForm : Form
                 Margin = new Padding(0, 1, 0, 0),
             });
         }
-        var machineLabel = activeMachine == MachineType.MZ700 ? "Sharp MZ-700" : "Sharp MZ-80A";
+        var machineLabel = activeMachine switch
+        {
+            MachineType.MZ80A => "Sharp MZ-80A",
+            MachineType.MZ800 => "Sharp MZ-800",
+            _                 => "Sharp MZ-700",
+        };
         textStack.Controls.Add(new Label
         {
             Text = $"Emulating: {machineLabel}",
@@ -159,8 +164,8 @@ public sealed class AboutForm : Form
 
         body.Controls.Add(new Label
         {
-            Text = "A Sharp MZ-700 / MZ-80A emulator written in C#/.NET 8. "
-                + "Switch machines via File → Machine.",
+            Text = "A Sharp MZ-700 / MZ-80A / MZ-800 emulator written in C#/.NET 8. "
+                + "Switch machines via System → Machine.",
             AutoSize = true,
             MaximumSize = new Size(380, 0),
             Margin = new Padding(0, 0, 0, 12),

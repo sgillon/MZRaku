@@ -1389,6 +1389,14 @@ ahead of the v1.4 settings work at the start of the arc
     MZ-1R25 VRAM-expansion checkbox (previously INI-only), live-applied
     on a running MZ-800; the Apply summary and save path cover the new
     fields.
+  - **8.2 — status bar, messages, text.** On the MZ-800 the right-hand
+    mode pane shows the display mode (MZ-700 / 320×200 / 640×200, with a
+    tooltip) instead of a stuck "ALPHA". Missing-ROM and missing-BASIC
+    messages name each machine's own files and INI section (the BASIC
+    one was MZ-700-only, wrong on the MZ-80A too). An MZ-700 BASIC tape
+    on the MZ-800 says to use the MZ-700. About, `--help` (now listing
+    every machine's firmware files) and the settings.ini comments are
+    accurate for three machines; stale phase-era comments swept.
 
 ---
 

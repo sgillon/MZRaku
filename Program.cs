@@ -99,15 +99,13 @@ internal static class Program
                     "MZRaku — Sharp MZ-700 / MZ-80A / MZ-800 emulator\n\n" +
                     "Usage: MZRaku.exe [--mz700|--mz80a|--mz800] [--basic] [--display=N]\n" +
                     "                  [path\\to\\cassette.mzf|.zip]\n\n" +
-                    "  --mz700         Emulate the Sharp MZ-700 for this run (default).\n" +
-                    "  --mz80a         Emulate the Sharp MZ-80A for this run. Overrides\n" +
-                    "                  the persisted [Machine] Type in settings.ini for\n" +
-                    "                  this launch only. Change the default via System →\n" +
-                    "                  Machine → MZ-80A.\n" +
-                    "  --mz800         Emulate the Sharp MZ-800 (v1.3.0 in-progress).\n" +
-                    "                  MZ-700-mode text + keyboard + cassette LOAD work;\n" +
-                    "                  MZ-800-native bitmap graphics + PSG sound arrive\n" +
-                    "                  in later phases.\n" +
+                    "  --mz700         Emulate the Sharp MZ-700 for this run.\n" +
+                    "  --mz80a         Emulate the Sharp MZ-80A for this run.\n" +
+                    "  --mz800         Emulate the Sharp MZ-800 for this run.\n" +
+                    "                  Each overrides [Machine] DefaultMachine in\n" +
+                    "                  settings.ini for this launch only; change the\n" +
+                    "                  default in Settings → Startup. Without a flag\n" +
+                    "                  the default machine runs (MZ-700 out of the box).\n" +
                     "  --basic         Force BASIC to be loaded at startup. Usually not\n" +
                     "                  needed: BASIC cassettes auto-load BASIC anyway.\n" +
                     "  --display=N     Override the persisted window scale for this run:\n" +
@@ -121,6 +119,11 @@ internal static class Program
                     "                  Accepts .mzf/.m12/.mzt or a .zip containing one.\n" +
                     "                  BASIC programs trigger BASIC auto-load; machine-\n" +
                     "                  code images run directly under the monitor.\n\n" +
+                    "Sharp firmware is not included. Put it in a 'roms' (or 'basic')\n" +
+                    "folder next to the executable:\n" +
+                    "  MZ-700  1z-013a.rom, mz700fon.int, 1Z-013B.mzf\n" +
+                    "  MZ-80A  SA-1510.rom, SA-CG.rom, SA-5510.mzf\n" +
+                    "  MZ-800  MZ800.ROM, 1Z-016.mzf\n\n" +
                     "At runtime you may also drag-and-drop a .mzf or .zip file onto the\n" +
                     "window or use the File menu to load one.",
                     "MZRaku");

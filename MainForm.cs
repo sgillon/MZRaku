@@ -145,20 +145,17 @@ public sealed class MainForm : Form
             _scanlinesRestoreOnClose = _settings.DisplayScanlines;
             _settings.DisplayScanlines = scanlinesOverride.Value;
         }
-        // Machine selection: --mz700/--mz80a CLI wins for this run
-        // over the persisted [Machine] Type. Not written back to
-        // settings.ini (the File → Machine menu is the persist path).
+        // Machine selection: a --mz700/--mz80a/--mz800 CLI flag wins for
+        // this run over the persisted [Machine] DefaultMachine. Not
+        // written back to settings.ini (Settings → Startup is the
+        // persist path).
         if (machineOverride.HasValue) _settings.CurrentMachine = machineOverride.Value;
         // EnsureRomPaths scans for both machines' ROMs, so the CLI
         // override finding e.g. SA-1510.rom under roms/ works even
         // when settings.ini had never seen an MZ-80A launch before.
         // No-op if the previous Load() already populated both sides.
         if (_settings.EnsureRomPaths()) _settings.Save();
-        // Construct exactly one of the three machines. Phase-1 MZ-800
-        // is a "boot spike" — CPU boots ROM through the mode-flip to
-        // MZ-700 mode + '*' prompt, but no video/keyboard/sound yet.
-        // Debugger + memory viewer are the only ways to interact with
-        // it until Phase 2 lights up the renderer.
+        // Construct exactly one of the three machines.
         if (_settings.CurrentMachine == MachineType.MZ700)
             _machine = new MZ700();
         else if (_settings.CurrentMachine == MachineType.MZ80A)
@@ -230,13 +227,20 @@ public sealed class MainForm : Form
 
         // Four-pane layout: machine identity (left, fixed) | transient
         // status (middle, spring, centered) | TAPE activity chip |
-        // ALPHA/GRAPH mode indicator (right, fixed). Order matters —
-        // leftmost item first.
+        // ALPHA/GRAPH mode indicator (right, fixed; the MZ-800 shows its
+        // display mode there instead). Order matters — leftmost item
+        // first.
         _machineLabel.Text = MachineLabel;
         _status.Items.Add(_machineLabel);
         _status.Items.Add(_statusLabel);
         _status.Items.Add(_tapeLabel);
         _status.Items.Add(_modeLabel);
+        if (_mz800 != null)
+        {
+            _modeLabel.Width = 64;
+            _status.ShowItemToolTips = true;
+            UpdateMz800ModeLabel();
+        }
 
         // Cassette trap events surface load / save outcomes via the
         // status label. Fire on the UI thread (OnPreStep is called from
@@ -342,14 +346,13 @@ public sealed class MainForm : Form
         // configuration moved to the System menu (2nd position).
         var file = new ToolStripMenuItem("&File");
         file.DropDownItems.Add(new ToolStripMenuItem("&Load cassette...", null, (_, _) => BrowseAndLoad()) { ShortcutKeys = Keys.Control | Keys.O });
-        // Queue-for-LOAD variant (v1.3.0 Phase 4a): pick a .mzf and hold
-        // it for the monitor's L command to fetch via the RDINF/RDDAT
-        // traps, instead of the direct-inject shortcut Load Cassette
-        // uses. Exercises the trap path end-to-end — the authentic MZ
-        // LOAD experience, and the only way to smoke-test the trap
-        // wiring on MZ-800 until Phase 4c wires BASIC (which uses the
-        // same traps). Available on MZ-700 and MZ-800; MZ-80A skips
-        // Monitor-L entirely (SA-5510 goes through BASIC's LOAD).
+        // Insert cassette (v1.3.0 Phase 4a, widened in 7.5): mount a tape
+        // for the machine's own LOAD to read through the tape traps,
+        // instead of the direct-inject shortcut Load cassette uses — the
+        // authentic MZ LOAD experience. MZ-700: the monitor's L. MZ-800:
+        // the IPL's C option, the monitor's L or BASIC's LOAD, with a
+        // whole multi-file tape. MZ-80A skips it (SA-5510 goes through
+        // BASIC's LOAD).
         file.DropDownItems.Add(new ToolStripMenuItem("Insert cassette for &LOAD...", null, (_, _) => BrowseAndQueue()));
         file.DropDownItems.Add(new ToolStripMenuItem("Load &BASIC", null, (_, _) => LoadBasic()) { ShortcutKeys = Keys.Control | Keys.B });
         file.DropDownItems.Add(new ToolStripMenuItem("Load BASIC &source...", null, (_, _) => BrowseAndLoadBasicSource()) { ShortcutKeys = Keys.Control | Keys.Shift | Keys.B });
@@ -376,12 +379,6 @@ public sealed class MainForm : Form
         {
             Checked = _settings.CurrentMachine == MachineType.MZ80A,
         };
-        // MZ-800 entry stays clickable through Phase 0 — the click
-        // handler routes to SwitchMachine which currently shows a
-        // "not ready" message. Enabling it keeps the three-machine
-        // set visually complete and lets users discover the status
-        // by clicking, which is more self-documenting than a
-        // greyed-out entry with no explanation.
         var mz800Item = new ToolStripMenuItem("MZ-8&00")
         {
             Checked = _settings.CurrentMachine == MachineType.MZ800,
@@ -640,9 +637,7 @@ public sealed class MainForm : Form
         {
             if (string.IsNullOrEmpty(_settings.MonitorRomFullPath) || !File.Exists(_settings.MonitorRomFullPath))
             {
-                var expected = _settings.CurrentMachine == MachineType.MZ700
-                    ? "1z-013a.rom"
-                    : "SA-1510.rom";
+                var expected = ExpectedFirmware(_settings.CurrentMachine).Monitor;
                 var configured = string.IsNullOrEmpty(_settings.MonitorRomPath)
                     ? "(none configured)"
                     : $"{_settings.MonitorRomPath}  →  {_settings.MonitorRomFullPath}";
@@ -995,6 +990,25 @@ public sealed class MainForm : Form
     }
 
     /// <summary>
+    /// MZ-800: the mode pane shows the display mode rather than a
+    /// keyboard ALPHA/GRAPH state — "MZ-700" (compatibility text mode),
+    /// "320×200" or "640×200" — since titles switch between them and
+    /// it's otherwise invisible. Called every 10 frames.
+    /// </summary>
+    private void UpdateMz800ModeLabel()
+    {
+        var m = _mz800!.Mem;
+        string text = m.Mz700Mode ? "MZ-700" : m.Is640BitmapMode ? "640×200" : "320×200";
+        if (_modeLabel.Text == text) return;
+        _modeLabel.Text = text;
+        _modeLabel.ForeColor = SystemColors.ControlText;
+        _modeLabel.BackColor = SystemColors.Control;
+        _modeLabel.ToolTipText = m.Mz700Mode
+            ? "Display mode: MZ-700 compatibility (40×25 text)"
+            : $"Display mode: MZ-800 {text} bitmap";
+    }
+
+    /// <summary>
     /// Called every frame — if the status label has held a transient
     /// message for longer than <see cref="StatusIdleFrames"/>, clear
     /// it. The machine identity lives in its own left pane, so the
@@ -1034,8 +1048,7 @@ public sealed class MainForm : Form
     /// Phase 5.3: after the main window is first shown, honour the
     /// [DebugPanes] boot flags by auto-opening each flagged pane via
     /// its existing open handler. Panes that don't apply to the active
-    /// machine (Sound Diagnostic + Keyboard Matrix on MZ-80A) are
-    /// silently skipped — the setting survives so switching machines
+    /// machine are silently skipped — the setting survives so switching machines
     /// restores them next boot.
     /// </summary>
     protected override void OnShown(EventArgs e)
@@ -1116,6 +1129,7 @@ public sealed class MainForm : Form
         // GRAPH-mode indicator + Font Sheet auto-surface for MZ-700
         // and the F11-driven mode indicator for MZ-80A.
         _autoLoad.OnFrame(_bootFrames);
+        if (_mz800 != null && _bootFrames % 10 == 0) UpdateMz800ModeLabel();
 
         // Dump-and-trace flow (v1.2 audit F-055 extraction). No-op
         // when --dump wasn't passed; otherwise emits the periodic
@@ -1448,14 +1462,24 @@ public sealed class MainForm : Form
         var configured = string.IsNullOrEmpty(_settings.BasicPath)
             ? "(none configured)"
             : $"{_settings.BasicPath}  →  {_settings.BasicFullPath}";
+        var expected = ExpectedFirmware(_settings.CurrentMachine).Basic;
         MessageBox.Show(this,
-            "BASIC cassette image (1Z-013B.mzf) not found.\n\n" +
+            $"BASIC cassette image ({expected}) not found.\n\n" +
             $"Configured path: {configured}\n\n" +
-            $"Place 1Z-013B.mzf under a 'basic' or 'roms' folder next to the executable, " +
-            $"or set [Roms] Basic= in {Path.Combine(AppContext.BaseDirectory, "settings.ini")}.",
+            $"Place {expected} under a 'basic' or 'roms' folder next to the executable, " +
+            $"or set [Roms.{_settings.CurrentMachine}] Basic= in {Path.Combine(AppContext.BaseDirectory, "settings.ini")}.",
             "BASIC not found", MessageBoxButtons.OK, MessageBoxIcon.Error);
         return false;
     }
+
+    /// <summary>The Sharp firmware file names each machine expects —
+    /// the names <see cref="Settings.EnsureRomPaths"/> auto-detects.</summary>
+    private static (string Monitor, string Basic) ExpectedFirmware(MachineType machine) => machine switch
+    {
+        MachineType.MZ80A => ("SA-1510.rom", "SA-5510.mzf"),
+        MachineType.MZ800 => ("MZ800.ROM",   "1Z-016.mzf"),
+        _                 => ("1z-013a.rom", "1Z-013B.mzf"),
+    };
 
     private void BrowseAndLoadBasicSource()
     {
@@ -1725,7 +1749,7 @@ public sealed class MainForm : Form
 
     private void OpenSoundDiag()
     {
-        if (_machine == null) { NotAvailableOnMz80a("Sound Diagnostic"); return; }
+        if (_machine == null) { NotAvailableOnThisMachine("Sound Diagnostic"); return; }
         if (_soundDiag == null || _soundDiag.IsDisposed)
         {
             _soundDiag = new SoundDiagnosticForm(_machine);
@@ -1739,15 +1763,13 @@ public sealed class MainForm : Form
     }
 
     /// <summary>
-    /// Shows a friendly "not available on MZ-80A" popup for any
-    /// diagnostic pane that reaches into MZ-700-specific hardware
-    /// (Sound, PPI PortC bit meanings, matrix layout, PCG font). These
-    /// come back online as MZ-80A equivalents in later phases.
+    /// Shows a friendly "not available on this machine" popup for a
+    /// diagnostic pane that reaches into MZ-700-specific hardware.
     /// </summary>
-    private void NotAvailableOnMz80a(string pane)
+    private void NotAvailableOnThisMachine(string pane)
     {
         MessageBox.Show(this,
-            $"{pane} is currently MZ-700-only. An MZ-80A equivalent will land in a later phase.",
+            $"{pane} is currently MZ-700-only; it isn't available on the {MachineLabel} yet.",
             "MZRaku", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 

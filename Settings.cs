@@ -28,16 +28,16 @@ public sealed class Settings
 
     // The machine currently running this session. Set by Load() from
     // DefaultMachine, then possibly overwritten by the --mz700 /
-    // --mz80a CLI flag in MainForm. NOT persisted — Save() writes
+    // --mz80a / --mz800 CLI flag in MainForm. NOT persisted — Save() writes
     // DefaultMachine only. Callers that ask "which machine is active"
     // (menu check-marks, About dialog, ROM-missing message, etc.)
     // read this. Named CurrentMachine (not Type) to avoid clashing
     // with the .NET convention that `.Type` means the CLR type object.
     public MachineType CurrentMachine { get; set; } = MachineType.MZ700;
 
-    // Which machine to boot at startup absent a --mz700 / --mz80a CLI
-    // override. Persisted at [Machine] DefaultMachine=. Menu switches
-    // (File → Machine) do NOT rewrite this value — they trigger a
+    // Which machine to boot at startup absent a --mz700 / --mz80a /
+    // --mz800 CLI override. Persisted at [Machine] DefaultMachine=.
+    // Menu switches (System → Machine) do NOT rewrite this value — they trigger a
     // one-off restart with the target's CLI flag, and the persisted
     // default stays put.
     public MachineType DefaultMachine { get; set; } = MachineType.MZ700;
@@ -260,12 +260,6 @@ public sealed class Settings
                 // at this point; MainForm may then override it from a
                 // --mz700 / --mz80a / --mz800 CLI flag without touching
                 // the persisted DefaultMachine.
-                //
-                // MZ800 parses cleanly, but as of v1.3.0 Phase 0 it's a
-                // scaffolding placeholder — MainForm intercepts an
-                // MZ800 selection with a friendly message and falls
-                // back to MZ-700 so a stray edit here can't brick boot.
-                // The interception moves out once Phase 1 boots the ROM.
                 var typeStr = GetString(ini, "Machine", "DefaultMachine", "");
                 if (typeStr.Equals("MZ80A", StringComparison.OrdinalIgnoreCase))
                     s.DefaultMachine = MachineType.MZ80A;
@@ -370,7 +364,8 @@ public sealed class Settings
             sb.AppendLine();
 
             sb.AppendLine("[Display]");
-            sb.AppendLine("; Window scale factor for the 320×200 MZ-700 framebuffer.");
+            sb.AppendLine("; Window scale factor, relative to a 320×200 screen (the MZ-800's");
+            sb.AppendLine("; 640×200 modes are drawn into the same window size).");
             sb.AppendLine(";   Scale=1   native 320×200");
             sb.AppendLine(";   Scale=2   640×400 (default)");
             sb.AppendLine(";   Scale=3   960×600");
@@ -384,11 +379,11 @@ public sealed class Settings
             sb.AppendLine("; Which Sharp MZ machine to boot into. Values:");
             sb.AppendLine(";   DefaultMachine=MZ700   Sharp MZ-700 (default; original MZRaku target)");
             sb.AppendLine(";   DefaultMachine=MZ80A   Sharp MZ-80A");
-            sb.AppendLine(";   DefaultMachine=MZ800   Sharp MZ-800 (v1.3.0, in development)");
+            sb.AppendLine(";   DefaultMachine=MZ800   Sharp MZ-800");
             sb.AppendLine("; Overridable per-run via the --mz700 / --mz80a / --mz800 CLI flags");
-            sb.AppendLine("; without touching this file. The File → Machine menu triggers an");
-            sb.AppendLine("; ad-hoc restart in the chosen machine (via a --mz-flag arg) and does");
-            sb.AppendLine("; NOT rewrite this value — pick the default here in Settings.");
+            sb.AppendLine("; without touching this file. The System → Machine menu restarts in");
+            sb.AppendLine("; the chosen machine for one session and does NOT rewrite this value;");
+            sb.AppendLine("; change the default here or in Settings → Startup.");
             sb.AppendLine($"DefaultMachine={DefaultMachine}");
             sb.AppendLine();
 
@@ -555,15 +550,15 @@ public sealed class Settings
             sb.AppendLine("; Which diagnostic / debug panes to open automatically on startup.");
             sb.AppendLine("; All values default false. The Debug menu still opens/closes each");
             sb.AppendLine("; pane at any time; these flags only control the boot-time state.");
-            sb.AppendLine("; Panes that don't apply to DefaultMachine (Sound Diagnostic and");
-            sb.AppendLine("; Keyboard Matrix on MZ-80A) are skipped silently at boot but the");
-            sb.AppendLine("; flag survives — switch the default back and they'll open again.");
+            sb.AppendLine("; Panes that don't apply to the machine being booted are skipped");
+            sb.AppendLine("; silently at boot but the flag survives — they open again when that");
+            sb.AppendLine("; machine boots.");
             sb.AppendLine(";   Debugger         Debugger (Ctrl+D)");
             sb.AppendLine(";   MemoryViewer     Memory Viewer (Ctrl+M)");
             sb.AppendLine(";   HidDiagnostic    HID Diagnostic (Ctrl+H)");
-            sb.AppendLine(";   FontSheet        Font Sheet (Ctrl+G, MZ-700 only until Phase 5.4)");
+            sb.AppendLine(";   FontSheet        Font Sheet (Ctrl+G)");
             sb.AppendLine(";   SoundDiagnostic  Sound Diagnostic (MZ-700 only)");
-            sb.AppendLine(";   KeyboardMatrix   Keyboard Matrix (MZ-700 only)");
+            sb.AppendLine(";   KeyboardMatrix   Keyboard Matrix (MZ-700, MZ-80A)");
             sb.AppendLine($"Debugger={(DebugPanesAtStartup.Debugger ? "true" : "false")}");
             sb.AppendLine($"MemoryViewer={(DebugPanesAtStartup.MemoryViewer ? "true" : "false")}");
             sb.AppendLine($"HidDiagnostic={(DebugPanesAtStartup.HidDiagnostic ? "true" : "false")}");
