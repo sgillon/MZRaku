@@ -486,22 +486,22 @@ public sealed class SettingsForm : Form
             RowCount = 4,
             Padding = new Padding(12),
         };
-        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150f));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170f));
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70f));
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110f));
         for (int i = 0; i < 4; i++) grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 32f));
 
         var header = new Label
         {
-            Text = "PC gamepad button → MZ-1X03 stick",
+            Text = "PC gamepad button → MZ joystick button",
             AutoSize = true,
             Margin = new Padding(0, 0, 0, 8),
         };
         grid.Controls.Add(header, 0, 0);
         grid.SetColumnSpan(header, 3);
 
-        AddJoystickRow(grid, 1, "Left button (SW1):", _numButton1);
-        AddJoystickRow(grid, 2, "Right button (SW2):", _numButton2);
+        AddJoystickRow(grid, 1, "Button 1 (SW1 / TRG1):", _numButton1);
+        AddJoystickRow(grid, 2, "Button 2 (SW2 / TRG2):", _numButton2);
 
         var hint = new Label
         {

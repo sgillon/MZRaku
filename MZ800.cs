@@ -18,8 +18,8 @@ namespace MZRaku;
 /// Frames follow a PAL raster (see "Raster timing"): the CPU runs
 /// line by line, blanking signals and the per-row palette latch track
 /// the beam, and the frame is rendered at the end. Not yet emulated:
-/// joystick, PIO printer side, border, PCG redefinition in MZ-700
-/// mode, VRAM wait states.
+/// PIO printer side, border, PCG redefinition in MZ-700 mode, VRAM
+/// wait states.
 /// </summary>
 public sealed class MZ800 : MzMachineBase, IMachine
 {
@@ -28,6 +28,8 @@ public sealed class MZ800 : MzMachineBase, IMachine
     public Ppi8255 Ppi = new();
     public Pit8253 Pit = new();
     public Z80Pio Pio = new();
+    /// <summary>Host gamepad state, read through IN $F0/$F1 (Mz800Joystick).</summary>
+    public Joystick Joystick = new();
     public Mz800IoBus Io = new();
     public Mz800Video Video { get; } = new();
     public Mz800Keyboard Keyboard = new();
@@ -106,6 +108,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
         Io.Cpu = Cpu;
         Io.Pio = Pio;
         Io.Psg = Psg;
+        Io.Joystick = Joystick;
         Io.CrtcStatus = CrtcStatus;
         Mem.IoBus = Io;
         Mem.Cpu = Cpu;

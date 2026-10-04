@@ -258,6 +258,20 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
                         : "(not connected)"));
             }
         }
+        else if (_machine is MZ800 mz8)
+        {
+            // Atari-style digital sticks: show the stick state and the
+            // byte IN $F0/$F1 returns with the strobe asserted.
+            for (int slot = 0; slot < 2; slot++)
+            {
+                var s = mz8.Joystick.Sticks[slot];
+                byte port = Mz800Joystick.Read(s, strobed: true);
+                sb.AppendLine($"  Stick {slot + 1}: " +
+                    (s.Active
+                        ? $"X={s.AxisX,3} Y={s.AxisY,3}  TRG1={Bit(s.Sw1)} TRG2={Bit(s.Sw2)}  IN ${0xF0 + slot:X2} (strobed) = ${port:X2}"
+                        : "(not connected)"));
+            }
+        }
         else
         {
             // MZ-80A has no MZ-1X03-equivalent hardware. Placeholder

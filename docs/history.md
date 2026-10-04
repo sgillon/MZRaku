@@ -1355,6 +1355,19 @@ ahead of the v1.4 settings work at the start of the arc
     now keeps time (user-verified against a stopwatch); Flappy, which
     times its game off C1/C2, now runs at EmuZ-800's speed.
 
+- **Phase 7.6 — MZ-800 joystick (2026-10-04).** Two Atari-style
+  digital sticks (MZ-1X16; tech-ref p. 32): the 8255 drives PA4 (stick
+  1) / PA5 (stick 2) low as the stick's common line and IN $F0 / $F1
+  read the switches, active low — D0 up, D1 down, D2 left, D3 right,
+  D4 / D5 triggers (order confirmed from Bruce Lee's decode table).
+  `Mz800Joystick` decodes the same gamepad stick state the MZ-700's
+  MZ-1X03 uses, so the existing WinMM bridge, button mapping, Settings
+  tab and HID diagnostic now cover the MZ-800 too. Two side fixes: a
+  gamepad without a POV hat reports POV = 0, which the bridge read as
+  "hat held up" — every stick was pinned up on both machines; and
+  `--dump` runs no longer poll the gamepad, so regression captures
+  don't depend on what's plugged in.
+
 ---
 
 ## Architectural decisions worth knowing

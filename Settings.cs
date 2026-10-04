@@ -131,7 +131,8 @@ public sealed class Settings
     }
 
     // PC gamepad button index (0..31, matching the WinMM dwButtons
-    // bitmask) that drives each MZ-1X03 stick button. Defaults match
+    // bitmask) that drives each joystick button (MZ-700 MZ-1X03 SW1/2,
+    // MZ-800 TRG1/2). Defaults match
     // the original hardcoded behaviour: button 0 → MZ SW1, button 1
     // → MZ SW2. Both emulated sticks share the same mapping; if you
     // need per-slot mappings, this can be split into JoyStick1Button1
@@ -465,10 +466,11 @@ public sealed class Settings
             sb.AppendLine();
 
             sb.AppendLine("[Joystick]");
-            sb.AppendLine("; MZ-1X03 stick emulation driven by any Windows-recognised gamepad.");
-            sb.AppendLine("; Both emulated sticks share the same button mapping.");
-            sb.AppendLine(";   Button1   PC gamepad button index (0..31) that drives MZ SW1");
-            sb.AppendLine(";   Button2   PC gamepad button index (0..31) that drives MZ SW2");
+            sb.AppendLine("; Joystick emulation driven by any Windows-recognised gamepad: the MZ-700's");
+            sb.AppendLine("; MZ-1X03 and the MZ-800's Atari-style sticks (MZ-1X16). Stick or D-pad");
+            sb.AppendLine("; gives the directions; both emulated sticks share the button mapping.");
+            sb.AppendLine(";   Button1   PC gamepad button index (0..31) for MZ-700 SW1 / MZ-800 TRG1");
+            sb.AppendLine(";   Button2   PC gamepad button index (0..31) for MZ-700 SW2 / MZ-800 TRG2");
             sb.AppendLine("; Capture an index via Settings → Joystick → Capture… rather than guessing.");
             sb.AppendLine($"Button1={JoyButton1Index}");
             sb.AppendLine($"Button2={JoyButton2Index}");

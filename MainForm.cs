@@ -173,12 +173,11 @@ public sealed class MainForm : Form
             _mz800.Mem.VramExpansion = _settings.Mz800VramExpansion;
         }
 
-        // JoystickInput needs a non-null Joystick reference to
-        // construct even when the machine has no joystick (MZ-80A).
-        // A fresh throwaway Joystick keeps the field non-null; nothing
-        // ever pumps its bits, and Timer_Tick's Poll() is guarded so
-        // the reads go nowhere. Cheap — Joystick is a small POCO.
-        var joystickForInput = _machine?.Joystick ?? new Hardware.Joystick();
+        // JoystickInput feeds the machine's stick state: the MZ-700's
+        // MZ-1X03 or the MZ-800's $F0/$F1 ports. It needs a non-null
+        // Joystick even on the MZ-80A (no joystick); a throwaway keeps
+        // the field non-null and RunOneFrame's Poll() is guarded.
+        var joystickForInput = _machine?.Joystick ?? _mz800?.Joystick ?? new Hardware.Joystick();
         _joystickInput = new Hardware.JoystickInput(joystickForInput);
         _joystickInput.SetButtonIndices(_settings.JoyButton1Index, _settings.JoyButton2Index);
         // Keyboard-override wiring. Both machines have identical
@@ -1104,9 +1103,11 @@ public sealed class MainForm : Form
     private void RunOneFrame()
     {
         // Sample real gamepad state once per frame, before the emulated
-        // CPU runs — values get latched at the VBLK falling edge inside
-        // RunFrame, so they need to be fresh by then.
-        if (_machine != null) _joystickInput.Poll();
+        // CPU runs — the MZ-700 latches them at the VBLK falling edge
+        // inside RunFrame; the MZ-800 reads them live through $F0/$F1.
+        // --dump runs skip it: a captured frame must not depend on
+        // whatever controller happens to be plugged in.
+        if ((_machine != null || _mz800 != null) && _dumpTrace == null) _joystickInput.Poll();
         Active.RunFrame();
         _bootFrames++;
 

@@ -89,7 +89,11 @@ public sealed class JoystickInput
     {
         s.Active = true;
 
-        bool povHeld = info.dwPOV != 0xFFFF && info.dwPOV != 0xFFFFFFFF;
+        // Only a device that reports a hat has a meaningful dwPOV: one
+        // without (JOYCAPS_HASPOV clear) leaves it at 0, which reads as
+        // "hat held up" and pinned every stick to full-up.
+        bool hasPov = (caps.wCaps & JOYCAPS_HASPOV) != 0;
+        bool povHeld = hasPov && info.dwPOV != 0xFFFF && info.dwPOV != 0xFFFFFFFF;
         bool povUp = false, povDown = false, povLeft = false, povRight = false;
         if (povHeld)
         {
@@ -155,6 +159,7 @@ public sealed class JoystickInput
     // ---- WinMM joystick P/Invoke ----
 
     private const uint JOYERR_NOERROR = 0;
+    private const uint JOYCAPS_HASPOV = 0x0010;
     private const uint JOY_RETURNX = 0x00000001;
     private const uint JOY_RETURNY = 0x00000002;
     private const uint JOY_RETURNZ = 0x00000004;

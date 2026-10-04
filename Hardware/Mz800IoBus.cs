@@ -22,8 +22,8 @@ namespace MZRaku.Hardware;
 ///   $E5-$E6  IN   memory bank control (prohibited / return-to-previous)
 ///   $E008         TEMP/HBLK input + PIT C0 gate (MZ-700 mode only)
 ///   $F0     OUT   palette write
-///   $F0     IN    joystick 1
-///   $F1     IN    joystick 2
+///   $F0     IN    joystick 1 (strobe PA4)
+///   $F1     IN    joystick 2 (strobe PA5)
 ///   $F2     OUT   SN76489 PSG (write-only)
 ///   $FC-$FF       Z80 PIO ($FC/$FD control A/B, $FE/$FF data A/B;
 ///                 PA4 = inverted PIT OUT0 → timer interrupt)
@@ -31,8 +31,7 @@ namespace MZRaku.Hardware;
 /// Status: PPI + PIT hot-wired in both mode dispatches; OUT $E0-$E6
 /// and IN $E0/$E1 drive the bank latches (<see cref="MZ800Memory.HandleBankOut"/>
 /// / <see cref="MZ800Memory.HandleBankIn"/>); CRTC + palette wired
-/// PIO control/data and the PSG wired; joystick reads return $FF (not
-/// yet emulated).
+/// PIO control/data, the PSG and both joystick ports wired.
 /// </summary>
 public sealed class Mz800IoBus : IIoBus
 {
@@ -43,6 +42,8 @@ public sealed class Mz800IoBus : IIoBus
     public Z80Cpu Cpu = null!;
     public Z80Pio Pio = null!;
     public Sn76489 Psg = null!;
+    /// <summary>Host gamepad state for IN $F0/$F1.</summary>
+    public Joystick Joystick = null!;
     /// <summary>CRTC status for IN $CE — supplied by the machine, which
     /// owns the beam position (see MZ800.CrtcStatus).</summary>
     public Func<byte>? CrtcStatus;
@@ -112,8 +113,9 @@ public sealed class Mz800IoBus : IIoBus
         {
             // MZ-700-mode $E008: TEMP bit + HBLK. Modelled the same
             // way MZ-700's IoBus does — TempoBit at D0 for MUSIC
-            // duration polling. Joystick bits zeroed (joystick not
-            // yet emulated).
+            // duration polling. D1-D6 read 0: the MZ-800 has no
+            // MZ-1X03 lines here (its joystick is on $F0/$F1), and
+            // the tech-ref doesn't say what the undriven bits read.
             byte v = 0;
             if (Ppi.TempoBit) v |= 0x01;
             if ((Ppi.PortCIn & 0x80) != 0) v |= 0x80;   // VBLANK mirror
@@ -162,9 +164,14 @@ public sealed class Mz800IoBus : IIoBus
         // raster model (bit meanings in MZ800.CrtcStatus).
         if (p == 0xCE) return CrtcStatus?.Invoke() ?? 0;
 
-        // Joystick ports ($F0/$F1). Not yet emulated: $FF (all lines
-        // high = nothing pressed).
-        if (p == 0xF0 || p == 0xF1) return 0xFF;
+        // Joystick ports ($F0 = joystick 1, $F1 = joystick 2), live while
+        // that stick's strobe (PPI PA4 / PA5) is low — see Mz800Joystick.
+        if (p == 0xF0 || p == 0xF1)
+        {
+            int stick = p - 0xF0;
+            bool strobed = (Ppi.PortA & (0x10 << stick)) == 0;
+            return Mz800Joystick.Read(Joystick.Sticks[stick], strobed);
+        }
 
         // Z80 PIO data ports ($FE port A, $FF port B). Control ports
         // ($FC/$FD) are write-only.
