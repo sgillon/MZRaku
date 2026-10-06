@@ -15,7 +15,7 @@ namespace MZRaku.Hardware;
 /// shape for hand-editors.
 ///
 /// v2 file format (v1.2 audit F-037): adds a <c>[Meta]</c> section
-/// with <c>machine=MZ-700</c> / <c>machine=MZ-80A</c> at the top so
+/// with <c>machine=MZ-700</c> / <c>MZ-80A</c> / <c>MZ-800</c> at the top so
 /// import can route the entries into the right machine's override
 /// store. v1 files (no <c>[Meta]</c>) still load — they're treated
 /// as MZ-700, matching the historical assumption. New saves are
@@ -47,7 +47,12 @@ public static class KeyboardMapFile
         IEnumerable<string> charSerialisedLines,
         KeyOverride keyOverrides)
     {
-        string machineTag = machine == MachineType.MZ80A ? "MZ-80A" : "MZ-700";
+        string machineTag = machine switch
+        {
+            MachineType.MZ80A => "MZ-80A",
+            MachineType.MZ800 => "MZ-800",
+            _                 => "MZ-700",
+        };
         using var w = new StreamWriter(path);
         w.WriteLine($"; {machineTag} Keyboard mapping file (v.mzkbd v2)");
         w.WriteLine($"; Saved {DateTime.Now:yyyy-MM-dd HH:mm:ss} by MZRaku.");
@@ -58,7 +63,7 @@ public static class KeyboardMapFile
         w.WriteLine("; Import...");
         w.WriteLine();
         w.WriteLine("[Meta]");
-        w.WriteLine("; machine = MZ-700 or MZ-80A. Absent = MZ-700 (v1 file).");
+        w.WriteLine("; machine = MZ-700, MZ-80A or MZ-800. Absent = MZ-700 (v1 file).");
         w.WriteLine($"machine={machineTag}");
         w.WriteLine();
         w.WriteLine("[CharMap]");
@@ -129,6 +134,9 @@ public static class KeyboardMapFile
                         if (val.Equals("MZ-80A", StringComparison.OrdinalIgnoreCase)
                             || val.Equals("MZ80A", StringComparison.OrdinalIgnoreCase))
                             machine = MachineType.MZ80A;
+                        else if (val.Equals("MZ-800", StringComparison.OrdinalIgnoreCase)
+                            || val.Equals("MZ800", StringComparison.OrdinalIgnoreCase))
+                            machine = MachineType.MZ800;
                         else
                             machine = MachineType.MZ700;
                     }

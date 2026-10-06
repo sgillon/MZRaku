@@ -25,6 +25,7 @@ internal sealed class SettingsSnapshot
 {
     internal const string Mz700LabelPrefix = "";
     internal const string Mz80aLabelPrefix = "MZ-80A: ";
+    internal const string Mz800LabelPrefix = "MZ-800: ";
 
     // Startup preferences (Phase 5.3). DefaultMachine is the persisted
     // boot machine; six DebugPanesAtStartup flags govern which debug
@@ -78,6 +79,14 @@ internal sealed class SettingsSnapshot
     public IReadOnlyDictionary<Keys, KeyOverride.Binding> Mz80aKeyOverrides { get; init; }
         = new Dictionary<Keys, KeyOverride.Binding>();
 
+    // MZ-800 parallel fields (v1.3.0 Phase 8.4c), same convention.
+    public IReadOnlyDictionary<char, MatrixPress> Mz800CharOverrides { get; init; }
+        = new Dictionary<char, MatrixPress>();
+    public IReadOnlyCollection<char> Mz800SuppressedChars { get; init; }
+        = new HashSet<char>();
+    public IReadOnlyDictionary<Keys, KeyOverride.Binding> Mz800KeyOverrides { get; init; }
+        = new Dictionary<Keys, KeyOverride.Binding>();
+
     public static SettingsSnapshot Capture(Settings settings) => new()
     {
         DefaultMachine = settings.DefaultMachine,
@@ -110,6 +119,10 @@ internal sealed class SettingsSnapshot
             kv => kv.Key, kv => new MatrixPress(kv.Value.Strobe, kv.Value.Bit, kv.Value.MzShift)),
         Mz80aSuppressedChars = new HashSet<char>(settings.Mz80aCharMapOverrides.AllSuppressed),
         Mz80aKeyOverrides = settings.Mz80aKeyOverrides.All.ToDictionary(kv => kv.Key, kv => kv.Value),
+        Mz800CharOverrides = settings.Mz800CharMapOverrides.All.ToDictionary(
+            kv => kv.Key, kv => new MatrixPress(kv.Value.Strobe, kv.Value.Bit, kv.Value.MzShift)),
+        Mz800SuppressedChars = new HashSet<char>(settings.Mz800CharMapOverrides.AllSuppressed),
+        Mz800KeyOverrides = settings.Mz800KeyOverrides.All.ToDictionary(kv => kv.Key, kv => kv.Value),
     };
 
     /// <summary>
@@ -157,6 +170,10 @@ internal sealed class SettingsSnapshot
 
     internal static IReadOnlyDictionary<char, MatrixPress> Mz80aCharDefaults { get; } =
         Mz80aCharMap.Defaults.ToDictionary(
+            kv => kv.Key, kv => new MatrixPress(kv.Value.Strobe, kv.Value.Bit, kv.Value.MzShift));
+
+    internal static IReadOnlyDictionary<char, MatrixPress> Mz800CharDefaults { get; } =
+        Mz800CharMap.Defaults.ToDictionary(
             kv => kv.Key, kv => new MatrixPress(kv.Value.Strobe, kv.Value.Bit, kv.Value.MzShift));
 }
 
@@ -237,6 +254,17 @@ internal static class SettingsDiff
         lines.AddRange(DescribeKeyOverrides(
             before.Mz80aKeyOverrides, after.Mz80aKeyOverrides,
             SettingsSnapshot.Mz80aLabelPrefix));
+
+        lines.AddRange(DescribeCharOverrides(
+            before.Mz800CharOverrides, after.Mz800CharOverrides,
+            SettingsSnapshot.Mz800LabelPrefix));
+        lines.AddRange(DescribeSuppressed(
+            before.Mz800SuppressedChars, after.Mz800SuppressedChars,
+            SettingsSnapshot.Mz800CharDefaults,
+            SettingsSnapshot.Mz800LabelPrefix));
+        lines.AddRange(DescribeKeyOverrides(
+            before.Mz800KeyOverrides, after.Mz800KeyOverrides,
+            SettingsSnapshot.Mz800LabelPrefix));
 
         return lines;
     }

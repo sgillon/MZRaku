@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Windows.Forms;
 using MZRaku.Hardware;
 
@@ -26,20 +27,44 @@ internal static class MzKbdIoCoordinator
     /// through a MessageBox on the owner. No-op if the user cancels
     /// the file dialog.
     /// </summary>
+    /// <summary>
+    /// The active machine's two override stores, as the operations
+    /// export and import need: entry counts, serialise, clear, parse.
+    /// </summary>
+    private sealed record Stores(
+        string Label,
+        string FileStem,
+        int CharCount,
+        Func<IEnumerable<string>> CharLines,
+        Action ClearChars,
+        Func<string, string, bool> ParseChar,
+        KeyOverride Keys);
+
+    private static Stores StoresFor(Settings s, MachineType machine) => machine switch
+    {
+        MachineType.MZ80A => new("MZ-80A", "mz80a", s.Mz80aCharMapOverrides.Count,
+            s.Mz80aCharMapOverrides.SerialiseLines, s.Mz80aCharMapOverrides.Clear,
+            s.Mz80aCharMapOverrides.TryParseLine, s.Mz80aKeyOverrides),
+        MachineType.MZ800 => new("MZ-800", "mz800", s.Mz800CharMapOverrides.Count,
+            s.Mz800CharMapOverrides.SerialiseLines, s.Mz800CharMapOverrides.Clear,
+            s.Mz800CharMapOverrides.TryParseLine, s.Mz800KeyOverrides),
+        _ => new("MZ-700", "mz700", s.CharMapOverrides.Count,
+            s.CharMapOverrides.SerialiseLines, s.CharMapOverrides.Clear,
+            s.CharMapOverrides.TryParseLine, s.KeyOverrides),
+    };
+
     public static void PromptAndExport(IWin32Window owner, Settings settings, MachineType activeMachine)
     {
-        bool isMz80a = activeMachine == MachineType.MZ80A;
-        int charCount = isMz80a ? settings.Mz80aCharMapOverrides.Count : settings.CharMapOverrides.Count;
-        int keyCount  = isMz80a ? settings.Mz80aKeyOverrides.Count      : settings.KeyOverrides.Count;
-        var charLines = isMz80a
-            ? settings.Mz80aCharMapOverrides.SerialiseLines()
-            : settings.CharMapOverrides.SerialiseLines();
-        var keyOverrides = isMz80a ? settings.Mz80aKeyOverrides : settings.KeyOverrides;
-        string defaultFileName = isMz80a ? "mz80a-keyboard.mzkbd" : "mz700-keyboard.mzkbd";
+        var stores = StoresFor(settings, activeMachine);
+        int charCount = stores.CharCount;
+        int keyCount  = stores.Keys.Count;
+        var charLines = stores.CharLines();
+        var keyOverrides = stores.Keys;
+        string defaultFileName = $"{stores.FileStem}-keyboard.mzkbd";
 
         using var dlg = new SaveFileDialog
         {
-            Title = $"Export {(isMz80a ? "MZ-80A" : "MZ-700")} keyboard mapping",
+            Title = $"Export {stores.Label} keyboard mapping",
             Filter = KeyboardMapFile.FileFilter,
             DefaultExt = "mzkbd",
             AddExtension = true,
@@ -103,14 +128,14 @@ internal static class MzKbdIoCoordinator
         }
 
         // File-machine vs active-machine check. Matrix coords aren't
-        // compatible across the two machines' keyboards, so a mismatched
+        // compatible across the machines' keyboards, so a mismatched
         // import would land bindings on the wrong slots. Refuse rather
         // than silently misroute.
         if (loaded.Machine != activeMachine)
         {
             MessageBox.Show(owner,
                 $"This file is a {loaded.Machine} keyboard mapping, but the current session is running {activeMachine}.\n\n" +
-                "Matrix coordinates don't align between the two machines, so importing here would land bindings on the wrong slots.\n\n" +
+                "Matrix coordinates don't align between machines, so importing here would land bindings on the wrong slots.\n\n" +
                 $"Switch machines (System → Machine → {loaded.Machine}) first, then import.",
                 "Machine mismatch",
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -143,30 +168,16 @@ internal static class MzKbdIoCoordinator
         if (choice == DialogResult.Cancel) return;
 
         // Route into the active machine's override stores.
-        if (activeMachine == MachineType.MZ80A)
+        var stores = StoresFor(settings, activeMachine);
+        if (choice == DialogResult.No)
         {
-            if (choice == DialogResult.No)
-            {
-                settings.Mz80aCharMapOverrides.Clear();
-                settings.Mz80aKeyOverrides.Clear();
-            }
-            foreach (var (k, v) in loaded.CharEntries)
-                settings.Mz80aCharMapOverrides.TryParseLine(k, v);
-            foreach (var (k, v) in loaded.KeyEntries)
-                settings.Mz80aKeyOverrides.TryParseLine(k, v);
+            stores.ClearChars();
+            stores.Keys.Clear();
         }
-        else
-        {
-            if (choice == DialogResult.No)
-            {
-                settings.CharMapOverrides.Clear();
-                settings.KeyOverrides.Clear();
-            }
-            foreach (var (k, v) in loaded.CharEntries)
-                settings.CharMapOverrides.TryParseLine(k, v);
-            foreach (var (k, v) in loaded.KeyEntries)
-                settings.KeyOverrides.TryParseLine(k, v);
-        }
+        foreach (var (k, v) in loaded.CharEntries)
+            stores.ParseChar(k, v);
+        foreach (var (k, v) in loaded.KeyEntries)
+            stores.Keys.TryParseLine(k, v);
 
         onImportApplied();
     }

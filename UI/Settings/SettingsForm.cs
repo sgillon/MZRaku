@@ -46,6 +46,9 @@ public sealed class SettingsForm : Form
     // construct a Mz80aKeyboardEditorContext instead of falling
     // through to the pre-5.5b "coming soon" fallback.
     private readonly MZ80A? _mz80a;
+    // MZ-800 instance (v1.3.0 Phase 8.4c): the Keyboard tab draws and
+    // edits the MZ-800 keyboard when it's the running machine.
+    private readonly MZ800? _mz800;
 
     // Keyboard tab — diagram is the primary view (P2-7); matrix grid
     // lives behind an Advanced expander.
@@ -137,12 +140,13 @@ public sealed class SettingsForm : Form
     public event Action? Applied;
 
     public SettingsForm(Settings settings, JoystickInput? joystickInput = null, MZ700? machine = null,
-        Tab initialTab = Tab.Startup, MZ80A? mz80a = null)
+        Tab initialTab = Tab.Startup, MZ80A? mz80a = null, MZ800? mz800 = null)
     {
         _settings = settings;
         _joystickInput = joystickInput;
         _machine = machine;
         _mz80a = mz80a;
+        _mz800 = mz800;
         Text = "Settings";
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -802,14 +806,15 @@ public sealed class SettingsForm : Form
 
     /// <summary>
     /// Returns an editor context for the currently-active machine, or
-    /// null if neither <see cref="_machine"/> nor <see cref="_mz80a"/>
-    /// is populated (shouldn't happen in normal use — the host always
+    /// null if none of <see cref="_machine"/>, <see cref="_mz80a"/> and
+    /// <see cref="_mz800"/> is populated (shouldn't happen in normal use — the host always
     /// runs one of them). Same pattern for OpenAdvancedKeyboard,
     /// OnKeyboardDiagramKeyClicked, and any future keyboard entry point.
     /// </summary>
     private IKeyboardEditorContext? TryBuildActiveEditorContext() =>
         _machine != null ? new Mz700KeyboardEditorContext(_machine, _settings.CharMapOverrides, _settings.KeyOverrides) :
         _mz80a   != null ? new Mz80aKeyboardEditorContext(_mz80a,  _settings.Mz80aCharMapOverrides, _settings.Mz80aKeyOverrides) :
+        _mz800   != null ? new Mz800KeyboardEditorContext(_mz800,  _settings.Mz800CharMapOverrides, _settings.Mz800KeyOverrides) :
         null;
 
     /// <summary>
@@ -820,11 +825,14 @@ public sealed class SettingsForm : Form
     /// something rather than throwing.
     /// </summary>
     private IPhysicalKeyboardLayout BuildActiveLayout() =>
-        _mz80a != null ? new Mz80aPhysicalKeyboardLayout()
-                       : new Mz700PhysicalKeyboardLayout();
+        _mz80a != null ? new Mz80aPhysicalKeyboardLayout() :
+        _mz800 != null ? new Mz800PhysicalKeyboardLayout() :
+                         new Mz700PhysicalKeyboardLayout();
 
     private MachineType ActiveMachine =>
-        _mz80a != null ? MachineType.MZ80A : MachineType.MZ700;
+        _mz80a != null ? MachineType.MZ80A :
+        _mz800 != null ? MachineType.MZ800 :
+                         MachineType.MZ700;
 
     private void OnExportMzKbd() =>
         MzKbdIoCoordinator.PromptAndExport(this, _settings, ActiveMachine);
@@ -1071,6 +1079,9 @@ public sealed class SettingsForm : Form
             Mz80aCharOverrides = baseSnap.Mz80aCharOverrides,
             Mz80aSuppressedChars = baseSnap.Mz80aSuppressedChars,
             Mz80aKeyOverrides = baseSnap.Mz80aKeyOverrides,
+            Mz800CharOverrides = baseSnap.Mz800CharOverrides,
+            Mz800SuppressedChars = baseSnap.Mz800SuppressedChars,
+            Mz800KeyOverrides = baseSnap.Mz800KeyOverrides,
         };
     }
 
@@ -1114,7 +1125,8 @@ public sealed class SettingsForm : Form
         if (unreachableIds == null || unreachableIds.Count == 0) return true;
 
         // Walk the active machine's layout keys — MZ-700 = MzKeyboardLayout,
-        // MZ-80A = Mz80aKeyboardLayout — via the editor context.
+        // MZ-80A = Mz80aKeyboardLayout, MZ-800 = Mz800KeyboardLayout — via
+        // the editor context.
         var context = TryBuildActiveEditorContext();
         if (context == null) return true;
         var unreachable = context.LayoutKeys

@@ -1409,6 +1409,17 @@ ahead of the v1.4 settings work at the start of the arc
     the memory swap, reverse video and hardware scroll. The Memory
     Viewer gains a bank line (MZ-800: bank state, display mode,
     DMD/WF/RF, with a tooltip on RF-filtered VRAM reads).
+  - **8.4 — keyboard editor.** The MZ-800 gets its own physical layout
+    (from the Owner's Manual p. 4-4: the MZ-700 block with TAB, and
+    ALPHA beside a narrower left SHIFT), editor context and diagram, so
+    the Settings Keyboard tab, Advanced editor and Keyboard Matrix
+    window all work on it instead of showing the MZ-700 keyboard.
+    `[KeyOverrides.MZ800]` is now honoured (it was saved but unused),
+    new `[CharMap.MZ800]` char overrides sit alongside it, the Apply
+    summary lists MZ-800 binding changes, and `.mzkbd` files carry an
+    `MZ-800` tag. The mode pane shows ALPHA / LOCK (shift lock) / GRAPH
+    again, read from 1Z-016's keyboard-mode flag at $108D, with the
+    display mode in its own pane beside it.
 
 ---
 
