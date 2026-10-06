@@ -72,6 +72,17 @@ public sealed class MainForm : Form
         BorderSides = ToolStripStatusLabelBorderSides.Left,
         BorderStyle = Border3DStyle.Etched,
     };
+    // MZ-800 only, left of the mode pane: display mode (MZ-700 /
+    // 320×200 / 640×200).
+    private readonly ToolStripStatusLabel _displayModeLabel = new()
+    {
+        Spring = false,
+        AutoSize = false,
+        Width = 64,
+        TextAlign = ContentAlignment.MiddleCenter,
+        BorderSides = ToolStripStatusLabelBorderSides.Left,
+        BorderStyle = Border3DStyle.Etched,
+    };
     // Frame at which _statusLabel last received a non-empty message.
     // The message auto-clears after StatusIdleFrames so the middle
     // pane stays empty when nothing's happening. Populated via the
@@ -232,18 +243,20 @@ public sealed class MainForm : Form
 
         // Four-pane layout: machine identity (left, fixed) | transient
         // status (middle, spring, centered) | TAPE activity chip |
-        // ALPHA/GRAPH mode indicator (right, fixed; the MZ-800 shows its
-        // display mode there instead). Order matters — leftmost item
-        // first.
+        // ALPHA/GRAPH mode indicator (right, fixed). The MZ-800 adds a
+        // display-mode pane before the mode indicator. Order matters —
+        // leftmost item first.
         _machineLabel.Text = MachineLabel;
         _status.Items.Add(_machineLabel);
         _status.Items.Add(_statusLabel);
         _status.Items.Add(_tapeLabel);
+        if (_mz800 != null) _status.Items.Add(_displayModeLabel);
         _status.Items.Add(_modeLabel);
         if (_mz800 != null)
         {
-            _modeLabel.Width = 64;
             _status.ShowItemToolTips = true;
+            _modeLabel.ToolTipText = "MZ-800 BASIC keyboard mode: ALPHA (normal), " +
+                                     "LOCK (shift lock, SHIFT+ALPHA) or GRAPH";
             UpdateMz800ModeLabel();
         }
 
@@ -968,47 +981,47 @@ public sealed class MainForm : Form
     /// → normal "ALPHA", true → highlighted "GRAPH". Cheap enough to
     /// call every 10 frames from either machine's tick block.
     /// </summary>
-    private void UpdateModeLabel(bool? graph)
+    private void UpdateModeLabel(bool? graph) =>
+        SetModeLabel(graph is null ? "—" : graph.Value ? "GRAPH" : "ALPHA");
+
+    // "—" greyed (mode unknowable), "GRAPH" highlighted, "LOCK" (MZ-800
+    // shift lock) highlighted, anything else plain.
+    private void SetModeLabel(string text)
     {
-        if (graph is null)
+        if (_modeLabel.Text == text) return;
+        _modeLabel.Text = text;
+        (_modeLabel.ForeColor, _modeLabel.BackColor) = text switch
         {
-            if (_modeLabel.Text != "—")
-            {
-                _modeLabel.Text = "—";
-                _modeLabel.ForeColor = SystemColors.GrayText;
-                _modeLabel.BackColor = SystemColors.Control;
-            }
-            return;
-        }
-        if (graph.Value && _modeLabel.Text != "GRAPH")
-        {
-            _modeLabel.Text = "GRAPH";
-            _modeLabel.ForeColor = Color.White;
-            _modeLabel.BackColor = Color.MediumVioletRed;
-        }
-        else if (!graph.Value && _modeLabel.Text != "ALPHA")
-        {
-            _modeLabel.Text = "ALPHA";
-            _modeLabel.ForeColor = SystemColors.ControlText;
-            _modeLabel.BackColor = SystemColors.Control;
-        }
+            "—"     => (SystemColors.GrayText, SystemColors.Control),
+            "GRAPH" => (Color.White, Color.MediumVioletRed),
+            "LOCK"  => (Color.White, Color.SteelBlue),
+            _       => (SystemColors.ControlText, SystemColors.Control),
+        };
     }
 
     /// <summary>
-    /// MZ-800: the mode pane shows the display mode rather than a
-    /// keyboard ALPHA/GRAPH state — "MZ-700" (compatibility text mode),
-    /// "320×200" or "640×200" — since titles switch between them and
-    /// it's otherwise invisible. Called every 10 frames.
+    /// MZ-800 status panes, called every 10 frames. The mode pane shows
+    /// MZ-800 BASIC's keyboard mode (ALPHA / LOCK for shift lock /
+    /// GRAPH, "—" when 1Z-016 isn't running). The display-mode pane
+    /// shows "MZ-700" (compatibility text mode), "320×200" or
+    /// "640×200", since titles switch between them and it's otherwise
+    /// invisible.
     /// </summary>
     private void UpdateMz800ModeLabel()
     {
-        var m = _mz800!.Mem;
+        SetModeLabel(_mz800!.BasicKeyboardMode switch
+        {
+            0 => "ALPHA",
+            1 => "LOCK",
+            2 => "GRAPH",
+            _ => "—",
+        });
+
+        var m = _mz800.Mem;
         string text = m.Mz700Mode ? "MZ-700" : m.Is640BitmapMode ? "640×200" : "320×200";
-        if (_modeLabel.Text == text) return;
-        _modeLabel.Text = text;
-        _modeLabel.ForeColor = SystemColors.ControlText;
-        _modeLabel.BackColor = SystemColors.Control;
-        _modeLabel.ToolTipText = m.Mz700Mode
+        if (_displayModeLabel.Text == text) return;
+        _displayModeLabel.Text = text;
+        _displayModeLabel.ToolTipText = m.Mz700Mode
             ? "Display mode: MZ-700 compatibility (40×25 text)"
             : $"Display mode: MZ-800 {text} bitmap";
     }

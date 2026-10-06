@@ -126,7 +126,12 @@ public sealed class MZ800 : MzMachineBase, IMachine
         // comment for the flow.
         Cassette.Memory = Mem;
         Cassette.Cpu = Cpu;
-        Cpu.PreStep = Cassette.OnPreStep;
+        // Also notes BASIC starting (see BasicKeyboardMode).
+        Cpu.PreStep = () =>
+        {
+            if (Cpu.PC == 0 && !Mem.RomLow) _basicStarted = true;
+            return Cassette.OnPreStep();
+        };
 
         // Phase 6.1: PSG path. Sound's square-wave generator is unused
         // (Enabled stays false); samples come from RenderAudio.
@@ -174,6 +179,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
 
     public void Reset()
     {
+        _basicStarted = false;
         Cpu.Reset();
         Cpu.IM = 1;
         // Restore power-on bank state — MZ-800 mode, config (a). ROM
@@ -554,6 +560,40 @@ public sealed class MZ800 : MzMachineBase, IMachine
         Mem.Ram[BasicKeyBufferPos] = 0;
         Mem.Ram[BasicKeyBufferLen] = (byte)text.Length;
         return true;
+    }
+
+    // 1Z-016's keyboard-mode flag and the routine at $0A19 that sets it
+    // (entries $0A19 / $0A1B / $0A1E load 0 / 1 / 2, each skipping the
+    // next load via a dummy LD HL,nn). The cursor routine at $08E5 picks
+    // its block / rounded / underline cursor from the same byte.
+    private const ushort BasicKeyModeFlag = 0x108D;
+    // Set when the CPU reaches BASIC's entry, $0000 with the monitor ROM
+    // banked out (after the IPL's tape boot or AutoLoadBasic); cleared
+    // by Reset. The power-on vector runs $0000 with the ROM mapped.
+    private bool _basicStarted;
+    private const ushort BasicKeyModeSetter = 0x0A19;
+    private static readonly byte[] BasicKeyModeSetterCode =
+        { 0xAF, 0x21, 0x3E, 0x01, 0x21, 0x3E, 0x02, 0x32, 0x8D, 0x10, 0xC9 };
+
+    /// <summary>
+    /// MZ-800 BASIC's keyboard mode: 0 normal (ALPHA), 1 shift lock,
+    /// 2 graphics. Null unless BASIC has started since the last reset
+    /// and 1Z-016 is still the program in memory (its mode-setting
+    /// routine is at $0A19), or if the flag is out of range. A reset
+    /// leaves DRAM intact, so a game booted afterwards can sit over a
+    /// stale copy of BASIC; the started check rules that out. Reads
+    /// DRAM directly, so no side effects.
+    /// </summary>
+    public int? BasicKeyboardMode
+    {
+        get
+        {
+            if (!_basicStarted) return null;
+            for (int i = 0; i < BasicKeyModeSetterCode.Length; i++)
+                if (Mem.Ram[BasicKeyModeSetter + i] != BasicKeyModeSetterCode[i]) return null;
+            byte mode = Mem.Ram[BasicKeyModeFlag];
+            return mode <= 2 ? mode : null;
+        }
     }
 
     public void AutoLoadCassette(string path, bool autoRun)
