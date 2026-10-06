@@ -177,12 +177,12 @@ public sealed class MainForm : Form
         var joystickForInput = _machine?.Joystick ?? _mz800?.Joystick ?? new Hardware.Joystick();
         _joystickInput = new Hardware.JoystickInput(joystickForInput);
         _joystickInput.SetButtonIndices(_settings.JoyButton1Index, _settings.JoyButton2Index);
-        // Keyboard-override wiring. Both machines have identical
+        // Keyboard-override wiring. All three machines have the same
         // 10-strobe × 8-bit matrix topology so KeyOverride is shared;
-        // Settings persists two independent instances at
-        // [KeyOverrides.MZ700] / [KeyOverrides.MZ80A] (Phase 5.1a).
-        // Char-map layers are split too: CharMap for MZ-700,
-        // Mz80aCharMap for MZ-80A.
+        // Settings persists one instance per machine at
+        // [KeyOverrides.MZ700] / [KeyOverrides.MZ80A] / [KeyOverrides.MZ800].
+        // Char-map layers are split too: CharMap, Mz80aCharMap and
+        // Mz800CharMap.
         if (_machine != null)
         {
             _machine!.Keyboard.Overrides = _settings.KeyOverrides;
@@ -193,6 +193,11 @@ public sealed class MainForm : Form
             _mz80a.Keyboard.Overrides = _settings.Mz80aKeyOverrides;
         }
         Mz80aCharMap.Overrides = _settings.Mz80aCharMapOverrides;
+        if (_mz800 != null)
+        {
+            _mz800.Keyboard.Overrides = _settings.Mz800KeyOverrides;
+        }
+        Mz800CharMap.Overrides = _settings.Mz800CharMapOverrides;
 
         Text = TitleBase;
         Icon = EmbeddedResources.LoadIcon();
@@ -1709,6 +1714,7 @@ public sealed class MainForm : Form
         IKeyboardEditorContext? context =
             _machine != null ? new Mz700KeyboardEditorContext(_machine, _settings.CharMapOverrides, _settings.KeyOverrides) :
             _mz80a   != null ? new Mz80aKeyboardEditorContext(_mz80a,  _settings.Mz80aCharMapOverrides, _settings.Mz80aKeyOverrides) :
+            _mz800   != null ? new Mz800KeyboardEditorContext(_mz800,  _settings.Mz800CharMapOverrides, _settings.Mz800KeyOverrides) :
             null;
         if (context == null) return;
         if (_matrixForm == null || _matrixForm.IsDisposed)

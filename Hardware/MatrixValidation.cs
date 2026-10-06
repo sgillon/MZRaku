@@ -43,6 +43,7 @@ public static class MatrixValidation
         AddPrefixed(all, "Mz800MatrixReference", Mz800MatrixReference.Validate());
         AddPrefixed(all, "Mz800SpecialKeyMap",   Mz800SpecialKeyMap.Validate());
         AddPrefixed(all, "Mz800CharMap",         Mz800CharMap.Validate());
+        AddPrefixed(all, "Mz800KeyboardLayout",  Mz800KeyboardLayout.Validate());
         return all;
     }
 

@@ -82,13 +82,24 @@ public static class Mz800CharMap
         return m;
     }
 
-    // Override layer (Settings.Mz800CharMapOverrides + a
-    // MatrixOverrides<Press> subclass) arrives with Phase 8's
-    // settings-dialog upgrade. Phase 3 keyboard bring-up only needs
-    // the walked-reference defaults.
+    /// <summary>
+    /// Optional override layer set by the host application
+    /// (<c>MainForm</c> from <c>Settings.Mz800CharMapOverrides</c>).
+    /// When non-null, its entries take precedence over
+    /// <see cref="Defaults"/> and its suppressions hide them.
+    /// </summary>
+    public static Mz800CharMapOverrides? Overrides;
 
     public static bool TryLookup(char c, out Press press)
-        => Defaults.TryGetValue(c, out press);
+    {
+        if (Overrides != null && Overrides.TryLookup(c, out press)) return true;
+        if (Overrides != null && Overrides.IsSuppressed(c))
+        {
+            press = default;
+            return false;
+        }
+        return Defaults.TryGetValue(c, out press);
+    }
 
     /// <summary>
     /// Cross-checks <see cref="Defaults"/> against

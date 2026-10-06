@@ -156,9 +156,8 @@ public sealed class Settings
 
     // MZ-800 key overrides. Same 10×8 matrix topology as MZ-700/MZ-80A
     // per tech ref pp. 24-25, so the storage shape carries. Persisted
-    // at [KeyOverrides.MZ800]. Empty by default; the section exists
-    // as of v1.3.0 Phase 0 scaffolding — Mz800Keyboard.OnKeyDown
-    // consumption lands with the keyboard phase (Phase 3).
+    // at [KeyOverrides.MZ800]. Consulted first by Mz800Keyboard.OnKeyDown
+    // ahead of Mz800SpecialKeyMap.
     public KeyOverride Mz800KeyOverrides { get; } = new();
 
     // User-editable character-map overrides. Empty by default; built-in
@@ -171,11 +170,14 @@ public sealed class Settings
     // sit under it and come from Mz80aMatrixReference.
     public Mz80aCharMapOverrides Mz80aCharMapOverrides { get; } = new();
 
+    // MZ-800 char-map overrides. Persisted to [CharMap.MZ800]. Consulted
+    // FIRST by Mz800CharMap.TryLookup; defaults come from
+    // Mz800MatrixReference.
+    public Mz800CharMapOverrides Mz800CharMapOverrides { get; } = new();
+
     // Which debug / diagnostic panes to open automatically on startup.
-    // All default false. Wired at Phase 5.1a; boot-time application
-    // lands in Phase 5.3 alongside the DefaultMachine picker. Panes
-    // that don't apply to the boot machine (Sound Diagnostic +
-    // Keyboard Matrix on MZ-80A) grey out in Settings; their flag
+    // All default false. Panes that don't apply to the boot machine
+    // (Sound Diagnostic on MZ-80A) grey out in Settings; their flag
     // survives so switching machines restores them.
     public DebugPaneStartupSet DebugPanesAtStartup { get; } = new();
 
@@ -236,6 +238,7 @@ public sealed class Settings
         "KeyOverrides.MZ800",
         "CharMap",
         "CharMap.MZ80A",
+        "CharMap.MZ800",
         "MainWindow",
         "DebuggerWindow",
         "MemoryViewerWindow",
@@ -309,6 +312,10 @@ public sealed class Settings
                 if (ini.TryGetValue("CharMap.MZ80A", out var cm80a))
                 {
                     foreach (var kv in cm80a) s.Mz80aCharMapOverrides.TryParseLine(kv.Key, kv.Value);
+                }
+                if (ini.TryGetValue("CharMap.MZ800", out var cm800))
+                {
+                    foreach (var kv in cm800) s.Mz800CharMapOverrides.TryParseLine(kv.Key, kv.Value);
                 }
                 // [DebugPanes] — which diagnostic panes open on
                 // startup. All default false. Wired at Phase 5.1a;
@@ -499,10 +506,8 @@ public sealed class Settings
             sb.AppendLine("[KeyOverrides.MZ800]");
             sb.AppendLine("; User physical-key bindings for MZ-800. Same format as");
             sb.AppendLine("; [KeyOverrides.MZ700] above; coordinates are MZ-800 matrix strobe");
-            sb.AppendLine("; (0-9) + bit (0-7), per Tech Ref pp. 24-25. Empty by default until");
-            sb.AppendLine("; the MZ-800 keyboard phase (Phase 3) lands and Mz800Keyboard starts");
-            sb.AppendLine("; consuming it. Section exists now so hand-edits made during v1.3.0");
-            sb.AppendLine("; development survive across releases.");
+            sb.AppendLine("; (0-9) + bit (0-7), per Tech Ref pp. 24-25. Consulted ahead of");
+            sb.AppendLine("; Mz800SpecialKeyMap in Mz800Keyboard.OnKeyDown.");
             foreach (var line in Mz800KeyOverrides.SerialiseLines()) sb.AppendLine(line);
             sb.AppendLine();
 
@@ -546,6 +551,17 @@ public sealed class Settings
             foreach (var line in Mz80aCharMapOverrides.SerialiseLines()) sb.AppendLine(line);
             sb.AppendLine();
 
+            sb.AppendLine("[CharMap.MZ800]");
+            sb.AppendLine("; MZ-800 char-map overrides. Same format as [CharMap] above but");
+            sb.AppendLine("; coordinates are MZ-800 matrix strobe (0-9) + bit (0-7), per");
+            sb.AppendLine("; Tech Ref pp. 24-25. Consulted FIRST by Mz800CharMap.TryLookup;");
+            sb.AppendLine("; defaults sit under it and are derived from Mz800MatrixReference.");
+            sb.AppendLine(";   <hex-codepoint>=<strobe>,<bit>,<shift>   ; <glyph>");
+            sb.AppendLine("; Or to suppress a built-in default:");
+            sb.AppendLine(";   <hex-codepoint>=-                        ; <glyph> (suppressed)");
+            foreach (var line in Mz800CharMapOverrides.SerialiseLines()) sb.AppendLine(line);
+            sb.AppendLine();
+
             sb.AppendLine("[DebugPanes]");
             sb.AppendLine("; Which diagnostic / debug panes to open automatically on startup.");
             sb.AppendLine("; All values default false. The Debug menu still opens/closes each");
@@ -558,7 +574,7 @@ public sealed class Settings
             sb.AppendLine(";   HidDiagnostic    HID Diagnostic (Ctrl+H)");
             sb.AppendLine(";   FontSheet        Font Sheet (Ctrl+G)");
             sb.AppendLine(";   SoundDiagnostic  Sound Diagnostic (MZ-700, MZ-800)");
-            sb.AppendLine(";   KeyboardMatrix   Keyboard Matrix (MZ-700, MZ-80A)");
+            sb.AppendLine(";   KeyboardMatrix   Keyboard Matrix");
             sb.AppendLine($"Debugger={(DebugPanesAtStartup.Debugger ? "true" : "false")}");
             sb.AppendLine($"MemoryViewer={(DebugPanesAtStartup.MemoryViewer ? "true" : "false")}");
             sb.AppendLine($"HidDiagnostic={(DebugPanesAtStartup.HidDiagnostic ? "true" : "false")}");

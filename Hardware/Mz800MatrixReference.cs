@@ -319,14 +319,30 @@ public static class Mz800MatrixReference
     /// <summary>
     /// MZ glyph positions that have no equivalent on a PC keyboard by
     /// design — the safety gate treats them as reachable so it doesn't
-    /// nag every Apply. Mirrors
-    /// <see cref="Mz80aMatrixReference.IsKnownUnreachableFromPc"/>.
-    ///
-    /// Initial pass: no exemptions catalogued. Add as walk-through
-    /// surfaces glyph-only cells (e.g. π on shifted-D0) that PC layouts
-    /// can't reach directly.
+    /// nag every Apply. The same three cells as
+    /// <see cref="Mz700MatrixReference.IsKnownUnreachableFromPc"/>, since
+    /// the MZ-800 carries those keys at the same slots and
+    /// <see cref="Mz800CharMap"/> makes the same choices:
+    /// - (1, 5, true) — the shifted @ key; PC ' goes to shifted 7.
+    /// - (0, 5, false) — the ↓ display glyph on the £ key.
+    /// - (0, 5, true) — the £ glyph; PC £ (UK Shift+3) goes to MZ '#'.
     /// </summary>
-    public static bool IsKnownUnreachableFromPc(int strobe, int bit, bool mzShift) => false;
+    public static bool IsKnownUnreachableFromPc(int strobe, int bit, bool mzShift)
+        => (strobe == 1 && bit == 5 && mzShift)
+        || (strobe == 0 && bit == 5);
+
+    /// <summary>
+    /// Canonical printable glyph at (strobe, bit, mzShift), or null if
+    /// the slot has no printable glyph. Mirrors
+    /// <see cref="Mz80aMatrixReference.FindGlyph"/>.
+    /// </summary>
+    public static char? FindGlyph(int strobe, int bit, bool mzShift)
+    {
+        if (!All.TryGetValue((strobe, bit), out var slot)) return null;
+        if (slot.Kind != SlotKind.Char) return null;
+        var g = mzShift ? slot.ShiftedGlyph : slot.UnshiftedGlyph;
+        return string.IsNullOrEmpty(g) ? null : g![0];
+    }
 
     private static readonly IReadOnlyDictionary<(int strobe, int bit), string> _specialLabels =
         new Dictionary<(int strobe, int bit), string>

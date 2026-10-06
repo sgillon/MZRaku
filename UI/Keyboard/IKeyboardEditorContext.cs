@@ -25,7 +25,7 @@ namespace MZRaku;
 /// </summary>
 public interface IKeyboardEditorContext
 {
-    /// <summary>Machine tag for header text ("MZ-700" or "MZ-80A").</summary>
+    /// <summary>Machine tag for header text ("MZ-700", "MZ-80A" or "MZ-800").</summary>
     string MachineLabel { get; }
 
     /// <summary>

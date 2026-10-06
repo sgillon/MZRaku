@@ -41,6 +41,14 @@ public sealed class Mz800Keyboard : KeyboardMatrixBase
     /// </summary>
     public MZ800Memory? Memory;
 
+    /// <summary>
+    /// User-editable physical-key overrides (<c>[KeyOverrides.MZ800]</c>),
+    /// consulted before <see cref="Mz800SpecialKeyMap"/> in
+    /// <see cref="OnKeyDown"/>. Same <see cref="KeyOverride"/> shape as
+    /// MZ-700 / MZ-80A. Null = no overrides layer wired.
+    /// </summary>
+    public KeyOverride? Overrides;
+
     protected override (int Row, int Col) ShiftSlot => (8, 0);
 
     protected override void OnShiftStateChanged(bool effective)
@@ -69,6 +77,22 @@ public sealed class Mz800Keyboard : KeyboardMatrixBase
 
         Diag.LastKeyDown = keyData;
 
+        // Layer 1: user overrides, same as MZ-700. Resolve() checks the
+        // combined-modifier form first, then the bare VK. Shift state is
+        // written before the key bit so a GETKY scan that sees the key
+        // also sees the matching shift.
+        var ov = Overrides?.Resolve(keyData);
+        if (ov.HasValue)
+        {
+            var b = ov.Value;
+            _holds[bareVk] = new ActiveHold(b.Row, b.Col, b.MzShift);
+            ApplyShiftState();
+            SetMatrix(b.Row, b.Col, true);
+            Diag.Record(InputLayer.Override, b.Row, b.Col, b.MzShift);
+            return true;
+        }
+
+        // Layer 2: built-in non-printables.
         if (Mz800SpecialKeyMap.Map.TryGetValue(bareVk, out var sp))
         {
             _holds[bareVk] = new ActiveHold(sp.Strobe, sp.Bit, sp.ExplicitMzShift);
