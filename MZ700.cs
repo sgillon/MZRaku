@@ -29,6 +29,7 @@ public sealed class MZ700 : MzMachineBase, IMachine
     public MachineType Kind => MachineType.MZ700;
     double IMachine.FramesPerSecond => FramesPerSecond;
     Z80Core.IMemory IMachine.Mem => Mem;
+    public bool IsSideEffectRead(ushort addr) => Mem.IsIoRead(addr);
     // IMachine.Cassette upcasts to CassetteTrapBase for the interface
     // consumers; MZ-700-typed callers keep the concrete Cassette
     // property above (with WriteTapeTrapHits, BreakWaitTrapHits, and

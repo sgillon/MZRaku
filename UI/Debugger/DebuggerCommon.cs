@@ -7,7 +7,7 @@ namespace MZRaku;
 /// <summary>
 /// Shared helpers for the debugger-side windows
 /// (<see cref="DebuggerForm"/>, <see cref="MemoryViewerForm"/>).
-/// Both used to carry byte-identical copies of these three utilities;
+/// Both used to carry byte-identical copies of these utilities;
 /// pulling them here means any tweak lands once and the two panes
 /// stay in step.
 /// </summary>
@@ -41,12 +41,4 @@ internal static class DebuggerCommon
     {
         if (c.Text != text) c.Text = text;
     }
-
-    /// <summary>
-    /// True if the address falls in the MZ-700 PPI/PIT I/O window
-    /// ($E000-$E00F). Reads there have hardware side effects (PIT
-    /// counter latches, keyboard scan); disassembly and raw byte
-    /// display must report zero rather than disturb hardware state.
-    /// </summary>
-    public static bool IsMzIoWindow(ushort addr) => addr >= 0xE000 && addr <= 0xE00F;
 }

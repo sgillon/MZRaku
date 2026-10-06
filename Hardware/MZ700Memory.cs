@@ -31,6 +31,9 @@ public sealed class MZ700Memory : IMemory
     public Z80Cpu? Cpu;
     public System.Text.StringBuilder? BankSwitchLog;
 
+    /// <summary>Does a read of <paramref name="addr"/> hit the PPI/PIT window?</summary>
+    public bool IsIoRead(ushort addr) => VramIoEnabled && addr >= 0xE000 && addr <= 0xE00F;
+
     public byte Read(ushort addr)
     {
         if (addr < 0x1000)

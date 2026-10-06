@@ -37,6 +37,7 @@ public sealed class MZ80A : MzMachineBase, IMachine
     public MachineType Kind => MachineType.MZ80A;
     double IMachine.FramesPerSecond => FramesPerSecond;
     Z80Core.IMemory IMachine.Mem => Mem;
+    public bool IsSideEffectRead(ushort addr) => Mem.IsIoRead(addr);
     CassetteTrapBase IMachine.Cassette => Cassette;
     System.Drawing.Bitmap? IMachine.VideoFrame => Video.Frame;
 

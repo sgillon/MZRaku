@@ -48,6 +48,10 @@ public sealed class Mz800IoBus : IIoBus
     /// owns the beam position (see MZ800.CrtcStatus).</summary>
     public Func<byte>? CrtcStatus;
 
+    /// <summary>Fires on every MZ-700-mode write to $E008 (the Sound
+    /// Diagnostic's counter-0 gate log line).</summary>
+    public event Action<byte>? OnE008Write;
+
     // Every CRTC register byte (WF, RF, DMD, palette, scroll, BCOL)
     // lives in MZ800Memory — the one place CPU VRAM access and the
     // renderer both read it.
@@ -135,6 +139,7 @@ public sealed class Mz800IoBus : IIoBus
             // (tech-ref p. 6). Latched in Sound.HardGate; MZ800.RenderAudio
             // gates counter-0 audio with it in MZ-700 mode.
             Sound.HardGate = (value & 0x01) != 0;
+            OnE008Write?.Invoke(value);
             return;
         }
     }

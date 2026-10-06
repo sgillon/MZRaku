@@ -557,7 +557,7 @@ public sealed class Settings
             sb.AppendLine(";   MemoryViewer     Memory Viewer (Ctrl+M)");
             sb.AppendLine(";   HidDiagnostic    HID Diagnostic (Ctrl+H)");
             sb.AppendLine(";   FontSheet        Font Sheet (Ctrl+G)");
-            sb.AppendLine(";   SoundDiagnostic  Sound Diagnostic (MZ-700 only)");
+            sb.AppendLine(";   SoundDiagnostic  Sound Diagnostic (MZ-700, MZ-800)");
             sb.AppendLine(";   KeyboardMatrix   Keyboard Matrix (MZ-700, MZ-80A)");
             sb.AppendLine($"Debugger={(DebugPanesAtStartup.Debugger ? "true" : "false")}");
             sb.AppendLine($"MemoryViewer={(DebugPanesAtStartup.MemoryViewer ? "true" : "false")}");

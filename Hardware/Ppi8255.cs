@@ -40,6 +40,10 @@ public sealed class Ppi8255
 
     public event Action<bool>? SpeakerGateChanged;
 
+    // Every change of the PC0-PC3 outputs as (old, new). The MZ-800
+    // Sound Diagnostic logs PC0, that machine's speaker gate.
+    public event Action<byte, byte>? PortCChanged;
+
 
     public byte Read(int reg)
     {
@@ -74,6 +78,7 @@ public sealed class Ppi8255
                 byte old = PortCOut;
                 PortCOut = (byte)(val & 0x0F);
                 if (((old ^ PortCOut) & 0x08) != 0) SpeakerGateChanged?.Invoke((PortCOut & 0x08) != 0);
+                if (old != PortCOut) PortCChanged?.Invoke(old, PortCOut);
                 break;
             }
             case 3:
@@ -88,6 +93,7 @@ public sealed class Ppi8255
                     {
                         if (set) PortCOut |= mask; else PortCOut &= (byte)~mask;
                         if (((old ^ PortCOut) & 0x08) != 0) SpeakerGateChanged?.Invoke((PortCOut & 0x08) != 0);
+                        if (old != PortCOut) PortCChanged?.Invoke(old, PortCOut);
                     }
                     else
                     {

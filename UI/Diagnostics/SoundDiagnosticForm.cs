@@ -8,28 +8,35 @@ using MZRaku.Hardware;
 namespace MZRaku;
 
 /// <summary>
-/// Live "what's the PIT actually doing right now" view, designed to
-/// support the sound-investigation arc kicked off in v0.0.9-preview
-/// work (boot tone missing, MUSIC timings off).
+/// Live "what's the sound hardware actually doing right now" view,
+/// designed to support the sound-investigation arc kicked off in
+/// v0.0.9-preview work (boot tone missing, MUSIC timings off).
 ///
 /// Three panes:
 /// 1. **PIT state** — per-counter mode / reload / value / running /
-///    gate / out, refreshed each frame.
-/// 2. **Reference cross-check** — for each counter, what
+///    gate / out, plus the speaker gates, refreshed each frame.
+/// 2. MZ-700: **Reference cross-check** — for each counter, what
 ///    <see cref="Mz700SoundReference"/> says the topology / mode /
 ///    gate source should be. Lets the user spot drift between the
 ///    live emulation and the canonical reference at a glance.
-/// 3. **Event log** — small ring buffer of recent PIT writes and PC3
-///    (speaker gate) transitions, timestamped by host frame. The
-///    log is what surfaces "boot tone short and we lost it" — if
-///    the writes are visible here but no sound came out, the bug is
-///    in the synthesis pipeline rather than the ROM-to-PIT path.
+///    MZ-800: **SN76489 PSG state** — per-channel tone period,
+///    frequency and attenuation, plus the noise mode.
+/// 3. **Event log** — small ring buffer of recent PIT writes, speaker
+///    gate transitions and (MZ-800) PSG writes, timestamped by host
+///    frame. The log is what surfaces "boot tone short and we lost
+///    it" — if the writes are visible here but no sound came out, the
+///    bug is in the synthesis pipeline rather than the ROM-to-PIT path.
 ///
-/// Opened from Debug → Sound Diagnostic. Read-only, no controls.
+/// Opened from Debug → Sound Diagnostic on the MZ-700 and MZ-800.
+/// Read-only, no controls.
 /// </summary>
 internal sealed class SoundDiagnosticForm : DiagnosticFormBase
 {
-    private readonly MZ700 _machine;
+    // Exactly one of these is set.
+    private readonly MZ700? _mz700;
+    private readonly MZ800? _mz800;
+    private readonly Pit8253 _pit;
+    private readonly Ppi8255 _ppi;
 
     private readonly SmoothLabel _stateLabel = AutoSizeMonoLabel();
     private readonly SmoothLabel _referenceLabel = AutoSizeMonoLabel();
@@ -48,9 +55,17 @@ internal sealed class SoundDiagnosticForm : DiagnosticFormBase
     private const int EventLogCap = 40;
     private int _frame;
 
-    public SoundDiagnosticForm(MZ700 machine)
+    /// <summary>True if the Sound Diagnostic supports <paramref name="kind"/>.</summary>
+    public static bool Supports(MachineType kind) => kind is MachineType.MZ700 or MachineType.MZ800;
+
+    public SoundDiagnosticForm(IMachine machine)
     {
-        _machine = machine;
+        switch (machine)
+        {
+            case MZ700 m: _mz700 = m; _pit = m.Pit; _ppi = m.Ppi; break;
+            case MZ800 m: _mz800 = m; _pit = m.Pit; _ppi = m.Ppi; break;
+            default: throw new ArgumentException($"Sound Diagnostic doesn't support {machine.Kind}.", nameof(machine));
+        }
 
         Text = "Sound Diagnostic";
         StartPosition = FormStartPosition.Manual;
@@ -71,19 +86,37 @@ internal sealed class SoundDiagnosticForm : DiagnosticFormBase
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         root.Controls.Add(AutoGroup("PIT state (live)", _stateLabel), 0, 0);
-        root.Controls.Add(AutoGroup("Reference cross-check", _referenceLabel), 0, 1);
+        root.Controls.Add(AutoGroup(_mz800 != null ? "SN76489 PSG state (live)" : "Reference cross-check", _referenceLabel), 0, 1);
         root.Controls.Add(FillGroup("Event log (newest at bottom — selectable / copy with Ctrl+C)", _logBox), 0, 2);
         root.Controls.Add(BuildButtonRow(), 0, 3);
         Controls.Add(root);
 
-        _machine.Pit.OnWrite += OnPitWrite;
-        _machine.Ppi.SpeakerGateChanged += OnSpeakerGate;
-        _machine.Io.OnE008Write += OnE008Write;
+        _pit.OnWrite += OnPitWrite;
+        if (_mz700 != null)
+        {
+            _ppi.SpeakerGateChanged += OnSpeakerGate;
+            _mz700.Io.OnE008Write += OnE008Write;
+        }
+        else
+        {
+            _ppi.PortCChanged += OnPortCChanged;
+            _mz800!.Io.OnE008Write += OnE008Write;
+            _mz800.Psg.OnWrite += OnPsgWrite;
+        }
         FormClosed += (_, _) =>
         {
-            _machine.Pit.OnWrite -= OnPitWrite;
-            _machine.Ppi.SpeakerGateChanged -= OnSpeakerGate;
-            _machine.Io.OnE008Write -= OnE008Write;
+            _pit.OnWrite -= OnPitWrite;
+            if (_mz700 != null)
+            {
+                _ppi.SpeakerGateChanged -= OnSpeakerGate;
+                _mz700.Io.OnE008Write -= OnE008Write;
+            }
+            else
+            {
+                _ppi.PortCChanged -= OnPortCChanged;
+                _mz800!.Io.OnE008Write -= OnE008Write;
+                _mz800.Psg.OnWrite -= OnPsgWrite;
+            }
         };
     }
 
@@ -115,7 +148,7 @@ internal sealed class SoundDiagnosticForm : DiagnosticFormBase
         _frame++;
         if (!Visible) return;
         _stateLabel.Text = BuildStateText();
-        _referenceLabel.Text = BuildReferenceText();
+        _referenceLabel.Text = BuildSecondPaneText();
         // Refresh log only when it's actually changed so the user can
         // make a text selection in the box without it being wiped each
         // frame.
@@ -143,20 +176,45 @@ internal sealed class SoundDiagnosticForm : DiagnosticFormBase
         sb.AppendLine("Cnt  Mode  Reload   Value   Running  Gate  OUT");
         for (int i = 0; i < 3; i++)
         {
-            var c = _machine.Pit.Counters[i];
+            var c = _pit.Counters[i];
             sb.AppendLine($"C{i}    {c.Mode,2}    ${c.Reload:X4}   ${c.Value:X4}    {(c.Running ? "yes" : "no ")}      {(c.Gate ? 1 : 0)}     {(c.Out ? 1 : 0)}");
         }
         sb.AppendLine();
-        bool pc3 = _machine.Ppi.SpeakerGate;
-        bool hardGate = _machine.Sound.HardGate;
-        double cnt0Freq = (_machine.Pit.Counters[0].Reload >= 2)
-            ? 895_000.0 / _machine.Pit.Counters[0].Reload : 0;
+        if (_mz700 != null) AppendMz700Gates(sb, _mz700);
+        else AppendMz800Gates(sb, _mz800!);
+        return sb.ToString();
+    }
+
+    private void AppendMz700Gates(StringBuilder sb, MZ700 m)
+    {
+        bool pc3 = _ppi.SpeakerGate;
+        bool hardGate = m.Sound.HardGate;
+        double cnt0Freq = (_pit.Counters[0].Reload >= 2)
+            ? 895_000.0 / _pit.Counters[0].Reload : 0;
         sb.AppendLine($"PPI PC3 (soft gate)     : {(pc3 ? "1 (open)" : "0 (mute)")}");
         sb.AppendLine($"$E008 D0 (hard gate)    : {(hardGate ? "1 (open)" : "0 (mute)")}");
         sb.AppendLine($"Audible (soft AND hard) : {(pc3 && hardGate ? "yes" : "no ")}");
         sb.AppendLine($"Counter 0 freq (calc'd) : {cnt0Freq:0} Hz");
-        return sb.ToString();
     }
+
+    // Mirrors MZ800.RenderAudio's counter-0 gating: PC0 always, plus the
+    // $E008 D0 latch in MZ-700 mode.
+    private void AppendMz800Gates(StringBuilder sb, MZ800 m)
+    {
+        bool pc0 = (_ppi.PortCOut & 0x01) != 0;
+        bool mz700Mode = m.Mem.Mz700Mode;
+        bool latch = m.Sound.HardGateLatch;
+        bool audible = pc0 && (!mz700Mode || latch);
+        double cnt0Freq = (_pit.Counters[0].Reload >= 2)
+            ? MZ800.PitC0InputHz / _pit.Counters[0].Reload : 0;
+        sb.AppendLine($"Display mode            : {(mz700Mode ? "MZ-700" : "MZ-800")}");
+        sb.AppendLine($"PPI PC0 (C0 audio gate) : {(pc0 ? "1 (open)" : "0 (mute)")}");
+        sb.AppendLine($"$E008 D0 (MZ-700 mode)  : {(latch ? "1 (open)" : "0 (mute)")}{(mz700Mode ? "" : "  (ignored in MZ-800 mode)")}");
+        sb.AppendLine($"C0 audible              : {(audible ? "yes" : "no ")}");
+        sb.AppendLine($"Counter 0 freq (calc'd) : {cnt0Freq:0} Hz  (1.108 MHz clock)");
+    }
+
+    private string BuildSecondPaneText() => _mz800 != null ? BuildPsgText(_mz800.Psg) : BuildReferenceText();
 
     private static string BuildReferenceText()
     {
@@ -185,6 +243,29 @@ internal sealed class SoundDiagnosticForm : DiagnosticFormBase
         return sb.ToString();
     }
 
+    // f = clock / (32 × N), clocked from the CPU clock; N = 0 acts as $400.
+    private static string BuildPsgText(Sn76489 psg)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("Ch     Period  Freq        Atten");
+        for (int ch = 0; ch < 3; ch++)
+        {
+            int n = psg.TonePeriod(ch);
+            int eff = n == 0 ? 0x400 : n;
+            string freq = n == 1 ? "DC (n=1)" : $"{MZ800.CpuClockHz / (32.0 * eff):0} Hz";
+            sb.AppendLine($"Tone {ch}  ${n:X3}   {freq,-10}  {Atten(psg.Attenuation(ch))}");
+        }
+        int nc = psg.NoiseControl;
+        int rate = nc & 0x03;
+        string rateText = rate == 3 ? "tone 2" : $"N=${0x10 << rate:X2}";
+        sb.AppendLine($"Noise   {((nc & 0x04) != 0 ? "white   " : "periodic")}  {rateText,-10}  {Atten(psg.Attenuation(3))}");
+        sb.AppendLine();
+        sb.AppendLine("Mixed with PIT C0 (gated as above) → speaker. Port $F2, write-only.");
+        return sb.ToString();
+    }
+
+    private static string Atten(int a) => a == 15 ? "15 (off)" : $"{a,2} (-{a * 2} dB)";
+
     private string BuildLogText() => string.Join("\n", _eventLog);
 
     private void OnPitWrite(int reg, byte val)
@@ -207,8 +288,30 @@ internal sealed class SoundDiagnosticForm : DiagnosticFormBase
     private void OnSpeakerGate(bool open) =>
         Push($"[F{_frame,5}] PPI PC3 → {(open ? "1 (soft gate open)" : "0 (soft gate mute)")}");
 
+    private void OnPortCChanged(byte old, byte now)
+    {
+        if (((old ^ now) & 0x01) == 0) return;
+        Push($"[F{_frame,5}] PPI PC0 → {((now & 0x01) != 0 ? "1 (C0 gate open)" : "0 (C0 gate mute)")}");
+    }
+
     private void OnE008Write(byte val) =>
         Push($"[F{_frame,5}] $E008 ← ${val:X2}  (hard gate D0 = {(val & 1)})");
+
+    private void OnPsgWrite(byte val)
+    {
+        string what;
+        if ((val & 0x80) == 0)
+            what = $"data {val & 0x3F:X2}";
+        else
+        {
+            int ch = (val >> 5) & 3;
+            string name = ch == 3 ? "noise" : $"tone {ch}";
+            what = (val & 0x10) != 0 ? $"{name} atten={val & 0x0F}"
+                 : ch == 3 ? $"noise ctrl={val & 0x07}"
+                 : $"{name} period low={val & 0x0F:X}";
+        }
+        Push($"[F{_frame,5}] PSG ← ${val:X2}  ({what})");
+    }
 
     private void Push(string entry)
     {
@@ -224,8 +327,8 @@ internal sealed class SoundDiagnosticForm : DiagnosticFormBase
         sb.AppendLine("PIT state:");
         sb.AppendLine(BuildStateText());
         sb.AppendLine();
-        sb.AppendLine("Reference cross-check:");
-        sb.AppendLine(BuildReferenceText());
+        sb.AppendLine(_mz800 != null ? "SN76489 PSG state:" : "Reference cross-check:");
+        sb.AppendLine(BuildSecondPaneText());
         sb.AppendLine();
         sb.AppendLine("Event log (oldest first):");
         foreach (var line in _eventLog) sb.AppendLine(line);

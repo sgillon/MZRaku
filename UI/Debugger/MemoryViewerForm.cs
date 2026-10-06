@@ -14,10 +14,13 @@ namespace MZRaku;
 /// you Goto $XXXX to jump anywhere.
 ///
 /// PC and SP are highlighted in their respective rows so you can see at
-/// a glance where the CPU is and what it's pointing to. The
-/// $E000-$E00F PPI/PIT I/O window is shown as <c>--</c> rather than
-/// read through — reading those bytes has hardware side effects (PIT
-/// counter latch, keyboard scan).
+/// a glance where the CPU is and what it's pointing to. Bytes whose
+/// read reaches memory-mapped I/O in the current bank state
+/// (<see cref="IMachine.IsSideEffectRead"/>) are shown as <c>--</c>
+/// rather than read through — reading them has hardware side effects
+/// (PIT counter latch, keyboard scan, MZ-80A swap / scroll toggles).
+/// A bank line under the list shows the current memory map, since
+/// what the viewer reads depends on it.
 ///
 /// Like the debugger, the window runs on the WinForms UI thread and
 /// "hides on close" so reopening is instant and any goto position is
@@ -38,6 +41,8 @@ internal sealed class MemoryViewerForm : DebugToolForm
     private readonly Button _btnDiff = new() { Text = "Diff…", Width = 56, Height = 28, TabStop = false, Enabled = false };
     private readonly Button _btnClearSnap = new() { Text = "✕", Width = 28, Height = 28, TabStop = false, Enabled = false };
     private readonly SmoothLabel _statusLabel = new();
+    private readonly SmoothLabel _bankLabel = new();
+    private readonly ToolTip _bankTip = new();
 
     // Snapshot/Diff state. Null means "no snapshot". When non-null, the
     // OnDrawRow callback marks changed bytes with a small underline so the
@@ -97,11 +102,12 @@ internal sealed class MemoryViewerForm : DebugToolForm
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 3,
+            RowCount = 4,
         };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 22f));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f));
 
         var toolbar = new FlowLayoutPanel
@@ -175,12 +181,20 @@ internal sealed class MemoryViewerForm : DebugToolForm
         for (int i = 0; i < RowCount; i++) _list.Items.Add(i);
         root.Controls.Add(_list, 0, 1);
 
+        _bankLabel.Dock = DockStyle.Fill;
+        _bankLabel.AutoSize = false;
+        _bankLabel.TextAlign = ContentAlignment.MiddleLeft;
+        _bankLabel.Padding = new Padding(4, 0, 0, 0);
+        _bankLabel.Font = _mono;
+        _bankTip.SetToolTip(_bankLabel, BankTooltip());
+        root.Controls.Add(_bankLabel, 0, 2);
+
         _statusLabel.Dock = DockStyle.Fill;
         _statusLabel.AutoSize = false;
         _statusLabel.BorderStyle = BorderStyle.Fixed3D;
         _statusLabel.TextAlign = ContentAlignment.MiddleLeft;
         _statusLabel.Padding = new Padding(4, 0, 0, 0);
-        root.Controls.Add(_statusLabel, 0, 2);
+        root.Controls.Add(_statusLabel, 0, 3);
 
         Controls.Add(root);
 
@@ -276,7 +290,7 @@ internal sealed class MemoryViewerForm : DebugToolForm
             {
                 int a = row + i;
                 if (a < start || a > end) _rowBuf.Append("   ");
-                else if (DebuggerCommon.IsMzIoWindow((ushort)a)) _rowBuf.Append("-- ");
+                else if (_machine.IsSideEffectRead((ushort)a)) _rowBuf.Append("-- ");
                 else _rowBuf.Append(_machine.Mem.Read((ushort)a).ToString("X2")).Append(' ');
                 if (i == 7) _rowBuf.Append(' ');
             }
@@ -285,7 +299,7 @@ internal sealed class MemoryViewerForm : DebugToolForm
             {
                 int a = row + i;
                 if (a < start || a > end) { _rowBuf.Append(' '); continue; }
-                if (DebuggerCommon.IsMzIoWindow((ushort)a)) { _rowBuf.Append('.'); continue; }
+                if (_machine.IsSideEffectRead((ushort)a)) { _rowBuf.Append('.'); continue; }
                 byte b = _machine.Mem.Read((ushort)a);
                 _rowBuf.Append((b >= 0x20 && b <= 0x7E) ? (char)b : '.');
             }
@@ -323,7 +337,7 @@ internal sealed class MemoryViewerForm : DebugToolForm
         for (int i = 0; i < BytesPerRow; i++)
         {
             ushort a = (ushort)(rowAddr + i);
-            if (DebuggerCommon.IsMzIoWindow(a)) _rowBuf.Append("-- ");
+            if (_machine.IsSideEffectRead(a)) _rowBuf.Append("-- ");
             else _rowBuf.Append(_rowBytes[i].ToString("X2")).Append(' ');
             if (i == 7) _rowBuf.Append(' ');   // gap between two 8-byte groups
         }
@@ -331,7 +345,7 @@ internal sealed class MemoryViewerForm : DebugToolForm
         for (int i = 0; i < BytesPerRow; i++)
         {
             ushort a = (ushort)(rowAddr + i);
-            if (DebuggerCommon.IsMzIoWindow(a)) { _rowBuf.Append('.'); continue; }
+            if (_machine.IsSideEffectRead(a)) { _rowBuf.Append('.'); continue; }
             byte b = _rowBytes[i];
             _rowBuf.Append((b >= 0x20 && b <= 0x7E) ? (char)b : '.');
         }
@@ -357,7 +371,7 @@ internal sealed class MemoryViewerForm : DebugToolForm
                 for (int i = 0; i < BytesPerRow; i++)
                 {
                     ushort a = (ushort)(rowAddr + i);
-                    if (DebuggerCommon.IsMzIoWindow(a)) continue;
+                    if (_machine.IsSideEffectRead(a)) continue;
                     if (_rowBytes[i] != _snapshot[a])
                         MarkByte(e.Graphics, e.Bounds, i, _snapshotPen);
                 }
@@ -386,7 +400,7 @@ internal sealed class MemoryViewerForm : DebugToolForm
 
     private byte ReadByteSafe(ushort addr)
     {
-        if (DebuggerCommon.IsMzIoWindow(addr)) return 0;
+        if (_machine.IsSideEffectRead(addr)) return 0;
         return _machine.Mem.Read(addr);
     }
 
@@ -401,7 +415,36 @@ internal sealed class MemoryViewerForm : DebugToolForm
         ushort addr = (ushort)(row * BytesPerRow);
         DebuggerCommon.SetTextIfChanged(_statusLabel,
             $"Row ${addr:X4}–${addr + BytesPerRow - 1:X4}    PC=${_machine.Cpu.PC:X4}  SP=${_machine.Cpu.SP:X4}");
+        DebuggerCommon.SetTextIfChanged(_bankLabel, BankSummary());
     }
+
+    /// <summary>The current memory map, in the machine's own terms.</summary>
+    private string BankSummary() => _machine switch
+    {
+        MZ700 m => $"ROM at $0000: {OnOff(m.Mem.RomEnabled)}   VRAM+I/O at $D000: {OnOff(m.Mem.VramIoEnabled)}",
+        MZ80A m => m.Mem.RomSwapped ? "Monitor ROM at $C000 (swapped), RAM at $0000" : "Monitor ROM at $0000",
+        MZ800 m => $"Bank {m.Mem.BankState}  {Mz800ModeName(m.Mem)}  DMD=${m.Mem.DmdRegister:X2} WF=${m.Mem.WfRegister:X2} RF=${m.Mem.RfRegister:X2}",
+        _ => "",
+    };
+
+    private static string OnOff(bool on) => on ? "on" : "off";
+
+    private static string Mz800ModeName(MZ800Memory mem)
+        => mem.Mz700Mode ? "MZ-700 mode" : mem.Is640BitmapMode ? "640×200" : "320×200";
+
+    private string BankTooltip() => _machine.Kind switch
+    {
+        MachineType.MZ700 => "Memory map set by OUT $E0-$E6.\n" +
+                             "ROM off: $0000-$0FFF reads DRAM. VRAM+I/O off: $D000-$FFFF reads DRAM.",
+        MachineType.MZ80A => "Memory swap toggled by reads of $E00C (swap) and $E010 (restore).",
+        MachineType.MZ800 => "Bank state from OUT $E0-$E6 / IN $E0-$E1: ROM0 = monitor ROM at $0000,\n" +
+                             "CG = character ROM at $1000, VRAM = video RAM mapped, ROMH = ROM at $E000,\n" +
+                             "PROH = top block deselected, DRAM = everything banked out.\n\n" +
+                             "In MZ-800 mode with VRAM mapped, $8000-$9FFF (320×200) or $8000-$BFFF\n" +
+                             "(640×200) reads go through the RF read-format register: the viewer shows\n" +
+                             "the RF-filtered byte the CPU would read, not the raw plane contents.",
+        _ => "",
+    };
 
     protected override void PersistState()
     {
@@ -429,14 +472,15 @@ internal sealed class MemoryViewerForm : DebugToolForm
     // press Diff to see exactly which bytes changed. Useful for the GRAPH/
     // ALPHA mode-flag hunt today and for cheat-finding workflows generally.
     //
-    // Pages $E000-$E00F (PPI/PIT I/O window) are excluded from the diff
-    // because reads there have hardware side effects and noise.
+    // Bytes that read through to memory-mapped I/O (IsSideEffectRead)
+    // are excluded from the diff because reads there have hardware side
+    // effects and noise.
 
     private void TakeSnapshot()
     {
         _snapshot ??= new byte[0x10000];
         for (int a = 0; a < 0x10000; a++)
-            _snapshot[a] = DebuggerCommon.IsMzIoWindow((ushort)a) ? (byte)0 : _machine.Mem.Read((ushort)a);
+            _snapshot[a] = _machine.IsSideEffectRead((ushort)a) ? (byte)0 : _machine.Mem.Read((ushort)a);
         _snapshotTime = DateTime.Now;
         _btnDiff.Enabled = true;
         _btnClearSnap.Enabled = true;
@@ -459,7 +503,7 @@ internal sealed class MemoryViewerForm : DebugToolForm
         var diffs = new List<(ushort addr, byte snap, byte cur)>();
         for (int a = 0; a < 0x10000; a++)
         {
-            if (DebuggerCommon.IsMzIoWindow((ushort)a)) continue;
+            if (_machine.IsSideEffectRead((ushort)a)) continue;
             byte cur = _machine.Mem.Read((ushort)a);
             if (cur != _snapshot[a]) diffs.Add(((ushort)a, _snapshot[a], cur));
         }

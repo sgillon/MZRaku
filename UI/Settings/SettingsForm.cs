@@ -282,7 +282,7 @@ public sealed class SettingsForm : Form
         // Tooltips explain the grey-out reasoning.
         _startupTooltips = new ToolTip();
         _startupTooltips.SetToolTip(_chkSoundDiagnosticAtStartup,
-            "MZ-700 only for now. Won't open at boot when the default machine is MZ-80A or MZ-800.");
+            "MZ-700 and MZ-800 only. Won't open at boot when the default machine is MZ-80A.");
         // Live grey-out on radio change.
         _rbDefaultMz700.CheckedChanged += (_, _) => RefreshDebugPaneEnabledState();
         _rbDefaultMz80a.CheckedChanged += (_, _) => RefreshDebugPaneEnabledState();
@@ -292,13 +292,13 @@ public sealed class SettingsForm : Form
     }
 
     /// <summary>
-    /// Grey out MZ-700-only debug panes when the DefaultMachine radio
-    /// is set to another machine. Stored values survive — disabling only
+    /// Grey out debug panes the DefaultMachine radio's machine doesn't
+    /// support (Sound Diagnostic: MZ-700 and MZ-800). Stored values survive — disabling only
     /// masks the checkbox visually, doesn't alter its Checked state.
     /// </summary>
     private void RefreshDebugPaneEnabledState()
     {
-        _chkSoundDiagnosticAtStartup.Enabled = _rbDefaultMz700.Checked;
+        _chkSoundDiagnosticAtStartup.Enabled = !_rbDefaultMz80a.Checked;
     }
 
     private TabPage BuildDisplayTab()

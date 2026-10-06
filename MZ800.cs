@@ -44,6 +44,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
     public MachineType Kind => MachineType.MZ800;
     double IMachine.FramesPerSecond => FramesPerSecond;
     Z80Core.IMemory IMachine.Mem => Mem;
+    public bool IsSideEffectRead(ushort addr) => Mem.IsIoRead(addr);
     CassetteTrapBase IMachine.Cassette => Cassette;
     // 640×200 modes render into Video.FrameHi, everything else into
     // Video.Frame; MainForm scales whichever comes back.

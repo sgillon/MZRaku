@@ -71,6 +71,15 @@ public interface IMachine
     CassetteTrapBase Cassette { get; }
 
     /// <summary>
+    /// True if a CPU read of <paramref name="addr"/> in the current bank
+    /// state reaches memory-mapped I/O with side effects (PIT latch,
+    /// keyboard scan, MZ-80A swap / scroll / video toggles). The
+    /// debugger and memory viewer show these bytes as blanks instead
+    /// of reading them.
+    /// </summary>
+    bool IsSideEffectRead(ushort addr);
+
+    /// <summary>
     /// When true, <see cref="RunFrame"/> renders the display but does
     /// not step the CPU. The debugger toggles this to pause / resume.
     /// </summary>

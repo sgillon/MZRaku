@@ -55,6 +55,14 @@ public sealed class Sn76489
     /// <summary>Optional diagnostic hook: every register byte written.</summary>
     public event Action<byte>? OnWrite;
 
+    // Read-only register views for the Sound Diagnostic.
+    /// <summary>10-bit tone period N of channel 0-2 (0 behaves as $400).</summary>
+    public int TonePeriod(int channel) => _period[channel];
+    /// <summary>4-bit attenuation of channel 0-3 (3 = noise); 15 = off.</summary>
+    public int Attenuation(int channel) => _atten[channel];
+    /// <summary>Noise control: D2 = white (1) / periodic (0), D1-D0 = rate.</summary>
+    public int NoiseControl => _period[3];
+
     public void Reset()
     {
         Array.Clear(_period);

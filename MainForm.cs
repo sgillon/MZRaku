@@ -1055,12 +1055,11 @@ public sealed class MainForm : Form
     {
         base.OnShown(e);
         var dp = _settings.DebugPanesAtStartup;
-        bool mz700 = _machine != null;
         if (dp.Debugger) OpenDebugger();
         if (dp.MemoryViewer) OpenMemoryViewer();
         if (dp.HidDiagnostic) OpenHidDiag();
         if (dp.FontSheet) OpenFontSheet();
-        if (dp.SoundDiagnostic && mz700) OpenSoundDiag();
+        if (dp.SoundDiagnostic && SoundDiagnosticForm.Supports(Active.Kind)) OpenSoundDiag();
         if (dp.KeyboardMatrix) OpenKeyboardMatrix();
         // Return focus to the main window so the emulator gets input
         // events; the last pane opened would otherwise steal it.
@@ -1105,7 +1104,7 @@ public sealed class MainForm : Form
         RefreshPauseIndicator();
 
         _hidDiag?.RefreshIfVisible();
-        if (_machine != null) _soundDiag?.RefreshIfVisible();
+        _soundDiag?.RefreshIfVisible();
         _display.Invalidate();
     }
 
@@ -1749,10 +1748,10 @@ public sealed class MainForm : Form
 
     private void OpenSoundDiag()
     {
-        if (_machine == null) { NotAvailableOnThisMachine("Sound Diagnostic"); return; }
+        if (!SoundDiagnosticForm.Supports(Active.Kind)) { NotAvailableOnThisMachine("Sound Diagnostic", "MZ-700 and MZ-800"); return; }
         if (_soundDiag == null || _soundDiag.IsDisposed)
         {
-            _soundDiag = new SoundDiagnosticForm(_machine);
+            _soundDiag = new SoundDiagnosticForm(Active);
             _soundDiag.Location = new Point(Bounds.Right + 8, Bounds.Top);
         }
         _soundDiag.Owner = this;
@@ -1764,12 +1763,13 @@ public sealed class MainForm : Form
 
     /// <summary>
     /// Shows a friendly "not available on this machine" popup for a
-    /// diagnostic pane that reaches into MZ-700-specific hardware.
+    /// diagnostic pane that reaches into machine-specific hardware.
+    /// <paramref name="machines"/> names the machines it does support.
     /// </summary>
-    private void NotAvailableOnThisMachine(string pane)
+    private void NotAvailableOnThisMachine(string pane, string machines)
     {
         MessageBox.Show(this,
-            $"{pane} is currently MZ-700-only; it isn't available on the {MachineLabel} yet.",
+            $"{pane} is currently available on the {machines} only; it isn't available on the {MachineLabel} yet.",
             "MZRaku", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 

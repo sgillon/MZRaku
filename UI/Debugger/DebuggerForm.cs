@@ -317,7 +317,7 @@ internal sealed class DebuggerForm : DebugToolForm
         ushort cursor = _viewBase;
         for (int i = 0; i < n; i++)
         {
-            var res = Z80Disassembler.Disassemble(_machine.Mem, cursor, DebuggerCommon.IsMzIoWindow);
+            var res = Z80Disassembler.Disassemble(_machine.Mem, cursor, _machine.IsSideEffectRead);
             string bytes = FormatBytes(cursor, res.Length);
             _lines.Add(new DisasmLine
             {
@@ -341,7 +341,7 @@ internal sealed class DebuggerForm : DebugToolForm
         {
             if (i > 0) sb.Append(' ');
             ushort a = (ushort)(addr + i);
-            byte b = (a >= 0xE000 && a <= 0xE00F) ? (byte)0 : _machine.Mem.Read(a);
+            byte b = _machine.IsSideEffectRead(a) ? (byte)0 : _machine.Mem.Read(a);
             sb.Append(b.ToString("X2"));
         }
         return sb.ToString();
@@ -417,7 +417,7 @@ internal sealed class DebuggerForm : DebugToolForm
         {
             for (int i = 0; i < delta; i++)
             {
-                var res = Z80Disassembler.Disassemble(_machine.Mem, cursor, DebuggerCommon.IsMzIoWindow);
+                var res = Z80Disassembler.Disassemble(_machine.Mem, cursor, _machine.IsSideEffectRead);
                 cursor = (ushort)(cursor + res.Length);
             }
         }

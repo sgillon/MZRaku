@@ -410,6 +410,14 @@ public sealed class MZ800Memory : IMemory
         return (byte)result;
     }
 
+    /// <summary>
+    /// Does a read of <paramref name="addr"/> hit the PPI/PIT window?
+    /// Only in MZ-700 mode with the high ROM mapped (and not
+    /// prohibited); in MZ-800 mode the I/O lives on ports instead.
+    /// </summary>
+    public bool IsIoRead(ushort addr)
+        => Mz700Mode && RomHigh && !Prohibited && addr >= 0xE000 && addr <= 0xE00F;
+
     public byte Read(ushort addr)
     {
         if (addr < 0x1000) return RomLow ? Rom[addr] : Ram[addr];       // MZ-700 monitor ROM

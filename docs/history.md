@@ -1397,6 +1397,18 @@ ahead of the v1.4 settings work at the start of the arc
     on the MZ-800 says to use the MZ-700. About, `--help` (now listing
     every machine's firmware files) and the settings.ini comments are
     accurate for three machines; stale phase-era comments swept.
+  - **8.3 — tool windows.** Sound Diagnostic works on the MZ-800: PIT
+    pane with that machine's counter-0 gating (PPI PC0, plus the $E008
+    latch in MZ-700 mode), an SN76489 pane (tone periods, frequencies,
+    attenuation, noise mode) and PSG writes in the event log. The
+    debugger and Memory Viewer ask the machine which reads have I/O side
+    effects instead of always hiding $E000-$E00F: on the MZ-800 that
+    window is only I/O in MZ-700 mode with the ROM mapped, on the
+    MZ-700 only with VRAM+I/O banked in, and on the MZ-80A it is the
+    whole $E000-$EFFF — a Memory Viewer snapshot there used to toggle
+    the memory swap, reverse video and hardware scroll. The Memory
+    Viewer gains a bank line (MZ-800: bank state, display mode,
+    DMD/WF/RF, with a tooltip on RF-filtered VRAM reads).
 
 ---
 

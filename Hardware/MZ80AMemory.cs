@@ -43,6 +43,13 @@ public sealed class MZ80AMemory : IMemory
     public Mz80aIoBus? IoBus;
     public Z80Cpu? Cpu;
 
+    /// <summary>
+    /// Does a read of <paramref name="addr"/> hit the MMIO window? The
+    /// whole of $E000-$EFFF: besides the PPI/PIT mirrors, reads there
+    /// toggle the memory swap, reverse video and hardware scroll.
+    /// </summary>
+    public bool IsIoRead(ushort addr) => addr >= 0xE000 && addr <= 0xEFFF;
+
     public byte Read(ushort addr)
     {
         // Memory-swap side effects fire even when the read is
