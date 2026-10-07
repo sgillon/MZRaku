@@ -1222,16 +1222,15 @@ public sealed class MainForm : Form
 
     private void OnKeyDown(object? s, KeyEventArgs e)
     {
-        // MZ-80A path: physical-key → matrix mapping only. The rich
-        // CharMap / SpecialKeyMap / auto-typer stack is MZ-700-only
-        // for now; extending it is Phase 3+ polish.
+        // MZ-80A path: its own keyboard (Mz80aCharMap, special keys,
+        // overrides, InvertLetterShift) with a strobe-0 SHIFT.
         if (_mz80a != null)
         {
             if (_mz80a.Keyboard.OnKeyDown(e.KeyData)) e.Handled = true;
             return;
         }
-        // MZ-800: same shift-aware, char-driven path as MZ-700 (both
-        // use the 1Z-013B monitor family with a $1170 shift mirror).
+        // MZ-800: same shift-aware, char-driven path as MZ-700 (the
+        // 1Z-013B monitor's $1170 shift mirror applies with its ROM in).
         if (_mz800 != null)
         {
             bool shift800 = e.Shift || IsShiftKey(e.KeyCode);
@@ -1510,24 +1509,15 @@ public sealed class MainForm : Form
 
     /// <summary>
     /// Type a BASIC text source into the running interpreter. Each non-
-    /// blank, non-comment line is sent through the keyboard auto-typer
-    /// followed by CR. If BASIC isn't currently loaded, the machine is
-    /// reset and BASIC + this source are queued for after monitor boot.
-    /// Comment lines start with <c>;</c> or <c>'</c> and are stripped on
-    /// the host side so they don't waste cycles inside BASIC.
+    /// blank, non-comment line is sent through the machine's keyboard
+    /// auto-typer followed by CR. If BASIC isn't currently loaded, the
+    /// machine is reset and BASIC + this source are queued for after
+    /// monitor boot. Comment lines start with <c>;</c> or <c>'</c> and
+    /// are stripped on the host side so they don't waste cycles inside
+    /// BASIC.
     /// </summary>
     private void LoadBasicSourceFile(string path)
     {
-        // Typing a source needs the MZ-700's keyboard auto-typer; the
-        // MZ-80A and MZ-800 have no line-typing pipeline yet. Say so
-        // rather than resetting into BASIC and typing nothing.
-        if (_machine == null)
-        {
-            MessageBox.Show(this,
-                $"Load BASIC source is available on the MZ-700 only for now.\n\n{MachineLabel} support is planned.",
-                "Not supported on this machine", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return;
-        }
         try
         {
             if (_autoLoad.BasicLoadedFrame < 0)
@@ -1556,8 +1546,17 @@ public sealed class MainForm : Form
             if (line.Length == 0) continue;
             var trimmed = line.TrimStart();
             if (trimmed.StartsWith(';') || trimmed.StartsWith('\'')) continue;
-            _machine!.Keyboard.AutoType.TypeString(line + "\r");
+            TypeIntoActiveMachine(line + "\r");
         }
+    }
+
+    // Each machine's keyboard auto-typer: the MZ-700 / MZ-800 share the
+    // scan-driven KeyboardAutoTyper; the MZ-80A's is time-based.
+    private void TypeIntoActiveMachine(string text)
+    {
+        if (_machine != null) _machine.Keyboard.AutoType.TypeString(text);
+        else if (_mz800 != null) _mz800.Keyboard.AutoType.TypeString(text);
+        else _mz80a?.Keyboard.TypeString(text);
     }
 
     private void ResetMachine()

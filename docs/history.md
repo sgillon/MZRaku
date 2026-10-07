@@ -1420,6 +1420,26 @@ ahead of the v1.4 settings work at the start of the arc
     `MZ-800` tag. The mode pane shows ALPHA / LOCK (shift lock) / GRAPH
     again, read from 1Z-016's keyboard-mode flag at $108D, with the
     display mode in its own pane beside it.
+  - **8.5 — auto-typer, and a scroll fix it uncovered.** Load BASIC
+    source now works on the MZ-800 and MZ-80A as well as the MZ-700.
+    The MZ-700's scan-driven typer became machine-neutral and drives
+    the MZ-800 too, starting once BASIC sits in its key wait (a scan of
+    every keyboard strobe). The MZ-80A's typer now waits after each
+    Enter for SA-5510 to return to its key wait instead of a fixed 20
+    frames, which lost the first key after a long line. GRAPH mode on
+    the MZ-800 opens the Font Sheet, as on the MZ-700. The MZ-800
+    keyboard writes the 1Z-013B monitor's $1170 shift mirror only while
+    that monitor's ROM is mapped — under MZ-800 BASIC, $1170 is BASIC's
+    own memory.
+    Testing it showed MZ-800 BASIC's screen going wrong as soon as
+    output scrolled: lines vanished and the banner wrapped in at the
+    bottom. The hardware scroll converts CPU VRAM addresses exactly as
+    it converts display addresses (tech-ref p. 12: "a circuit is added
+    to make order of DA identical to order of MA arrangement"), so
+    software keeps writing rows at fixed addresses while SOF moves the
+    window — BASIC clears its new bottom row at $9E00 every time. Only
+    the display side was converted; CPU reads and writes now go through
+    the same map.
 
 ---
 

@@ -267,10 +267,9 @@ public sealed class MZ80A : MzMachineBase, IMachine
             throw new FileNotFoundException("BASIC cassette image not found", basicPath);
         var img = Hardware.MzfImage.Parse(File.ReadAllBytes(basicPath));
         // Direct-inject rather than dispatch through SA-1510's LOAD —
-        // the L command needs a keyboard input path that isn't fully
-        // wired yet (auto-typer is MZ-700 only). Once the auto-typer
-        // lands, this can switch to Queue + "L\r" to exercise the
-        // real trap path.
+        // the monitor L path isn't wired for the MZ-80A. A future
+        // switch to Queue + typed "L\r" would exercise the real trap
+        // path.
         Cassette.DirectInject(img, jumpExec: true);
     }
 

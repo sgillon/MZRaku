@@ -208,10 +208,12 @@ public abstract class KeyboardMatrixBase : IKeyboardMatrix
         }
     }
 
-    // Two thin scan-observation accessors used by the MZ-700
-    // auto-typer to detect whether the ROM's scan loop has actually
-    // read the row a press was asserted on. Internal so external
-    // callers can't peek at raw scan state.
+    // Thin scan-observation accessors used by the auto-typer to detect
+    // whether the ROM's scan loop has actually read the row a press was
+    // asserted on, and by the MZ-800 source-typing gate to see BASIC's
+    // full key-wait scan. Internal so external callers can't peek at raw
+    // scan state.
     internal bool WasStrobeScanned(int strobe) => (_scanMask & (1 << strobe)) != 0;
+    internal bool AllStrobesScanned => (_scanMask & 0x3FF) == 0x3FF;
     internal void ClearScanObservation() => _scanMask = 0;
 }

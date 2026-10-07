@@ -50,7 +50,9 @@ public sealed class Keyboard : KeyboardMatrixBase
 
     public Keyboard()
     {
-        AutoType = new KeyboardAutoTyper(this);
+        AutoType = new KeyboardAutoTyper(this,
+            ch => CharMap.TryLookup(ch, out var p) ? (p.Row, p.Col, p.MzShift) : null,
+            OnShiftStateChanged);
     }
 
     protected override (int Row, int Col) ShiftSlot => (8, 0);

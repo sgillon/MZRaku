@@ -249,12 +249,14 @@ public sealed class Mz80aKeyboard : KeyboardMatrixBase
     }
 
     // ---- Auto-typer -----------------------------------------------------
-    // Time-based (no scan-detection) — simpler than the MZ-700's
-    // queue and adequate for LOAD/RUN sequencing during BASIC
-    // cassette load. Each queued press is applied for HoldFrames,
-    // released for ReleaseFrames, then the machine returns to Idle
-    // (Enter gets a longer cooldown so BASIC has time to parse a
-    // line).
+    // Time-based per key — simpler than the MZ-700's queue and
+    // adequate for LOAD/RUN sequencing during BASIC cassette load. Each
+    // queued press is applied for HoldFrames, released for
+    // ReleaseFrames, then the machine returns to Idle. After Enter the
+    // typer waits for SA-5510 to be back in its key wait, seen as a scan
+    // of all ten strobes (line entry only polls BREAK): a fixed cooldown
+    // lost the first key after a long line (v1.3.0 Phase 8.5, Load
+    // BASIC source).
     //
     // Shifted presses set SHIFT first, wait ShiftStageFrames for a
     // ROM scan to observe it, THEN drop the key bit — same race
@@ -268,7 +270,9 @@ public sealed class Mz80aKeyboard : KeyboardMatrixBase
     private const int AutoShiftStageFrames = 2;
     private const int AutoHoldFrames = 4;
     private const int AutoReleaseFrames = 3;
-    private const int AutoEnterCooldownFrames = 20;
+    private const int AutoEnterMinFrames = 3;
+    private const int AutoEnterTimeoutFrames = 120;
+    private int _autoEnterFrames;
 
     /// <summary>
     /// Enqueue a string for auto-typing. Non-CharMap chars are
@@ -347,14 +351,32 @@ public sealed class Mz80aKeyboard : KeyboardMatrixBase
                     // short release window. Enter needs BASIC's
                     // line-tokenise pause.
                     bool isEnter = ph.Strobe == 7 && ph.Bit == 3;
-                    _autoPhase = isEnter ? AutoPhase.EnterCooldown : AutoPhase.Release;
-                    _autoPhaseFramesLeft = isEnter ? AutoEnterCooldownFrames : AutoReleaseFrames;
+                    if (isEnter)
+                    {
+                        _autoPhase = AutoPhase.EnterCooldown;
+                        _autoEnterFrames = 0;
+                        ClearScanObservation();
+                    }
+                    else
+                    {
+                        _autoPhase = AutoPhase.Release;
+                        _autoPhaseFramesLeft = AutoReleaseFrames;
+                    }
                 }
                 break;
 
             case AutoPhase.Release:
-            case AutoPhase.EnterCooldown:
                 if (--_autoPhaseFramesLeft <= 0)
+                {
+                    _autoCurrent = null;
+                    _autoPhase = AutoPhase.Idle;
+                }
+                break;
+
+            case AutoPhase.EnterCooldown:
+                _autoEnterFrames++;
+                if ((_autoEnterFrames >= AutoEnterMinFrames && AllStrobesScanned)
+                    || _autoEnterFrames >= AutoEnterTimeoutFrames)
                 {
                     _autoCurrent = null;
                     _autoPhase = AutoPhase.Idle;

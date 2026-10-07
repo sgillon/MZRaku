@@ -313,6 +313,7 @@ public sealed class MZ800Memory : IMemory
     {
         int offset = addr - 0x8000;
         if (offset < 0 || offset >= 0x4000) return;
+        offset = ScrolledVramOffset(offset);
 
         if (WfRegister == 0) { PlaneI[offset] = value; return; }
 
@@ -342,6 +343,29 @@ public sealed class MZ800Memory : IMemory
                     break;
             }
         }
+    }
+
+    private const int DisplayAddresses = 8000;   // 40 per raster × 200 rasters
+
+    /// <summary>
+    /// CPU VRAM offset → plane offset through the hardware-scroll address
+    /// conversion. The CRTC converts CPU addresses (MA) exactly as it
+    /// converts display addresses (DA) — tech-ref p. 12: "a circuit is
+    /// added to make order of DA identical to order of MA arrangement" —
+    /// so software keeps addressing the screen by position while SOF moves
+    /// the window over VRAM. MZ-800 BASIC relies on it: it prints and
+    /// clears the new bottom row at fixed addresses ($9E00) after each
+    /// scroll. Same formula as Mz800Video's display map. In 640×200 mode
+    /// the $2000 bank bit (odd byte columns) passes through and the
+    /// display address is the low 13 bits.
+    /// </summary>
+    private int ScrolledVramOffset(int offset)
+    {
+        int bank = Is640BitmapMode ? offset & 0x2000 : 0;
+        int da = offset - bank;
+        int start = Ssa * 64, end = System.Math.Min(Sea * 64, DisplayAddresses), width = Sw * 64;
+        if (da < start || da >= end || width <= 0) return offset;
+        return bank + start + (da - start + Sof * 8) % width;
     }
 
     /// <summary>
@@ -374,6 +398,7 @@ public sealed class MZ800Memory : IMemory
     {
         int offset = addr - 0x8000;
         if (offset < 0 || offset >= 0x4000) return 0xFF;
+        offset = ScrolledVramOffset(offset);
 
         if (RfRegister == 0) return PlaneI[offset];         // cold-boot fallback
         if ((RfRegister & 0x80) != 0) return SearchRead(offset);

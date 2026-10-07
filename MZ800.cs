@@ -233,6 +233,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
         // with stale cached shift. Same reason MZ-700 / MZ-80A tick
         // this once per frame.
         Keyboard.TickStagedKeyBits();
+        Keyboard.AutoType.Tick();
 
         Cpu.BreakpointTripped = false;
         bool tripped = false;

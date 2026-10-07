@@ -17,19 +17,17 @@ namespace MZRaku.Hardware;
 /// be unreachable.
 ///
 /// Layered lookup in <see cref="OnKeyDown"/>:
-///   1. <see cref="Mz800SpecialKeyMap"/> — built-in non-character keys
+///   1. <see cref="Overrides"/> — user physical-key bindings
+///      ([KeyOverrides.MZ800]).
+///   2. <see cref="Mz800SpecialKeyMap"/> — built-in non-character keys
 ///      (cursors, F1-F5, Enter, TAB, Esc/BREAK, GRAPH, ALPHA, MZ CTRL).
-///   2. Defer to <see cref="OnKeyPress"/> for printables, which
-///      consults <see cref="Mz800CharMap"/> with the resolved Unicode
-///      character.
+///   3. Defer to <see cref="OnKeyPress"/> for printables, which
+///      consults <see cref="Mz800CharMap"/> (with its [CharMap.MZ800]
+///      overrides) with the resolved Unicode character.
 ///
 /// Shift-race handling and staged-key-bit logic come from
 /// <see cref="KeyboardMatrixBase"/> unchanged — the pattern is
 /// vocabulary-independent.
-///
-/// Phase 3 scope: bring live PC typing to the MZ-800 boot menu (C /
-/// M / Enter / arrows / basic alphanumerics). Auto-typer + user
-/// overrides + settings integration land in Phase 4 / Phase 8.
 /// </summary>
 public sealed class Mz800Keyboard : KeyboardMatrixBase
 {
@@ -49,11 +47,28 @@ public sealed class Mz800Keyboard : KeyboardMatrixBase
     /// </summary>
     public KeyOverride? Overrides;
 
+    /// <summary>
+    /// Auto-typer (Load BASIC source), the same scan-driven typer as
+    /// the MZ-700's, over <see cref="Mz800CharMap"/>.
+    /// </summary>
+    public readonly KeyboardAutoTyper AutoType;
+
+    public Mz800Keyboard()
+    {
+        AutoType = new KeyboardAutoTyper(this,
+            ch => Mz800CharMap.TryLookup(ch, out var p) ? (p.Strobe, p.Bit, p.MzShift) : null,
+            OnShiftStateChanged);
+    }
+
     protected override (int Row, int Col) ShiftSlot => (8, 0);
 
+    // The $1170 mirror only matters to the 1Z-013B monitor's GETKY, which
+    // can only run with the monitor ROM mapped at $0000. With it banked
+    // out — MZ-800 BASIC, which loads over $0000-$A3FA — $1170 is the
+    // program's own RAM, so leave it alone.
     protected override void OnShiftStateChanged(bool effective)
     {
-        if (Memory != null) Memory.Ram[0x1170] = (byte)(effective ? 0x01 : 0x00);
+        if (Memory != null && Memory.RomLow) Memory.Ram[0x1170] = (byte)(effective ? 0x01 : 0x00);
     }
 
     /// <summary>

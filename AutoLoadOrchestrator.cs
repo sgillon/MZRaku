@@ -25,7 +25,7 @@ namespace MZRaku;
 ///   for BASIC's Ready prompt.
 /// - MZ-80A cassette-autorun bookkeeping (_mz80aLoadTyped +
 ///   _mz80aLoadDoneFrame + _mz80aRunTyped).
-/// - _wasGraphMode for the MZ-700 GRAPH-mode auto-Font-Sheet.
+/// - _wasGraphMode for the MZ-700 / MZ-800 GRAPH-mode auto-Font-Sheet.
 ///
 /// Depends on the host (MainForm) for:
 /// - Two ROM-ready detectors (MZ-700 and MZ-80A).
@@ -46,7 +46,7 @@ internal sealed class AutoLoadOrchestrator
     private readonly Func<bool> _mz800MonitorReady;
     private readonly Action<string> _setStatus;
     private readonly Action<string> _showFatal;   // MessageBox for BASIC-load failure
-    private readonly Action _openFontSheet;       // MZ-700 GRAPH auto-surface
+    private readonly Action _openFontSheet;       // MZ-700 / MZ-800 GRAPH auto-surface
     private readonly Action<string> _typeBasicSource;
     private readonly Action<bool?> _updateModeLabel;   // null / false / true
 
@@ -345,6 +345,22 @@ internal sealed class AutoLoadOrchestrator
                 _pendingCassette = null;
             }
         }
+        // BASIC source: type it once SA-5510's Ready prompt is up — the
+        // same gate the cassette-via-BASIC path uses.
+        if (_pendingBasicSource != null && _basicLoadedFrame >= 0 && _mz80aBasicReady())
+        {
+            try
+            {
+                _typeBasicSource(_pendingBasicSource);
+                _setStatus($"Typing {Path.GetFileName(_pendingBasicSource)}…");
+            }
+            catch (Exception ex)
+            {
+                _setStatus("BASIC source load failed: " + ex.Message);
+            }
+            _pendingBasicSource = null;
+        }
+
         // Cassette-autorun sequencing: LOAD was typed above; once
         // the RDDAT trap has fired (DataDelivered latches true),
         // wait 60 frames for BASIC to re-tokenise the loaded
@@ -378,9 +394,9 @@ internal sealed class AutoLoadOrchestrator
     /// shape as MZ-700's pipeline — wait for the boot menu / monitor
     /// ready, hand off to <see cref="MZ800.AutoLoadBasic"/> which
     /// writes to Ram[] and switches to bank config D_AllRam so the
-    /// binary's byte-0 (JP to BASIC cold-boot) actually runs. BASIC
-    /// source typing (<see cref="_pendingBasicSource"/>) is Phase 4d;
-    /// surface a one-shot note so the user knows why nothing's typed.
+    /// binary's byte-0 (JP to BASIC cold-boot) actually runs. A pending
+    /// BASIC source (<see cref="_pendingBasicSource"/>) is typed once
+    /// BASIC is waiting for keys.
     /// </summary>
     private void OnMz800Frame(int bootFrames)
     {
@@ -392,6 +408,8 @@ internal sealed class AutoLoadOrchestrator
                 _setStatus("BASIC loaded.");
                 _pendingLoadBasic = false;
                 _basicLoadedFrame = bootFrames;
+                // Start watching for BASIC's key wait (source typing gate).
+                _mz800.Keyboard.ClearScanObservation();
                 if (_pendingCassette != null) MountTapeForBasic();
             }
             catch (Exception ex)
@@ -404,10 +422,31 @@ internal sealed class AutoLoadOrchestrator
             }
         }
 
-        if (_pendingBasicSource != null)
+        // BASIC source: type it once BASIC sits in its key wait, seen as
+        // a scan of every keyboard strobe since it loaded (its start-up
+        // doesn't scan the whole matrix). Fallback after ~5 s so a
+        // missed scan can't strand the source.
+        if (_pendingBasicSource != null && _basicLoadedFrame >= 0
+            && (_mz800!.Keyboard.AllStrobesScanned || bootFrames - _basicLoadedFrame >= 250))
         {
-            _setStatus("BASIC source typing not yet supported on MZ-800 (Phase 4d).");
+            try
+            {
+                _typeBasicSource(_pendingBasicSource);
+                _setStatus($"Typing {Path.GetFileName(_pendingBasicSource)}…");
+            }
+            catch (Exception ex)
+            {
+                _setStatus("BASIC source load failed: " + ex.Message);
+            }
             _pendingBasicSource = null;
+        }
+
+        // GRAPH mode surfaces the Font Sheet, as on the MZ-700.
+        if (bootFrames % 10 == 0)
+        {
+            bool graph = _mz800!.BasicKeyboardMode == 2;
+            if (graph && !_wasGraphMode) _openFontSheet();
+            _wasGraphMode = graph;
         }
 
         // A cassette alongside an already-running BASIC: just mount it.
