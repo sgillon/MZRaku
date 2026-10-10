@@ -442,8 +442,8 @@ public sealed class Settings
 
             sb.AppendLine("[Roms.MZ80A]");
             sb.AppendLine("; Paths to the MZ-80A's Sharp firmware files. Same format as");
-            sb.AppendLine("; [Roms.MZ700] above. Left blank on machines that never boot MZ-80A;");
-            sb.AppendLine("; auto-populated when Type=MZ80A and the launcher finds the files.");
+            sb.AppendLine("; [Roms.MZ700] above. Auto-populated when the launcher finds the");
+            sb.AppendLine("; files, whether or not MZ-80A is the active machine.");
             sb.AppendLine(";   Monitor   SA-1510.rom   4 KiB monitor ROM");
             sb.AppendLine(";   Font      SA-CG.rom     2 KiB character generator ROM");
             sb.AppendLine(";   Basic     SA-5510.mzf   S-BASIC cassette image");
@@ -644,14 +644,12 @@ public sealed class Settings
     /// <c>roms/</c> / <c>basic/</c> subdirectories (walking up the tree
     /// so dev-time runs from <c>bin/Debug/...</c> still find files at
     /// the source-tree root). Returns true if anything changed.
-    /// </summary>
-    /// <summary>
-    /// Auto-detects and normalises ROM/font/BASIC paths for BOTH
-    /// machines. Scanning both regardless of the currently-active
-    /// Type means a --mz80a CLI override on a Type=MZ700 INI still
-    /// finds SA-1510.rom without needing a save-round-trip first.
-    /// Called from Load() and again from MainForm after the CLI
-    /// machine-type override has been applied.
+    ///
+    /// Scans all three machines regardless of the active one, so a
+    /// --mz80a / --mz800 CLI override on a DefaultMachine=MZ700 INI
+    /// still finds that machine's files without a save round-trip
+    /// first. Called from Load() and again from MainForm after the CLI
+    /// machine override has been applied.
     /// </summary>
     public bool EnsureRomPaths()
     {

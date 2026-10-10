@@ -22,20 +22,30 @@ release, update the checklist before fixing the bug.
       Output: `MZRaku.exe`.
 - [ ] Publish output contains **no Sharp firmware** — no
       `1z-013a.rom`, `mz700fon.int`, `1Z-013B.mzf`, `SA-1510.rom`,
-      `SA-CG.rom`, or `SA-5510.mzf` (Sharp copyright — must not
-      redistribute).
+      `SA-CG.rom`, `SA-5510.mzf`, `MZ800.ROM` or `1Z-016.mzf`
+      (Sharp copyright — must not redistribute).
 - [ ] Exe launches from a clean folder (no `settings.ini`) and
-      auto-detects both machines' ROMs from `roms/`. No "Matrix
-      validation drift" MessageBox at startup.
+      auto-detects all three machines' ROMs from `roms/` and
+      `basic/` — `[Roms.MZ800]` gets `MZ800.ROM` and `1Z-016.mzf`
+      even while MZ-700 is the active machine. No "Matrix
+      validation drift" MessageBox at startup (now also covers the
+      MZ-800 layout).
 - [ ] Window title bar reads `MZRaku`.
 
-### Boot on both machines
+### Boot on all three machines
 
 - [ ] `MZRaku.exe` (no flag) → MZ-700 boots to blue Sharp `Ready`.
 - [ ] `MZRaku.exe --mz80a` → MZ-80A boots to `** MONITOR SA-1510 **`,
       then `BASIC interpreter SA-5510` / `32492 Bytes` / `Ready`.
+- [ ] `MZRaku.exe --mz800` → MZ-800 boots to the IPL boot menu
+      (`Make ready CMT` / `Please push key` / C and M options). IPL
+      boot beep plays once and stops.
+- [ ] `MZRaku.exe --mz800 --basic` → 1Z-016 banner and `Ready`; no
+      `Dev. name error`.
+- [ ] Remove `MZ800.ROM` and run `--mz800` → missing-ROM message
+      names `MZ800.ROM` and `[Roms.MZ800]`. Put it back.
 
-### Core keyboard (both machines)
+### Core keyboard (all three machines)
 
 - [ ] Letters A-Z echo unshifted.
 - [ ] `SHIFT+P` × 20 → 20 × `P` (shift-race regression canary).
@@ -51,32 +61,43 @@ release, update the checklist before fixing the bug.
       Keyboard / Joystick.
 - [ ] Tab order: Startup / ROMs / Display / Keyboard / Joystick.
       All five tabs render.
-- [ ] `System → Machine → other` prompts to restart, restart works.
+- [ ] `System → Machine` lists MZ-700 / MZ-80A / MZ-800; picking
+      another prompts to restart, restart works.
+- [ ] Settings → Startup with Default machine = MZ-800 → Apply →
+      reopen: still MZ-800 (`[Machine] DefaultMachine=MZ800`, not
+      rewritten to MZ700).
 - [ ] `settings.ini` after first run contains expected sections:
-      `[Startup]`, `[Display]`, `[Display.MZ80A]`, `[Roms.MZ700]`,
-      `[Roms.MZ80A]`, `[Joystick]`, `[Keyboard.MZ80A]`,
-      `[KeyOverrides.MZ700]`, `[KeyOverrides.MZ80A]`, `[CharMap]`,
-      `[CharMap.MZ80A]`, `[DebugPanes]`, `[Window]`, `[Debugger]`,
-      `[MemoryViewer]`, `[Breakpoints]`, `[Machine]`.
+      `[Machine]`, `[Display]`, `[Display.MZ80A]`,
+      `[Hardware.MZ800]`, `[Roms.MZ700]`, `[Roms.MZ80A]`,
+      `[Roms.MZ800]`, `[Joystick]`, `[Keyboard.MZ80A]`,
+      `[KeyOverrides.MZ700]`, `[KeyOverrides.MZ80A]`,
+      `[KeyOverrides.MZ800]`, `[CharMap]`, `[CharMap.MZ80A]`,
+      `[CharMap.MZ800]`, `[DebugPanes]`, `[MainWindow]`,
+      `[DebuggerWindow]`, `[MemoryViewerWindow]`,
+      `[DebuggerBreakpoints]`. Every section has its explanatory
+      comment block.
 
-### Diagnostic surfaces (both machines unless noted)
+### Diagnostic surfaces (all three machines unless noted)
 
 - [ ] `Debug → Debugger…` (Ctrl+D), `Memory Viewer…` (Ctrl+M),
-      `HID Diagnostic…` (Ctrl+H) all open without NRE.
+      `HID Diagnostic…` (Ctrl+H), `Keyboard Matrix…` all open
+      without NRE.
 - [ ] `View → Font Sheet…` (Ctrl+G) opens.
-- [ ] On MZ-80A: `Debug → Sound Diagnostic…` shows friendly
-      "MZ-700 only for now" MessageBox — no NRE.
-- [ ] On MZ-80A: `Debug → Keyboard Matrix…` opens the shared
-      matrix grid against MZ-80A data — no MZ-700-only refusal
-      (v1.2 F-034 unlocked the pane).
+- [ ] `Debug → Sound Diagnostic…` opens on MZ-700 and MZ-800 (MZ-800
+      shows the PSG pane). On MZ-80A it shows the friendly "currently
+      available on the MZ-700 and MZ-800 only" MessageBox — no NRE.
+- [ ] MZ-800 Memory Viewer: bank line shows bank state and display
+      mode. At the IPL menu, $E000-$E00F reads as memory (not hidden
+      as I/O).
 - [ ] `Help → About…` opens; version matches `<Version>` in the
       csproj; logo visible in header; `Emulating: Sharp MZ-XXX`
       line names the active machine.
 
 ### Z80 regression canary
 
-- [ ] Both machines at `Ready`: `PRINT 1.5` outputs `1.5` (Z80
-      indexed INC/DEC — regression canary from 2026-05-23).
+- [ ] All three machines at BASIC `Ready`: `PRINT 1.5` outputs
+      `1.5` (Z80 indexed INC/DEC — regression canary from
+      2026-05-23).
 
 ### Known workaround verification
 
@@ -122,6 +143,18 @@ into the SA-5510 `Ready` prompt; each tier should stay 100% clean.
 - [ ] Tier 5 — GRAPH mode: F11 → letters/digits/punct produce
       graphic glyphs. F11 again → ALPHA restores.
 
+### MZ-800 keyboard
+
+At the 1Z-016 `Ready` prompt:
+
+- [ ] Letters, digits and main-row punctuation echo as typed,
+      shifted and unshifted.
+- [ ] Tab, Insert, Delete/Backspace, cursor keys, F1-F5 behave as
+      the MZ-800 keys of the same name.
+- [ ] F11 → GRAPH (Font Sheet opens), F12 → ALPHA, Shift+F12 →
+      shift lock; the keyboard-mode pane follows each one.
+- [ ] Shift+Esc breaks a running BASIC program.
+
 ### Keyboard editor
 
 - [ ] MZ-700: Settings → Keyboard shows MZ-700 diagram with
@@ -148,7 +181,16 @@ into the SA-5510 `Ready` prompt; each tier should stay 100% clean.
       machine=MZ-80A`); Import Merge with the same file → no
       change. Import a MZ-700 `.mzkbd` on MZ-80A → refused with
       a "machine mismatch" warning (v1.2 F-037).
-- [ ] Both machines: overrides survive close-and-relaunch.
+- [ ] MZ-800: Settings → Keyboard shows the MZ-800 diagram (TAB on
+      the QWERTY row, ALPHA beside a narrower left SHIFT, F1-F5 along
+      the top), not the MZ-700 one. Click a cap → editor opens;
+      rebind + Save + OK → override persists to `[CharMap.MZ800]` /
+      `[KeyOverrides.MZ800]` and takes effect.
+- [ ] MZ-800: Export → `.mzkbd` with `[Meta] machine=MZ-800`;
+      Import Merge of the same file → no change. Import an MZ-700
+      `.mzkbd` → refused with "Machine mismatch".
+- [ ] MZ-800: Apply summary lists the MZ-800 binding changes.
+- [ ] All three machines: overrides survive close-and-relaunch.
 
 ### Font Sheet
 
@@ -160,10 +202,19 @@ into the SA-5510 `Ready` prompt; each tier should stay 100% clean.
 - [ ] MZ-80A: view-only. Two sections labelled Text ($00-$7F) and
       Graphics ($80-$FF) render. Click any cell → status bar shows
       `{section} code $XX`; nothing types (documented view-only).
+- [ ] MZ-800: header reads "MZ-800 character ROM … View-only for
+      now"; all glyphs render; clicks don't type. Pressing GRAPH (F11)
+      in 1Z-016 opens it.
 
 ### Sound
 
-- [ ] Both machines: silence at monitor prompt (no sustained tone).
+- [ ] All three machines: silence at monitor prompt / IPL menu (no
+      sustained tone).
+- [ ] MZ-800 `MUSIC "CDEFGAB"` in 1Z-016 — seven discrete notes; no
+      crackle or split notes. Sound Diagnostic's PSG pane shows tone
+      periods and attenuation changing.
+- [ ] MZ-800 game with PSG music (e.g. Manic Miner title tune) plays
+      at the right speed and pitch.
 - [ ] MZ-700 `MUSIC "CDEFGAB"` in BASIC — seven discrete notes.
 - [ ] MZ-80A `MUSIC "CDEFGAB"` — seven discrete notes at recognisable
       pitches and durations (matches EmuZ-80A within measurement
@@ -190,6 +241,13 @@ into the SA-5510 `Ready` prompt; each tier should stay 100% clean.
       phosphor)" toggles the monochrome renderer between white and
       pure `#00FF00`. Live-applies on Apply (no restart); persists
       to `[Display.MZ80A] GreenScreen=`.
+- [ ] MZ-800: Uridium in-game playfield shows in full colour with
+      MZ-1R25 fitted. Settings → Display → MZ-800 → untick MZ-1R25 →
+      Apply → planes III/IV vanish live; tick again → restored.
+      Persists to `[Hardware.MZ800] MZ1R25=`.
+- [ ] MZ-800 BASIC: a program printing more than 25 lines scrolls
+      cleanly; `LIST` then `RUN` again shows no lost lines or banner
+      wrapping in at the bottom (hardware-scroll canary from 8.5).
 
 ### Cassette
 
@@ -203,6 +261,21 @@ into the SA-5510 `Ready` prompt; each tier should stay 100% clean.
 - [ ] `MZRaku.exe --mz80a NEW-INVADERS-80A.mzf` boots the game
       (DirectInject, machine-code). Title screen with SCORE line
       and invader grid visible.
+- [ ] `MZRaku.exe --mz800 <MZ-800 machine-code game>` waits for the
+      IPL menu, then starts the game (e.g. Bruce Lee, Jetpac).
+- [ ] MZ-800: Load cassette of an MZ-800 BASIC program (type 05)
+      → BASIC loads, then `LOAD` / `RUN` are typed and the program
+      runs. A BASIC loader that loads a second file by name (e.g.
+      EGG.BAS → EGG.OBJ) finds it.
+- [ ] MZ-800: Load cassette of an MZ-700 S-BASIC program → status
+      bar says to run it on the MZ-700.
+- [ ] MZ-800: Load cassette over a running MZ-800 game → new title
+      starts cleanly (no carried-over palette or display mode).
+- [ ] MZ-800: File → Insert cassette for LOAD… at the 1Z-016
+      prompt, then `LOAD` → program loads from the inserted tape.
+- [ ] Load BASIC source… (Ctrl+Shift+B) on each machine, both from
+      BASIC `Ready` and from a cold monitor / IPL menu → listing typed
+      with no dropped characters; `RUN` works.
 
 ### Debugger
 
@@ -221,23 +294,34 @@ into the SA-5510 `Ready` prompt; each tier should stay 100% clean.
 - [ ] Rebind SW1 by clicking Left button (SW1) then pressing a pad
       button → persists across restart.
 - [ ] In a joystick-aware game, both stick slots respond.
+- [ ] MZ-800: in a joystick game (e.g. Bruce Lee), stick directions
+      and both triggers respond; HID Diagnostic shows the IN $F0 /
+      $F1 port values changing.
+- [ ] With no gamepad connected, nothing is held on either machine
+      (no stuck "up").
 
 ### Status bar
 
-- [ ] Both machines: left pane shows machine name (`MZ-700` /
-      `MZ-80A`); centre pane displays transient status messages
-      (auto-clear ~5 s); right pane shows `ALPHA` at boot.
+- [ ] All three machines: left pane shows machine name (`MZ-700` /
+      `MZ-80A` / `MZ-800`); centre pane displays transient status
+      messages (auto-clear ~5 s). MZ-700 / MZ-80A: right pane shows
+      `ALPHA` at boot.
 - [ ] F11 toggles right pane `ALPHA ↔ GRAPH`. MZ-700 also toggles
       via F12; MZ-80A is F11-only.
+- [ ] MZ-800: display-mode pane shows `320×200` in 1Z-016 BASIC and
+      `MZ-700` in an MZ-700 title (e.g. James), with a tooltip. Keyboard-mode pane shows `—` at the IPL menu and in
+      games, `ALPHA` / `LOCK` / `GRAPH` in 1Z-016. After a game
+      loaded over BASIC it goes back to `—`.
 - [ ] TAPE chip greys / pales / flashes per cassette state.
 
 ### Startup preferences
 
-- [ ] Settings → Startup: DefaultMachine radio pair persists to
+- [ ] Settings → Startup: DefaultMachine radios (three) persist to
       `[Machine] DefaultMachine=`. Six DebugPanes checkboxes persist
-      to `[DebugPanes]`. MZ-700-only panes (Sound Diagnostic,
-      Keyboard Matrix) grey out when DefaultMachine=MZ-80A; stored
-      values survive the disable.
+      to `[DebugPanes]`. Sound Diagnostic greys out when
+      DefaultMachine=MZ-80A only; stored value survives the disable.
+- [ ] Settings → ROMs shows an MZ-800 group (`MZ800.ROM`,
+      `1Z-016.mzf`); browsing a new path persists to `[Roms.MZ800]`.
 
 ### Known backlog items
 
@@ -247,11 +331,15 @@ stays honest.
 - **Apply-keyboard regression**
   ([[project-v1-1-apply-keyboard-regression]]): documented
   workaround verified in Critical smoke.
-- **BASIC cold-start Overflow**
-  ([[project-basic-cold-start-overflow]]): some .mzf BASIC
-  programs (reproducer: Dragon Caves 1982) show screen
-  corruption + Overflow Error on cold-start LOAD+RUN. Clears
-  after any prior MC run in the session. Target v1.3.0.
+- **MZ-800 BASIC SAVE** waits for a tape forever (no tape-write
+  trap yet). Target v1.4.0.
+- **MZ-800 no floppy / Quick Disk / printer**; border not drawn.
+- **Font Sheet click-to-type** is view-only on MZ-80A and MZ-800;
+  MZ-700 bank-1 still parked. MZ-800 click-to-type targeted at
+  v1.4.0.
+- **Upgrading from v1.0.x straight to v1.3+** loses custom
+  `[KeyOverrides]` and explicit `[Roms]` paths — run 1.1 (or later)
+  once first to migrate.
 
 ---
 

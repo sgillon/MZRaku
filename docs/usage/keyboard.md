@@ -1,5 +1,10 @@
 # Keyboard
 
+This page describes the MZ-700. The MZ-80A and MZ-800 work the same
+way, with their own keyboard diagrams in Settings. For the MZ-800's key
+table, status-bar keyboard mode and Font Sheet behaviour, see
+[MZ-800](mz800.md).
+
 By default, the emulator drives the MZ-700 matrix from the **character**
 your PC keystroke produces (after Windows has applied your keyboard
 layout). Type `;` and the MZ sees `;`; type `+` and it sees `+`. Out of
@@ -169,7 +174,7 @@ so any edit you make in the dialog wins at runtime.
 
 "Load BASIC source…" (Ctrl+Shift+B) reads a plain-text `.bas` file and
 types each non-blank, non-comment line into the running BASIC
-interpreter. Lines starting with `;` or `'` are stripped on the host
+interpreter. It works on all three machines. Lines starting with `;` or `'` are stripped on the host
 side. If BASIC isn't loaded yet the emulator resets, auto-loads BASIC,
 then types the source once the READY prompt is up. End the file with
 `RUN` to auto-start the program.

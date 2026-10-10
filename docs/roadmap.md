@@ -2,8 +2,9 @@
 
 A forward-looking plan for MZRaku's next several releases. Baseline
 agreed 2026-07-25; revised 2026-08-27 to bring MZ-800 forward ahead
-of the settings v2 sweep. Every placement is expected to move as
-reality lands — this document is the shape, not the contract.
+of the settings v2 sweep; v1.3.0 shipped 2026-10-11. Every
+placement is expected to move as reality lands — this document is
+the shape, not the contract.
 
 For what has already shipped, see `history.md`. For the current
 release-in-progress detail, see the version-specific plan memories
@@ -32,68 +33,15 @@ maintained by the AI assistant.
   41+5 commits. Tag-only close (no packaged release — refactors +
   parity fixes with no user-facing improvements; next packaged
   release is v1.3.0).
-
-## v1.3.0 — MZ-800 support + cold-start Overflow kickoff
-
-Third Sharp machine under the existing WinForms shell, preceded by
-a short bug-fix kickoff. Brought forward from v1.4.0 so all three
-machines are in scope before the settings v2 sweep runs — the sweep
-then covers the full gamut rather than being retrofitted after a
-two-machine design lands.
-
-**Kickoff:**
-
-- **Cold-start Overflow fix** — long-standing pre-v1.2 bug: certain
-  BASIC .mzf programs cold-start with screen corruption + Overflow
-  Error on LOAD+RUN, clean after any prior MC run in the session.
-  Known reproducer: Dragon Caves (1982). Instrument the two paths
-  and diff RAM state at the moment RUN is issued rather than
-  bisecting — no regression, mechanism is likely RAM-state-sensitive.
-
-**Main body — MZ-800 support.** Feasibility review already complete —
-see `_mz800info/MZ800-FEASIBILITY.md`. Same Phase 0-6 shape as the
-MZ-80A landing:
-
-- Machine-selection foundation extended for a third target
-- MZ800 boot spike (Z80 running SA-1510-equivalent from `MZ800.ROM`)
-- Video (three-way mode split: native bitmap + palette, MZ-700
-  compat, hardware scroll)
-- Keyboard (matrix already documented in the feasibility doc)
-- Cassette + BASIC (`1Z-016.mzf` typed autoload)
-- Sound (SN76489 PSG; Z80 PIO)
-- UI polish
-
-Approximately 6-8 focused sessions. The `_mz800info/` folder already
-holds ROM, BASIC MZF, three machine-code test cassettes, and the
-Sharp tech-ref + service manuals.
-
-**Independent polish that doesn't want MZ-800 or settings v2 in
-scope:**
-
-- **MZ-80A cursor blink rate** ([#1](https://github.com/sgillon/MZRaku/issues/1))
-  — PARKED 2026-10-04: rechecked against EmuZ-80A and now blinks at
-  about the same rate. The "~2× slower" report predates the v1.3.0
-  Phase 6.1 frame-pacing fix (every machine ran at ~2/3 speed); the
-  blink is frame-driven (PPI toggle every 20 frames), independent of
-  C1/C2. Revisit only if it causes problems — the real source is a
-  separate cursor timer reset via $E000 D7, not modelled.
-- **MZ-80A BASIC load UX-parity** ([#2](https://github.com/sgillon/MZRaku/issues/2))
-  — PARKED 2026-10-04: the pause is now much shorter (user
-  rechecked) — it was inflated by the pre-Phase-6.1 ~2/3-speed
-  frame pacing. SA-5510 still has an authentic up-to-1 s post-tone
-  wait for the RTC to tick; if it ever matters, switching MZ-80A
-  `AutoLoadBasic` to the typed-LOAD path would hide it.
-- **Invisible-LOAD path for MZ-80A cassette autorun** — dormant
-  follow-up to skip the typed-LOAD ceremony; blocked on identifying
-  which SA-5510 state RUN needs that LOAD doesn't currently set.
-- **MZ-700 sound loose ends** — boot tone / other imperfect timings,
-  unless already resolved as a side effect of v1.1.0 Phase 2.
-
-**Release-note reminder from v1.2** — users upgrading straight from
-v1.0.x → v1.3+ without launching v1.1 or v1.2 lose custom
-`[KeyOverrides]` and explicit `[Roms]` paths (v1.1's auto-migration
-is now assumed complete). Surface in the v1.3.0 release notes as
-"run 1.1 (or later) once first to migrate."
+- **v1.3.0** (2026-10-11) — Sharp MZ-800 support (all display
+  modes incl. MZ-1R25 16-colour, hardware + split-screen scroll,
+  SN76489 PSG, Z80 PIO interrupts, joystick ports, tape + 1Z-016
+  BASIC, keyboard editor and UI parity), plus the BASIC cold-start
+  Overflow fix, real-time frame pacing (every machine had run at
+  ~2/3 speed) and the RTC cascade fix. Release notes carry the v1.2
+  reminder: users upgrading straight from v1.0.x lose custom
+  `[KeyOverrides]` and explicit `[Roms]` paths — run 1.1 (or later)
+  once first to migrate.
 
 ## v1.4.0 — settings v2 sweep + settings-adjacent polish
 
@@ -103,11 +51,26 @@ designs against the full gamut of settings — MZ-700, MZ-80A, and
 MZ-800 — in one coherent pass, rather than being retrofitted after
 MZ-800 lands under a two-machine design.
 
-**Moved from v1.3.0 (2026-10-04):**
+**Moved from v1.3.0 (2026-10-04 and 2026-10-07):**
 
 - **MZ-800 BASIC SAVE** — completeness: trap 1Z-016's own tape-write
   entries ($382E header / $3832 data, common $3834) so SAVE writes a
   .mzf like MZ-700's S-BASIC SAVE. Today SAVE waits for a tape forever.
+- **MZ-800 Font Sheet click-to-type** — clicking a glyph types it,
+  as on the MZ-700's bank 0. Deferred from v1.3.0 Phase 8.5 once the
+  auto-typer was machine-neutral; the MZ-800 Font Sheet is view-only
+  until then.
+- **MZ-800 split ROM files** — accept the MZ-800 ROM as the three
+  files other emulators use (e.g. EmuZ-800: `MZ700IPL.ROM` 4 KB,
+  `FONT.ROM` 4 KB, `MZ800IPL.ROM` 8 KB) as well as the combined
+  `MZ800.ROM`. Joined in that order they are byte-identical to
+  `MZ800.ROM` (checked 2026-10-10), so emulation is unchanged: the
+  ROM scan looks for `MZ800.ROM` first, then joins the three parts in
+  memory. Work is in settings and UI — `[Roms.MZ800]` and the ROMs
+  tab record either form (the unused `Font=` key can take
+  `FONT.ROM`), the missing-ROM message names both forms and which
+  part is missing, and release-check gains a split-files-only boot.
+  Pairs with the ROMs-missing modal polish below.
 - **`--settings=<path>` CLI flag** — read-only alternate INI for
   presets and reproducible bug reports.
 
@@ -124,6 +87,17 @@ MZ-800 lands under a two-machine design.
   panes** — the debug surface has grown enough that its menu is
   crowded, and each pane wants a context-sensitive `?` blurb. Folds
   into the sweep.
+- **Usage docs restructure for three machines** — `docs/usage/` grew
+  MZ-700-first: the topic files (keyboard, joystick, HID diagnostic,
+  hardware notes) describe the MZ-700, the MZ-80A has almost no usage
+  coverage, and v1.3.0 shipped the MZ-800 as its own page
+  (`mz800.md`) to get it complete in time. Target shape: topic files
+  cover all three machines (per-machine key tables, both joystick
+  models, etc.), plus a short page per machine for what is genuinely
+  machine-specific (files needed, starting it, loading behaviour,
+  display options, limitations) — `mz800.md` shrinks to that core and
+  the MZ-700 and MZ-80A gain matching pages. Done after the settings
+  sweep lands so the docs describe the new dialogs once.
 - **Joystick-to-key mapping for MZ-80A** — MZ-80A has no hardware
   joystick, but users with a gamepad plugged in can play cassette
   games if buttons/axes map to key presses. Folds into settings v2.
@@ -201,6 +175,29 @@ look different on first launch.
 as v2.x follow-ups. They inherit the `IMachine` pattern from the
 existing three machines but each has its own memory map, I/O, and
 character ROM.
+
+## Parked (no version yet)
+
+Small items left open at v1.3.0, picked up if they cause problems.
+
+- **MZ-80A cursor blink rate** ([#1](https://github.com/sgillon/MZRaku/issues/1))
+  — PARKED 2026-10-04: rechecked against EmuZ-80A and now blinks at
+  about the same rate. The "~2× slower" report predates the v1.3.0
+  Phase 6.1 frame-pacing fix (every machine ran at ~2/3 speed); the
+  blink is frame-driven (PPI toggle every 20 frames), independent of
+  C1/C2. Revisit only if it causes problems — the real source is a
+  separate cursor timer reset via $E000 D7, not modelled.
+- **MZ-80A BASIC load UX-parity** ([#2](https://github.com/sgillon/MZRaku/issues/2))
+  — PARKED 2026-10-04: the pause is now much shorter (user
+  rechecked) — it was inflated by the pre-Phase-6.1 ~2/3-speed
+  frame pacing. SA-5510 still has an authentic up-to-1 s post-tone
+  wait for the RTC to tick; if it ever matters, switching MZ-80A
+  `AutoLoadBasic` to the typed-LOAD path would hide it.
+- **Invisible-LOAD path for MZ-80A cassette autorun** — dormant
+  follow-up to skip the typed-LOAD ceremony; blocked on identifying
+  which SA-5510 state RUN needs that LOAD doesn't currently set.
+- **MZ-700 sound loose ends** — boot tone / other imperfect timings,
+  unless already resolved as a side effect of v1.1.0 Phase 2.
 
 ## Aspirational (no version yet)
 

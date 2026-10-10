@@ -36,5 +36,14 @@ The repository ships with a BASIC test program at `games/joytest.bas`
 on screen tracking stick 1 — handy for confirming your controller is
 plumbed through correctly.
 
-The relevant code: `Hardware/Joystick.cs` (MZ-side multiplexing on
+## MZ-800
+
+On the MZ-800 the same gamepads drive the machine's two digital
+joystick ports (the MZ-1X16) instead. A direction counts once the
+stick is a quarter of the way from centre, and `Button1` / `Button2`
+are the two triggers. See [MZ-800](mz800.md#joystick). The MZ-80A has
+no joystick.
+
+The relevant code: `Hardware/Mz800Joystick.cs` (MZ-800 ports),
+`Hardware/Joystick.cs` (MZ-side multiplexing on
 $E008), `Hardware/JoystickInput.cs` (WinMM bridge).
