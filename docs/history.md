@@ -1057,7 +1057,7 @@ walk had given a clean baseline.
   shipped. Same shape recommended for the Z80Core audit that
   follows (MZRaku becomes the constant that time).
 
-### v1.3.0 in progress — MZ-800 arc (2026-08-27 → )
+### 2026-08-27 to 2026-10-10 — v1.3.0: MZ-800 arc
 
 The main body of v1.3.0 is MZ-800 emulator support. Roadmap-swapped
 ahead of the v1.4 settings work at the start of the arc
@@ -1716,9 +1716,12 @@ automatically; documented here for human reference.
 
 ## Current status
 
-The project shipped **v1.1.0** on 2026-08-22, its second stable
-release. v1.0.0 (2026-06-20) had been the moment the project name
-moved from the working-title `MZ700Emul` to its brand `MZRaku`
+The project shipped **v1.3.0** on 2026-10-10, adding the Sharp
+MZ-800 as a third machine (see the v1.3.0 section above). v1.2.0
+(2026-08-25) was a tag-only codebase-audit release; v1.3.0 is the
+first download to include it. Before that, **v1.1.0** shipped on
+2026-08-22, the second stable release. v1.0.0 (2026-06-20) had
+been the moment the project name moved from the working-title `MZ700Emul` to its brand `MZRaku`
 (portmanteau of MZ + Japanese 楽 *raku*, "easy / comfortable /
 relaxed"); v1.1.0 brings MZ-80A up to full Settings-dialog parity
 with MZ-700 — every MZ-80A setting is editable through the GUI,
@@ -1737,8 +1740,8 @@ debugger / window-geometry persistence, full-screen + scanlines,
 the speaker-NAND dual-gate audio fix, and v1.1's Settings-parity
 push. One known regression carried through from v1.0.0 —
 apply-keyboard bug requiring Ctrl+R after Settings-Apply — is
-documented as a workaround pending fix-forward investigation
-in v1.2.
+documented as a workaround pending fix-forward investigation;
+it is still open at v1.3.0.
 
 Tagged releases:
 - **v0.0.5-preview** (2026-05-16) — first public release.
@@ -1767,18 +1770,22 @@ Tagged releases:
   corrections, status-bar polish + PAUSED overlay + mute-on-
   pause + global pause hotkey, menu reorg (File split → File +
   System), brand logo in About, build-number infrastructure.
+- **v1.2.0** (2026-08-25, tag only) — codebase audit: 65 findings +
+  5 late fixes across 7 phases; MZ-80A editor parity (PC-key labels,
+  unreachable outline, `.mzkbd` v2 with machine tag, Keyboard Matrix
+  pane). No packaged release.
+- **v1.3.0** (2026-10-10) — Sharp MZ-800 support: all display modes
+  incl. MZ-1R25, hardware + split-screen scroll, SN76489 PSG, Z80
+  PIO interrupts, joystick ports, tape + 1Z-016 BASIC, keyboard
+  editor and full UI / settings parity. Also real-time frame pacing
+  (every machine had run at ~2/3 speed), RTC cascade fix, BASIC
+  cold-start Overflow fix, Load BASIC source on all three machines.
 
 For the open backlog, see the `project_feature_backlog` memory.
-**v1.2** is a codebase-audit release focused on refactor and
-testability rather than user-visible features (see the v1.2 audit
-plan memory). Deferred items surfaced during v1.1 that v1.2 will
-weigh: apply-keyboard-regression fix; MZ-80A editor parity
-(PC-key labels + red unreachable-essential outline on the diagram;
-`.mzkbd` export/import extended to carry MZ-80A entries);
-GRAPH click-to-type on both machines (MZ-700 bank-1 attribute-
-byte + MZ-80A graphic-glyph clicks); MUSIC tempo re-validation
-against real hardware; proper scanlines filter for full-screen;
-auto-typer speed-up.
+**v1.4.0** is next: a settings v2 sweep across all three machines,
+plus MZ-800 BASIC SAVE, MZ-800 Font Sheet click-to-type, split
+MZ-800 ROM files and a usage-docs restructure. See
+`docs/roadmap.md`.
 
 Stretch goals (not committed): cross-platform port (Avalonia +
 Silk.NET evaluation), MZ-80K and MZ-80B support on the same

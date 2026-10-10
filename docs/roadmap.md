@@ -2,7 +2,7 @@
 
 A forward-looking plan for MZRaku's next several releases. Baseline
 agreed 2026-07-25; revised 2026-08-27 to bring MZ-800 forward ahead
-of the settings v2 sweep; v1.3.0 shipped 2026-10-11. Every
+of the settings v2 sweep; v1.3.0 shipped 2026-10-10. Every
 placement is expected to move as reality lands — this document is
 the shape, not the contract.
 
@@ -33,7 +33,7 @@ maintained by the AI assistant.
   41+5 commits. Tag-only close (no packaged release — refactors +
   parity fixes with no user-facing improvements; next packaged
   release is v1.3.0).
-- **v1.3.0** (2026-10-11) — Sharp MZ-800 support (all display
+- **v1.3.0** (2026-10-10) — Sharp MZ-800 support (all display
   modes incl. MZ-1R25 16-colour, hardware + split-screen scroll,
   SN76489 PSG, Z80 PIO interrupts, joystick ports, tape + 1Z-016
   BASIC, keyboard editor and UI parity), plus the BASIC cold-start
