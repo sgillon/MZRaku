@@ -12,7 +12,7 @@ None of the Sharp machines MZRaku emulates are in Launchbox's standard platform 
 | Sharp MZ-80A | `--mz80a` |
 | Sharp MZ-800 | `--mz800` |
 
-The screenshots below show the MZ-700; substitute your machine's name and switch.
+The Associated Platforms screenshot shows all three machines set up, each with its own switch.
 
 ### Adding the emulator
 
