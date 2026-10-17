@@ -9,7 +9,8 @@ namespace MZRaku.Hardware;
 /// (1.0 unit = standard alphabetic key, top-left origin), same
 /// resolution-independent scaling.
 ///
-/// LAYOUT SOURCE: photograph at <c>_mz80info/SharpMZ80A.jpg</c> and
+/// LAYOUT SOURCE: photograph at
+/// <c>_mz-information-repository/MZ-80A/Images/SharpMZ80A.jpg</c> and
 /// Sharp MZ-80A Owner's Manual (kept locally, not in repo per
 /// [[reference-docs]]). Cross-referenced against
 /// <see cref="Mz80aMatrixReference"/> for matrix (strobe, bit)

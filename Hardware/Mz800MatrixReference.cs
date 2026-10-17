@@ -30,7 +30,8 @@ namespace MZRaku.Hardware;
 /// diagram.
 ///
 /// CONFIDENCE: transcribed from the p. 25 diagram as reproduced in
-/// `_mz800info/MZ800-RESEARCH-2026-08-29.md`, then walked against the
+/// `_mz-information-repository/MZ-800/Research/MZ800-RESEARCH-2026-08-29.md`,
+/// then walked against the
 /// tech-ref and owner's manual with the user 2026-08-28 (see
 /// [[canonical-reference-pattern]] step 2). Nine ambiguous cells
 /// confirmed: POUND / brackets / digit-0 / UPARROW / BSLASH /

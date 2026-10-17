@@ -24,7 +24,8 @@ namespace MZRaku.Hardware;
 ///
 /// Output bitmaps: <see cref="Frame"/> (320×200, MZ-700 mode and
 /// 320-wide bitmap modes) and <see cref="FrameHi"/> (640×200). The
-/// border is not drawn. See _mz800info/MZ800_VideoRendering_Research/
+/// border is not drawn. See
+/// _mz-information-repository/MZ-800/Research/MZ800_VideoRendering_Research/
 /// for the decode notes and citations.
 /// </summary>
 public sealed class Mz800Video
