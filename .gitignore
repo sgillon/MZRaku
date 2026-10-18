@@ -24,6 +24,8 @@ keymap.json
 
 # User preferences (regenerated with defaults if missing)
 settings.ini
+# ...except the regression suite's fixed settings
+!tools/regress/settings.ini
 
 # Local convenience scripts
 resumeproject.bat
