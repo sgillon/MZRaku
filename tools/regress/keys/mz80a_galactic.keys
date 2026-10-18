@@ -1,0 +1,4 @@
+# Galactic Invaders: leave the title screen ("PRESS ANY KEY"), pick NOVICE,
+# and play.
+600  key  Space
+1000 type "1"

@@ -1,0 +1,36 @@
+# MZ-800 1Z-016 BASIC: letters, digits, shifted symbols, cursor keys,
+# GRAPH/ALPHA and an F-key.
+# BASIC is at Ready by frame 420 with --basic. Each typed character takes
+# 8 frames; commands leave ~30 frames after Return so BASIC has finished
+# responding before the next key (the MZ-80A has no type-ahead).
+420  type "10 PRINT \"Hello 0123456789\""
+636  key  Return
+666  type "20 PRINT \"!#$%&'()*+,-./:;<=>?@[]^_\""
+954  key  Return
+# Cursor editing: up two rows onto line 10, right to the H, overtype it.
+984  key  Up
+992  key  Up
+1000 key  Right
+1008 key  Right
+1016 key  Right
+1024 key  Right
+1032 key  Right
+1040 key  Right
+1048 key  Right
+1056 key  Right
+1064 key  Right
+1072 key  Right
+1080 type "J"
+1088 key  Return
+1126 key  Down
+# A stored line holding graphic characters typed in GRAPH mode.
+1134 type "30 PRINT \""
+1214 key  F11             ; GRAPH
+1222 type "QWERTY"
+1270 key  F12             ; ALPHA
+1278 type "\""
+1286 key  Return
+1316 key  F2              ; default definition: "LIST "
+1340 key  Return
+1416 type "RUN"
+1440 key  Return

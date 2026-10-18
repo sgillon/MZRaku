@@ -1,0 +1,4 @@
+# MZ-80A SA-5510 MUSIC: tempo, octaves (+/-), sharps, durations, a rest.
+# Lowercase letters arrive as capitals (authentic inverted shift).
+420  type "tempo 6:music \"c3e3g3+c5r1-a2#f2b5\""
+716  key  Return

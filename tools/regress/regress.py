@@ -57,6 +57,8 @@ FIRMWARE = {
     r"basic\1Z-016.mzf":  ("MZ-800/BASIC/1Z-016 (tape BASIC)/1Z-016.mzf", "22fe1b6073971c2f51b6373a3ff1e5a032e5652f"),
 }
 
+MZ700_SW = "MZ-700/Software/"
+MZ80A_SW = "MZ-80A/Software/"
 MZ800_GAMES = "MZ-800/Software/Machine code games/"
 EGG = "MZ-800/Software/BASIC programs/EGG/"
 
@@ -73,24 +75,36 @@ ZIPS = {
 #   ZIPS entry); --keys=<file> names a scripted-input file in keys/
 #   (format: KeyScript.cs).
 CASES = [
+    # --- MZ-700 ---
+    ("mz700_monitor",  ["--mz700"],                                   200, ["snd"]),
+    ("mz700_basic",    ["--mz700", "--basic"],                        400, ["snd"]),
+    ("mz700_dragon",   ["--mz700", "--cassette", MZ700_SW + "Dragon Caves (1982)(Solo Software).zip"], 900, ["snd"]),   # large BASIC load (cold-start Overflow)
+    ("mz700_panic",    ["--mz700", "--cassette", MZ700_SW + "Space Panic(1983)(Solo Software).zip", "--keys=mz700_panic.keys"], 1200, ["snd"]),   # Space starts a game
+    ("mz700_music",    ["--mz700", "--basic", "--keys=mz700_music.keys"], 1400, ["snd"]),
+    ("mz700_typing",   ["--mz700", "--basic", "--keys=mz700_typing.keys"], 1520, ["snd"]),
+    # --- MZ-80A ---
+    ("mz80a_monitor",  ["--mz80a"],                                   200, ["snd"]),
+    ("mz80a_basic",    ["--mz80a", "--basic"],                        400, ["snd"]),
+    ("mz80a_galactic", ["--mz80a", "--cassette", MZ80A_SW + "GALACTIC-INVADERS-80A.mzf", "--keys=mz80a_galactic.keys"], 1500, ["snd"]),   # Space starts a game
+    ("mz80a_colditz",  ["--mz80a", "--cassette", MZ80A_SW + "COLDITZ-80A.mzf"], 1200, ["snd"]),   # typed LOAD + RUN autorun
+    ("mz80a_music",    ["--mz80a", "--basic", "--keys=mz80a_music.keys"], 1400, ["snd"]),
+    ("mz80a_typing",   ["--mz80a", "--basic", "--keys=mz80a_typing.keys"], 1520, ["snd"]),
+    # --- MZ-800 ---
     ("mz800_ipl",      ["--mz800"],                                   200, ["tests", "wav"]),
     ("mz800_basic",    ["--mz800", "--basic"],                        300, ["wav"]),
     ("james",          ["--mz800", "--cassette", MZ800_GAMES + "James.mzf"],        600, []),
-    ("highway",        ["--mz800", "--cassette", MZ800_GAMES + "Highway.mzf"],      900, []),
-    ("fist",           ["--mz800", "--cassette", MZ800_GAMES + "EXPLODING FIST.mzf"], 900, []),
+    ("fist",           ["--mz800", "--cassette", MZ800_GAMES + "EXPLODING FIST.mzf"], 900, []),   # over highway: whole scroll block + palette 4+
     ("gps_turn",       ["--mz800", "--cassette", MZ800_GAMES + "G.P.S. program.mzf"], 695, []),   # raster bars at bottom
     ("uridium",        ["--mz800", "--cassette", MZ800_GAMES + "Uridium (1990)(Hewson - Petr Patik).mzf"], 1200, ["wav"]),
     ("wheelie",        ["--mz800", "--cassette", MZ800_GAMES + "wheelie.mzf"],      900, []),
-    ("jetpac",         ["--mz800", "--cassette", MZ800_GAMES + "jetpac1.mzf"],      900, []),
+    ("jetpac",         ["--mz800", "--cassette", MZ800_GAMES + "jetpac1.mzf"],      900, []),   # over jetman: PIO VBLANK interrupt + WF modes
     ("manic",          ["--mz800", "--cassette", MZ800_GAMES + "MANIC.MZF"],        900, ["wav"]),
     ("abusimbel",      ["--mz800", "--cassette", MZ800_GAMES + "abusimbe.mzf"],     900, []),
     ("bruce",          ["--mz800", "--cassette", MZ800_GAMES + "bruce-p.mzf"],      900, []),
     ("chequered",      ["--mz800", "--cassette", MZ800_GAMES + "chequered_flag.mzf"], 900, []),
     ("flappy",         ["--mz800", "--cassette", MZ800_GAMES + "flappy.mzf"],       900, []),
-    ("jetman",         ["--mz800", "--cassette", MZ800_GAMES + "jetman_color.mzf"], 900, []),
     ("egg_basic",      ["--mz800", "--cassette", "egg.zip"],          1500, []),   # BASIC LOAD + named LOAD of 2nd file
-    ("mz700_basic",    ["--mz700", "--basic"],                        400, ["snd"]),
-    ("mz80a_basic",    ["--mz80a", "--basic"],                        400, ["snd"]),
+    ("mz800_typing",   ["--mz800", "--basic", "--keys=mz800_typing.keys"], 1520, []),
 ]
 TEST_SUFFIXES = [".test.png", ".test640.png", ".testscroll.png", ".testsplit.png"]
 
@@ -115,6 +129,8 @@ def check_sources():
             if i > 0 and args[i - 1] == "--cassette" and a not in ZIPS \
                     and not os.path.exists(os.path.join(INFO, a)):
                 problems.append(f"missing {os.path.join(INFO, a)}")
+            elif a.startswith("--keys=") and not os.path.exists(os.path.join(KEYS, a[len("--keys="):])):
+                problems.append(f"missing {os.path.join(KEYS, a[len('--keys='):])}")
     for parts in ZIPS.values():
         problems += [f"missing {os.path.join(INFO, p)}" for p in parts
                      if not os.path.exists(os.path.join(INFO, p))]

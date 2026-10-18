@@ -1,0 +1,3 @@
+# MZ-700 S-BASIC MUSIC: tempo, octaves (+/-), sharps, durations, a rest.
+420  type "TEMPO 6:MUSIC \"C3E3G3+C5R1-A2#F2B5\""
+716  key  Return
