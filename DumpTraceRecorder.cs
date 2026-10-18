@@ -98,6 +98,8 @@ internal sealed class DumpTraceRecorder
                 if (_mz800 != null) File.WriteAllBytes(_dumpPath + ".ram", _mz800.Mem.Ram);
                 // Rendered PSG + counter-0 audio since boot.
                 if (_mz800?.AudioCapture != null) SaveWav(_dumpPath + ".wav", _mz800.AudioCapture);
+                // MZ-700 / MZ-80A: every speaker-input change since boot.
+                if (_active.Sound.EventLog is { } snd) File.WriteAllText(_dumpPath + ".snd.txt", snd.ToString());
                 SaveVideoFramePng();
             }
             catch (Exception ex)

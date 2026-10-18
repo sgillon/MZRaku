@@ -58,7 +58,50 @@ public sealed class Sound : IDisposable
         }
     }
 
-    public double InputClockHz = 895000.0;
+    // ---- Event log (--dump) ----
+    //
+    // The square-wave path plays whatever these four inputs hold when
+    // the feed thread polls them, so its audio depends on real time and
+    // can't be compared run to run. Logging every change to them,
+    // stamped with the emulated CPU cycle, gives a deterministic record
+    // of what the machine asked the speaker to do: DumpTraceRecorder
+    // writes it as <dump>.snd.txt for the regression suite.
+
+    /// <summary>
+    /// When non-null, every change to the soft gate, hard gate, reload
+    /// and input clock is appended as <c>&lt;cycle&gt; &lt;input&gt;=&lt;value&gt;</c>.
+    /// Set through <see cref="StartEventLog"/>.
+    /// </summary>
+    public System.Text.StringBuilder? EventLog { get; private set; }
+    private Func<long>? _eventClock;
+
+    /// <summary>
+    /// Start logging input changes, stamped by <paramref name="clock"/>
+    /// (the emulated CPU cycle count). The first line records the
+    /// current state, so the log stands on its own.
+    /// </summary>
+    public void StartEventLog(Func<long> clock)
+    {
+        _eventClock = clock;
+        EventLog = new System.Text.StringBuilder();
+        LogEvent($"init soft={(_enabled ? 1 : 0)} hard={(_hardGate ? 1 : 0)} reload={_reload} clock={_inputClockHz:0}");
+    }
+
+    private void LogEvent(string what) =>
+        EventLog?.Append(_eventClock!()).Append(' ').AppendLine(what);
+
+    private double _inputClockHz = 895000.0;
+    public double InputClockHz
+    {
+        get => _inputClockHz;
+        set
+        {
+            if (value == _inputClockHz) return;
+            _inputClockHz = value;
+            LogEvent($"clock={value:0}");
+        }
+    }
+
     // The MZ-700 has two independent gates between C0.OUT and the
     // speaker (confirmed against the service-manual schematic
     // 2026-06-19 — see Mz700SoundReference):
@@ -67,7 +110,17 @@ public sealed class Sound : IDisposable
     //                          LS74 FF1, gates the speaker-amp NAND.
     // Audible iff both gates are asserted. Cleared by Reset (FF1.CL
     // = system RESET line on the schematic).
-    public volatile bool Enabled;
+    private volatile bool _enabled;
+    public bool Enabled
+    {
+        get => _enabled;
+        set
+        {
+            if (value == _enabled) return;
+            _enabled = value;
+            LogEvent($"soft={(value ? 1 : 0)}");
+        }
+    }
     private volatile bool _hardGate;
     private volatile int _gateHoldChunks;
     private volatile int _reload = 0;
@@ -86,12 +139,19 @@ public sealed class Sound : IDisposable
         get => _hardGate || _gateHoldChunks > 0;
         set
         {
+            // A repeated write changes nothing the feed loop can hear:
+            // the hold only counts down while the gate is closed.
+            if (value != _hardGate) LogEvent($"hard={(value ? 1 : 0)}");
             _hardGate = value;
             if (value) _gateHoldChunks = 2;  // ~40 ms of audible pulse
         }
     }
 
-    public void SetReload(int reload) { _reload = reload; }
+    public void SetReload(int reload)
+    {
+        if (reload != _reload) LogEvent($"reload={reload}");
+        _reload = reload;
+    }
 
     /// <summary>
     /// The raw $E008 D0 latch, without the pulse-hold stretch that

@@ -685,6 +685,14 @@ public sealed class MainForm : Form
                 _machine.Pit.WriteLog = tracing ? new System.Text.StringBuilder() : null;
                 _machine.Mem.BankSwitchLog = tracing ? new System.Text.StringBuilder() : null;
             }
+            // MZ-700 / MZ-80A sound is synthesised in real time, so a
+            // dump records its inputs instead (<dump>.snd.txt). The
+            // MZ-800 renders in emulated time and captures a .wav below.
+            if (tracing && (_machine != null || _mz80a != null))
+            {
+                var cpu = Active.Cpu;
+                Active.Sound.StartEventLog(() => cpu.TotalCycles);
+            }
             // MZ-800 gets the same hooks (both classes carry
             // WriteLog + BankSwitchLog StringBuilder fields). Phase 2.5
             // boot-hang investigation reads these via --dump=.

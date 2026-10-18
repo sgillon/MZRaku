@@ -68,6 +68,7 @@ ZIPS = {
 
 # name, CLI args, dump frame, extra artefacts to compare
 #   "tests" = the three MZ-800 test-pattern PNGs, "wav" = rendered audio
+#   (MZ-800), "snd" = speaker-input event log (MZ-700 / MZ-80A)
 #   A path after --cassette is relative to the repository (or names a
 #   ZIPS entry); --keys=<file> names a scripted-input file in keys/
 #   (format: KeyScript.cs).
@@ -88,8 +89,8 @@ CASES = [
     ("flappy",         ["--mz800", "--cassette", MZ800_GAMES + "flappy.mzf"],       900, []),
     ("jetman",         ["--mz800", "--cassette", MZ800_GAMES + "jetman_color.mzf"], 900, []),
     ("egg_basic",      ["--mz800", "--cassette", "egg.zip"],          1500, []),   # BASIC LOAD + named LOAD of 2nd file
-    ("mz700_basic",    ["--mz700", "--basic"],                        400, []),
-    ("mz80a_basic",    ["--mz80a", "--basic"],                        400, []),
+    ("mz700_basic",    ["--mz700", "--basic"],                        400, ["snd"]),
+    ("mz80a_basic",    ["--mz80a", "--basic"],                        400, ["snd"]),
 ]
 TEST_SUFFIXES = [".test.png", ".test640.png", ".testscroll.png", ".testsplit.png"]
 
@@ -226,6 +227,21 @@ def compare_png(cur, gold):
     return f"{len(diffs)} px differ, box x{min(xs)}-{max(xs)} y{min(ys)}-{max(ys)}"
 
 
+def compare_text(cur, gold):
+    if not os.path.exists(gold):
+        return "NO GOLDEN"
+    if not os.path.exists(cur):
+        return "MISSING"
+    a = open(cur, encoding="utf-8").read().splitlines()
+    b = open(gold, encoding="utf-8").read().splitlines()
+    for i, (x, y) in enumerate(zip(a, b)):
+        if x != y:
+            return f"line {i + 1}: {x!r} vs golden {y!r}"
+    if len(a) != len(b):
+        return f"{len(a)} lines vs golden {len(b)}"
+    return None
+
+
 def md5(p):
     return hashlib.md5(open(p, "rb").read()).hexdigest() if os.path.exists(p) else None
 
@@ -253,7 +269,8 @@ def main():
     failed = 0
     for name, _, frame, extras in cases:
         base_out, base_gold = os.path.join(OUT, name), os.path.join(GOLDEN, name)
-        artefacts = [".png"] + (TEST_SUFFIXES if "tests" in extras else []) + ([".wav"] if "wav" in extras else [])
+        artefacts = ([".png"] + (TEST_SUFFIXES if "tests" in extras else [])
+                     + ([".wav"] if "wav" in extras else []) + ([".snd.txt"] if "snd" in extras else []))
         if status[name] != "ok":
             print(f"FAIL  {name:12} {status[name]}"); failed += 1; continue
         if approve:
@@ -266,6 +283,9 @@ def main():
             if s == ".wav":
                 if md5(base_out + s) != md5(base_gold + s):
                     problems.append(f"{s}: audio differs")
+            elif s == ".snd.txt":
+                r = compare_text(base_out + s, base_gold + s)
+                if r: problems.append(f"{s}: {r}")
             else:
                 r = compare_png(base_out + s, base_gold + s)
                 if r: problems.append(f"{s}: {r}")
