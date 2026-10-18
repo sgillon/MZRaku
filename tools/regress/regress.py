@@ -40,6 +40,7 @@ GOLDEN = os.path.join(REG, "golden")
 SANDBOX = os.path.join(REG, "sandbox")
 MEDIA = os.path.join(SANDBOX, "_media")   # test media assembled from the repository
 SETTINGS = os.path.join(HERE, "settings.ini")
+KEYS = os.path.join(HERE, "keys")   # --keys= scripts (tracked)
 WORKERS = 4
 
 # Sandbox path -> (repository path, SHA-1). The hashes pin the exact
@@ -68,7 +69,8 @@ ZIPS = {
 # name, CLI args, dump frame, extra artefacts to compare
 #   "tests" = the three MZ-800 test-pattern PNGs, "wav" = rendered audio
 #   A path after --cassette is relative to the repository (or names a
-#   ZIPS entry).
+#   ZIPS entry); --keys=<file> names a scripted-input file in keys/
+#   (format: KeyScript.cs).
 CASES = [
     ("mz800_ipl",      ["--mz800"],                                   200, ["tests", "wav"]),
     ("mz800_basic",    ["--mz800", "--basic"],                        300, ["wav"]),
@@ -149,6 +151,8 @@ def resolve(args):
     for i, a in enumerate(args):
         if i > 0 and args[i - 1] == "--cassette":
             a = os.path.join(MEDIA, a) if a in ZIPS else os.path.join(INFO, a)
+        elif a.startswith("--keys="):
+            a = "--keys=" + os.path.join(KEYS, a[len("--keys="):])
         out.append(a)
     return out
 

@@ -13,6 +13,7 @@ internal static class Program
         bool autoLoadBasic = false;
         string? dumpPath = null;
         int dumpFrame = 120;
+        string? keysPath = null;
         int? displayScaleOverride = null;
         bool startFullScreen = false;
         bool? scanlinesOverride = null;
@@ -44,6 +45,10 @@ internal static class Program
             else if (a.StartsWith("--dumpframe=", StringComparison.OrdinalIgnoreCase))
             {
                 dumpFrame = int.Parse(a.Substring(12));
+            }
+            else if (a.StartsWith("--keys=", StringComparison.OrdinalIgnoreCase))
+            {
+                keysPath = a.Substring(7);
             }
             else if (a.Equals("--scanlines", StringComparison.OrdinalIgnoreCase))
             {
@@ -142,9 +147,30 @@ internal static class Program
         // letting slot bugs hide for weeks at a time.
         MatrixValidation.RunAndLog();
 
+        // --keys=<file>: scripted host input (regression suite). A bad
+        // script exits with code 2 before the emulator starts; the
+        // message goes to stderr, plus a dialog unless this is a --dump
+        // run, which must never block on one.
+        KeyScript? keyScript = null;
+        if (keysPath != null)
+        {
+            try
+            {
+                keyScript = KeyScript.Load(keysPath);
+            }
+            catch (Exception ex) when (ex is FormatException or IOException or UnauthorizedAccessException)
+            {
+                var msg = $"--keys script {keysPath}: {ex.Message}";
+                Console.Error.WriteLine(msg);
+                if (dumpPath == null)
+                    MessageBox.Show(msg, "MZRaku", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Environment.Exit(2);
+            }
+        }
+
         ApplicationConfiguration.Initialize();
         var form = new MainForm(cassettePath, autoLoadBasic, dumpPath, dumpFrame,
-            displayScaleOverride, startFullScreen, scanlinesOverride, machineOverride);
+            displayScaleOverride, startFullScreen, scanlinesOverride, machineOverride, keyScript);
         Application.Run(form);
     }
 }

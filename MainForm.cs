@@ -102,6 +102,7 @@ public sealed class MainForm : Form
     private readonly bool _autoLoadBasic;
     private readonly string? _dumpPath;
     private DumpTraceRecorder? _dumpTrace;
+    private readonly KeyScript? _keyScript;           // --keys=<file>
     private AutoLoadOrchestrator _autoLoad = null!;   // constructed in Start()
     private bool _started;
     private DebuggerForm? _debugger;
@@ -142,9 +143,11 @@ public sealed class MainForm : Form
     public MainForm(string? cassettePath, bool autoLoadBasic, string? dumpPath = null,
         int dumpFrame = 120,
         int? displayScaleOverride = null, bool startFullScreen = false,
-        bool? scanlinesOverride = null, MachineType? machineOverride = null)
+        bool? scanlinesOverride = null, MachineType? machineOverride = null,
+        KeyScript? keyScript = null)
     {
         _initialCassette = cassettePath;
+        _keyScript = keyScript;
         _autoLoadBasic = autoLoadBasic;
         _dumpPath = dumpPath;
         _dumpFrame = dumpFrame;
@@ -1148,6 +1151,10 @@ public sealed class MainForm : Form
         _autoLoad.OnFrame(_bootFrames);
         if (_mz800 != null && _bootFrames % 10 == 0) UpdateMz800ModeLabel();
 
+        // Scripted host input (--keys=): events due after this frame.
+        _keyScript?.OnFrame(InjectScriptedKey);
+        if (IsDisposed) return;   // a scripted Alt+F4 closes the form
+
         // Dump-and-trace flow (v1.2 audit F-055 extraction). No-op
         // when --dump wasn't passed; otherwise emits the periodic
         // trace line and fires OnDumpComplete → Close() at the
@@ -1219,6 +1226,27 @@ public sealed class MainForm : Form
 
     private static bool IsShiftKey(Keys k) =>
         k == Keys.ShiftKey || k == Keys.LShiftKey || k == Keys.RShiftKey;
+
+    private const int WM_KEYDOWN = 0x0100, WM_SYSKEYDOWN = 0x0104;
+
+    /// <summary>
+    /// One --keys= event, through the same path as a real keystroke:
+    /// ProcessCmdKey (hotkeys and menu shortcuts) first, then KeyDown
+    /// and KeyPress unless it consumed the key, and KeyUp.
+    /// </summary>
+    private void InjectScriptedKey(KeyScript.Event ev)
+    {
+        if (ev.Kind == KeyScript.EventKind.Up)
+        {
+            OnKeyUp(this, new KeyEventArgs(ev.KeyData));
+            return;
+        }
+        int wm = (ev.KeyData & Keys.Alt) != 0 ? WM_SYSKEYDOWN : WM_KEYDOWN;
+        var msg = Message.Create(Handle, wm, (IntPtr)(int)(ev.KeyData & Keys.KeyCode), IntPtr.Zero);
+        if (ProcessCmdKey(ref msg, ev.KeyData)) return;
+        OnKeyDown(this, new KeyEventArgs(ev.KeyData));
+        if (ev.Text is char c) OnKeyPress(this, new KeyPressEventArgs(c));
+    }
 
     private void OnKeyDown(object? s, KeyEventArgs e)
     {
