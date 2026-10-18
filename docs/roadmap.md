@@ -4,7 +4,9 @@ A forward-looking plan for MZRaku's next several releases. Baseline
 agreed 2026-07-25; revised 2026-08-27 to bring MZ-800 forward ahead
 of the settings v2 sweep; v1.3.0 shipped 2026-10-10; revised
 2026-10-17 to put the cross-platform move ahead of the UI polish
-sweeps and any further machines. Every placement is expected to move
+sweeps and any further machines; revised 2026-10-18 to clear the
+parked bugs in v1.5.0 and to make the v2.0.0 GUI depend on how the
+cross-platform CLI build is received. Every placement is expected to move
 as reality lands — this document is the shape, not the contract.
 
 For what has already shipped, see `history.md`. For the current
@@ -15,15 +17,16 @@ maintained by the AI assistant.
 
 - **v1.x** — MZRaku grows as a Sharp emulator. v1.4.0 separates the
   emulation core from the WinForms front end; v1.5.0 adds features
-  that don't depend on the UI; v1.6.0 adds MZRakuCLI, a
-  command-line-driven SDL build for Windows, macOS and Linux,
-  alongside the WinForms build.
+  that don't depend on the UI and clears the parked bugs; v1.6.0 adds
+  MZRakuCLI, a command-line-driven SDL build for Windows, macOS and
+  Linux, alongside the WinForms build.
 - **v2.x** — cross-platform shell, built on Avalonia unless the
-  toolkit check at v2.0.0 kickoff says otherwise. v2.0.0 ports at
-  parity and redesigns the settings once, in the new shell. Later
-  v2.x releases add dockable panes, tabbed machine instances and new
-  machines. A deliberate paradigm shift, signalled by the major
-  version bump.
+  toolkit check at v2.0.0 kickoff says otherwise, **if** the
+  MZRakuCLI release shows that a GUI matters off Windows. v2.0.0
+  ports at parity and redesigns the settings once, in the new shell.
+  Later v2.x releases add dockable panes, tabbed machine instances
+  and new machines. A deliberate paradigm shift, signalled by the
+  major version bump.
 
 ## Already shipped
 
@@ -159,6 +162,38 @@ almost unchanged, so they are safe to ship before the port.
   item; the MZ-800's own IPL ROM already boots from QD. Can slip to
   v2.x with the MZ-1500, which shares the same QD hardware.
 
+### Clearing the decks — the parked bugs
+
+v1.5.0 also fixes, or deliberately closes, the bugs that have been
+parked since earlier releases, so the cross-platform work in v1.6.0
+starts from a clean list. Where a dump can show the fix, it gains a
+regression case (`--keys=` makes keyboard bugs scriptable).
+
+- **Keyboard dead after Settings Apply (MZ-700)** — after editing a
+  key mapping in Settings and pressing Apply or OK, no keys type until
+  Ctrl+R. Present since v1.0.0; two bisects in 2026-08 found no
+  mechanism. Approach: log the keyboard matrix and the held-key state
+  around the Settings close rather than bisecting again.
+- **Font Sheet bank-1 (GRAPH) click-to-type on the MZ-700**
+  ([#3](https://github.com/sgillon/MZRaku/issues/3)) — the click lands
+  the character byte but not the attribute, so the wrong glyph
+  appears. Pairs with the MZ-800 Font Sheet click-to-type item above.
+- **Invisible-LOAD path for MZ-80A cassette autorun** — skip the
+  typed LOAD + RUN; blocked on Error 16 from SA-5510's RUN. Find which
+  state RUN needs that the direct load doesn't set, or close it and
+  keep the typed path.
+- **MZ-700 sound loose ends** — the boot tone and other imperfect
+  timings. Phase 0.3 of v1.4.0 recorded one concrete case: the boot
+  tone's 138-cycle hard-gate pulse comes before the counter reload,
+  which only takes effect at frame end.
+- **MZ-80A cursor blink rate**
+  ([#1](https://github.com/sgillon/MZRaku/issues/1)) and **BASIC load
+  pause** ([#2](https://github.com/sgillon/MZRaku/issues/2)) — both
+  rechecked 2026-10-04 and largely cured by the v1.3.0 frame-pacing
+  fix. Confirm and close the issues, or record why they stay open.
+- **Anything v1.4.0 records** — the core extraction records bugs
+  rather than fixing them; they land here.
+
 ## v1.6.0 — MZRakuCLI: the first cross-platform build
 
 A second front end on the v1.4.0 core: one bare SDL window showing
@@ -205,6 +240,9 @@ for a much better foundation for the cross-platform GUI.
 - **Launchers** — fits LaunchBox (Windows) and command-line front
   ends such as ES-DE on Linux; `launcher-setup.md` gains an MZRakuCLI
   section.
+- **It ships** as soon as it works on all three platforms, alongside
+  the existing full Windows GUI build. Its reception is the input to
+  the v2.0.0 decision below.
 
 ## v2.0.0 — cross-platform GUI, at parity, with the settings designed once
 
@@ -213,6 +251,17 @@ the shell fundamentally changes, users will notice, and things may
 look different on first launch. Gated on a separate Avalonia
 learning project Steve plans to take on first.
 
+- **Whether to build it at all** — decided after MZRakuCLI has been
+  out for a while. The WinForms build is already a solid emulator for
+  the three machines on Windows; the open question is how much a GUI
+  matters on macOS and Linux, where emulators are often run from
+  launchers and the command line. Inputs: user feedback, how
+  MZRakuCLI is used (launchers such as ES-DE), and which GUI-only
+  tools (debugger, Font Sheet, settings and keyboard-editor dialogs)
+  people miss. If a GUI isn't needed there, the WinForms build stays
+  the Windows GUI, MZRakuCLI grows instead (for example on-screen
+  menus or a terminal debugger), and the settings redesign and the
+  v2.x items below are re-placed.
 - **Toolkit decision at kickoff** — Avalonia is the working
   assumption, and the user's learning project has gone well. Before
   committing, re-check it against **SDL2 + Dear ImGui**: the common
@@ -305,26 +354,21 @@ learning project Steve plans to take on first.
 
 ## Parked (no version yet)
 
-Small items left open at v1.3.0, picked up if they cause problems.
+Nothing at present: the items parked at v1.3.0 moved into v1.5.0's
+"Clearing the decks". Background for the two MZ-80A issues, from the
+2026-10-04 recheck:
 
-- **MZ-80A cursor blink rate** ([#1](https://github.com/sgillon/MZRaku/issues/1))
-  — PARKED 2026-10-04: rechecked against EmuZ-80A and now blinks at
-  about the same rate. The "~2× slower" report predates the v1.3.0
-  Phase 6.1 frame-pacing fix (every machine ran at ~2/3 speed); the
-  blink is frame-driven (PPI toggle every 20 frames), independent of
-  C1/C2. Revisit only if it causes problems — the real source is a
-  separate cursor timer reset via $E000 D7, not modelled.
-- **MZ-80A BASIC load UX-parity** ([#2](https://github.com/sgillon/MZRaku/issues/2))
-  — PARKED 2026-10-04: the pause is now much shorter (user
-  rechecked) — it was inflated by the pre-Phase-6.1 ~2/3-speed
-  frame pacing. SA-5510 still has an authentic up-to-1 s post-tone
-  wait for the RTC to tick; if it ever matters, switching MZ-80A
-  `AutoLoadBasic` to the typed-LOAD path would hide it.
-- **Invisible-LOAD path for MZ-80A cassette autorun** — dormant
-  follow-up to skip the typed-LOAD ceremony; blocked on identifying
-  which SA-5510 state RUN needs that LOAD doesn't currently set.
-- **MZ-700 sound loose ends** — boot tone / other imperfect timings,
-  unless already resolved as a side effect of v1.1.0 Phase 2.
+- **Cursor blink rate** ([#1](https://github.com/sgillon/MZRaku/issues/1))
+  — rechecked against EmuZ-80A and now blinks at about the same rate.
+  The "~2× slower" report predates the v1.3.0 Phase 6.1 frame-pacing
+  fix (every machine ran at ~2/3 speed); the blink is frame-driven
+  (PPI toggle every 20 frames), independent of C1/C2. The real source
+  is a separate cursor timer reset via $E000 D7, not modelled.
+- **BASIC load pause** ([#2](https://github.com/sgillon/MZRaku/issues/2))
+  — the pause is now much shorter (user rechecked); it was inflated
+  by the pre-Phase-6.1 ~2/3-speed frame pacing. SA-5510 still has an
+  authentic up-to-1 s post-tone wait for the RTC to tick; switching
+  MZ-80A `AutoLoadBasic` to the typed-LOAD path would hide it.
 
 ## Aspirational (no version yet)
 
@@ -350,7 +394,11 @@ Small items left open at v1.3.0, picked up if they cause problems.
   Avalonia rather than being built in WinForms and then rebuilt.
 - **Cross-platform starts small.** A menu-less MZRakuCLI proves the
   core, the SDL back ends and the platform quirks before any GUI work
-  depends on them.
+  depends on them, and its reception decides whether the GUI port is
+  needed at all.
+- **Parked bugs don't outlive a feature release.** Bugs parked or
+  recorded during one arc are cleared, or deliberately closed, in the
+  next feature release (v1.5.0 for everything up to v1.4.0).
 - **The platform move comes before new machines.** Three machines
   are enough to prove the core extraction and the port; MZ-1500,
   MZ-80K and MZ-80B land under the new shell. (Earlier, the MZ-800
