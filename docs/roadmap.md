@@ -135,6 +135,12 @@ almost unchanged, so they are safe to ship before the port.
   boot.
 - **`--settings=<path>` CLI flag** — read-only alternate INI for
   presets and reproducible bug reports.
+- **`--keys=<file>` scripted input, documented as a user feature** —
+  built in v1.4.0 for the regression suite (frame-stamped `type` /
+  `key` / `down` / `up`). v1.5.0 adds a syntax reference to the usage
+  docs and the `--help` text, so users can automate demos and
+  reproduce input-dependent bugs. The same format becomes MZRakuCLI's
+  automation input in v1.6.0.
 - **.mzf machine auto-detect** — sniff MZ-700 vs MZ-80A vs MZ-800
   from the cassette header; corpus study first.
 - **CPU speed multiplier (1× / 2× / 3× …)** — authentic emulation
