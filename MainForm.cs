@@ -324,11 +324,19 @@ public sealed class MainForm : Form
             // The keybd_event(VK_MENU) trick simulates a press+release
             // of the Alt key, which temporarily lifts the lock. It's a
             // hack but is the standard documented workaround.
-            keybd_event(VK_MENU, 0, 0, UIntPtr.Zero);
-            keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
-            SetForegroundWindow(Handle);
-            Activate();
-            Focus();
+            //
+            // --dump runs skip it: they take no keyboard input, and the
+            // regression suite runs several at once in the background,
+            // where the injected Alt would land in whichever window has
+            // focus.
+            if (_dumpPath == null)
+            {
+                keybd_event(VK_MENU, 0, 0, UIntPtr.Zero);
+                keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                SetForegroundWindow(Handle);
+                Activate();
+                Focus();
+            }
             Start();
 
             // --display=full from the CLI flips into borderless mode
@@ -584,6 +592,9 @@ public sealed class MainForm : Form
 
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
+        // A --dump run swallows real keys here too, so no hotkey or
+        // menu shortcut fires (see IgnoreHostKeys).
+        if (IgnoreHostKeys) return true;
         // Alt+Enter is the full-screen toggle. Catching it here keeps it
         // out of Windows' own Alt-handling (which would otherwise pop
         // the system menu or eat the keystroke).
@@ -1091,8 +1102,9 @@ public sealed class MainForm : Form
         if (dp.SoundDiagnostic && SoundDiagnosticForm.Supports(Active.Kind)) OpenSoundDiag();
         if (dp.KeyboardMatrix) OpenKeyboardMatrix();
         // Return focus to the main window so the emulator gets input
-        // events; the last pane opened would otherwise steal it.
-        Activate();
+        // events; the last pane opened would otherwise steal it. Not
+        // for --dump runs, which take no keyboard input (see Shown).
+        if (_dumpPath == null) Activate();
     }
 
     // Frame pacing. The WinForms timer can't deliver 60 ticks/s — on
@@ -1244,20 +1256,37 @@ public sealed class MainForm : Form
     /// </summary>
     private void InjectScriptedKey(KeyScript.Event ev)
     {
-        if (ev.Kind == KeyScript.EventKind.Up)
+        _injectingScriptedKey = true;
+        try
         {
-            OnKeyUp(this, new KeyEventArgs(ev.KeyData));
-            return;
+            if (ev.Kind == KeyScript.EventKind.Up)
+            {
+                OnKeyUp(this, new KeyEventArgs(ev.KeyData));
+                return;
+            }
+            int wm = (ev.KeyData & Keys.Alt) != 0 ? WM_SYSKEYDOWN : WM_KEYDOWN;
+            var msg = Message.Create(Handle, wm, (IntPtr)(int)(ev.KeyData & Keys.KeyCode), IntPtr.Zero);
+            if (ProcessCmdKey(ref msg, ev.KeyData)) return;
+            OnKeyDown(this, new KeyEventArgs(ev.KeyData));
+            if (ev.Text is char c) OnKeyPress(this, new KeyPressEventArgs(c));
         }
-        int wm = (ev.KeyData & Keys.Alt) != 0 ? WM_SYSKEYDOWN : WM_KEYDOWN;
-        var msg = Message.Create(Handle, wm, (IntPtr)(int)(ev.KeyData & Keys.KeyCode), IntPtr.Zero);
-        if (ProcessCmdKey(ref msg, ev.KeyData)) return;
-        OnKeyDown(this, new KeyEventArgs(ev.KeyData));
-        if (ev.Text is char c) OnKeyPress(this, new KeyPressEventArgs(c));
+        finally
+        {
+            _injectingScriptedKey = false;
+        }
     }
+
+    private bool _injectingScriptedKey;
+
+    // --dump runs ignore the real keyboard, as they do the gamepad: a
+    // captured frame must not depend on keys pressed while its window
+    // happens to have focus (the regression suite opens several at
+    // once). Scripted --keys input still gets through.
+    private bool IgnoreHostKeys => _dumpTrace != null && !_injectingScriptedKey;
 
     private void OnKeyDown(object? s, KeyEventArgs e)
     {
+        if (IgnoreHostKeys) return;
         // MZ-80A path: its own keyboard (Mz80aCharMap, special keys,
         // overrides, InvertLetterShift) with a strobe-0 SHIFT.
         if (_mz80a != null)
@@ -1290,6 +1319,7 @@ public sealed class MainForm : Form
 
     private void OnKeyPress(object? s, KeyPressEventArgs e)
     {
+        if (IgnoreHostKeys) return;
         // MZ-80A: char-driven path added Phase A (2026-07-12). OnKeyDown
         // routes non-printables directly and defers character keys here.
         if (_mz80a != null)
@@ -1308,6 +1338,7 @@ public sealed class MainForm : Form
 
     private void OnKeyUp(object? s, KeyEventArgs e)
     {
+        if (IgnoreHostKeys) return;
         if (_mz80a != null)
         {
             if (_mz80a.Keyboard.OnKeyUp(e.KeyData)) e.Handled = true;

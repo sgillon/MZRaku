@@ -182,8 +182,14 @@ def run_case(case):
             os.remove(os.path.join(OUT, f))
     box = make_sandbox(name)
     cmd = [os.path.join(box, "MZRaku.exe")] + resolve(args) + [f"--dump={base}", f"--dumpframe={frame}"]
+    # Open minimised without taking focus, so a run doesn't cover the
+    # screen or steal keystrokes typed elsewhere (dump runs ignore the
+    # real keyboard anyway).
+    si = subprocess.STARTUPINFO()
+    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    si.wShowWindow = 7   # SW_SHOWMINNOACTIVE
     try:
-        subprocess.run(cmd, timeout=frame / 50 * 3 + 60, cwd=box)
+        subprocess.run(cmd, timeout=frame / 50 * 3 + 60, cwd=box, startupinfo=si)
     except subprocess.TimeoutExpired:
         return name, "TIMEOUT"
     return name, "ok" if os.path.exists(base + ".png") else "NO OUTPUT"
