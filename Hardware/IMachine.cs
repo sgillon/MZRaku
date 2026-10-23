@@ -1,4 +1,3 @@
-using System.Drawing;
 using Z80Core;
 
 namespace MZRaku.Hardware;
@@ -51,12 +50,12 @@ public interface IMachine
 
     /// <summary>
     /// The most recently rendered video frame. Null if the
-    /// machine hasn't rendered yet (first frame not drawn). Both
-    /// machines render into a <see cref="Bitmap"/> at their native
-    /// 320×200 (MZ-700) or 320×200 (MZ-80A) resolution — MainForm
-    /// paints whichever is non-null.
+    /// machine hasn't rendered yet (first frame not drawn). Every
+    /// machine renders into a <see cref="FrameBuffer"/> at its native
+    /// resolution: 320×200, or 640×200 for the MZ-800's 640 modes.
+    /// The front end converts it for display.
     /// </summary>
-    Bitmap? VideoFrame { get; }
+    FrameBuffer? VideoFrame { get; }
 
     /// <summary>
     /// The machine's cassette-trap state. Exposed at the shared

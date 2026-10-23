@@ -39,7 +39,7 @@ public sealed class MZ80A : MzMachineBase, IMachine
     Z80Core.IMemory IMachine.Mem => Mem;
     public bool IsSideEffectRead(ushort addr) => Mem.IsIoRead(addr);
     CassetteTrapBase IMachine.Cassette => Cassette;
-    System.Drawing.Bitmap? IMachine.VideoFrame => Video.Frame;
+    FrameBuffer? IMachine.VideoFrame => Video.Frame;
 
     // MZ-80A crystal is 8 MHz divided down; CPU runs at 2 MHz per the
     // Owner's Manual §3.1 text. PIT input clock rates are best-guess

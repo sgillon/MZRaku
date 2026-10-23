@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Drawing.Imaging;
 
 namespace MZRaku.Hardware;
 
@@ -37,12 +35,12 @@ public sealed class Video
         unchecked((int)0xFFFFFFFF), // white
     };
 
-    public Bitmap Frame = new Bitmap(PixelWidth, PixelHeight, PixelFormat.Format32bppArgb);
+    public FrameBuffer Frame = new(PixelWidth, PixelHeight);
 
     // Standalone-glyph cache for picker / matrix-grid UIs. Keyed by
     // (display-code, font-bank, scale-factor) so multiple scales coexist.
     // Invalidated when the font ROM is reloaded.
-    private readonly Dictionary<(byte code, int bank, int scale), Bitmap> _glyphCache = new();
+    private readonly Dictionary<(byte code, int bank, int scale), FrameBuffer> _glyphCache = new();
 
     public void LoadFont(byte[] font)
     {
@@ -80,118 +78,91 @@ public sealed class Video
     }
 
     /// <summary>
-    /// Render one MZ-700 character-ROM glyph to a standalone Bitmap, scaled
-    /// by an integer factor. Black-on-white so the result is readable out
-    /// of the MZ palette context (used by picker / matrix-grid UIs).
+    /// Render one MZ-700 character-ROM glyph to a standalone frame buffer,
+    /// scaled by an integer factor. Black-on-white so the result is readable
+    /// out of the MZ palette context (used by picker / matrix-grid UIs).
     /// Results are cached per (code, bank, scale); call
     /// <see cref="InvalidateGlyphCache"/> if the font ROM changes.
     /// </summary>
-    public Bitmap GetGlyph(byte code, int bank, int scale = 2)
+    public FrameBuffer GetGlyph(byte code, int bank, int scale = 2)
     {
         if (scale < 1) scale = 1;
         var key = (code, bank, scale);
         if (_glyphCache.TryGetValue(key, out var cached)) return cached;
-        var bmp = RenderGlyph(code, bank, scale);
-        _glyphCache[key] = bmp;
-        return bmp;
+        var glyph = RenderGlyph(code, bank, scale);
+        _glyphCache[key] = glyph;
+        return glyph;
     }
 
-    public void InvalidateGlyphCache()
-    {
-        foreach (var bmp in _glyphCache.Values) bmp.Dispose();
-        _glyphCache.Clear();
-    }
+    public void InvalidateGlyphCache() => _glyphCache.Clear();
 
-    private Bitmap RenderGlyph(byte code, int bank, int scale)
+    private FrameBuffer RenderGlyph(byte code, int bank, int scale)
     {
         int size = CharWidth * scale;
-        var bmp = new Bitmap(size, size, PixelFormat.Format32bppArgb);
+        var glyph = new FrameBuffer(size, size);
         int fontOff = (bank & 1) * 2048 + code * CharHeight;
         int fg = unchecked((int)0xFF000000);
         int bg = unchecked((int)0xFFFFFFFF);
-        var rect = new Rectangle(0, 0, size, size);
-        var data = bmp.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-        try
+        int[] pix = glyph.Pixels;
+        for (int r = 0; r < CharHeight; r++)
         {
-            unsafe
+            byte fb = FontRom[fontOff + r];
+            // Same LSB-first decoding as Render; bit 0 is leftmost.
+            for (int sy = 0; sy < scale; sy++)
             {
-                int stride = data.Stride / 4;
-                int* pix = (int*)data.Scan0;
-                for (int r = 0; r < CharHeight; r++)
+                int dst = (r * scale + sy) * size;
+                for (int c = 0; c < CharWidth; c++)
                 {
-                    byte fb = FontRom[fontOff + r];
-                    // Same LSB-first decoding as Render; bit 0 is leftmost.
-                    for (int sy = 0; sy < scale; sy++)
-                    {
-                        int* dst = pix + (r * scale + sy) * stride;
-                        for (int c = 0; c < CharWidth; c++)
-                        {
-                            int color = ((fb & (1 << c)) != 0) ? fg : bg;
-                            for (int sx = 0; sx < scale; sx++)
-                                dst[c * scale + sx] = color;
-                        }
-                    }
+                    int color = ((fb & (1 << c)) != 0) ? fg : bg;
+                    for (int sx = 0; sx < scale; sx++)
+                        pix[dst + c * scale + sx] = color;
                 }
             }
         }
-        finally
-        {
-            bmp.UnlockBits(data);
-        }
-        return bmp;
+        return glyph;
     }
 
     private static bool IsHex(char c)
         => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 
-    public void Render(byte[] vram, byte[] aram)
+    public unsafe void Render(byte[] vram, byte[] aram)
     {
-        var rect = new Rectangle(0, 0, PixelWidth, PixelHeight);
-        var data = Frame.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-        try
+        fixed (int* pix = Frame.Pixels)
         {
-            unsafe
+            const int stride = PixelWidth;
+
+            for (int row = 0; row < CharRows; row++)
             {
-                int stride = data.Stride / 4;
-                int* pix = (int*)data.Scan0;
-
-                for (int row = 0; row < CharRows; row++)
+                int vramRowBase = row * CharCols;
+                int pixY = row * CharHeight;
+                for (int col = 0; col < CharCols; col++)
                 {
-                    int vramRowBase = row * CharCols;
-                    int pixY = row * CharHeight;
-                    for (int col = 0; col < CharCols; col++)
-                    {
-                        int idx = vramRowBase + col;
-                        byte ch = vram[idx];
-                        byte attr = aram[idx];
-                        int bank = (attr >> 7) & 1;
-                        // MZ-700 attribute: bits 6..4 = FG, bits 2..0 = BG
-                        int fg = Palette[(attr >> 4) & 7];
-                        int bg = Palette[attr & 7];
-                        int fontOff = bank * 2048 + ch * 8;
+                    int idx = vramRowBase + col;
+                    byte ch = vram[idx];
+                    byte attr = aram[idx];
+                    int bank = (attr >> 7) & 1;
+                    // MZ-700 attribute: bits 6..4 = FG, bits 2..0 = BG
+                    int fg = Palette[(attr >> 4) & 7];
+                    int bg = Palette[attr & 7];
+                    int fontOff = bank * 2048 + ch * 8;
 
-                        int pixX = col * CharWidth;
-                        for (int r = 0; r < CharHeight; r++)
-                        {
-                            byte fb = FontRom[fontOff + r];
-                            // Font ROM stores pixels LSB-first (bit 0 = leftmost column)
-                            int* dst = pix + (pixY + r) * stride + pixX;
-                            dst[0] = ((fb & 0x01) != 0) ? fg : bg;
-                            dst[1] = ((fb & 0x02) != 0) ? fg : bg;
-                            dst[2] = ((fb & 0x04) != 0) ? fg : bg;
-                            dst[3] = ((fb & 0x08) != 0) ? fg : bg;
-                            dst[4] = ((fb & 0x10) != 0) ? fg : bg;
-                            dst[5] = ((fb & 0x20) != 0) ? fg : bg;
-                            dst[6] = ((fb & 0x40) != 0) ? fg : bg;
-                            dst[7] = ((fb & 0x80) != 0) ? fg : bg;
-                        }
+                    int pixX = col * CharWidth;
+                    for (int r = 0; r < CharHeight; r++)
+                    {
+                        byte fb = FontRom[fontOff + r];
+                        // Font ROM stores pixels LSB-first (bit 0 = leftmost column)
+                        int* dst = pix + (pixY + r) * stride + pixX;
+                        dst[0] = ((fb & 0x01) != 0) ? fg : bg;
+                        dst[1] = ((fb & 0x02) != 0) ? fg : bg;
+                        dst[2] = ((fb & 0x04) != 0) ? fg : bg;
+                        dst[3] = ((fb & 0x08) != 0) ? fg : bg;
+                        dst[4] = ((fb & 0x10) != 0) ? fg : bg;
+                        dst[5] = ((fb & 0x20) != 0) ? fg : bg;
+                        dst[6] = ((fb & 0x40) != 0) ? fg : bg;
+                        dst[7] = ((fb & 0x80) != 0) ? fg : bg;
                     }
                 }
             }
-        }
-        finally
-        {
-            Frame.UnlockBits(data);
         }
     }
 }

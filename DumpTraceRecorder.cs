@@ -142,8 +142,7 @@ internal sealed class DumpTraceRecorder
     {
         var frame = _active.VideoFrame;
         if (frame == null || _dumpPath == null) return;
-        using (var snapshot = new System.Drawing.Bitmap(frame))
-            snapshot.Save(_dumpPath + ".png", System.Drawing.Imaging.ImageFormat.Png);
+        PngWriter.Save(frame, _dumpPath + ".png");
 
         if (_mz800 != null)
         {
@@ -186,8 +185,7 @@ internal sealed class DumpTraceRecorder
                 }
             }
             _mz800.Video.RenderPlanes320(mem.PlaneI, mem.PlaneII, null, null, Mz800Video.UniformRows(Mz800Video.PaletteLut(mem.Palette)), Mz800Video.ScrollRegs.None);
-            using var snapshot = new System.Drawing.Bitmap(_mz800.Video.Frame);
-            snapshot.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+            PngWriter.Save(_mz800.Video.Frame, path);
         }
         finally
         {
@@ -234,8 +232,7 @@ internal sealed class DumpTraceRecorder
                 }
             }
             _mz800.Video.RenderPlanes640(mem.PlaneI, null, Mz800Video.UniformRows(Mz800Video.PaletteLut(mem.Palette)), Mz800Video.ScrollRegs.None);
-            using var snapshot = new System.Drawing.Bitmap(_mz800.Video.FrameHi);
-            snapshot.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+            PngWriter.Save(_mz800.Video.FrameHi, path);
         }
         finally
         {
@@ -280,8 +277,7 @@ internal sealed class DumpTraceRecorder
             // rotates (black moves from top to bottom).
             mem.Sof = 250;
             _mz800.Video.RenderPlanes320(mem.PlaneI, mem.PlaneII, null, null, Mz800Video.UniformRows(Mz800Video.PaletteLut(mem.Palette)), new Mz800Video.ScrollRegs(0x00, 0x7D, 0x7D, mem.Sof));
-            using var snapshot = new System.Drawing.Bitmap(_mz800.Video.Frame);
-            snapshot.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+            PngWriter.Save(_mz800.Video.Frame, path);
         }
         finally
         {
@@ -318,8 +314,7 @@ internal sealed class DumpTraceRecorder
             var lut = Mz800Video.PaletteLut(new byte[] { 0x0, 0xF, 0x0, 0x0 });
             _mz800.Video.RenderPlanes320(mem.PlaneI, mem.PlaneII, null, null,
                 Mz800Video.UniformRows(lut), new Mz800Video.ScrollRegs(0x19, 0x5A, 0x41, 0x05));
-            using var snapshot = new System.Drawing.Bitmap(_mz800.Video.Frame);
-            snapshot.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+            PngWriter.Save(_mz800.Video.Frame, path);
         }
         finally
         {

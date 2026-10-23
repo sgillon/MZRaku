@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Drawing.Imaging;
 
 namespace MZRaku.Hardware;
 
@@ -22,7 +20,7 @@ namespace MZRaku.Hardware;
 ///     per-row colour lookup (palette, 16-colour groups — tech-ref
 ///     pp. 17-23) and the hardware-scroll address map (pp. 10-12).
 ///
-/// Output bitmaps: <see cref="Frame"/> (320×200, MZ-700 mode and
+/// Output frame buffers: <see cref="Frame"/> (320×200, MZ-700 mode and
 /// 320-wide bitmap modes) and <see cref="FrameHi"/> (640×200). The
 /// border is not drawn. See
 /// _mz-information-repository/MZ-800/Research/MZ800_VideoRendering_Research/
@@ -54,13 +52,13 @@ public sealed class Mz800Video
         unchecked((int)0xFFFFFFFF), // white
     };
 
-    public Bitmap Frame = new Bitmap(PixelWidth, PixelHeight, PixelFormat.Format32bppArgb);
+    public FrameBuffer Frame = new(PixelWidth, PixelHeight);
 
-    // 640×200 output. A second bitmap rather than a resized Frame;
+    // 640×200 output. A second buffer rather than a resized Frame;
     // MZ800.VideoFrame returns whichever matches the DMD resolution.
     public const int HiPixelWidth = 640;
     public const int HiPixelHeight = 200;
-    public Bitmap FrameHi = new Bitmap(HiPixelWidth, HiPixelHeight, PixelFormat.Format32bppArgb);
+    public FrameBuffer FrameHi = new(HiPixelWidth, HiPixelHeight);
 
     /// <summary>
     /// Copy the 4 KB CG-ROM out of the combined MZ800.ROM into
@@ -74,38 +72,37 @@ public sealed class Mz800Video
         const int cgOffset = 0x1000;
         int n = Math.Min(rom.Length - cgOffset, FontRom.Length);
         if (n > 0) Array.Copy(rom, cgOffset, FontRom, 0, n);
-        foreach (var bmp in _glyphCache.Values) bmp.Dispose();
         _glyphCache.Clear();
     }
 
-    private readonly Dictionary<(byte, int, int), Bitmap> _glyphCache = new();
+    private readonly Dictionary<(byte, int, int), FrameBuffer> _glyphCache = new();
 
     /// <summary>
     /// One CG-ROM glyph, black on white, for the Font Sheet. Same two
     /// 2 KB banks as the MZ-700 (bank 1 = the attribute bit-7 set), LSB
-    /// = leftmost pixel. Cached; the caller must not dispose it.
+    /// = leftmost pixel. Cached; the caller must not modify it.
     /// </summary>
-    public Bitmap GetGlyph(byte code, int bank, int scale)
+    public FrameBuffer GetGlyph(byte code, int bank, int scale)
     {
         if (scale < 1) scale = 1;
         var key = (code, bank, scale);
         if (_glyphCache.TryGetValue(key, out var cached)) return cached;
         int size = CharWidth * scale;
-        var bmp = new Bitmap(size, size, PixelFormat.Format32bppArgb);
+        var glyph = new FrameBuffer(size, size);
         int fontOff = (bank & 1) * 2048 + code * CharHeight;
         for (int r = 0; r < CharHeight; r++)
         {
             byte fb = FontRom[fontOff + r];
             for (int c = 0; c < CharWidth; c++)
             {
-                var color = (fb & (1 << c)) != 0 ? Color.Black : Color.White;
+                int color = (fb & (1 << c)) != 0 ? unchecked((int)0xFF000000) : unchecked((int)0xFFFFFFFF);
                 for (int sy = 0; sy < scale; sy++)
                     for (int sx = 0; sx < scale; sx++)
-                        bmp.SetPixel(c * scale + sx, r * scale + sy, color);
+                        glyph.Pixels[(r * scale + sy) * size + c * scale + sx] = color;
             }
         }
-        _glyphCache[key] = bmp;
-        return bmp;
+        _glyphCache[key] = glyph;
+        return glyph;
     }
 
     /// <summary>
@@ -139,53 +136,43 @@ public sealed class Mz800Video
     /// in <paramref name="vram"/> and attributes in <paramref name="aram"/>,
     /// glyphs from <see cref="FontRom"/> (LSB = leftmost pixel).
     /// </summary>
-    public void Render(byte[] vram, byte[] aram)
+    public unsafe void Render(byte[] vram, byte[] aram)
     {
-        var rect = new Rectangle(0, 0, PixelWidth, PixelHeight);
-        var data = Frame.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-        try
+        fixed (int* pix = Frame.Pixels)
         {
-            unsafe
+            const int stride = PixelWidth;
+
+            for (int row = 0; row < CharRows; row++)
             {
-                int stride = data.Stride / 4;
-                int* pix = (int*)data.Scan0;
-
-                for (int row = 0; row < CharRows; row++)
+                int vramRowBase = row * CharCols;
+                int pixY = row * CharHeight;
+                for (int col = 0; col < CharCols; col++)
                 {
-                    int vramRowBase = row * CharCols;
-                    int pixY = row * CharHeight;
-                    for (int col = 0; col < CharCols; col++)
-                    {
-                        int idx = vramRowBase + col;
-                        byte ch = vram[idx];
-                        byte attr = aram[idx];
-                        int bank = (attr >> 7) & 1;
-                        int fg = Palette[(attr >> 4) & 7];
-                        int bg = Palette[attr & 7];
-                        int fontOff = bank * 2048 + ch * 8;
+                    int idx = vramRowBase + col;
+                    byte ch = vram[idx];
+                    byte attr = aram[idx];
+                    int bank = (attr >> 7) & 1;
+                    int fg = Palette[(attr >> 4) & 7];
+                    int bg = Palette[attr & 7];
+                    int fontOff = bank * 2048 + ch * 8;
 
-                        int pixX = col * CharWidth;
-                        for (int r = 0; r < CharHeight; r++)
-                        {
-                            byte fb = FontRom[fontOff + r];
-                            // Font ROM stores pixels LSB-first (bit 0 = leftmost column)
-                            int* dst = pix + (pixY + r) * stride + pixX;
-                            dst[0] = ((fb & 0x01) != 0) ? fg : bg;
-                            dst[1] = ((fb & 0x02) != 0) ? fg : bg;
-                            dst[2] = ((fb & 0x04) != 0) ? fg : bg;
-                            dst[3] = ((fb & 0x08) != 0) ? fg : bg;
-                            dst[4] = ((fb & 0x10) != 0) ? fg : bg;
-                            dst[5] = ((fb & 0x20) != 0) ? fg : bg;
-                            dst[6] = ((fb & 0x40) != 0) ? fg : bg;
-                            dst[7] = ((fb & 0x80) != 0) ? fg : bg;
-                        }
+                    int pixX = col * CharWidth;
+                    for (int r = 0; r < CharHeight; r++)
+                    {
+                        byte fb = FontRom[fontOff + r];
+                        // Font ROM stores pixels LSB-first (bit 0 = leftmost column)
+                        int* dst = pix + (pixY + r) * stride + pixX;
+                        dst[0] = ((fb & 0x01) != 0) ? fg : bg;
+                        dst[1] = ((fb & 0x02) != 0) ? fg : bg;
+                        dst[2] = ((fb & 0x04) != 0) ? fg : bg;
+                        dst[3] = ((fb & 0x08) != 0) ? fg : bg;
+                        dst[4] = ((fb & 0x10) != 0) ? fg : bg;
+                        dst[5] = ((fb & 0x20) != 0) ? fg : bg;
+                        dst[6] = ((fb & 0x40) != 0) ? fg : bg;
+                        dst[7] = ((fb & 0x80) != 0) ? fg : bg;
                     }
                 }
             }
-        }
-        finally
-        {
-            Frame.UnlockBits(data);
         }
     }
 
@@ -283,43 +270,33 @@ public sealed class Mz800Video
     /// (<see cref="AddressMap"/>). Border not painted — the 320×200
     /// active area fills <see cref="Frame"/>.
     /// </summary>
-    public void RenderPlanes320(byte[]? p0, byte[]? p1, byte[]? p2, byte[]? p3, int[][] rowLuts, ScrollRegs scroll)
+    public unsafe void RenderPlanes320(byte[]? p0, byte[]? p1, byte[]? p2, byte[]? p3, int[][] rowLuts, ScrollRegs scroll)
     {
         p0 ??= NoPlane; p1 ??= NoPlane; p2 ??= NoPlane; p3 ??= NoPlane;
         int[] map = AddressMap(scroll);
 
-        var rect = new Rectangle(0, 0, PixelWidth, PixelHeight);
-        var data = Frame.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-        try
+        fixed (int* pix = Frame.Pixels)
         {
-            unsafe
+            const int stride = PixelWidth;
+            const int bytesPerRow = PixelWidth / 8; // 40
+            for (int y = 0; y < PixelHeight; y++)
             {
-                int stride = data.Stride / 4;
-                int* pix = (int*)data.Scan0;
-                const int bytesPerRow = PixelWidth / 8; // 40
-                for (int y = 0; y < PixelHeight; y++)
+                int rowBase = y * bytesPerRow;
+                int* rowPix = pix + y * stride;
+                int[] lut = rowLuts[y];
+                for (int col = 0; col < bytesPerRow; col++)
                 {
-                    int rowBase = y * bytesPerRow;
-                    int* rowPix = pix + y * stride;
-                    int[] lut = rowLuts[y];
-                    for (int col = 0; col < bytesPerRow; col++)
+                    int offset = map[rowBase + col];
+                    int b0 = p0[offset], b1 = p1[offset], b2 = p2[offset], b3 = p3[offset];
+                    int pixX = col * 8;
+                    for (int bit = 0; bit < 8; bit++)
                     {
-                        int offset = map[rowBase + col];
-                        int b0 = p0[offset], b1 = p1[offset], b2 = p2[offset], b3 = p3[offset];
-                        int pixX = col * 8;
-                        for (int bit = 0; bit < 8; bit++)
-                        {
-                            int code = ((b0 >> bit) & 1) | (((b1 >> bit) & 1) << 1)
-                                     | (((b2 >> bit) & 1) << 2) | (((b3 >> bit) & 1) << 3);
-                            rowPix[pixX + bit] = lut[code];
-                        }
+                        int code = ((b0 >> bit) & 1) | (((b1 >> bit) & 1) << 1)
+                                 | (((b2 >> bit) & 1) << 2) | (((b3 >> bit) & 1) << 3);
+                        rowPix[pixX + bit] = lut[code];
                     }
                 }
             }
-        }
-        finally
-        {
-            Frame.UnlockBits(data);
         }
     }
 
@@ -336,42 +313,32 @@ public sealed class Mz800Video
     /// $2000 + DA. DA goes through the same scroll map as 320 mode
     /// (<see cref="AddressMap"/>). LSB-first pixels.
     /// </summary>
-    public void RenderPlanes640(byte[]? planeA, byte[]? planeB, int[][] rowLuts, ScrollRegs scroll)
+    public unsafe void RenderPlanes640(byte[]? planeA, byte[]? planeB, int[][] rowLuts, ScrollRegs scroll)
     {
         planeA ??= NoPlane;
         planeB ??= NoPlane;
         int[] map = AddressMap(scroll);
 
-        var rect = new Rectangle(0, 0, HiPixelWidth, HiPixelHeight);
-        var data = FrameHi.LockBits(rect, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-        try
+        fixed (int* pix = FrameHi.Pixels)
         {
-            unsafe
+            const int stride = HiPixelWidth;
+            const int bytesPerRow = HiPixelWidth / 8; // 80
+            const int oddBankBase = 0x2000;
+            for (int y = 0; y < HiPixelHeight; y++)
             {
-                int stride = data.Stride / 4;
-                int* pix = (int*)data.Scan0;
-                const int bytesPerRow = HiPixelWidth / 8; // 80
-                const int oddBankBase = 0x2000;
-                for (int y = 0; y < HiPixelHeight; y++)
+                int rowBase = y * (bytesPerRow / 2);
+                int* rowPix = pix + y * stride;
+                int[] lut = rowLuts[y];
+                for (int c = 0; c < bytesPerRow; c++)
                 {
-                    int rowBase = y * (bytesPerRow / 2);
-                    int* rowPix = pix + y * stride;
-                    int[] lut = rowLuts[y];
-                    for (int c = 0; c < bytesPerRow; c++)
-                    {
-                        int da = map[rowBase + (c >> 1)];
-                        int planeAddr = (c & 1) == 0 ? da : oddBankBase + da;
-                        int a = planeA[planeAddr], b = planeB[planeAddr];
-                        int pixX = c * 8;
-                        for (int bit = 0; bit < 8; bit++)
-                            rowPix[pixX + bit] = lut[((a >> bit) & 1) | (((b >> bit) & 1) << 1)];
-                    }
+                    int da = map[rowBase + (c >> 1)];
+                    int planeAddr = (c & 1) == 0 ? da : oddBankBase + da;
+                    int a = planeA[planeAddr], b = planeB[planeAddr];
+                    int pixX = c * 8;
+                    for (int bit = 0; bit < 8; bit++)
+                        rowPix[pixX + bit] = lut[((a >> bit) & 1) | (((b >> bit) & 1) << 1)];
                 }
             }
-        }
-        finally
-        {
-            FrameHi.UnlockBits(data);
         }
     }
 }

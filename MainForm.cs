@@ -365,6 +365,8 @@ public sealed class MainForm : Form
             _soundDiag?.Dispose();
             Active.Sound.Dispose();
         };
+        // After FormClosing: a paint can still arrive until the window goes.
+        FormClosed += (_, _) => _displayBitmap?.Dispose();
     }
 
     private void BuildMenu()
@@ -1184,22 +1186,36 @@ public sealed class MainForm : Form
 
     private readonly int _dumpFrame;
 
+    // The core's frame buffer copied into a bitmap for GDI+ to scale;
+    // recreated only when the frame size changes (MZ-800 320 ↔ 640).
+    private Bitmap? _displayBitmap;
+
     private void Display_Paint(object? sender, PaintEventArgs e)
     {
         // Machine-agnostic framebuffer pick via IMachine.VideoFrame
         // (F-061). MZ-700 + MZ-80A + MZ-800 320-mode/MZ-700-mode all
-        // hand back a 320×200 32bppArgb bitmap; MZ-800 640-mode hands
+        // hand back a 320×200 frame buffer; MZ-800 640-mode hands
         // back a 640×200 one. Scaling uses a fixed 320×200 reference
-        // area regardless of which bitmap came back — that matches how
+        // area regardless of which frame came back — that matches how
         // real MZ-800 CRT hardware paints 320-mode pixels 2× wide and
         // 640-mode pixels at native density into the same physical
         // display area.
-        var frame = ((IMachine?)_machine ?? (IMachine?)_mz80a ?? _mz800)?.VideoFrame;
-        if (frame == null)
+        var frameBuffer = ((IMachine?)_machine ?? (IMachine?)_mz80a ?? _mz800)?.VideoFrame;
+        if (frameBuffer == null)
         {
             e.Graphics.Clear(Color.Black);
             return;
         }
+        if (_displayBitmap == null || _displayBitmap.Width != frameBuffer.Width || _displayBitmap.Height != frameBuffer.Height)
+        {
+            _displayBitmap?.Dispose();
+            _displayBitmap = FrameBufferBitmap.ToBitmap(frameBuffer);
+        }
+        else
+        {
+            FrameBufferBitmap.CopyTo(frameBuffer, _displayBitmap);
+        }
+        var frame = _displayBitmap;
         e.Graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
         e.Graphics.PixelOffsetMode = PixelOffsetMode.Half;
         e.Graphics.SmoothingMode = SmoothingMode.None;

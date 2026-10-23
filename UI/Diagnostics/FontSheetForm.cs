@@ -177,7 +177,8 @@ public sealed class FontSheetForm : Form
                 var glyph = _mz700 != null ? _mz700.Video.GetGlyph(code, sectionIndex, GlyphScale)
                           : _mz800 != null ? _mz800.Video.GetGlyph(code, sectionIndex, GlyphScale)
                           : _mz80a!.Video.GetGlyph(code, GlyphScale);
-                g.DrawImageUnscaled(glyph, cellX, cellY);
+                using (var glyphBmp = FrameBufferBitmap.ToBitmap(glyph))
+                    g.DrawImageUnscaled(glyphBmp, cellX, cellY);
 
                 // MZ-700: outline cells the keyboard can produce in this
                 // bank so the user can pick something typeable without
