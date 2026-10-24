@@ -68,8 +68,9 @@ ZIPS = {
     "egg.zip": [EGG + "EGG.BAS.mzf", EGG + "EGG.OBJ.mzf"],
 }
 
-# name, CLI args, dump frame, extra artefacts to compare
-#   "tests" = the three MZ-800 test-pattern PNGs, "wav" = rendered audio
+# name, CLI args, dump frame, extra artefacts to compare.
+# README.md (next to this script) describes every case: keep it in step.
+#   "tests" = the four MZ-800 test-pattern PNGs, "wav" = rendered audio
 #   (MZ-800), "snd" = speaker-input event log (MZ-700 / MZ-80A)
 #   A path after --cassette is relative to the repository (or names a
 #   ZIPS entry); --keys=<file> names a scripted-input file in keys/
