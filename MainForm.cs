@@ -95,9 +95,9 @@ public sealed class MainForm : Form
     private readonly string? _initialCassette;
     private readonly bool _autoLoadBasic;
     private readonly string? _dumpPath;
-    private DumpTraceRecorder? _dumpTrace;
+    private DumpTraceRecorder? _dumpTrace => _session.DumpTrace;
     private readonly KeyScript? _keyScript;           // --keys=<file>
-    private AutoLoadOrchestrator _autoLoad = null!;   // constructed in Start()
+    private AutoLoadOrchestrator _autoLoad => _session.AutoLoad;   // created in Start()
     private bool _started;
     private DebuggerForm? _debugger;
     private MemoryViewerForm? _memViewer;
@@ -218,24 +218,18 @@ public sealed class MainForm : Form
             UpdateMz800ModeLabel();
         }
 
-        // Cassette trap events surface load / save outcomes via the
-        // status label. Fire on the UI thread (OnPreStep is called from
-        // Timer_Tick → RunFrame), so we can touch the label directly.
-        // OnSaved is MZ-700-only for now — Mz80aCassette doesn't yet
-        // expose SAVE traps. OnLoaded fires on both machines.
-        if (_machine != null)
+        // Session events. All fire on the UI thread (frames run from
+        // Timer_Tick), so the handlers can touch controls directly.
+        _session.StatusMessage += msg => _statusLabel.Text = msg;
+        _session.FatalError += msg =>
+            MessageBox.Show(this, msg, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        _session.GraphModeEntered += () =>
         {
-            _machine.Cassette.OnSaved += msg => _statusLabel.Text = msg;
-            _machine.Cassette.OnLoaded += msg => _statusLabel.Text = msg;
-        }
-        if (_mz80a != null)
-        {
-            _mz80a.Cassette.OnLoaded += msg => _statusLabel.Text = msg;
-        }
-        if (_mz800 != null)
-        {
-            _mz800.Cassette.OnLoaded += msg => _statusLabel.Text = msg;
-        }
+            if (_fontSheet == null || _fontSheet.IsDisposed || !_fontSheet.Visible)
+                OpenFontSheet();
+        };
+        _session.GraphModeSampled += UpdateModeLabel;
+        _session.DumpComplete += Close;
 
         // Every direct assignment to _statusLabel.Text starts the
         // idle-clear timer, so every call site sitewide participates
@@ -609,98 +603,10 @@ public sealed class MainForm : Form
 
         try
         {
-            if (string.IsNullOrEmpty(_settings.MonitorRomFullPath) || !File.Exists(_settings.MonitorRomFullPath))
-            {
-                var expected = ExpectedFirmware(_settings.CurrentMachine).Monitor;
-                var configured = string.IsNullOrEmpty(_settings.MonitorRomPath)
-                    ? "(none configured)"
-                    : $"{_settings.MonitorRomPath}  →  {_settings.MonitorRomFullPath}";
-                throw new FileNotFoundException(
-                    $"Monitor ROM ({expected}) not found.\n\n" +
-                    $"Configured path: {configured}\n\n" +
-                    $"Place {expected} under a 'roms' folder next to the executable, " +
-                    $"or set [Roms.{_settings.CurrentMachine}] Monitor= in {Path.Combine(AppContext.BaseDirectory, "settings.ini")}.");
-            }
-            Active.LoadRoms(_settings.MonitorRomFullPath, _settings.FontFullPath);
-            Active.Reset();
-            // PC-trace ring + PIT / bank-switch write logs only exist
-            // to feed the --dump=<file> report. Off unless --dump was
-            // asked for — otherwise we'd allocate and grow those
-            // StringBuilders forever on the hot CPU / PIT-write path
-            // (see [[project-feature-backlog]]).
-            bool tracing = _dumpPath != null;
-            Active.Cpu.PcTraceEnabled = tracing;
-            // Pit / Mem diagnostic hooks are MZ-700-specific for now —
-            // MZ-80A equivalents arrive with the sound diagnostic
-            // MZ-80A peer ([[project-mz80a-clk1-rate]]).
-            if (_machine != null)
-            {
-                _machine.Pit.WriteLog = tracing ? new System.Text.StringBuilder() : null;
-                _machine.Mem.BankSwitchLog = tracing ? new System.Text.StringBuilder() : null;
-            }
-            // MZ-700 / MZ-80A sound is synthesised in real time, so a
-            // dump records its inputs instead (<dump>.snd.txt). The
-            // MZ-800 renders in emulated time and captures a .wav below.
-            if (tracing && (_machine != null || _mz80a != null))
-            {
-                var cpu = Active.Cpu;
-                Active.Sound.StartEventLog(() => cpu.TotalCycles);
-            }
-            // MZ-800 gets the same hooks (both classes carry
-            // WriteLog + BankSwitchLog StringBuilder fields). Phase 2.5
-            // boot-hang investigation reads these via --dump=.
-            if (_mz800 != null)
-            {
-                _mz800.Pit.WriteLog = tracing ? new System.Text.StringBuilder() : null;
-                _mz800.Mem.BankSwitchLog = tracing ? new System.Text.StringBuilder() : null;
-                // Log every $8000-$BFFF write and
-                // every CRTC / palette register OUT. Fed into the .trace
-                // file by DumpTraceRecorder.
-                _mz800.Mem.VideoWriteLog = tracing ? new System.Text.StringBuilder() : null;
-                _mz800.Io.CrtcWriteLog = tracing ? new System.Text.StringBuilder() : null;
-                // Log every DMD write that switches between MZ-700 and
-                // MZ-800 mode, for offline analysis of how software
-                // changes mode.
-                _mz800.Mem.ModeFlipLog = tracing ? new System.Text.StringBuilder() : null;
-                // Log PIO / PSG / PPI writes so the interrupt
-                // setup (PIO vector + control words, PPI PC0/PC2 masks)
-                // software programs is visible offline.
-                _mz800.Io.IntIoWriteLog = tracing ? new System.Text.StringBuilder() : null;
-                // Phase 6.1: capture rendered audio for a .wav alongside the dump.
-                _mz800.AudioCapture = tracing ? new System.IO.MemoryStream() : null;
-            }
-            Active.Sound.Start(new WinmmWaveOut(Sound.OutputFormat));
-
-            // Dump-and-trace recorder (v1.2 audit F-055). No-op when
-            // --dump wasn't passed; the trace hooks already gated on
-            // _dumpPath above.
-            if (_dumpPath != null)
-            {
-                _dumpTrace = new DumpTraceRecorder(_dumpPath, _dumpFrame, Active, MachineLabel);
-                _dumpTrace.OnError += msg => _statusLabel.Text = msg;
-                _dumpTrace.OnDumpComplete += Close;
-            }
-
-            // Autoload orchestrator (v1.2 audit F-055). Owns the two
-            // per-machine BASIC + cassette + BASIC-source pipelines.
-            _autoLoad = new AutoLoadOrchestrator(
-                machine: _machine,
-                mz80a: _mz80a,
-                mz800: _mz800,
-                settings: _settings,
-                monitorReady: MonitorReady,
-                mz80aMonitorReady: Mz80aMonitorReady,
-                mz80aBasicReady: Mz80aBasicReady,
-                mz800MonitorReady: Mz800MonitorReady,
-                setStatus: msg => _statusLabel.Text = msg,
-                showFatal: msg => MessageBox.Show(this, msg, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error),
-                openFontSheet: () =>
-                {
-                    if (_fontSheet == null || _fontSheet.IsDisposed || !_fontSheet.Visible)
-                        OpenFontSheet();
-                },
-                typeBasicSource: TypeBasicSource,
-                updateModeLabel: UpdateModeLabel);
+            // ROMs, reset, sound, the --dump hooks and recorder, and the
+            // autoload orchestrator. A missing monitor ROM throws, with
+            // its message, into the catch below.
+            _session.Start(() => new WinmmWaveOut(Sound.OutputFormat), _dumpPath, _dumpFrame);
 
             // Auto-load BASIC if requested explicitly (--basic) OR if the
             // initial cassette is a BASIC program (type 0x02 / 0x05). The
@@ -758,99 +664,10 @@ public sealed class MainForm : Form
     // other. See RefreshPauseIndicator.
     private bool _wasPaused;
     private const string TitleBase = "MZRaku";
-    private bool _monitorReady;
     // Autoload state (BASIC pending, cassette pending, BASIC source
     // pending, _basicLoadedFrame, MZ-80A cassette-autorun tracking,
-    // _wasGraphMode) all live on _autoLoad after v1.2 audit F-055.
-
-    /// <summary>
-    /// MZ-80A analogue of MonitorReady. SA-1510 draws a block-cursor
-    /// glyph ($6B) at VRAM row 1 col 0 ($D028 → Vram[40]) once its
-    /// boot init is complete and the main-loop cursor blink starts.
-    /// The prompt "*" ($2A) alternates with the block via the cursor
-    /// blink phase, so either non-zero value at that position
-    /// indicates the prompt is live — either way, the ROM is out
-    /// of init and it's safe to auto-inject BASIC or a cassette.
-    /// </summary>
-    private bool Mz80aMonitorReady()
-    {
-        if (_monitorReady) return true;
-        if (_mz80a == null) return false;
-        var v = _mz80a.Mem.Vram;
-        if (v[40] != 0)
-        {
-            _monitorReady = true;
-        }
-        return _monitorReady;
-    }
-
-    /// <summary>
-    /// MZ-800 monitor/boot-menu ready detector. Phase 4 (v1.3.0) uses
-    /// this only for MC cassette autoload — we wait until the 1Z-016B
-    /// IPL has finished painting its boot menu ("Make ready CMT /
-    /// Please push key / C/Cassette tape / M/Monitor") to VRAM before
-    /// injecting, so the memory banks are in a DRAM-friendly state and
-    /// the CPU is in the boot menu's stable keyboard-wait loop.
-    ///
-    /// Detection: anchor on the MZ display-code sequence for "MONITOR"
-    /// — M=$0D O=$0F N=$0E I=$09 T=$14 O=$0F R=$12 — which is
-    /// unambiguously the boot-menu bottom line. Also accept the
-    /// lowercase bank-1 variant (M/onitor prints "onitor" as bank-1
-    /// codes $8F $8E $89 $94 $8F $92) since the 1Z-016B IPL uses
-    /// mixed case. Earlier "M/" digraph check turned out to be too
-    /// fragile — the menu row's actual layout has spaces or bank
-    /// differences we hadn't confirmed against VRAM.
-    /// </summary>
-    private bool Mz800MonitorReady()
-    {
-        if (_monitorReady) return true;
-        if (_mz800 == null) return false;
-        var v = _mz800.Mem.Vram;
-        // "ONITOR" (uppercase O-N-I-T-O-R) as bank-0 codes.
-        byte[] onitorU = { 0x0F, 0x0E, 0x09, 0x14, 0x0F, 0x12 };
-        // Same as bank-1 (lowercase). MZ bank-1 = bank-0 + $80.
-        byte[] onitorL = { 0x8F, 0x8E, 0x89, 0x94, 0x8F, 0x92 };
-        for (int i = 0; i + onitorU.Length < v.Length; i++)
-        {
-            if (Match(v, i, onitorU) || Match(v, i, onitorL))
-            {
-                _monitorReady = true;
-                break;
-            }
-        }
-        return _monitorReady;
-
-        static bool Match(byte[] v, int i, byte[] pat)
-        {
-            for (int k = 0; k < pat.Length; k++) if (v[i + k] != pat[k]) return false;
-            return true;
-        }
-    }
-
-    /// <summary>
-    /// Detect SA-5510's "Ready" prompt landing in VRAM. Scans the whole
-    /// text area for the display-code sequence R($12) e($85) a($81)
-    /// d($84) y($99) — uppercase R + lowercase-bank e/a/d/y (MZ-80A
-    /// lowercase display codes = uppercase + $80). Used as the "safe
-    /// to start typing" gate for cassette autorun on MZ-80A; the
-    /// 60-frame heuristic that works for MZ-700 fires too early here
-    /// because SA-5510's cold init takes ~3.3s.
-    /// </summary>
-    private bool Mz80aBasicReady()
-    {
-        if (_mz80a == null) return false;
-        var v = _mz80a.Mem.Vram;
-        for (int i = 0; i < 996; i++)
-        {
-            if (v[i]     == 0x12 && v[i + 1] == 0x85 &&
-                v[i + 2] == 0x81 && v[i + 3] == 0x84 &&
-                v[i + 4] == 0x99)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
+    // _wasGraphMode) all live on _autoLoad after v1.2 audit F-055; the
+    // ready checks it waits on live on the session.
 
     // TAPE chip state tracking. Snapshots of the cassette's trap-hit
     // counters between frames so a fresh hit (delta) can extend the
@@ -1005,27 +822,6 @@ public sealed class MainForm : Form
         _statusLabel.Text = "";   // TextChanged resets _statusLastSetFrame
     }
 
-    /// <summary>
-    /// Detect "monitor finished booting" by spotting the "MONITOR 1Z*"
-    /// banner the 1Z-013A ROM writes to VRAM row 0 once init is complete
-    /// and the keyboard input loop is active. This is exactly the state
-    /// BASIC's startup at $7D79 needs — the call into monitor at $0033
-    /// works cleanly only after the monitor has set up its stack and
-    /// stopped clearing RAM around $1200.
-    /// </summary>
-    private bool MonitorReady()
-    {
-        if (_monitorReady) return true;
-        var v = _machine!.Mem.Vram;
-        // MZ display codes: M=$0D O=$0F N=$0E I=$09 T=$14 1=$21 Z=$1A *=$2A
-        if (v[4] == 0x0D && v[5] == 0x0F && v[6] == 0x0E && v[7] == 0x09 &&
-            v[8] == 0x14 && v[9] == 0x0F && v[10] == 0x12 &&
-            v[12] == 0x21 && v[13] == 0x1A && v[14] == 0x2A)
-        {
-            _monitorReady = true;
-        }
-        return _monitorReady;
-    }
     /// <summary>
     /// Phase 5.3: after the main window is first shown, honour the
     /// [DebugPanes] boot flags by auto-opening each flagged pane via
@@ -1450,7 +1246,7 @@ public sealed class MainForm : Form
         var configured = string.IsNullOrEmpty(_settings.BasicPath)
             ? "(none configured)"
             : $"{_settings.BasicPath}  →  {_settings.BasicFullPath}";
-        var expected = ExpectedFirmware(_settings.CurrentMachine).Basic;
+        var expected = EmulatorSession.ExpectedFirmware(_settings.CurrentMachine).Basic;
         MessageBox.Show(this,
             $"BASIC cassette image ({expected}) not found.\n\n" +
             $"Configured path: {configured}\n\n" +
@@ -1459,15 +1255,6 @@ public sealed class MainForm : Form
             "BASIC not found", MessageBoxButtons.OK, MessageBoxIcon.Error);
         return false;
     }
-
-    /// <summary>The Sharp firmware file names each machine expects —
-    /// the names <see cref="Settings.EnsureRomPaths"/> auto-detects.</summary>
-    private static (string Monitor, string Basic) ExpectedFirmware(MachineType machine) => machine switch
-    {
-        MachineType.MZ80A => ("SA-1510.rom", "SA-5510.mzf"),
-        MachineType.MZ800 => ("MZ800.ROM",   "1Z-016.mzf"),
-        _                 => ("1z-013a.rom", "1Z-013B.mzf"),
-    };
 
     private void BrowseAndLoadBasicSource()
     {
@@ -1501,7 +1288,7 @@ public sealed class MainForm : Form
                 _statusLabel.Text = $"Loading BASIC + {Path.GetFileName(path)}…";
                 return;
             }
-            TypeBasicSource(path);
+            _session.TypeBasicSource(path);
             _statusLabel.Text = $"Typing {Path.GetFileName(path)}…";
         }
         catch (Exception ex)
@@ -1510,35 +1297,13 @@ public sealed class MainForm : Form
         }
     }
 
-    private void TypeBasicSource(string path)
-    {
-        foreach (var raw in File.ReadAllLines(path))
-        {
-            var line = raw.TrimEnd();
-            if (line.Length == 0) continue;
-            var trimmed = line.TrimStart();
-            if (trimmed.StartsWith(';') || trimmed.StartsWith('\'')) continue;
-            TypeIntoActiveMachine(line + "\r");
-        }
-    }
-
-    // Each machine's keyboard auto-typer: the MZ-700 / MZ-800 share the
-    // scan-driven KeyboardAutoTyper; the MZ-80A's is time-based.
-    private void TypeIntoActiveMachine(string text)
-    {
-        if (_machine != null) _machine.Keyboard.AutoType.TypeString(text);
-        else if (_mz800 != null) _mz800.Keyboard.AutoType.TypeString(text);
-        else _mz80a?.Keyboard.TypeString(text);
-    }
-
     private void ResetMachine()
     {
-        Active.Reset();
+        // The session resets the machine, its ready checks and the
+        // autoload state (basic-loaded / MZ-80A cassette autorun /
+        // GRAPH-mode tracker).
+        _session.Reset();
         _bootFrames = 0;
-        _monitorReady = false;
-        // Autoload state (basic-loaded / MZ-80A cassette autorun /
-        // GRAPH-mode tracker) all cleared through the orchestrator.
-        _autoLoad.ResetForFreshMachine();
         _statusLabel.Text = "Reset.";
     }
 
