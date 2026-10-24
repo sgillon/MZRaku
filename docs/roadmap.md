@@ -173,7 +173,14 @@ regression case (`--keys=` makes keyboard bugs scriptable).
   key mapping in Settings and pressing Apply or OK, no keys type until
   Ctrl+R. Present since v1.0.0; two bisects in 2026-08 found no
   mechanism. Approach: log the keyboard matrix and the held-key state
-  around the Settings close rather than bisecting again.
+  around the Settings close rather than bisecting again. **Didn't
+  reproduce on 2026-10-24:** the recorded steps (Settings → Keyboard
+  → Advanced settings → click a matrix cell → capture a PC key → Save
+  → close Advanced → Apply/OK) typed normally straight away in v1.1.0,
+  v1.3.0 and the v1.4.0 work in progress, each run from fresh default
+  settings. No commit claims a fix, so the trigger needs something
+  those runs lacked — existing key overrides in `settings.ini` are the
+  first suspect. Find the missing condition and fix it, or close it.
 - **Font Sheet bank-1 (GRAPH) click-to-type on the MZ-700**
   ([#3](https://github.com/sgillon/MZRaku/issues/3)) — the click lands
   the character byte but not the attribute, so the wrong glyph
