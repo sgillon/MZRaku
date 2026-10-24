@@ -19,8 +19,12 @@ namespace MZRaku.Hardware;
 /// If no slot is free when <see cref="AddSamples"/> is called the
 /// chunk is dropped (equivalent to NAudio's
 /// <c>DiscardOnBufferOverflow</c>).
+///
+/// This is the Windows front end's <see cref="IAudioOut"/>: MainForm
+/// opens one in <see cref="Sound.OutputFormat"/> and passes it to
+/// <see cref="Sound.Start"/>.
 /// </summary>
-internal sealed class WinmmWaveOut : IDisposable
+internal sealed class WinmmWaveOut : IAudioOut
 {
     private readonly int _bytesPerSecond;
     private readonly int _bufferSize;
@@ -35,9 +39,13 @@ internal sealed class WinmmWaveOut : IDisposable
     private readonly object _lock = new();
     private bool _disposed;
 
-    public WinmmWaveOut(int sampleRate, int bitsPerSample, int channels,
-                        int bufferSize, int bufferCount)
+    public WinmmWaveOut(AudioOutFormat format)
     {
+        int sampleRate = format.SampleRate;
+        int bitsPerSample = format.BitsPerSample;
+        int channels = format.Channels;
+        int bufferSize = format.ChunkBytes;
+        int bufferCount = format.ChunkCount;
         _bufferSize = bufferSize;
         _bufferCount = bufferCount;
         _bytesPerSecond = sampleRate * channels * bitsPerSample / 8;

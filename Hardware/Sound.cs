@@ -18,6 +18,9 @@ namespace MZRaku.Hardware;
 /// MZ-800 uses <see cref="ExternalPcm"/> mode instead: the machine
 /// renders PSG + counter-0 audio in emulated time and queues it via
 /// <see cref="PushSample"/>.
+///
+/// The PCM goes to an <see cref="IAudioOut"/> the front end opens in
+/// <see cref="OutputFormat"/> and hands to <see cref="Start"/>.
 /// </summary>
 public sealed class Sound : IDisposable
 {
@@ -33,7 +36,14 @@ public sealed class Sound : IDisposable
     private const double ExternalDeviceMs = 60.0;
     private const int ExternalRingTargetMs = 50;
 
-    private WinmmWaveOut? _wave;
+    /// <summary>
+    /// The format and buffering the feed thread plays at: 16-bit mono at
+    /// <see cref="OutputSampleRate"/>, in chunks of one feed period.
+    /// </summary>
+    public static readonly AudioOutFormat OutputFormat =
+        new(SampleRate, 16, 1, BytesPerChunk, BufferCount);
+
+    private IAudioOut? _wave;
     private System.Threading.Thread? _thread;
     private volatile bool _running;
     private volatile bool _muted;
@@ -243,9 +253,14 @@ public sealed class Sound : IDisposable
         }
     }
 
-    public void Start()
+    /// <summary>
+    /// Start the feed thread, playing into <paramref name="output"/>
+    /// (opened in <see cref="OutputFormat"/>). Sound owns it from here
+    /// and disposes it in <see cref="Dispose"/>.
+    /// </summary>
+    public void Start(IAudioOut output)
     {
-        _wave = new WinmmWaveOut(SampleRate, 16, 1, BytesPerChunk, BufferCount);
+        _wave = output;
         _running = true;
         _thread = new System.Threading.Thread(FeedLoop) { IsBackground = true };
         _thread.Start();

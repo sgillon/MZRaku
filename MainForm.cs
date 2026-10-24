@@ -729,7 +729,7 @@ public sealed class MainForm : Form
                 // Phase 6.1: capture rendered audio for a .wav alongside the dump.
                 _mz800.AudioCapture = tracing ? new System.IO.MemoryStream() : null;
             }
-            Active.Sound.Start();
+            Active.Sound.Start(new WinmmWaveOut(Sound.OutputFormat));
 
             // Dump-and-trace recorder (v1.2 audit F-055). No-op when
             // --dump wasn't passed; the trace hooks already gated on
