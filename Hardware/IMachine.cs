@@ -58,6 +58,12 @@ public interface IMachine
     FrameBuffer? VideoFrame { get; }
 
     /// <summary>
+    /// Where the front end sends host key events: the machine's own
+    /// keyboard, which maps them onto its matrix.
+    /// </summary>
+    IKeyboardInput KeyboardInput { get; }
+
+    /// <summary>
     /// The machine's cassette-trap state. Exposed at the shared
     /// <see cref="CassetteTrapBase"/> level so MainForm's TAPE
     /// activity chip + auto-load orchestrator can poll Pending +

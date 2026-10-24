@@ -97,7 +97,7 @@ public static class PcKeyIndex
             AddShiftLabel(slotLabels, kv.Value.Row, kv.Value.Col, kv.Value.MzShift, CharToLabel(kv.Key));
         }
 
-        var overriddenVks = new HashSet<Keys>();
+        var overriddenVks = new HashSet<HostKey>();
         foreach (var kv in context.KeyOverrides.All)
         {
             overriddenVks.Add(kv.Key);
@@ -163,7 +163,7 @@ public static class PcKeyIndex
         Dictionary<(int row, int col), List<string>> slotLabels,
         IKeyboardEditorContext context)
     {
-        var overriddenVks = new HashSet<Keys>();
+        var overriddenVks = new HashSet<HostKey>();
         foreach (var kv in context.KeyOverrides.All)
         {
             overriddenVks.Add(kv.Key);
@@ -207,6 +207,6 @@ public static class PcKeyIndex
     /// dictionary, falling back to the enum name when the VK isn't
     /// catalogued.
     /// </summary>
-    private static string VkToLabel(Keys k, IKeyboardEditorContext context) =>
+    private static string VkToLabel(HostKey k, IKeyboardEditorContext context) =>
         context.SpecialKeyLabels.TryGetValue(k, out var s) ? s : k.ToString();
 }

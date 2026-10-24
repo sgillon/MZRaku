@@ -48,9 +48,9 @@ public sealed class Mz800KeyboardEditorContext : IKeyboardEditorContext
 
     public ICharMapOverridesView CharOverrides { get; }
 
-    public IReadOnlyDictionary<Keys, (int Row, int Col)> SpecialKeyMap { get; }
+    public IReadOnlyDictionary<HostKey, (int Row, int Col)> SpecialKeyMap { get; }
 
-    public IReadOnlyDictionary<Keys, string> SpecialKeyLabels => Mz800SpecialKeyMap.Labels;
+    public IReadOnlyDictionary<HostKey, string> SpecialKeyLabels => Mz800SpecialKeyMap.Labels;
 
     public IReadOnlyDictionary<(int Row, int Col), string> SlotLabels => _slotLabels;
 

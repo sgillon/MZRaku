@@ -154,7 +154,7 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
         sb.AppendLine($"Last KeyDown : {FormatKeyData(d.LastKeyDown)}");
         sb.AppendLine($"Last KeyPress: {FormatChar(d.LastKeyChar)}");
         sb.AppendLine($"Last KeyUp   : {FormatKeyData(d.LastKeyUp)}");
-        sb.AppendLine($"Mod keys held: {FormatModifiers(Control.ModifierKeys)}");
+        sb.AppendLine($"Mod keys held: {FormatModifiers((HostKey)Control.ModifierKeys)}");
         sb.AppendLine();
 
         // Host-side PC gamepad buttons: always shown regardless of
@@ -296,8 +296,8 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
     }
 
 
-    private static string FormatKeyData(Keys k) =>
-        k == Keys.None ? "(none)" : $"{k}  (0x{(int)k:X4})";
+    private static string FormatKeyData(HostKey k) =>
+        k == HostKey.None ? "(none)" : $"{k}  (0x{(int)k:X4})";
 
     private static string FormatChar(char ch)
     {
@@ -307,13 +307,13 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
             : $"0x{(int)ch:X2}";
     }
 
-    private static string FormatModifiers(Keys mods)
+    private static string FormatModifiers(HostKey mods)
     {
-        if (mods == Keys.None) return "(none)";
+        if (mods == HostKey.None) return "(none)";
         var parts = new System.Collections.Generic.List<string>();
-        if ((mods & Keys.Shift) != 0) parts.Add("Shift");
-        if ((mods & Keys.Control) != 0) parts.Add("Control");
-        if ((mods & Keys.Alt) != 0) parts.Add("Alt");
+        if ((mods & HostKey.Shift) != 0) parts.Add("Shift");
+        if ((mods & HostKey.Control) != 0) parts.Add("Control");
+        if ((mods & HostKey.Alt) != 0) parts.Add("Alt");
         return string.Join(", ", parts);
     }
 }

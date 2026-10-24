@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Windows.Forms;
 
 namespace MZRaku.Hardware;
 
@@ -28,7 +27,7 @@ namespace MZRaku.Hardware;
 /// hook <see cref="OnShiftStateChanged"/> to plug in machine-specific
 /// side effects (MZ-700 mirrors to Memory.Ram[$1170]; MZ-80A no-op).
 /// </summary>
-public abstract class KeyboardMatrixBase : IKeyboardMatrix
+public abstract class KeyboardMatrixBase : IKeyboardMatrix, IKeyboardInput
 {
     // Matrix backing: bit N of _rows[strobe] is column N of that
     // strobe. Active-low, so 0 = pressed. Public ReadRow / SetMatrix
@@ -49,10 +48,10 @@ public abstract class KeyboardMatrixBase : IKeyboardMatrix
     protected record ActiveHold(int Row, int Col, bool? ExplicitMzShift);
 
     /// <summary>Live holds keyed by the originating PC virtual key.</summary>
-    protected readonly Dictionary<Keys, ActiveHold> _holds = new();
+    protected readonly Dictionary<HostKey, ActiveHold> _holds = new();
 
     /// <summary>Most-recent KeyDown VK expected to pair with a KeyPress char.</summary>
-    protected Keys _pendingDownVk = Keys.None;
+    protected HostKey _pendingDownVk = HostKey.None;
 
     /// <summary>Latest observed PC-shift state.</summary>
     protected bool _pcShift;
@@ -63,7 +62,7 @@ public abstract class KeyboardMatrixBase : IKeyboardMatrix
     /// <see cref="LiveShiftStageFrames"/> and
     /// <see cref="TickStagedKeyBits"/>.
     /// </summary>
-    protected record struct StagedPress(Keys Vk, int Row, int Col, int FramesLeft);
+    protected record struct StagedPress(HostKey Vk, int Row, int Col, int FramesLeft);
     protected readonly List<StagedPress> _stagedKeyBits = new();
 
     /// <summary>
@@ -134,7 +133,7 @@ public abstract class KeyboardMatrixBase : IKeyboardMatrix
     {
         for (int i = 0; i < 10; i++) _rows[i] = 0xFF;
         _holds.Clear();
-        _pendingDownVk = Keys.None;
+        _pendingDownVk = HostKey.None;
         _stagedKeyBits.Clear();
     }
 
@@ -179,8 +178,26 @@ public abstract class KeyboardMatrixBase : IKeyboardMatrix
         return anyHold && _pcShift;
     }
 
-    protected static bool IsShiftKey(Keys k) =>
-        k == Keys.ShiftKey || k == Keys.LShiftKey || k == Keys.RShiftKey;
+    protected static bool IsShiftKey(HostKey k) =>
+        k == HostKey.ShiftKey || k == HostKey.LShiftKey || k == HostKey.RShiftKey;
+
+    public abstract bool OnKeyDown(HostKey keyData);
+    public abstract void OnKeyPress(char ch);
+    public abstract bool OnKeyUp(HostKey keyData);
+
+    /// <summary>
+    /// PC shift state as of a key-down. The Shift flag can lag on the
+    /// very first shift key-down, so a Shift key itself also counts.
+    /// </summary>
+    protected static bool PcShiftAfterKeyDown(HostKey keyData) =>
+        (keyData & HostKey.Shift) != 0 || IsShiftKey(keyData & HostKey.KeyCode);
+
+    /// <summary>
+    /// PC shift state after a key-up: a released Shift key no longer
+    /// counts, even while its flag is still set.
+    /// </summary>
+    protected static bool PcShiftAfterKeyUp(HostKey keyData) =>
+        (keyData & HostKey.Shift) != 0 && !IsShiftKey(keyData & HostKey.KeyCode);
 
     /// <summary>
     /// Per-frame progression of staged shifted-key presses.

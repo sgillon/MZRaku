@@ -1,4 +1,3 @@
-using System.Windows.Forms;
 
 namespace MZRaku.Hardware;
 
@@ -23,8 +22,8 @@ public enum InputLayer { None, Override, SpecialKey, Character }
 /// </summary>
 public sealed class KeyboardDiagnostics
 {
-    public Keys LastKeyDown;
-    public Keys LastKeyUp;
+    public HostKey LastKeyDown;
+    public HostKey LastKeyUp;
     public char LastKeyChar;
     public InputLayer LastLayer;
     public int LastRow = -1;

@@ -111,7 +111,7 @@ public static class MzKeyboardLayout
         // on KeyKind.Function.
         // PF5 → matrix (9, 3). Confirmed against Owner's Manual
         // 2026-06-12 (alongside CTRL=(8,6) correction). Wired in
-        // SpecialKeyMap → Keys.F5.
+        // SpecialKeyMap → HostKey.F5.
         // ============================================================
         new("PF1", 9, 7, X: 0f,   Y: FnRowY, W: 1.5f, H: FnRowH, KeyKind.Function, "F1"),
         new("PF2", 9, 6, X: 1.5f, Y: FnRowY, W: 1.5f, H: FnRowH, KeyKind.Function, "F2"),

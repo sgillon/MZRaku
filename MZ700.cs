@@ -39,6 +39,7 @@ public sealed class MZ700 : MzMachineBase, IMachine
     // non-null; the concrete Video property stays for callers that
     // need MZ-700-specific renderer knobs.
     FrameBuffer? IMachine.VideoFrame => Video.Frame;
+    IKeyboardInput IMachine.KeyboardInput => Keyboard;
 
     public const double CpuClockHz = 3546900.0;             // MZ-700 master clock ~3.5MHz
     public const double PitC0InputHz = 895000.0;            // counter 0 input clock

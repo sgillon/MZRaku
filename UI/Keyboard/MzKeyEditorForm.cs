@@ -494,7 +494,7 @@ public sealed class MzKeyEditorForm : Form
         // different slot. Mark them all so the default-pass below skips
         // them. Without this, a VK rebound to a different slot would
         // still appear as bound to its original SpecialKeyMap slot.
-        var claimedVks = new HashSet<Keys>();
+        var claimedVks = new HashSet<HostKey>();
         foreach (var kv in _keyOverrides.All)
             claimedVks.Add(kv.Key);
         foreach (var kv in _keyOverrides.All)
@@ -540,6 +540,6 @@ public sealed class MzKeyEditorForm : Form
         return c.ToString();
     }
 
-    private static string VkLabel(Keys k, IKeyboardEditorContext context) =>
+    private static string VkLabel(HostKey k, IKeyboardEditorContext context) =>
         context.SpecialKeyLabels.TryGetValue(k, out var s) ? s : k.ToString();
 }

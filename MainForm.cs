@@ -1260,9 +1260,6 @@ public sealed class MainForm : Form
         }
     }
 
-    private static bool IsShiftKey(Keys k) =>
-        k == Keys.ShiftKey || k == Keys.LShiftKey || k == Keys.RShiftKey;
-
     private const int WM_KEYDOWN = 0x0100, WM_SYSKEYDOWN = 0x0104;
 
     /// <summary>
@@ -1272,18 +1269,19 @@ public sealed class MainForm : Form
     /// </summary>
     private void InjectScriptedKey(KeyScript.Event ev)
     {
+        var keyData = (Keys)ev.KeyData;
         _injectingScriptedKey = true;
         try
         {
             if (ev.Kind == KeyScript.EventKind.Up)
             {
-                OnKeyUp(this, new KeyEventArgs(ev.KeyData));
+                OnKeyUp(this, new KeyEventArgs(keyData));
                 return;
             }
-            int wm = (ev.KeyData & Keys.Alt) != 0 ? WM_SYSKEYDOWN : WM_KEYDOWN;
-            var msg = Message.Create(Handle, wm, (IntPtr)(int)(ev.KeyData & Keys.KeyCode), IntPtr.Zero);
-            if (ProcessCmdKey(ref msg, ev.KeyData)) return;
-            OnKeyDown(this, new KeyEventArgs(ev.KeyData));
+            int wm = (keyData & Keys.Alt) != 0 ? WM_SYSKEYDOWN : WM_KEYDOWN;
+            var msg = Message.Create(Handle, wm, (IntPtr)(int)(keyData & Keys.KeyCode), IntPtr.Zero);
+            if (ProcessCmdKey(ref msg, keyData)) return;
+            OnKeyDown(this, new KeyEventArgs(keyData));
             if (ev.Text is char c) OnKeyPress(this, new KeyPressEventArgs(c));
         }
         finally
@@ -1300,75 +1298,26 @@ public sealed class MainForm : Form
     // once). Scripted --keys input still gets through.
     private bool IgnoreHostKeys => _dumpTrace != null && !_injectingScriptedKey;
 
+    // Key events go straight to the machine's keyboard (IKeyboardInput),
+    // which owns the mapping and the PC-shift handling. KeyData keeps
+    // the modifier flags so the override layer can match bindings such
+    // as Control+G; HostKey has Keys' values, so a cast converts it.
     private void OnKeyDown(object? s, KeyEventArgs e)
     {
         if (IgnoreHostKeys) return;
-        // MZ-80A path: its own keyboard (Mz80aCharMap, special keys,
-        // overrides, InvertLetterShift) with a strobe-0 SHIFT.
-        if (_mz80a != null)
-        {
-            if (_mz80a.Keyboard.OnKeyDown(e.KeyData)) e.Handled = true;
-            return;
-        }
-        // MZ-800: same shift-aware, char-driven path as MZ-700 (the
-        // 1Z-013B monitor's $1170 shift mirror applies with its ROM in).
-        if (_mz800 != null)
-        {
-            bool shift800 = e.Shift || IsShiftKey(e.KeyCode);
-            if (_mz800.Keyboard.OnKeyDown(e.KeyData, shift800)) e.Handled = true;
-            return;
-        }
-        if (_machine == null) return;
-        // e.Shift can momentarily lag on the very first shift keydown, so
-        // also detect via the VK code itself.
-        bool shift = e.Shift || IsShiftKey(e.KeyCode);
-        // Pass KeyData (VK + modifier flags) so the override layer can
-        // match modifier-aware bindings; Keyboard internally strips
-        // modifiers when consulting SpecialKeyMap and managing holds.
-        // Shift state goes inside OnKeyDown — calling SetShift here too
-        // would prematurely write the PC-shift-derived $1170 value and
-        // race the upcoming OnKeyPress on layouts where the MZ shift
-        // requirement disagrees (UK `'` → MZ-shift ON; UK Shift+`'` →
-        // `@` → MZ-shift OFF).
-        if (_machine!.Keyboard.OnKeyDown(e.KeyData, shift)) e.Handled = true;
+        if (Active.KeyboardInput.OnKeyDown((HostKey)e.KeyData)) e.Handled = true;
     }
 
     private void OnKeyPress(object? s, KeyPressEventArgs e)
     {
         if (IgnoreHostKeys) return;
-        // MZ-80A: char-driven path added Phase A (2026-07-12). OnKeyDown
-        // routes non-printables directly and defers character keys here.
-        if (_mz80a != null)
-        {
-            _mz80a.Keyboard.OnKeyPress(e.KeyChar);
-            return;
-        }
-        if (_mz800 != null)
-        {
-            _mz800.Keyboard.OnKeyPress(e.KeyChar);
-            return;
-        }
-        if (_machine == null) return;
-        _machine!.Keyboard.OnKeyPress(e.KeyChar);
+        Active.KeyboardInput.OnKeyPress(e.KeyChar);
     }
 
     private void OnKeyUp(object? s, KeyEventArgs e)
     {
         if (IgnoreHostKeys) return;
-        if (_mz80a != null)
-        {
-            if (_mz80a.Keyboard.OnKeyUp(e.KeyData)) e.Handled = true;
-            return;
-        }
-        if (_mz800 != null)
-        {
-            bool shift800 = e.Shift && !IsShiftKey(e.KeyCode);
-            if (_mz800.Keyboard.OnKeyUp(e.KeyData, shift800)) e.Handled = true;
-            return;
-        }
-        if (_machine == null) return;
-        bool shift = e.Shift && !IsShiftKey(e.KeyCode);
-        if (_machine!.Keyboard.OnKeyUp(e.KeyData, shift)) e.Handled = true;
+        if (Active.KeyboardInput.OnKeyUp((HostKey)e.KeyData)) e.Handled = true;
     }
 
     private void OnDragEnter(object? s, DragEventArgs e)

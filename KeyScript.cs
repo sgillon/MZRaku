@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
-using System.Windows.Forms;
+using MZRaku.Hardware;
 
 namespace MZRaku;
 
@@ -25,14 +25,15 @@ namespace MZRaku;
 /// Frames must not go backwards, and a command can't start before a
 /// previous <c>type</c> or <c>key</c> has released its last key.
 ///
-/// Key names are WinForms <see cref="Keys"/> names. Like Windows, a
-/// left/right modifier (<c>LShiftKey</c>) is reported as the generic one
-/// (<c>ShiftKey</c>), and held modifiers are added to every later key's
-/// key data. <c>key</c> and <c>down</c> send a text event only for
-/// Return, Back, Tab, Escape and Space; printable characters must use
-/// <c>type</c>, which maps each one to a key and Shift through a fixed
-/// UK layout and sends the character itself, so a script gives the same
-/// result whatever the host's keyboard layout.
+/// Key names are <see cref="HostKey"/> names, the same as WinForms
+/// <c>Keys</c> names. Like Windows, a left/right modifier
+/// (<c>LShiftKey</c>) is reported as the generic one (<c>ShiftKey</c>),
+/// and held modifiers are added to every later key's key data.
+/// <c>key</c> and <c>down</c> send a text event only for Return, Back,
+/// Tab, Escape and Space; printable characters must use <c>type</c>,
+/// which maps each one to a key and Shift through a fixed UK layout and
+/// sends the character itself, so a script gives the same result
+/// whatever the host's keyboard layout.
 /// </summary>
 public sealed class KeyScript
 {
@@ -48,7 +49,7 @@ public sealed class KeyScript
     /// One host event. A Down with <see cref="Text"/> is followed by a
     /// text (KeyPress) event unless a hotkey consumes the key.
     /// </summary>
-    public readonly record struct Event(int Frame, EventKind Kind, Keys KeyData, char? Text);
+    public readonly record struct Event(int Frame, EventKind Kind, HostKey KeyData, char? Text);
 
     private readonly List<Event> _events;
     private int _next;
@@ -73,7 +74,7 @@ public sealed class KeyScript
     public static KeyScript Parse(IEnumerable<string> lines)
     {
         var events = new List<Event>();
-        var held = new HashSet<Keys>();     // generic VKs held by down
+        var held = new HashSet<HostKey>();     // generic VKs held by down
         int lineNo = 0, lastFrame = 1, busyUntil = 0;
 
         foreach (var raw in lines)
@@ -103,13 +104,13 @@ public sealed class KeyScript
                     {
                         var vk = ParseKey(arg);
                         var mods = Modifiers(held);
-                        if (!IsModifier(vk) && (mods & (Keys.Control | Keys.Alt)) == 0 && IsPrintable(vk))
+                        if (!IsModifier(vk) && (mods & (HostKey.Control | HostKey.Alt)) == 0 && IsPrintable(vk))
                             throw new FormatException($"{arg} types a character; use type \"...\" instead");
                         if (verb == "down" && !held.Add(vk))
                             throw new FormatException($"{arg} is already down");
                         // A modifier's own key-down already carries its flag, as on Windows.
                         var data = vk | mods | ModifierFlag(vk);
-                        char? text = (mods & (Keys.Control | Keys.Alt)) == 0 ? ControlText(vk) : null;
+                        char? text = (mods & (HostKey.Control | HostKey.Alt)) == 0 ? ControlText(vk) : null;
                         events.Add(new Event(frame, EventKind.Down, data, text));
                         if (verb == "key")
                         {
@@ -141,7 +142,7 @@ public sealed class KeyScript
         return new KeyScript(events);
     }
 
-    private static int AddType(List<Event> events, int frame, string text, HashSet<Keys> held)
+    private static int AddType(List<Event> events, int frame, string text, HashSet<HostKey> held)
     {
         if (held.Count > 0)
             throw new FormatException("type can't run while a key is held down");
@@ -151,11 +152,11 @@ public sealed class KeyScript
         {
             if (!UkLayout.TryGetValue(c, out var k))
                 throw new FormatException($"'{c}' (U+{(int)c:X4}) has no key in the UK reference layout");
-            var shift = k.Shift ? Keys.Shift : Keys.None;
-            if (k.Shift) events.Add(new Event(frame, EventKind.Down, Keys.ShiftKey | Keys.Shift, null));
+            var shift = k.Shift ? HostKey.Shift : HostKey.None;
+            if (k.Shift) events.Add(new Event(frame, EventKind.Down, HostKey.ShiftKey | HostKey.Shift, null));
             events.Add(new Event(frame, EventKind.Down, k.Vk | shift, c));
             events.Add(new Event(frame + HoldFrames, EventKind.Up, k.Vk | shift, null));
-            if (k.Shift) events.Add(new Event(frame + HoldFrames, EventKind.Up, Keys.ShiftKey, null));
+            if (k.Shift) events.Add(new Event(frame + HoldFrames, EventKind.Up, HostKey.ShiftKey, null));
             frame += HoldFrames + GapFrames;
         }
         return frame;
@@ -215,58 +216,58 @@ public sealed class KeyScript
         return sb.ToString();
     }
 
-    private static Keys ParseKey(string name)
+    private static HostKey ParseKey(string name)
     {
         if (name.Length == 0 || name.Contains(' ') || name.Contains(',') || char.IsDigit(name[0])
-            || !Enum.TryParse<Keys>(name, ignoreCase: false, out var k) || !Enum.IsDefined(k))
+            || !Enum.TryParse<HostKey>(name, ignoreCase: false, out var k) || !Enum.IsDefined(k))
             throw new FormatException($"'{name}' isn't a Keys name (e.g. Return, F1, ShiftKey, Up)");
-        if ((k & Keys.Modifiers) != 0)
+        if ((k & HostKey.Modifiers) != 0)
             throw new FormatException($"{name} is a modifier flag; use ShiftKey, ControlKey or Menu");
         // Windows reports the generic VK for left/right modifiers.
         return k switch
         {
-            Keys.LShiftKey or Keys.RShiftKey => Keys.ShiftKey,
-            Keys.LControlKey or Keys.RControlKey => Keys.ControlKey,
-            Keys.LMenu or Keys.RMenu => Keys.Menu,
+            HostKey.LShiftKey or HostKey.RShiftKey => HostKey.ShiftKey,
+            HostKey.LControlKey or HostKey.RControlKey => HostKey.ControlKey,
+            HostKey.LMenu or HostKey.RMenu => HostKey.Menu,
             _ => k,
         };
     }
 
-    private static bool IsModifier(Keys vk) =>
-        vk == Keys.ShiftKey || vk == Keys.ControlKey || vk == Keys.Menu;
+    private static bool IsModifier(HostKey vk) =>
+        vk == HostKey.ShiftKey || vk == HostKey.ControlKey || vk == HostKey.Menu;
 
-    private static Keys ModifierFlag(Keys vk) => vk switch
+    private static HostKey ModifierFlag(HostKey vk) => vk switch
     {
-        Keys.ShiftKey => Keys.Shift,
-        Keys.ControlKey => Keys.Control,
-        Keys.Menu => Keys.Alt,
-        _ => Keys.None,
+        HostKey.ShiftKey => HostKey.Shift,
+        HostKey.ControlKey => HostKey.Control,
+        HostKey.Menu => HostKey.Alt,
+        _ => HostKey.None,
     };
 
-    private static Keys Modifiers(HashSet<Keys> held)
+    private static HostKey Modifiers(HashSet<HostKey> held)
     {
-        var m = Keys.None;
+        var m = HostKey.None;
         foreach (var vk in held) m |= ModifierFlag(vk);
         return m;
     }
 
-    private static char? ControlText(Keys vk) => vk switch
+    private static char? ControlText(HostKey vk) => vk switch
     {
-        Keys.Return => '\r',
-        Keys.Back => '\b',
-        Keys.Tab => '\t',
-        Keys.Escape => '\x1b',
-        Keys.Space => ' ',
+        HostKey.Return => '\r',
+        HostKey.Back => '\b',
+        HostKey.Tab => '\t',
+        HostKey.Escape => '\x1b',
+        HostKey.Space => ' ',
         _ => null,
     };
 
-    private static bool IsPrintable(Keys vk) =>
-        (vk >= Keys.A && vk <= Keys.Z) || (vk >= Keys.D0 && vk <= Keys.D9)
-        || (vk >= Keys.NumPad0 && vk <= Keys.Divide)
-        || (vk >= Keys.OemSemicolon && vk <= Keys.Oemtilde)
-        || (vk >= Keys.OemOpenBrackets && vk <= Keys.Oem102);
+    private static bool IsPrintable(HostKey vk) =>
+        (vk >= HostKey.A && vk <= HostKey.Z) || (vk >= HostKey.D0 && vk <= HostKey.D9)
+        || (vk >= HostKey.NumPad0 && vk <= HostKey.Divide)
+        || (vk >= HostKey.OemSemicolon && vk <= HostKey.Oemtilde)
+        || (vk >= HostKey.OemOpenBrackets && vk <= HostKey.Oem102);
 
-    private readonly record struct UkKey(Keys Vk, bool Shift);
+    private readonly record struct UkKey(HostKey Vk, bool Shift);
 
     // The fixed reference layout `type` uses: a UK keyboard as Windows
     // reports it (kbduk). Only the key and Shift matter; the character
@@ -278,30 +279,30 @@ public sealed class KeyScript
         var m = new Dictionary<char, UkKey>();
         for (char c = 'a'; c <= 'z'; c++)
         {
-            m[c] = new UkKey(Keys.A + (c - 'a'), false);
-            m[char.ToUpperInvariant(c)] = new UkKey(Keys.A + (c - 'a'), true);
+            m[c] = new UkKey(HostKey.A + (c - 'a'), false);
+            m[char.ToUpperInvariant(c)] = new UkKey(HostKey.A + (c - 'a'), true);
         }
-        for (char c = '0'; c <= '9'; c++) m[c] = new UkKey(Keys.D0 + (c - '0'), false);
+        for (char c = '0'; c <= '9'; c++) m[c] = new UkKey(HostKey.D0 + (c - '0'), false);
         const string shiftedDigits = ")!\"£$%^&*(";   // Shift+0 .. Shift+9
-        for (int i = 0; i < 10; i++) m[shiftedDigits[i]] = new UkKey(Keys.D0 + i, true);
-        void Pair(Keys vk, char plain, char shifted)
+        for (int i = 0; i < 10; i++) m[shiftedDigits[i]] = new UkKey(HostKey.D0 + i, true);
+        void Pair(HostKey vk, char plain, char shifted)
         {
             m[plain] = new UkKey(vk, false);
             m[shifted] = new UkKey(vk, true);
         }
-        Pair(Keys.OemMinus, '-', '_');
-        Pair(Keys.Oemplus, '=', '+');
-        Pair(Keys.OemOpenBrackets, '[', '{');
-        Pair(Keys.OemCloseBrackets, ']', '}');
-        Pair(Keys.OemSemicolon, ';', ':');
-        Pair(Keys.Oemtilde, '\'', '@');       // VK_OEM_3 on UK
-        Pair(Keys.OemQuotes, '#', '~');       // VK_OEM_7 on UK
-        Pair(Keys.Oemcomma, ',', '<');
-        Pair(Keys.OemPeriod, '.', '>');
-        Pair(Keys.OemQuestion, '/', '?');
-        Pair(Keys.OemPipe, '\\', '|');        // VK_OEM_5, beside Z on UK
-        Pair(Keys.Oem8, '`', '¬');
-        m[' '] = new UkKey(Keys.Space, false);
+        Pair(HostKey.OemMinus, '-', '_');
+        Pair(HostKey.Oemplus, '=', '+');
+        Pair(HostKey.OemOpenBrackets, '[', '{');
+        Pair(HostKey.OemCloseBrackets, ']', '}');
+        Pair(HostKey.OemSemicolon, ';', ':');
+        Pair(HostKey.Oemtilde, '\'', '@');       // VK_OEM_3 on UK
+        Pair(HostKey.OemQuotes, '#', '~');       // VK_OEM_7 on UK
+        Pair(HostKey.Oemcomma, ',', '<');
+        Pair(HostKey.OemPeriod, '.', '>');
+        Pair(HostKey.OemQuestion, '/', '?');
+        Pair(HostKey.OemPipe, '\\', '|');        // VK_OEM_5, beside Z on UK
+        Pair(HostKey.Oem8, '`', '¬');
+        m[' '] = new UkKey(HostKey.Space, false);
         return m;
     }
 }

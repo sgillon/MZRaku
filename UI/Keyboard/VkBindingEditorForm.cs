@@ -19,8 +19,8 @@ namespace MZRaku;
 ///     <see cref="SpecialKeyMap.Map"/> — the two VK-side layers — and
 ///     flags a captured key that already produces a different slot.
 ///
-/// Capture accepts any <see cref="Keys"/> value the user presses,
-/// including bare characters: binding e.g. <c>Keys.Q</c> to GRAPH means
+/// Capture accepts any key the user presses,
+/// including bare characters: binding e.g. <c>Q</c> to GRAPH means
 /// pressing Q will fire GRAPH instead of typing 'Q'. The user is
 /// trusted to know what they're asking for; conflict messaging surfaces
 /// the consequence at capture time.
@@ -47,7 +47,7 @@ public sealed class VkBindingEditorForm : Form
     private readonly RadioButton _shiftForceOff;
     private readonly Button _saveBtn;
 
-    private Keys? _capturedKey;
+    private HostKey? _capturedKey;
     private string? _ambiguityText;
     private ConflictInfo? _conflict;
 
@@ -213,19 +213,19 @@ public sealed class VkBindingEditorForm : Form
 
     private void OnCaptured(object? sender, KeyCapturedEventArgs e)
     {
-        _capturedKey = e.KeyData;
+        _capturedKey = (HostKey)e.KeyData;
         _ambiguityText = e.AmbiguityNote;
         EvaluateBinding();
     }
 
     /// <summary>
     /// Recomputes status text, conflict state, and Save enablement from
-    /// the current captured Keys and the selected shift mode. Re-runs on
+    /// the current captured HostKey and the selected shift mode. Re-runs on
     /// every capture and whenever the shift radio group changes.
     /// </summary>
     private void EvaluateBinding()
     {
-        if (_capturedKey is not Keys k)
+        if (_capturedKey is not HostKey k)
         {
             _conflict = null;
             _saveBtn.Enabled = false;
@@ -284,7 +284,7 @@ public sealed class VkBindingEditorForm : Form
 
     private void OnSave()
     {
-        if (_capturedKey is not Keys k) return;
+        if (_capturedKey is not HostKey k) return;
 
         if (_conflict is ConflictInfo c)
         {
@@ -317,13 +317,13 @@ public sealed class VkBindingEditorForm : Form
         _ => "shift pass-through",
     };
 
-    private static string DescribeKey(Keys keyData, IKeyboardEditorContext context)
+    private static string DescribeKey(HostKey keyData, IKeyboardEditorContext context)
     {
-        var bare = keyData & Keys.KeyCode;
+        var bare = keyData & HostKey.KeyCode;
         string mods = "";
-        if ((keyData & Keys.Control) != 0) mods += "Ctrl+";
-        if ((keyData & Keys.Alt) != 0) mods += "Alt+";
-        if ((keyData & Keys.Shift) != 0) mods += "Shift+";
+        if ((keyData & HostKey.Control) != 0) mods += "Ctrl+";
+        if ((keyData & HostKey.Alt) != 0) mods += "Alt+";
+        if ((keyData & HostKey.Shift) != 0) mods += "Shift+";
 
         if (context.SpecialKeyLabels.TryGetValue(bare, out var lbl)) return mods + lbl;
         return mods + bare.ToString();

@@ -45,7 +45,7 @@ public sealed class KeyCaptureControl : UserControl
     /// captured-key banner. Falls back to the raw enum name when the
     /// source is null or the VK isn't present.
     /// </summary>
-    public IReadOnlyDictionary<Keys, string>? SpecialKeyLabels { get; set; }
+    public IReadOnlyDictionary<HostKey, string>? SpecialKeyLabels { get; set; }
 
     private static readonly Dictionary<Keys, string> FriendlyNames = new()
     {
@@ -400,7 +400,7 @@ public sealed class KeyCaptureControl : UserControl
         if ((keyData & Keys.Shift)   != 0) mods += "Shift+";
 
         if (FriendlyNames.TryGetValue(bare, out var friendly)) return mods + friendly;
-        if (SpecialKeyLabels != null && SpecialKeyLabels.TryGetValue(bare, out var lbl)) return mods + lbl;
+        if (SpecialKeyLabels != null && SpecialKeyLabels.TryGetValue((HostKey)bare, out var lbl)) return mods + lbl;
         return mods + bare.ToString();
     }
 

@@ -1,4 +1,3 @@
-using System.Windows.Forms;
 
 namespace MZRaku.Hardware;
 
@@ -84,10 +83,10 @@ public sealed class Mz800Keyboard : KeyboardMatrixBase
     ///   - Otherwise: defer to OnKeyPress so the resolved character
     ///     drives the CharMap lookup.
     /// </summary>
-    public bool OnKeyDown(Keys keyData, bool pcShift)
+    public override bool OnKeyDown(HostKey keyData)
     {
-        _pcShift = pcShift;
-        var bareVk = keyData & Keys.KeyCode;
+        _pcShift = PcShiftAfterKeyDown(keyData);
+        var bareVk = keyData & HostKey.KeyCode;
         if (_holds.ContainsKey(bareVk)) return true;
 
         Diag.LastKeyDown = keyData;
@@ -143,12 +142,12 @@ public sealed class Mz800Keyboard : KeyboardMatrixBase
     /// GETKY scan that picks up the key bit also reads the matching
     /// shift state.
     /// </summary>
-    public void OnKeyPress(char ch)
+    public override void OnKeyPress(char ch)
     {
         Diag.LastKeyChar = ch;
-        if (_pendingDownVk == Keys.None) return;
+        if (_pendingDownVk == HostKey.None) return;
         var vk = _pendingDownVk;
-        _pendingDownVk = Keys.None;
+        _pendingDownVk = HostKey.None;
 
         if (!Mz800CharMap.TryLookup(ch, out var p))
         {
@@ -179,12 +178,12 @@ public sealed class Mz800Keyboard : KeyboardMatrixBase
     /// asserted, drops any pending staged press for this VK, then
     /// recomputes MZ shift state from remaining holds + PC shift.
     /// </summary>
-    public bool OnKeyUp(Keys keyData, bool pcShift)
+    public override bool OnKeyUp(HostKey keyData)
     {
-        _pcShift = pcShift;
+        _pcShift = PcShiftAfterKeyUp(keyData);
         Diag.LastKeyUp = keyData;
-        var bareVk = keyData & Keys.KeyCode;
-        if (_pendingDownVk == bareVk) _pendingDownVk = Keys.None;
+        var bareVk = keyData & HostKey.KeyCode;
+        if (_pendingDownVk == bareVk) _pendingDownVk = HostKey.None;
 
         bool handled = false;
         if (_holds.TryGetValue(bareVk, out var h))

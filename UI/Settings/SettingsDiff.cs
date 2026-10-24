@@ -66,8 +66,8 @@ internal sealed class SettingsSnapshot
         = new Dictionary<char, MatrixPress>();
     public IReadOnlyCollection<char> SuppressedChars { get; init; }
         = new HashSet<char>();
-    public IReadOnlyDictionary<Keys, KeyOverride.Binding> KeyOverrides { get; init; }
-        = new Dictionary<Keys, KeyOverride.Binding>();
+    public IReadOnlyDictionary<HostKey, KeyOverride.Binding> KeyOverrides { get; init; }
+        = new Dictionary<HostKey, KeyOverride.Binding>();
 
     // MZ-80A parallel fields (Phase 5.5b). Populated even when the
     // active machine is MZ-700 so a user editing MZ-80A bindings in
@@ -76,16 +76,16 @@ internal sealed class SettingsSnapshot
         = new Dictionary<char, MatrixPress>();
     public IReadOnlyCollection<char> Mz80aSuppressedChars { get; init; }
         = new HashSet<char>();
-    public IReadOnlyDictionary<Keys, KeyOverride.Binding> Mz80aKeyOverrides { get; init; }
-        = new Dictionary<Keys, KeyOverride.Binding>();
+    public IReadOnlyDictionary<HostKey, KeyOverride.Binding> Mz80aKeyOverrides { get; init; }
+        = new Dictionary<HostKey, KeyOverride.Binding>();
 
     // MZ-800 parallel fields (v1.3.0 Phase 8.4c), same convention.
     public IReadOnlyDictionary<char, MatrixPress> Mz800CharOverrides { get; init; }
         = new Dictionary<char, MatrixPress>();
     public IReadOnlyCollection<char> Mz800SuppressedChars { get; init; }
         = new HashSet<char>();
-    public IReadOnlyDictionary<Keys, KeyOverride.Binding> Mz800KeyOverrides { get; init; }
-        = new Dictionary<Keys, KeyOverride.Binding>();
+    public IReadOnlyDictionary<HostKey, KeyOverride.Binding> Mz800KeyOverrides { get; init; }
+        = new Dictionary<HostKey, KeyOverride.Binding>();
 
     public static SettingsSnapshot Capture(Settings settings) => new()
     {
@@ -392,8 +392,8 @@ internal static class SettingsDiff
     }
 
     private static IEnumerable<string> DescribeKeyOverrides(
-        IReadOnlyDictionary<Keys, KeyOverride.Binding> before,
-        IReadOnlyDictionary<Keys, KeyOverride.Binding> after,
+        IReadOnlyDictionary<HostKey, KeyOverride.Binding> before,
+        IReadOnlyDictionary<HostKey, KeyOverride.Binding> after,
         string prefix)
     {
         var allKeys = before.Keys.Union(after.Keys).OrderBy(k => k.ToString());
@@ -442,6 +442,6 @@ internal static class SettingsDiff
         _ => "shift pass-through",
     };
 
-    private static string VkLabel(Keys k) =>
+    private static string VkLabel(HostKey k) =>
         SpecialKeyMap.Labels.TryGetValue(k, out var s) ? s : k.ToString();
 }

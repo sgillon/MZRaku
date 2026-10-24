@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Windows.Forms;
 
 namespace MZRaku.Hardware;
 
@@ -16,29 +15,29 @@ namespace MZRaku.Hardware;
 /// </summary>
 public static class SpecialKeyMap
 {
-    public static readonly Dictionary<Keys, (int row, int col)> Map = new()
+    public static readonly Dictionary<HostKey, (int row, int col)> Map = new()
     {
-        [Keys.Enter]       = (0, 0),
-        [Keys.Left]        = (7, 2),
-        [Keys.Right]       = (7, 3),
-        [Keys.Down]        = (7, 4),
-        [Keys.Up]          = (7, 5),
-        [Keys.Back]        = (7, 6),
-        [Keys.Delete]      = (7, 6),
-        [Keys.Insert]      = (7, 7),
+        [HostKey.Enter]       = (0, 0),
+        [HostKey.Left]        = (7, 2),
+        [HostKey.Right]       = (7, 3),
+        [HostKey.Down]        = (7, 4),
+        [HostKey.Up]          = (7, 5),
+        [HostKey.Back]        = (7, 6),
+        [HostKey.Delete]      = (7, 6),
+        [HostKey.Insert]      = (7, 7),
         // BREAK lives on row-8 bit 7 (not bit 5 as previously guessed).
         // Discovered 2026-05-30 by tracing which row-8 reads BASIC acts
         // on during RUN: code at $04A9 does LD A,($E001); AND $81;
         // RET Z — masking bits 0 (SHIFT) and 7. The user manual notes
         // shifted BREAK is required to stop a program, which matches the
         // bit-0 + bit-7 combination exactly.
-        [Keys.Escape]      = (8, 7),
+        [HostKey.Escape]      = (8, 7),
         // MZ Ctrl on either PC Ctrl. WinForms normalises Left/Right Ctrl
-        // KeyDowns to the generic Keys.ControlKey in KeyEventArgs.KeyCode
+        // KeyDowns to the generic ControlKey in KeyEventArgs.KeyCode
         // (the lParam extended-key bit is the only way to tell them apart,
-        // and OnKeyDown above masks via `keyData & Keys.KeyCode`), so the
-        // bare-VK lookup must use Keys.ControlKey. Earlier code used
-        // Keys.LControlKey and never matched — MZ Ctrl was unreachable
+        // and OnKeyDown above masks via `keyData & HostKey.KeyCode`), so the
+        // bare-VK lookup must use HostKey.ControlKey. Earlier code used
+        // HostKey.LControlKey and never matched — MZ Ctrl was unreachable
         // until 2026-06-12. Accepting both Ctrls fire MZ Ctrl is fine;
         // L/R distinction can be revisited if a user needs separate
         // bindings (would need a WndProc lParam-bit-24 read).
@@ -49,16 +48,16 @@ public static class SpecialKeyMap
         // (CHR$( output), suggesting either an alias or scan-decoder
         // quirk. Corrected 2026-06-12 after the user verified against
         // the owner's manual.
-        [Keys.ControlKey]  = (8, 6),
-        [Keys.F1]          = (9, 7),
-        [Keys.F2]          = (9, 6),
-        [Keys.F3]          = (9, 5),
-        [Keys.F4]          = (9, 4),
+        [HostKey.ControlKey]  = (8, 6),
+        [HostKey.F1]          = (9, 7),
+        [HostKey.F2]          = (9, 6),
+        [HostKey.F3]          = (9, 5),
+        [HostKey.F4]          = (9, 4),
         // F5 → (9, 3), confirmed against Owner's Manual 2026-06-12. The
         // diagram-drawing code (MzKeyboardLayout.cs) had inferred this
         // slot from row-9 symmetry months earlier but it was never wired
         // up here, so PC F5 had no MZ-side effect until now.
-        [Keys.F5]          = (9, 3),
+        [HostKey.F5]          = (9, 3),
         // MZ-700 mode-toggle keys (page 142 of the owner's manual lists
         // GRAPH and ALPHA on row 1 — our row 0 — at D6 and D4 respectively).
         // GRAPH puts the machine in graphic-char input mode; ALPHA returns
@@ -74,37 +73,37 @@ public static class SpecialKeyMap
         // can rebind to anything. Note: F11 conflicts with the conventional
         // full-screen toggle — if/when full-screen lands we'll either move
         // it to Alt+Enter or rebind GRAPH.
-        [Keys.F11]         = (0, 6),  // F11 → GRAPH
-        [Keys.F12]         = (0, 4),  // F12 → ALPHA
+        [HostKey.F11]         = (0, 6),  // F11 → GRAPH
+        [HostKey.F12]         = (0, 4),  // F12 → ALPHA
     };
 
     /// <summary>
     /// Friendly labels for the PC virtual keys above — used by the
     /// keyboard-map editor's capture dialog to describe what was pressed.
     /// </summary>
-    public static readonly IReadOnlyDictionary<Keys, string> Labels = new Dictionary<Keys, string>
+    public static readonly IReadOnlyDictionary<HostKey, string> Labels = new Dictionary<HostKey, string>
     {
-        [Keys.Enter]       = "Enter",
-        [Keys.Left]        = "cursor left",
-        [Keys.Right]       = "cursor right",
-        [Keys.Down]        = "cursor down",
-        [Keys.Up]          = "cursor up",
-        [Keys.Back]        = "Backspace",
-        [Keys.Delete]      = "Delete",
-        [Keys.Insert]      = "Insert",
-        [Keys.Escape]      = "Esc (BREAK)",
-        [Keys.ControlKey]  = "Ctrl",
+        [HostKey.Enter]       = "Enter",
+        [HostKey.Left]        = "cursor left",
+        [HostKey.Right]       = "cursor right",
+        [HostKey.Down]        = "cursor down",
+        [HostKey.Up]          = "cursor up",
+        [HostKey.Back]        = "Backspace",
+        [HostKey.Delete]      = "Delete",
+        [HostKey.Insert]      = "Insert",
+        [HostKey.Escape]      = "Esc (BREAK)",
+        [HostKey.ControlKey]  = "Ctrl",
         // Kept for completeness; not reached at runtime — WinForms
-        // normalises both to Keys.ControlKey before KeyDown fires.
-        [Keys.LControlKey] = "Left Ctrl",
-        [Keys.RControlKey] = "Right Ctrl",
-        [Keys.F1]          = "F1",
-        [Keys.F2]          = "F2",
-        [Keys.F3]          = "F3",
-        [Keys.F4]          = "F4",
-        [Keys.F5]          = "F5",
-        [Keys.F11]         = "F11",
-        [Keys.F12]         = "F12",
+        // normalises both to ControlKey before KeyDown fires.
+        [HostKey.LControlKey] = "Left Ctrl",
+        [HostKey.RControlKey] = "Right Ctrl",
+        [HostKey.F1]          = "F1",
+        [HostKey.F2]          = "F2",
+        [HostKey.F3]          = "F3",
+        [HostKey.F4]          = "F4",
+        [HostKey.F5]          = "F5",
+        [HostKey.F11]         = "F11",
+        [HostKey.F12]         = "F12",
     };
 
     /// <summary>

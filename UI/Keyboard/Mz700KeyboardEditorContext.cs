@@ -40,9 +40,9 @@ public sealed class Mz700KeyboardEditorContext : IKeyboardEditorContext
 
     public ICharMapOverridesView CharOverrides { get; }
 
-    public IReadOnlyDictionary<Keys, (int Row, int Col)> SpecialKeyMap { get; }
+    public IReadOnlyDictionary<HostKey, (int Row, int Col)> SpecialKeyMap { get; }
 
-    public IReadOnlyDictionary<Keys, string> SpecialKeyLabels =>
+    public IReadOnlyDictionary<HostKey, string> SpecialKeyLabels =>
         Hardware.SpecialKeyMap.Labels;
 
     public IReadOnlyDictionary<(int Row, int Col), string> SlotLabels =>
@@ -94,10 +94,10 @@ public sealed class Mz700KeyboardEditorContext : IKeyboardEditorContext
             yield return (kv.Value.Row, kv.Value.Col);
     }
 
-    // SpecialKeyMap in Hardware is Dictionary<Keys,(int row,int col)>;
+    // SpecialKeyMap in Hardware is Dictionary<HostKey,(int row,int col)>;
     // rewrap with Row/Col-cased tuple to match the interface's shape
     // (avoids leaking the lowercase-cased tuple through the abstraction).
-    private static IReadOnlyDictionary<Keys, (int Row, int Col)> SpecialKeyMap_Load() =>
+    private static IReadOnlyDictionary<HostKey, (int Row, int Col)> SpecialKeyMap_Load() =>
         Hardware.SpecialKeyMap.Map.ToDictionary(kv => kv.Key,
             kv => ((int Row, int Col))(kv.Value.row, kv.Value.col));
 

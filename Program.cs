@@ -146,6 +146,9 @@ internal static class Program
         // reference was introduced to catch the drift that had been
         // letting slot bugs hide for weeks at a time.
         MatrixValidation.RunAndLog();
+        // HostKey must still mirror WinForms Keys: the front end casts
+        // between them and saved key overrides use the names.
+        HostKeyParity.RunAndLog();
 
         // --keys=<file>: scripted host input (regression suite). A bad
         // script exits with code 2 before the emulator starts; the

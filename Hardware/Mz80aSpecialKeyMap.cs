@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Windows.Forms;
 
 namespace MZRaku.Hardware;
 
@@ -15,43 +14,43 @@ public static class Mz80aSpecialKeyMap
 {
     public readonly record struct Entry(int Strobe, int Bit, bool? ExplicitMzShift);
 
-    public static readonly Dictionary<Keys, Entry> Map = new()
+    public static readonly Dictionary<HostKey, Entry> Map = new()
     {
-        [Keys.Enter]      = new(7, 3, null),   // CR
-        [Keys.Up]         = new(7, 4, null),   // CURSOR_UP
-        [Keys.Right]      = new(7, 5, null),   // CURSOR_RIGHT
+        [HostKey.Enter]      = new(7, 3, null),   // CR
+        [HostKey.Up]         = new(7, 4, null),   // CURSOR_UP
+        [HostKey.Right]      = new(7, 5, null),   // CURSOR_RIGHT
         // MZ-80A has no dedicated LEFT or DOWN slots — real hardware
         // uses Shift+RIGHT and Shift+UP respectively. Force-shift so
         // PC users get muscle-memory arrow behaviour without holding
         // Shift themselves.
-        [Keys.Left]       = new(7, 5, true),   // Shift+RIGHT → ←
-        [Keys.Down]       = new(7, 4, true),   // Shift+UP    → ↓
+        [HostKey.Left]       = new(7, 5, true),   // Shift+RIGHT → ←
+        [HostKey.Down]       = new(7, 4, true),   // Shift+UP    → ↓
         // INST/DEL slot at (1, 2): unshifted = DELETE, shifted = INSERT
         // (user-confirmed 2026-07-12; polarity opposite of the pre-audit
         // hypothesis). Force-shift-off for the erase keys so PC
         // Shift+Delete/Backspace can't accidentally INSERT; PC Insert
         // gets the shifted variant.
-        [Keys.Delete]     = new(1, 2, false),  // DELETE
-        [Keys.Back]       = new(1, 2, false),  // DELETE (mirror Backspace)
-        [Keys.Insert]     = new(1, 2, true),   // INSERT
-        [Keys.Home]       = new(7, 7, null),   // CLR/HOME (HOME unshifted, CLR shifted)
-        [Keys.Escape]     = new(0, 7, null),   // CTRL unshifted; BREAK = Shift+Esc — authentic
-        [Keys.ControlKey] = new(0, 7, null),   // CTRL unshifted
-        [Keys.F11]        = new(0, 1, null),   // GRPH mode toggle
+        [HostKey.Delete]     = new(1, 2, false),  // DELETE
+        [HostKey.Back]       = new(1, 2, false),  // DELETE (mirror Backspace)
+        [HostKey.Insert]     = new(1, 2, true),   // INSERT
+        [HostKey.Home]       = new(7, 7, null),   // CLR/HOME (HOME unshifted, CLR shifted)
+        [HostKey.Escape]     = new(0, 7, null),   // CTRL unshifted; BREAK = Shift+Esc — authentic
+        [HostKey.ControlKey] = new(0, 7, null),   // CTRL unshifted
+        [HostKey.F11]        = new(0, 1, null),   // GRPH mode toggle
     };
 
-    public static readonly IReadOnlyDictionary<Keys, string> Labels = new Dictionary<Keys, string>
+    public static readonly IReadOnlyDictionary<HostKey, string> Labels = new Dictionary<HostKey, string>
     {
-        [Keys.Enter]      = "Enter",
-        [Keys.Up]         = "cursor up",
-        [Keys.Right]      = "cursor right",
-        [Keys.Left]       = "cursor left / ←",
-        [Keys.Delete]     = "Delete (INST/DEL)",
-        [Keys.Back]       = "Backspace",
-        [Keys.Home]       = "Home (CLR/HOME)",
-        [Keys.Escape]     = "Esc (BREAK)",
-        [Keys.ControlKey] = "Ctrl",
-        [Keys.F11]        = "F11 (GRPH)",
+        [HostKey.Enter]      = "Enter",
+        [HostKey.Up]         = "cursor up",
+        [HostKey.Right]      = "cursor right",
+        [HostKey.Left]       = "cursor left / ←",
+        [HostKey.Delete]     = "Delete (INST/DEL)",
+        [HostKey.Back]       = "Backspace",
+        [HostKey.Home]       = "Home (CLR/HOME)",
+        [HostKey.Escape]     = "Esc (BREAK)",
+        [HostKey.ControlKey] = "Ctrl",
+        [HostKey.F11]        = "F11 (GRPH)",
     };
 
     /// <summary>

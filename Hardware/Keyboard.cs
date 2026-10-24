@@ -1,4 +1,3 @@
-using System.Windows.Forms;
 
 namespace MZRaku.Hardware;
 
@@ -64,7 +63,7 @@ public sealed class Keyboard : KeyboardMatrixBase
 
     /// <summary>
     /// PC KeyDown. Returns true if the form should consider the
-    /// event handled. <paramref name="keyData"/> is the WinForms
+    /// event handled. <paramref name="keyData"/> is the host's
     /// combined VK + modifier flags (e.g. <c>Control | G</c>) so
     /// the override layer can match modifier-aware bindings; the
     /// bare VK is used as the <see cref="_holds"/> key so KeyUp's
@@ -91,10 +90,10 @@ public sealed class Keyboard : KeyboardMatrixBase
     /// cache the wrong shift state across frames in the gap
     /// between the two events.
     /// </summary>
-    public bool OnKeyDown(Keys keyData, bool pcShift)
+    public override bool OnKeyDown(HostKey keyData)
     {
-        _pcShift = pcShift;
-        var bareVk = keyData & Keys.KeyCode;
+        _pcShift = PcShiftAfterKeyDown(keyData);
+        var bareVk = keyData & HostKey.KeyCode;
         if (_holds.ContainsKey(bareVk)) return true; // auto-repeat: bit already held
 
         Diag.LastKeyDown = keyData;
@@ -159,12 +158,12 @@ public sealed class Keyboard : KeyboardMatrixBase
     /// OnKeyPress could leave $1170 at a value that didn't match
     /// the press's MzShift.
     /// </summary>
-    public void OnKeyPress(char ch)
+    public override void OnKeyPress(char ch)
     {
         Diag.LastKeyChar = ch;
-        if (_pendingDownVk == Keys.None) return;
+        if (_pendingDownVk == HostKey.None) return;
         var vk = _pendingDownVk;
-        _pendingDownVk = Keys.None;
+        _pendingDownVk = HostKey.None;
 
         if (!CharMap.TryLookup(ch, out var p))
         {
@@ -207,15 +206,15 @@ public sealed class Keyboard : KeyboardMatrixBase
     /// Always recomputes shift state at the end — even when no
     /// hold matched the released VK — because the form no longer
     /// calls SetShift on shift-key release: that path now flows
-    /// through here, with <c>pcShift</c> already reflecting the
-    /// post-release modifier state.
+    /// through here, with <see cref="KeyboardMatrixBase.PcShiftAfterKeyUp"/>
+    /// giving the post-release modifier state.
     /// </summary>
-    public bool OnKeyUp(Keys keyData, bool pcShift)
+    public override bool OnKeyUp(HostKey keyData)
     {
-        _pcShift = pcShift;
+        _pcShift = PcShiftAfterKeyUp(keyData);
         Diag.LastKeyUp = keyData;
-        var bareVk = keyData & Keys.KeyCode;
-        if (_pendingDownVk == bareVk) _pendingDownVk = Keys.None;
+        var bareVk = keyData & HostKey.KeyCode;
+        if (_pendingDownVk == bareVk) _pendingDownVk = HostKey.None;
 
         bool handled = false;
         if (_holds.TryGetValue(bareVk, out var h))

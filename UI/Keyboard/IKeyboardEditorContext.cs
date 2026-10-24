@@ -45,11 +45,11 @@ public interface IKeyboardEditorContext
 
     /// <summary>Built-in VK → matrix-slot defaults (special / non-printable
     /// keys — Enter, arrows, INST/DEL, etc.).</summary>
-    IReadOnlyDictionary<Keys, (int Row, int Col)> SpecialKeyMap { get; }
+    IReadOnlyDictionary<HostKey, (int Row, int Col)> SpecialKeyMap { get; }
 
     /// <summary>Friendly labels for the PC VKs above (capture-dialog
     /// display, per-slot bind text).</summary>
-    IReadOnlyDictionary<Keys, string> SpecialKeyLabels { get; }
+    IReadOnlyDictionary<HostKey, string> SpecialKeyLabels { get; }
 
     /// <summary>Friendly labels for non-printable matrix slots (Enter,
     /// GRAPH, cursors, SHIFT, CTRL, BREAK, F-keys).</summary>

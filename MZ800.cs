@@ -49,6 +49,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
     // 640×200 modes render into Video.FrameHi, everything else into
     // Video.Frame; MainForm scales whichever comes back.
     FrameBuffer? IMachine.VideoFrame => Mem.Is640BitmapMode ? Video.FrameHi : Video.Frame;
+    IKeyboardInput IMachine.KeyboardInput => Keyboard;
 
     // MZ-800 CPU runs at 3.547 MHz (17.734 MHz crystal ÷ 5, per
     // tech-ref p. 9). Matches MZ-700 exactly; MZ-80A is the slower

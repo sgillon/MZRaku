@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Windows.Forms;
 
 namespace MZRaku.Hardware;
 
@@ -90,17 +89,17 @@ public sealed class Mz80aKeyboard : KeyboardMatrixBase
     }
 
     /// <summary>
-    /// Called from MainForm.OnKeyDown. Returns true if the key was
-    /// consumed (should not be passed on to WinForms). Non-printables
+    /// Host key-down (<see cref="IKeyboardInput"/>). Returns true if the
+    /// key was consumed (the front end treats it as handled). Non-printables
     /// (SpecialKeyMap) return true and assert directly; character
     /// keys return false and wait for OnKeyPress to pair them with
     /// a char.
     /// </summary>
-    public bool OnKeyDown(Keys keyData)
+    public override bool OnKeyDown(HostKey keyData)
     {
-        var key = keyData & Keys.KeyCode;
-        _pcShift = (keyData & Keys.Shift) != 0;
-        SetMatrix(0, 7, (keyData & Keys.Control) != 0);
+        var key = keyData & HostKey.KeyCode;
+        _pcShift = (keyData & HostKey.Shift) != 0;
+        SetMatrix(0, 7, (keyData & HostKey.Control) != 0);
 
         Diag.LastKeyDown = keyData;
 
@@ -147,7 +146,7 @@ public sealed class Mz80aKeyboard : KeyboardMatrixBase
             Diag.Record(InputLayer.SpecialKey, sp.Strobe, sp.Bit, sp.ExplicitMzShift);
             // F11 = GRPH toggle. Track local state so the status
             // bar can reflect ALPHA vs GRAPH.
-            if (key == Keys.F11) GraphMode = !GraphMode;
+            if (key == HostKey.F11) GraphMode = !GraphMode;
             return true;
         }
 
@@ -163,12 +162,12 @@ public sealed class Mz80aKeyboard : KeyboardMatrixBase
     /// char-map dictates. If the char isn't in the map, the press
     /// is silently dropped — preferable to mis-translating it.
     /// </summary>
-    public void OnKeyPress(char ch)
+    public override void OnKeyPress(char ch)
     {
         Diag.LastKeyChar = ch;
-        if (_pendingDownVk == Keys.None) return;
+        if (_pendingDownVk == HostKey.None) return;
         var vk = _pendingDownVk;
-        _pendingDownVk = Keys.None;
+        _pendingDownVk = HostKey.None;
 
         if (!Mz80aCharMap.TryLookup(ch, out var p))
         {
@@ -204,13 +203,13 @@ public sealed class Mz80aKeyboard : KeyboardMatrixBase
         Diag.Record(InputLayer.Character, p.Strobe, p.Bit, mzShift);
     }
 
-    public bool OnKeyUp(Keys keyData)
+    public override bool OnKeyUp(HostKey keyData)
     {
-        var key = keyData & Keys.KeyCode;
-        _pcShift = (keyData & Keys.Shift) != 0;
-        if ((keyData & Keys.Control) == 0) SetMatrix(0, 7, false);
+        var key = keyData & HostKey.KeyCode;
+        _pcShift = (keyData & HostKey.Shift) != 0;
+        if ((keyData & HostKey.Control) == 0) SetMatrix(0, 7, false);
         Diag.LastKeyUp = keyData;
-        if (_pendingDownVk == key) _pendingDownVk = Keys.None;
+        if (_pendingDownVk == key) _pendingDownVk = HostKey.None;
 
         bool handled = false;
         if (_holds.TryGetValue(key, out var h))
@@ -288,7 +287,7 @@ public sealed class Mz80aKeyboard : KeyboardMatrixBase
     {
         if (ch == '\r' || ch == '\n')
         {
-            var enter = Mz80aSpecialKeyMap.Map[Keys.Enter];
+            var enter = Mz80aSpecialKeyMap.Map[HostKey.Enter];
             _typeQueue.Enqueue(new Mz80aCharMap.Press(enter.Strobe, enter.Bit, false));
             return;
         }

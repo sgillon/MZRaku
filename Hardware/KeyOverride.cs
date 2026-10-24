@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using System.Windows.Forms;
 
 namespace MZRaku.Hardware;
 
@@ -29,26 +28,26 @@ public sealed class KeyOverride
     /// </param>
     public readonly record struct Binding(int Row, int Col, bool? MzShift);
 
-    private readonly Dictionary<Keys, Binding> _map = new();
+    private readonly Dictionary<HostKey, Binding> _map = new();
 
-    public bool TryLookup(Keys keys, out Binding b) => _map.TryGetValue(keys, out b);
+    public bool TryLookup(HostKey keys, out Binding b) => _map.TryGetValue(keys, out b);
 
-    public void Set(Keys keys, Binding b) => _map[keys] = b;
-    public void Remove(Keys keys) => _map.Remove(keys);
+    public void Set(HostKey keys, Binding b) => _map[keys] = b;
+    public void Remove(HostKey keys) => _map.Remove(keys);
     public void Clear() => _map.Clear();
     public int Count => _map.Count;
 
-    public IEnumerable<KeyValuePair<Keys, Binding>> All => _map;
+    public IEnumerable<KeyValuePair<HostKey, Binding>> All => _map;
 
     /// <summary>
     /// Two-stage lookup for use from <see cref="Keyboard.OnKeyDown"/>:
     /// the combined-modifier form wins, falling back to the bare VK
     /// (modifier flags stripped). Returns null if neither matches.
     /// </summary>
-    public Binding? Resolve(Keys keyData)
+    public Binding? Resolve(HostKey keyData)
     {
         if (_map.TryGetValue(keyData, out var b)) return b;
-        var bare = keyData & Keys.KeyCode;
+        var bare = keyData & HostKey.KeyCode;
         if (bare != keyData && _map.TryGetValue(bare, out b)) return b;
         return null;
     }
@@ -58,8 +57,9 @@ public sealed class KeyOverride
     /// <summary>
     /// Serialise each binding as <c>KeyName=Row,Col,Shift</c> where Shift
     /// is one of <c>t</c> (forced on), <c>f</c> (forced off), <c>-</c>
-    /// (pass through PC shift). KeyName is the WinForms <see cref="Keys"/>
-    /// enum's ToString output (e.g. <c>F5</c>, <c>Control, G</c>).
+    /// (pass through PC shift). KeyName is the <see cref="HostKey"/>
+    /// ToString output, the same as WinForms Keys gives (e.g. <c>F5</c>,
+    /// <c>Control, G</c>).
     /// </summary>
     public IEnumerable<string> SerialiseLines() =>
         _map.OrderBy(kv => kv.Key.ToString())
@@ -72,7 +72,7 @@ public sealed class KeyOverride
     /// </summary>
     public bool TryParseLine(string keyName, string value)
     {
-        if (!System.Enum.TryParse<Keys>(keyName, ignoreCase: true, out var keys)) return false;
+        if (!System.Enum.TryParse<HostKey>(keyName, ignoreCase: true, out var keys)) return false;
         var parts = value.Split(',');
         if (parts.Length != 3) return false;
         if (!int.TryParse(parts[0], out var row)) return false;
