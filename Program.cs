@@ -142,10 +142,12 @@ internal static class Program
 
         // Cross-check the canonical matrix reference against its
         // consumer files (SpecialKeyMap / CharMap / MzKeyboardLayout).
-        // Silent if all four agree; logs to debug output otherwise. The
-        // reference was introduced to catch the drift that had been
-        // letting slot bugs hide for weeks at a time.
-        MatrixValidation.RunAndLog();
+        // Silent if all four agree; logs to debug output and shows a
+        // warning dialog otherwise. The reference was introduced to
+        // catch the drift that had been letting slot bugs hide for
+        // weeks at a time.
+        MatrixValidation.RunAndLog((text, title) => MessageBox.Show(
+            text, title, MessageBoxButtons.OK, MessageBoxIcon.Warning));
         // HostKey must still mirror WinForms Keys: the front end casts
         // between them and saved key overrides use the names.
         HostKeyParity.RunAndLog();

@@ -45,7 +45,7 @@ internal sealed class AutoLoadOrchestrator
     private readonly Func<bool> _mz80aBasicReady;
     private readonly Func<bool> _mz800MonitorReady;
     private readonly Action<string> _setStatus;
-    private readonly Action<string> _showFatal;   // MessageBox for BASIC-load failure
+    private readonly Action<string> _showFatal;   // BASIC-load failure (front end shows a dialog)
     private readonly Action _openFontSheet;       // MZ-700 / MZ-800 GRAPH auto-surface
     private readonly Action<string> _typeBasicSource;
     private readonly Action<bool?> _updateModeLabel;   // null / false / true

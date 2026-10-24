@@ -1,6 +1,6 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Windows.Forms;
 
 namespace MZRaku.Hardware;
 
@@ -50,22 +50,22 @@ public static class MatrixValidation
     /// <summary>
     /// Runs every validator at startup. Silent when everything agrees;
     /// loud when it doesn't — writes complaints to the debug output
-    /// stream and pops a single MessageBox so drift can't slip past a
-    /// developer who isn't watching the debugger. Release users
-    /// shouldn't ever see the dialog (it means a build shipped with
-    /// undetected matrix drift, which is itself a bug worth surfacing).
+    /// stream and hands them once to <paramref name="warn"/> (message,
+    /// then title), which the front end shows as a dialog, so drift
+    /// can't slip past a developer who isn't watching the debugger. The
+    /// core shows no dialogs itself (v1.4 design decision D6). Release
+    /// users shouldn't ever see the warning (it means a build shipped
+    /// with undetected matrix drift, which is itself a bug worth
+    /// surfacing).
     /// </summary>
-    public static void RunAndLog()
+    public static void RunAndLog(Action<string, string> warn)
     {
         var complaints = RunAll();
         if (complaints.Count == 0) return;
         Debug.WriteLine($"[MatrixValidation] {complaints.Count} complaint(s):");
         foreach (var c in complaints) Debug.WriteLine($"  {c}");
-        MessageBox.Show(
-            string.Join("\n", complaints),
-            $"Matrix validation — {complaints.Count} drift(s) detected",
-            MessageBoxButtons.OK,
-            MessageBoxIcon.Warning);
+        warn(string.Join("\n", complaints),
+             $"Matrix validation — {complaints.Count} drift(s) detected");
     }
 
     private static void AddPrefixed(List<string> all, string prefix, IReadOnlyList<string> items)
