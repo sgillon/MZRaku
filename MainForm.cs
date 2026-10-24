@@ -96,7 +96,6 @@ public sealed class MainForm : Form
     private readonly bool _autoLoadBasic;
     private readonly string? _dumpPath;
     private DumpTraceRecorder? _dumpTrace => _session.DumpTrace;
-    private readonly KeyScript? _keyScript;           // --keys=<file>
     private AutoLoadOrchestrator _autoLoad => _session.AutoLoad;   // created in Start()
     private bool _started;
     private DebuggerForm? _debugger;
@@ -142,7 +141,6 @@ public sealed class MainForm : Form
         KeyScript? keyScript = null)
     {
         _initialCassette = cassettePath;
-        _keyScript = keyScript;
         _autoLoadBasic = autoLoadBasic;
         _dumpPath = dumpPath;
         _dumpFrame = dumpFrame;
@@ -163,10 +161,14 @@ public sealed class MainForm : Form
         // applies its settings.
         _session = new EmulatorSession(_settings);
 
-        // The host gamepad drives the session's joystick (RunOneFrame
-        // polls it only on the MZ-700 and MZ-800).
+        // The host gamepad drives the session's joystick (the session
+        // polls it each frame, only on the MZ-700 and MZ-800).
         _joystickInput = new Hardware.JoystickInput(_session.Joystick);
         _joystickInput.SetButtonIndices(_settings.JoyButton1Index, _settings.JoyButton2Index);
+        _session.JoystickSource = _joystickInput;
+        // --keys=<file>: scripted keys go through the same path as real
+        // ones (InjectScriptedKey), hotkeys first.
+        if (keyScript != null) _session.UseKeyScript(keyScript, InjectScriptedKey);
 
         Text = TitleBase;
         Icon = EmbeddedResources.LoadIcon();
@@ -230,6 +232,8 @@ public sealed class MainForm : Form
         };
         _session.GraphModeSampled += UpdateModeLabel;
         _session.DumpComplete += Close;
+        if (_mz800 != null)
+            _session.FrameRan += frame => { if (frame % 10 == 0) UpdateMz800ModeLabel(); };
 
         // Every direct assignment to _statusLabel.Text starts the
         // idle-clear timer, so every call site sitewide participates
@@ -296,6 +300,9 @@ public sealed class MainForm : Form
         };
         FormClosing += (_, _) =>
         {
+            // First, so a close from inside a frame (a scripted Alt+F4,
+            // a finished --dump) also skips the rest of that frame.
+            _session.Stop();
             // Snapshot main-window geometry to Settings before the child
             // windows tear down so the next launch comes up where the
             // user left it.
@@ -657,7 +664,7 @@ public sealed class MainForm : Form
         }
     }
 
-    private int _bootFrames;
+    private int _bootFrames => _session.FrameCount;
     // Tracks the last observed Active.Paused so Timer_Tick can react
     // only on transitions — title-bar suffix + display overlay flip
     // together, without either dependency having to know about the
@@ -871,7 +878,7 @@ public sealed class MainForm : Form
         for (long i = 0; i < behind; i++)
         {
             _pacedFrames++;
-            RunOneFrame();
+            _session.RunFrame();
             if (IsDisposed) return;   // --dump completion closes the form
         }
         if (behind <= 0) return;
@@ -885,39 +892,6 @@ public sealed class MainForm : Form
         _hidDiag?.RefreshIfVisible();
         _soundDiag?.RefreshIfVisible();
         _display.Invalidate();
-    }
-
-    /// <summary>
-    /// One emulated frame plus the per-frame (not per-tick) host work:
-    /// joystick sampling, auto-load pipelines, diagnostics, dump.
-    /// </summary>
-    private void RunOneFrame()
-    {
-        // Sample real gamepad state once per frame, before the emulated
-        // CPU runs — the MZ-700 latches them at the VBLK falling edge
-        // inside RunFrame; the MZ-800 reads them live through $F0/$F1.
-        // --dump runs skip it: a captured frame must not depend on
-        // whatever controller happens to be plugged in.
-        if ((_machine != null || _mz800 != null) && _dumpTrace == null) _joystickInput.Poll();
-        Active.RunFrame();
-        _bootFrames++;
-
-        // BASIC + cassette + BASIC-source pipelines both machines run
-        // (v1.2 audit F-055 extraction). Also handles the per-frame
-        // GRAPH-mode indicator + Font Sheet auto-surface for MZ-700
-        // and the F11-driven mode indicator for MZ-80A.
-        _autoLoad.OnFrame(_bootFrames);
-        if (_mz800 != null && _bootFrames % 10 == 0) UpdateMz800ModeLabel();
-
-        // Scripted host input (--keys=): events due after this frame.
-        _keyScript?.OnFrame(InjectScriptedKey);
-        if (IsDisposed) return;   // a scripted Alt+F4 closes the form
-
-        // Dump-and-trace flow (v1.2 audit F-055 extraction). No-op
-        // when --dump wasn't passed; otherwise emits the periodic
-        // trace line and fires OnDumpComplete → Close() at the
-        // configured frame.
-        _dumpTrace?.OnFrame(_bootFrames);
     }
 
     private readonly int _dumpFrame;
@@ -1299,11 +1273,10 @@ public sealed class MainForm : Form
 
     private void ResetMachine()
     {
-        // The session resets the machine, its ready checks and the
-        // autoload state (basic-loaded / MZ-80A cassette autorun /
-        // GRAPH-mode tracker).
+        // The session resets the machine, its frame count, its ready
+        // checks and the autoload state (basic-loaded / MZ-80A cassette
+        // autorun / GRAPH-mode tracker).
         _session.Reset();
-        _bootFrames = 0;
         _statusLabel.Text = "Reset.";
     }
 

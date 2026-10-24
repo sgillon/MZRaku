@@ -12,8 +12,8 @@ namespace MZRaku;
 ///
 /// Being built up in v1.4 Phase 2, a step at a time, out of MainForm.
 /// So far it owns creating the machine and applying its settings,
-/// start (ROMs, sound, the --dump hooks and recorder, autoload), reset
-/// and the ready checks autoload waits on.
+/// start (ROMs, sound, the --dump hooks and recorder, autoload), reset,
+/// the ready checks autoload waits on, and running frames.
 /// </summary>
 public sealed class EmulatorSession
 {
@@ -120,6 +120,40 @@ public sealed class EmulatorSession
 
     /// <summary>A --dump run has written its files and is finished.</summary>
     public event Action? DumpComplete;
+
+    /// <summary>
+    /// A frame has run and autoload has had its turn; scripted keys and
+    /// the dump come after. Carries <see cref="FrameCount"/>.
+    /// </summary>
+    public event Action<int>? FrameRan;
+
+    /// <summary>Frames run since start or the last <see cref="Reset"/>.</summary>
+    public int FrameCount { get; private set; }
+
+    /// <summary>
+    /// Set once <see cref="Stop"/> has been called; <see cref="RunFrame"/>
+    /// then does nothing.
+    /// </summary>
+    public bool Stopped { get; private set; }
+
+    /// <summary>
+    /// The host gamepad, polled once per frame on the MZ-700 and MZ-800
+    /// (never during a --dump run). Null for none.
+    /// </summary>
+    public IJoystickSource? JoystickSource { get; set; }
+
+    private KeyScript? _keyScript;
+    private Action<KeyScript.Event>? _deliverScriptedKey;
+
+    /// <summary>
+    /// Play a --keys script: after each frame, the events now due go to
+    /// <paramref name="deliver"/>, which feeds them in as host keys.
+    /// </summary>
+    public void UseKeyScript(KeyScript script, Action<KeyScript.Event> deliver)
+    {
+        _keyScript = script;
+        _deliverScriptedKey = deliver;
+    }
 
     // Moving out of MainForm over v1.4 Phase 2; internal until the
     // front end no longer reaches into them.
@@ -272,9 +306,51 @@ public sealed class EmulatorSession
     public void Reset()
     {
         Active.Reset();
+        FrameCount = 0;
         _monitorReady = false;
         AutoLoad.ResetForFreshMachine();
     }
+
+    /// <summary>
+    /// Run one emulated frame plus the per-frame work around it:
+    /// gamepad sampling, the autoload pipelines, scripted keys and the
+    /// dump. Stops part-way if a scripted key or the dump calls
+    /// <see cref="Stop"/>. The caller paces frames.
+    /// </summary>
+    public void RunFrame()
+    {
+        if (Stopped) return;
+        // Sample real gamepad state once per frame, before the emulated
+        // CPU runs — the MZ-700 latches them at the VBLK falling edge
+        // inside RunFrame; the MZ-800 reads them live through $F0/$F1.
+        // --dump runs skip it: a captured frame must not depend on
+        // whatever controller happens to be plugged in.
+        if ((Mz700 != null || Mz800 != null) && DumpTrace == null) JoystickSource?.Poll();
+        Active.RunFrame();
+        FrameCount++;
+
+        // BASIC + cassette + BASIC-source pipelines both machines run
+        // (v1.2 audit F-055 extraction). Also handles the per-frame
+        // GRAPH-mode indicator + Font Sheet auto-surface for MZ-700
+        // and the F11-driven mode indicator for MZ-80A.
+        AutoLoad.OnFrame(FrameCount);
+        FrameRan?.Invoke(FrameCount);
+
+        // Scripted host input (--keys=): events due after this frame.
+        if (_keyScript != null) _keyScript.OnFrame(_deliverScriptedKey!);
+        if (Stopped) return;   // a scripted Alt+F4 closed the front end
+
+        // Dump-and-trace flow (v1.2 audit F-055 extraction). No-op
+        // when --dump wasn't passed; otherwise emits the periodic
+        // trace line and raises DumpComplete at the configured frame.
+        DumpTrace?.OnFrame(FrameCount);
+    }
+
+    /// <summary>
+    /// Stop running frames, including the rest of the current one. The
+    /// front end calls this as it closes.
+    /// </summary>
+    public void Stop() => Stopped = true;
 
     /// <summary>The Sharp firmware file names each machine expects —
     /// the names <see cref="Settings.EnsureRomPaths"/> auto-detects.</summary>
