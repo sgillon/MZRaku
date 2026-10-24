@@ -13,7 +13,8 @@ namespace MZRaku;
 /// Being built up in v1.4 Phase 2, a step at a time, out of MainForm.
 /// So far it owns creating the machine and applying its settings,
 /// start (ROMs, sound, the --dump hooks and recorder, autoload), reset,
-/// the ready checks autoload waits on, and running frames.
+/// the ready checks autoload waits on, running frames, and loading
+/// cassettes, BASIC and BASIC source.
 /// </summary>
 public sealed class EmulatorSession
 {
@@ -155,9 +156,9 @@ public sealed class EmulatorSession
         _deliverScriptedKey = deliver;
     }
 
-    // Moving out of MainForm over v1.4 Phase 2; internal until the
-    // front end no longer reaches into them.
-    internal AutoLoadOrchestrator AutoLoad { get; private set; } = null!;   // created in Start()
+    private AutoLoadOrchestrator AutoLoad { get; set; } = null!;   // created in Start()
+    // Internal until the front end's host-key gating moves here (v1.4
+    // Phase 2 step 5).
     internal DumpTraceRecorder? DumpTrace { get; private set; }
 
     // Exactly one of these is populated, from Settings.CurrentMachine.
@@ -309,6 +310,242 @@ public sealed class EmulatorSession
         FrameCount = 0;
         _monitorReady = false;
         AutoLoad.ResetForFreshMachine();
+        StatusMessage?.Invoke("Reset.");
+    }
+
+    // -- Loading ---------------------------------------------------------
+    // Each load reports progress through StatusMessage and throws, with a
+    // message for the user, when a file can't be read or loaded.
+
+    /// <summary>What a load did.</summary>
+    public enum LoadResult
+    {
+        /// <summary>Done, or queued to finish once the machine is ready.</summary>
+        Done,
+        /// <summary>
+        /// Nothing done, because it needs BASIC and the BASIC image is
+        /// missing; <see cref="BasicMissingMessage"/> says what to do.
+        /// </summary>
+        BasicMissing,
+    }
+
+    /// <summary>
+    /// Whether the configured BASIC image exists. Checked by every entry
+    /// point that triggers a BASIC load (menu, CLI, BASIC-cassette
+    /// auto-load, Load BASIC source) before it changes anything, so a
+    /// missing BASIC aborts the operation cleanly; otherwise the deferred
+    /// load would surface the failure only as a status line many frames
+    /// later and the rest of the pending operation would go ahead.
+    /// </summary>
+    public bool BasicAvailable
+    {
+        get
+        {
+            var path = _settings.BasicFullPath;
+            return !string.IsNullOrEmpty(path) && File.Exists(path);
+        }
+    }
+
+    /// <summary>What to tell the user when BASIC is missing.</summary>
+    public string BasicMissingMessage
+    {
+        get
+        {
+            var configured = string.IsNullOrEmpty(_settings.BasicPath)
+                ? "(none configured)"
+                : $"{_settings.BasicPath}  →  {_settings.BasicFullPath}";
+            var expected = ExpectedFirmware(_settings.CurrentMachine).Basic;
+            return $"BASIC cassette image ({expected}) not found.\n\n" +
+                   $"Configured path: {configured}\n\n" +
+                   $"Place {expected} under a 'basic' or 'roms' folder next to the executable, " +
+                   $"or set [Roms.{_settings.CurrentMachine}] Basic= in {Path.Combine(AppContext.BaseDirectory, "settings.ini")}.";
+        }
+    }
+
+    /// <summary>
+    /// Whether a cassette of this type is a BASIC program, so loading it
+    /// boots BASIC first. MZ-700: S-BASIC text (02) and 05. MZ-800: 1Z-016
+    /// programs are type 05; an MZ-700 BASIC (02) program would need
+    /// S-BASIC in MZ-700 mode, which isn't automated.
+    /// </summary>
+    private bool NeedsBasic(byte type)
+        => Mz800 != null ? type == 0x05 : type == 0x02 || type == 0x05;
+
+    /// <summary>
+    /// Queue what the command line asked for, to run once the machine has
+    /// booted: BASIC if <paramref name="loadBasic"/> (--basic) or the
+    /// cassette is a BASIC program, then the cassette. Call after
+    /// <see cref="Start"/>. If BASIC is wanted but missing, BASIC isn't
+    /// queued, nor is a cassette that needs it.
+    /// </summary>
+    public LoadResult QueueStartupLoad(string? cassettePath, bool loadBasic)
+    {
+        // The type peek means the user doesn't have to know whether a
+        // given .mzf is MC or BASIC — they just point the emulator at
+        // it and the right boot path runs.
+        bool cassetteNeedsBasic = false;
+        if (cassettePath != null)
+        {
+            try
+            {
+                var img = MzfImage.Parse(CassetteFile.ReadBytes(cassettePath));
+                if (NeedsBasic(img.Type)) { loadBasic = true; cassetteNeedsBasic = true; }
+            }
+            catch { /* let the autoload path surface the error with a clearer status */ }
+            AutoLoad.PendingCassette = cassettePath;
+        }
+        if (!loadBasic) return LoadResult.Done;
+        // Pre-flight the BASIC file so the failure shows up at startup
+        // (parity with the menu's Load BASIC) rather than as a quiet
+        // status line many frames later. If BASIC is missing we cancel
+        // the auto-load — and the pending cassette too, when it can't run
+        // without BASIC.
+        if (!BasicAvailable)
+        {
+            if (cassetteNeedsBasic) AutoLoad.PendingCassette = null;
+            return LoadResult.BasicMissing;
+        }
+        // Run a few frames so the monitor boots before injecting BASIC
+        AutoLoad.PendingLoadBasic = true;
+        return LoadResult.Done;
+    }
+
+    /// <summary>
+    /// Load a cassette image and run it, the way the File menu's Load
+    /// cassette and drag-and-drop do: straight in where the machine
+    /// allows, else after a reset (booting BASIC first for a BASIC
+    /// program).
+    /// </summary>
+    public LoadResult LoadCassette(string path)
+    {
+        var img = MzfImage.Parse(CassetteFile.ReadBytes(path));
+
+        // Loading any cassette is treated as a fresh-state operation,
+        // mirroring the CLI launch path. If the previous run was BASIC
+        // (or a BASIC program is mid-execution), we reset back to the
+        // monitor before injecting — leaving stale BASIC state lying
+        // around would mean the new program runs against the old
+        // interpreter's RAM, which doesn't work for mid-execution and
+        // also breaks "load MC cassette while at BASIC READY". The
+        // type-byte tells us whether to also auto-load BASIC; the
+        // autoload orchestrator's pending-cassette path handles the
+        // rest (monitor banner detection, post-BASIC 60-frame wait,
+        // direct-inject + auto-RUN for BASIC, jump-to-exec for MC).
+        // The MZ-800 always resets: a running title leaves display
+        // mode, palette, VRAM planes, scroll, bank, PIO and PSG state
+        // behind, and a new title that assumes a fresh boot draws over
+        // it. The pending path waits for the IPL before loading.
+        bool needsBasic = NeedsBasic(img.Type);
+        bool basicLoaded = AutoLoad.BasicLoadedFrame >= 0;
+
+        if (basicLoaded || needsBasic || Mz800 != null)
+        {
+            // Pre-flight the BASIC file. If the cassette needs BASIC and
+            // it's missing, abort the whole load: a BASIC program can't
+            // run without the interpreter, and continuing would only
+            // result in junk getting typed into the monitor.
+            if (needsBasic && !BasicAvailable) return LoadResult.BasicMissing;
+            Reset();
+            if (needsBasic) AutoLoad.PendingLoadBasic = true;
+            AutoLoad.PendingCassette = path;
+            StatusMessage?.Invoke(needsBasic
+                ? $"Loading BASIC + {img.Filename}…"
+                : $"Loading {img.Filename}…");
+        }
+        else if (img.Type == 0x01)
+        {
+            // Pure monitor + machine-code cassette: direct-inject and
+            // jump straight to its exec entry. No reset needed.
+            if (Mz80a != null)
+                Mz80a.Cassette.DirectInject(img, jumpExec: true);
+            else
+                Mz700!.Cassette.DirectInject(img, jumpExec: true);
+            StatusMessage?.Invoke($"Loaded & run: {img.Filename} exec=${img.ExecAddr:X4}");
+        }
+        else
+        {
+            // Other type at the monitor: queue for monitor LOAD command
+            // (MZ-700) or direct-inject as best-effort (MZ-80A doesn't
+            // have the L-command auto-typer path yet). Non-MC
+            // .mzf types (03 BASIC data, 04 ASCII, A0/A1 PASCAL) don't
+            // have a reliable exec address — inject-only.
+            if (Mz80a != null)
+            {
+                Mz80a.Cassette.DirectInject(img, jumpExec: false);
+                StatusMessage?.Invoke($"Loaded (no exec): {img.Filename}");
+            }
+            else
+            {
+                Mz700!.Cassette.Queue(img);
+                StatusMessage?.Invoke($"Queued: {img.Filename}. Type LOAD to fetch.");
+            }
+        }
+        return LoadResult.Done;
+    }
+
+    /// <summary>
+    /// Whether <see cref="InsertCassette"/> works on this machine: the
+    /// MZ-700 and MZ-800. The MZ-80A's SA-5510 loads through BASIC's
+    /// LOAD, not the SA-1510 monitor's L command.
+    /// </summary>
+    public bool CanInsertCassette => Mz700 != null || Mz800 != null;
+
+    /// <summary>
+    /// Insert a cassette for the emulated machine's own LOAD to read
+    /// through the tape traps — no direct-inject, no jump; the user
+    /// drives the load. MZ-700: one image for the monitor's L command.
+    /// MZ-800: the whole tape (every file of a zip / .mzt), read by the
+    /// IPL's C option, the monitor's L, or 1Z-016 BASIC's LOAD. Only
+    /// where <see cref="CanInsertCassette"/>.
+    /// </summary>
+    public void InsertCassette(string path)
+    {
+        if (Mz700 != null)
+        {
+            var img = MzfImage.Parse(CassetteFile.ReadBytes(path));
+            Mz700.Cassette.Queue(img);
+            StatusMessage?.Invoke($"Queued: {img.Filename}. Type L in Monitor mode to fetch.");
+        }
+        else
+        {
+            var tape = CassetteFile.ReadTape(path);
+            Mz800!.Cassette.Mount(tape);
+            StatusMessage?.Invoke(tape.Count == 1
+                ? $"Tape inserted: {tape[0].Filename}."
+                : $"Tape inserted: {tape.Count} files, first {tape[0].Filename}.");
+        }
+    }
+
+    /// <summary>Load BASIC into the running machine now.</summary>
+    public LoadResult LoadBasic()
+    {
+        if (!BasicAvailable) return LoadResult.BasicMissing;
+        Active.AutoLoadBasic(_settings.BasicFullPath);
+        AutoLoad.BasicLoadedFrame = FrameCount;
+        StatusMessage?.Invoke("BASIC loaded.");
+        return LoadResult.Done;
+    }
+
+    /// <summary>
+    /// Type a BASIC text source into the interpreter (see
+    /// <see cref="TypeBasicSource"/>). If BASIC isn't loaded yet, the
+    /// machine is reset and BASIC + this source are queued for after
+    /// monitor boot.
+    /// </summary>
+    public LoadResult LoadBasicSource(string path)
+    {
+        if (AutoLoad.BasicLoadedFrame < 0)
+        {
+            if (!BasicAvailable) return LoadResult.BasicMissing;
+            Reset();
+            AutoLoad.PendingLoadBasic = true;
+            AutoLoad.PendingBasicSource = path;
+            StatusMessage?.Invoke($"Loading BASIC + {Path.GetFileName(path)}…");
+            return LoadResult.Done;
+        }
+        TypeBasicSource(path);
+        StatusMessage?.Invoke($"Typing {Path.GetFileName(path)}…");
+        return LoadResult.Done;
     }
 
     /// <summary>
