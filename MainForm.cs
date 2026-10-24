@@ -10,18 +10,15 @@ namespace MZRaku;
 
 public sealed class MainForm : Form
 {
-    // Exactly one of these is populated at construction based on
-    // Settings.CurrentMachine. MZ-700-specific accesses (Sound, Ppi,
-    // Pit, Joystick, Cassette, Keyboard, Video, KeyTables) use
-    // _machine!. and are gated by _machine != null. Same pattern for
-    // _mz80a (MZ-80A specific) and _mz800 (MZ-800). IMachine-surface
-    // calls (Cpu, Mem, RunFrame, Reset, LoadRoms, AutoLoad*, debugger
-    // controls) use the Active property, which works for all three.
-    private readonly MZ700? _machine;
-    private readonly MZ80A? _mz80a;
-    private readonly MZ800? _mz800;
-    private IMachine Active =>
-        (IMachine?)_machine ?? (IMachine?)_mz80a ?? _mz800!;
+    // The session owns the machine (v1.4 Phase 2). Exactly one of
+    // _machine / _mz80a / _mz800 is non-null; machine-specific accesses
+    // are gated on it, and IMachine-surface calls use Active, which
+    // works for all three.
+    private readonly EmulatorSession _session;
+    private MZ700? _machine => _session.Mz700;
+    private MZ80A? _mz80a => _session.Mz80a;
+    private MZ800? _mz800 => _session.Mz800;
+    private IMachine Active => _session.Active;
     private readonly Hardware.IJoystickSource _joystickInput;
     private readonly System.Windows.Forms.Timer _timer = new();
     private readonly StatusStrip _status = new();
@@ -91,10 +88,7 @@ public sealed class MainForm : Form
     // without needing a helper wrapper.
     private int _statusLastSetFrame = -1;
     private const int StatusIdleFrames = 300;   // ~5 s at 60 Hz
-    private string MachineLabel =>
-        _mz800 != null ? "MZ-800" :
-        _mz80a != null ? "MZ-80A" :
-                         "MZ-700";
+    private string MachineLabel => _session.MachineLabel;
     private readonly PictureBox _display = new();
     private readonly Settings _settings = Settings.Load();
     private readonly ToolStripMenuItem[] _scaleMenuItems = new ToolStripMenuItem[3];
@@ -124,8 +118,9 @@ public sealed class MainForm : Form
     private ToolStripMenuItem? _scanlinesMenuItem;
     // Phase 5.2 retired the standalone View → Green screen menu item;
     // the toggle now lives entirely in Settings → Display → MZ-80A
-    // display group. ApplyMz80aScreenColor() below is still the single
-    // apply-point, called from initial construction + OnSettingsApplied.
+    // display group. EmulatorSession.ApplyMz80aScreenColor() is still
+    // the single apply-point, called from session construction +
+    // OnSettingsApplied.
     private ToolStripMenuItem? _pauseMenuItem;
     private readonly bool _startFullScreen;
     // Captures the pre-override scanlines value when --scanlines was
@@ -164,54 +159,14 @@ public sealed class MainForm : Form
         // written back to settings.ini (Settings → Startup is the
         // persist path).
         if (machineOverride.HasValue) _settings.CurrentMachine = machineOverride.Value;
-        // EnsureRomPaths scans for both machines' ROMs, so the CLI
-        // override finding e.g. SA-1510.rom under roms/ works even
-        // when settings.ini had never seen an MZ-80A launch before.
-        // No-op if the previous Load() already populated both sides.
-        if (_settings.EnsureRomPaths()) _settings.Save();
-        // Construct exactly one of the three machines.
-        if (_settings.CurrentMachine == MachineType.MZ700)
-            _machine = new MZ700();
-        else if (_settings.CurrentMachine == MachineType.MZ80A)
-        {
-            _mz80a = new MZ80A();
-            _mz80a.Keyboard.InvertLetterShift = _settings.Mz80aInvertLetterShift;
-            ApplyMz80aScreenColor();
-        }
-        else /* MachineType.MZ800 */
-        {
-            _mz800 = new MZ800();
-            _mz800.Mem.VramExpansion = _settings.Mz800VramExpansion;
-        }
+        // The session resolves ROM paths, creates the machine and
+        // applies its settings.
+        _session = new EmulatorSession(_settings);
 
-        // JoystickInput feeds the machine's stick state: the MZ-700's
-        // MZ-1X03 or the MZ-800's $F0/$F1 ports. It needs a non-null
-        // Joystick even on the MZ-80A (no joystick); a throwaway keeps
-        // the field non-null and RunOneFrame's Poll() is guarded.
-        var joystickForInput = _machine?.Joystick ?? _mz800?.Joystick ?? new Hardware.Joystick();
-        _joystickInput = new Hardware.JoystickInput(joystickForInput);
+        // The host gamepad drives the session's joystick (RunOneFrame
+        // polls it only on the MZ-700 and MZ-800).
+        _joystickInput = new Hardware.JoystickInput(_session.Joystick);
         _joystickInput.SetButtonIndices(_settings.JoyButton1Index, _settings.JoyButton2Index);
-        // Keyboard-override wiring. All three machines have the same
-        // 10-strobe × 8-bit matrix topology so KeyOverride is shared;
-        // Settings persists one instance per machine at
-        // [KeyOverrides.MZ700] / [KeyOverrides.MZ80A] / [KeyOverrides.MZ800].
-        // Char-map layers are split too: CharMap, Mz80aCharMap and
-        // Mz800CharMap.
-        if (_machine != null)
-        {
-            _machine!.Keyboard.Overrides = _settings.KeyOverrides;
-            CharMap.Overrides = _settings.CharMapOverrides;
-        }
-        if (_mz80a != null)
-        {
-            _mz80a.Keyboard.Overrides = _settings.Mz80aKeyOverrides;
-        }
-        Mz80aCharMap.Overrides = _settings.Mz80aCharMapOverrides;
-        if (_mz800 != null)
-        {
-            _mz800.Keyboard.Overrides = _settings.Mz800KeyOverrides;
-        }
-        Mz800CharMap.Overrides = _settings.Mz800CharMapOverrides;
 
         Text = TitleBase;
         Icon = EmbeddedResources.LoadIcon();
@@ -575,21 +530,6 @@ public sealed class MainForm : Form
         _settings.Save();
         if (_scanlinesMenuItem != null) _scanlinesMenuItem.Checked = _settings.DisplayScanlines;
         _display.Invalidate();
-    }
-
-    private void ApplyMz80aScreenColor()
-    {
-        if (_mz80a == null) return;
-        if (_settings.Mz80aGreenScreen)
-        {
-            _mz80a.Video.ForegroundArgb = unchecked((int)0xFF00FF00);
-            _mz80a.Video.BackgroundArgb = unchecked((int)0xFF000000);
-        }
-        else
-        {
-            _mz80a.Video.ForegroundArgb = unchecked((int)0xFFFFFFFF);
-            _mz80a.Video.BackgroundArgb = unchecked((int)0xFF000000);
-        }
     }
 
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
@@ -1696,7 +1636,7 @@ public sealed class MainForm : Form
         // effect on the next MZ-80A boot.
         if (_mz80a != null)
         {
-            ApplyMz80aScreenColor();
+            _session.ApplyMz80aScreenColor();
             _mz80a.Keyboard.InvertLetterShift = _settings.Mz80aInvertLetterShift;
         }
         // MZ-800 live-apply (Phase 8.1): the MZ-1R25 board toggles
