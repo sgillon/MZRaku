@@ -26,7 +26,7 @@ namespace MZRaku;
 internal sealed class HidDiagnosticForm : DiagnosticFormBase
 {
     private readonly IMachine _machine;
-    private readonly JoystickInput _joystick;
+    private readonly IJoystickSource _joystick;
 
     // The active machine's keyboard, accessed through the shared
     // IKeyboardMatrix surface (Diag / PeekMatrixRow / ReadRow). The
@@ -46,7 +46,7 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
     private readonly SmoothLabel _mappingLabel = AutoSizeMonoLabel();
     private readonly SmoothLabel _mzLabel = FillMonoLabel();
 
-    public HidDiagnosticForm(IMachine machine, JoystickInput joystick)
+    public HidDiagnosticForm(IMachine machine, IJoystickSource joystick)
     {
         _machine = machine;
         _joystick = joystick;

@@ -22,7 +22,7 @@ public sealed class MainForm : Form
     private readonly MZ800? _mz800;
     private IMachine Active =>
         (IMachine?)_machine ?? (IMachine?)_mz80a ?? _mz800!;
-    private readonly Hardware.JoystickInput _joystickInput;
+    private readonly Hardware.IJoystickSource _joystickInput;
     private readonly System.Windows.Forms.Timer _timer = new();
     private readonly StatusStrip _status = new();
     // Left pane: persistent machine identity (MZ-700 / MZ-80A). Fixed

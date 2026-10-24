@@ -24,8 +24,10 @@ namespace MZRaku.Hardware;
 /// Joystick slot 0 → MZ stick 1, slot 1 → MZ stick 2. Disconnected
 /// slots leave the corresponding StickState.Active = false so $E008
 /// returns to "idle / pulled high".
+///
+/// This is the Windows front end's <see cref="IJoystickSource"/>.
 /// </summary>
-public sealed class JoystickInput
+public sealed class JoystickInput : IJoystickSource
 {
     private readonly Joystick _joystick;
     private bool _winmmAvailable = true;

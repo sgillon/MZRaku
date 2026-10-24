@@ -38,7 +38,7 @@ public sealed class SettingsForm : Form
     }
 
     private readonly Settings _settings;
-    private readonly JoystickInput? _joystickInput;
+    private readonly IJoystickSource? _joystickInput;
     private readonly MZ700? _machine;
     // MZ-80A instance for Phase 5.5b Advanced Keyboard editor.
     // Populated by MainForm.OpenSettings when the active machine is
@@ -139,7 +139,7 @@ public sealed class SettingsForm : Form
     /// button bindings).</summary>
     public event Action? Applied;
 
-    public SettingsForm(Settings settings, JoystickInput? joystickInput = null, MZ700? machine = null,
+    public SettingsForm(Settings settings, IJoystickSource? joystickInput = null, MZ700? machine = null,
         Tab initialTab = Tab.Startup, MZ80A? mz80a = null, MZ800? mz800 = null)
     {
         _settings = settings;

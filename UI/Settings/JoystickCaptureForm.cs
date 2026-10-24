@@ -8,20 +8,20 @@ namespace MZRaku;
 /// <summary>
 /// Modal "press a button" dialog used from the Settings → Joystick tab
 /// so the user can capture a controller button rather than know its
-/// numeric index. Polls <see cref="JoystickInput.GetCurrentButtons"/>
+/// numeric index. Polls <see cref="IJoystickSource.GetCurrentButtons"/>
 /// at ~30 Hz; the first 0→pressed transition wins. Already-held buttons
 /// at open time are masked out so the dialog doesn't immediately fire
 /// on whatever the user happened to be holding.
 /// </summary>
 public sealed class JoystickCaptureForm : Form
 {
-    private readonly JoystickInput _input;
+    private readonly IJoystickSource _input;
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 33 };
     private uint _prevButtons;
 
     public int CapturedButtonIndex { get; private set; } = -1;
 
-    public JoystickCaptureForm(JoystickInput input)
+    public JoystickCaptureForm(IJoystickSource input)
     {
         _input = input;
         Text = "Capture button";
