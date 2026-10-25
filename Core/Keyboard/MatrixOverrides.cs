@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Generic base for the two user-override stores

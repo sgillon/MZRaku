@@ -1,9 +1,8 @@
 using System;
 using System.IO;
-using MZRaku.Hardware;
 using Z80Core;
 
-namespace MZRaku;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Assembled Sharp MZ-800 machine: Z80 (3.547 MHz) + 8255 PPI + 8253

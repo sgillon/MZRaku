@@ -1,9 +1,8 @@
 using System;
 using System.IO;
 using System.Text;
-using MZRaku.Hardware;
 
-namespace MZRaku;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Owns the <c>--dump=&lt;file&gt;</c> CLI flow: gather a per-frame
@@ -115,7 +114,7 @@ internal sealed class DumpTraceRecorder
     private static void SaveWav(string path, MemoryStream pcm)
     {
         int dataLen = (int)pcm.Length;
-        int rate = Hardware.Sound.OutputSampleRate;
+        int rate = Sound.OutputSampleRate;
         using var w = new BinaryWriter(File.Create(path));
         w.Write("RIFF"u8.ToArray()); w.Write(36 + dataLen);
         w.Write("WAVE"u8.ToArray());

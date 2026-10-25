@@ -1,4 +1,4 @@
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// A host key code plus modifier flags: the core's own copy of

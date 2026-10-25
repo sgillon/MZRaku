@@ -1,9 +1,8 @@
 using System;
 using System.IO;
-using MZRaku.Hardware;
 using Z80Core;
 
-namespace MZRaku;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Assembled Sharp MZ-80A machine: Z80 (2 MHz) + 8255 PPI + 8253 PIT
@@ -266,7 +265,7 @@ public sealed class MZ80A : MzMachineBase, IMachine
     {
         if (!File.Exists(basicPath))
             throw new FileNotFoundException("BASIC cassette image not found", basicPath);
-        var img = Hardware.MzfImage.Parse(File.ReadAllBytes(basicPath));
+        var img = MzfImage.Parse(File.ReadAllBytes(basicPath));
         // Direct-inject rather than dispatch through SA-1510's LOAD —
         // the monitor L path isn't wired for the MZ-80A. A future
         // switch to Queue + typed "L\r" would exercise the real trap
@@ -278,7 +277,7 @@ public sealed class MZ80A : MzMachineBase, IMachine
     {
         if (!File.Exists(path))
             throw new FileNotFoundException("Cassette image not found", path);
-        var img = Hardware.MzfImage.Parse(CassetteFile.ReadBytes(path));
+        var img = MzfImage.Parse(CassetteFile.ReadBytes(path));
         // Same direct-inject shortcut as AutoLoadBasic — bypasses the
         // monitor's L command until a keyboard auto-typer exists.
         Cassette.DirectInject(img, jumpExec: ShouldJumpExecForType(img.Type));
@@ -286,7 +285,7 @@ public sealed class MZ80A : MzMachineBase, IMachine
 
     public void DirectInjectCassette(string path)
     {
-        var img = Hardware.MzfImage.Parse(CassetteFile.ReadBytes(path));
+        var img = MzfImage.Parse(CassetteFile.ReadBytes(path));
         Cassette.DirectInject(img, jumpExec: ShouldJumpExecForType(img.Type));
     }
 

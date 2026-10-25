@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// MZ-800 video output — two render paths, picked per frame by
-/// <see cref="MZRaku.MZ800"/> from the DMD register:
+/// <see cref="MZ800"/> from the DMD register:
 ///
 ///   • MZ-700 mode (<see cref="Render"/>): 40×25 character cells, 8×8
 ///     glyphs, display codes at $D000-$D7FF and attributes at
@@ -63,7 +63,7 @@ public sealed class Mz800Video
     /// <summary>
     /// Copy the 4 KB CG-ROM out of the combined MZ800.ROM into
     /// <see cref="FontRom"/>. Called from
-    /// <see cref="MZRaku.MZ800.LoadRoms"/> after the ROM file lands
+    /// <see cref="MZ800.LoadRoms"/> after the ROM file lands
     /// in memory. Offset $1000-$1FFF per tech-ref p. 24 ROM
     /// configuration diagram.
     /// </summary>

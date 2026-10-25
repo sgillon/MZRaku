@@ -1,4 +1,4 @@
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// User-editable override layer for the character-driven MZ-700

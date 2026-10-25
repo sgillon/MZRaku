@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Physical layout of the MZ-80A keyboard. Drives the shared

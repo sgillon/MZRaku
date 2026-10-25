@@ -3,9 +3,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
-using MZRaku.Hardware;
 
-namespace MZRaku;
+namespace MZRaku.Core;
 
 /// <summary>
 /// User preferences persisted across runs as a small INI file

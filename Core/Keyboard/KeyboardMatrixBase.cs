@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Shared plumbing for the two Sharp keyboards

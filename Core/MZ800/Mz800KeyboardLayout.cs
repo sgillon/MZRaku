@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Physical layout of the MZ-800 keyboard, for the keyboard diagram

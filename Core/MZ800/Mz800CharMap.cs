@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// MZ-800 analogue of <see cref="CharMap"/>: static translation from

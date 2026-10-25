@@ -1,5 +1,5 @@
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Which mapping layer resolved the last PC keystroke. Shared across

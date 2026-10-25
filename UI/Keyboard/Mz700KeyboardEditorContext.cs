@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Forms;
-using MZRaku.Hardware;
 
 namespace MZRaku;
 
@@ -43,7 +42,7 @@ public sealed class Mz700KeyboardEditorContext : IKeyboardEditorContext
     public IReadOnlyDictionary<HostKey, (int Row, int Col)> SpecialKeyMap { get; }
 
     public IReadOnlyDictionary<HostKey, string> SpecialKeyLabels =>
-        Hardware.SpecialKeyMap.Labels;
+        Core.SpecialKeyMap.Labels;
 
     public IReadOnlyDictionary<(int Row, int Col), string> SlotLabels =>
         Mz700MatrixReference.SpecialLabels;
@@ -78,7 +77,7 @@ public sealed class Mz700KeyboardEditorContext : IKeyboardEditorContext
 
     private IEnumerable<(int Row, int Col)> CollectBoundSlots()
     {
-        foreach (var kv in Hardware.SpecialKeyMap.Map)
+        foreach (var kv in Core.SpecialKeyMap.Map)
             yield return (kv.Value.row, kv.Value.col);
         foreach (var kv in CharMap.Defaults)
         {
@@ -94,11 +93,11 @@ public sealed class Mz700KeyboardEditorContext : IKeyboardEditorContext
             yield return (kv.Value.Row, kv.Value.Col);
     }
 
-    // SpecialKeyMap in Hardware is Dictionary<HostKey,(int row,int col)>;
+    // SpecialKeyMap in Core is Dictionary<HostKey,(int row,int col)>;
     // rewrap with Row/Col-cased tuple to match the interface's shape
     // (avoids leaking the lowercase-cased tuple through the abstraction).
     private static IReadOnlyDictionary<HostKey, (int Row, int Col)> SpecialKeyMap_Load() =>
-        Hardware.SpecialKeyMap.Map.ToDictionary(kv => kv.Key,
+        Core.SpecialKeyMap.Map.ToDictionary(kv => kv.Key,
             kv => ((int Row, int Col))(kv.Value.row, kv.Value.col));
 
     private static MatrixSlotKind MapKind(Mz700MatrixReference.SlotKind k) => k switch

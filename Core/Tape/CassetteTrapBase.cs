@@ -1,7 +1,7 @@
 using System;
 using Z80Core;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Shared LOAD-trap plumbing for the two Sharp cassette classes

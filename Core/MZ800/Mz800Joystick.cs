@@ -1,4 +1,4 @@
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// MZ-800 joystick ports (tech-ref p. 32, MZ-1X16 manual p. 5): two

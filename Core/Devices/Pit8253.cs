@@ -1,6 +1,6 @@
 using System;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Intel 8253 PIT emulation. Generic three-counter implementation

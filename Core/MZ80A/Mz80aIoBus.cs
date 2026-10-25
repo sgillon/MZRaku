@@ -1,7 +1,7 @@
 using System;
 using Z80Core;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Routes MZ-80A memory-mapped I/O ($E000-$EFFF plus the $E200-$E2FF

@@ -1,5 +1,5 @@
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// MZ-800 keyboard matrix. Same 10-strobe × 8-bit active-low shape as

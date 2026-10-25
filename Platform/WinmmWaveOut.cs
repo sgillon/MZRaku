@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 
-namespace MZRaku.Hardware;
+namespace MZRaku;
 
 /// <summary>
 /// Minimal streaming PCM player on top of Windows' built-in

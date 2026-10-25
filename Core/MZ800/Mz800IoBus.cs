@@ -1,7 +1,7 @@
 using System;
 using Z80Core;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Routes MZ-800 I/O and memory-mapped I/O to devices. See tech-ref

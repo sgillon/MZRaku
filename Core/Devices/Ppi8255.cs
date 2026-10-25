@@ -1,6 +1,6 @@
 using System;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Intel 8255 PPI emulation. Generic three-port implementation shared

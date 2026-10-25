@@ -3,9 +3,8 @@ using System.Buffers.Binary;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
-using MZRaku.Hardware;
 
-namespace MZRaku;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Minimal PNG encoder for <c>--dump</c>: writes a <see cref="FrameBuffer"/>

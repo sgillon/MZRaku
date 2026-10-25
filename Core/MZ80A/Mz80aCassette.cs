@@ -1,4 +1,4 @@
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Sharp MZ-80A cassette-tape trap harness. SA-1510 exposes tape

@@ -47,6 +47,12 @@
     <ProjectReference Include="Core\MZRaku.Core.csproj" />
   </ItemGroup>
 
+  <!-- The whole app works with core types, so one global using rather
+       than a using in every file. -->
+  <ItemGroup>
+    <Using Include="MZRaku.Core" />
+  </ItemGroup>
+
   <!-- Sibling sub-projects build separately; exclude their sources from
        this project to avoid double-compile errors. -->
   <ItemGroup>

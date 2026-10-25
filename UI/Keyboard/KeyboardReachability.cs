@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using MZRaku.Hardware;
 
 namespace MZRaku;
 

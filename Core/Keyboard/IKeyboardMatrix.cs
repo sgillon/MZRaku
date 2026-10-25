@@ -1,4 +1,4 @@
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// The minimum surface Ppi8255 needs to feed keyboard row data back

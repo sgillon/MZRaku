@@ -1,7 +1,7 @@
 using System;
 using Z80Core;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Routes memory-mapped I/O (0xE000-0xE00F) to 8255 PPI, 8253 PIT, and misc.

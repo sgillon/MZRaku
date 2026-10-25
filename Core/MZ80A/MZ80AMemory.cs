@@ -1,7 +1,7 @@
 using System;
 using Z80Core;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Sharp MZ-80A memory map (per Owner's Manual §3.1.1, Figure 3.2):

@@ -3,9 +3,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
-using MZRaku.Hardware;
 
-namespace MZRaku;
+namespace MZRaku.Core;
 
 /// <summary>
 /// A frame-stamped host-input script for <c>--keys=&lt;file&gt;</c>, used by

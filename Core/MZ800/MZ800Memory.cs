@@ -1,7 +1,7 @@
 using System;
 using Z80Core;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Sharp MZ-800 memory + banking (per tech-ref pp. 3-5, 24). The

@@ -1,6 +1,6 @@
 using System;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// TI SN76489(A)N programmable sound generator — three square-wave

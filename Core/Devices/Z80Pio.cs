@@ -1,6 +1,6 @@
 using System;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Zilog Z80 PIO — control-word decode and mode-3 (bit control)

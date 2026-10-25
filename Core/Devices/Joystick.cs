@@ -1,6 +1,6 @@
 using Z80Core;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Sharp MZ-1X03 joystick port emulation. Two sticks, each with X/Y

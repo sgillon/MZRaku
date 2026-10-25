@@ -1,6 +1,6 @@
 using Z80Core;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Shared base for the two Sharp machine classes (<see cref="MZ700"/>

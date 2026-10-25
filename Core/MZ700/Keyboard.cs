@@ -1,5 +1,5 @@
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// MZ-700 keyboard matrix. The 8255 PPI writes a strobe value to

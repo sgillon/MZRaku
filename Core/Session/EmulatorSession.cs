@@ -1,8 +1,7 @@
 using System;
 using System.IO;
-using MZRaku.Hardware;
 
-namespace MZRaku;
+namespace MZRaku.Core;
 
 /// <summary>
 /// One running machine and everything that drives it, independent of

@@ -1,6 +1,6 @@
 using Z80Core;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// The surface a MainForm-style host needs to drive a Sharp MZ
@@ -34,7 +34,7 @@ public interface IMachine
 
     /// <summary>
     /// The machine's speaker output. Both machines drive the same
-    /// <see cref="Hardware.Sound"/> class — MZ-700 uses its
+    /// <see cref="Core.Sound"/> class — MZ-700 uses its
     /// two-gate NAND (PC3 + $E008 D0), MZ-80A pins Enabled=true
     /// and uses only the hard gate. MainForm's mute-on-pause /
     /// Dispose-on-close paths run through this getter.
@@ -70,7 +70,7 @@ public interface IMachine
     /// HeaderTrapHits + DataTrapHits + DataDelivered uniformly.
     /// MZ-700-specific fields (WriteTapeTrapHits, BreakWaitTrapHits,
     /// SAVE-tape machinery) live on the concrete
-    /// <see cref="Hardware.Cassette"/> class and callers that need
+    /// <see cref="Core.Cassette"/> class and callers that need
     /// them cast.
     /// </summary>
     CassetteTrapBase Cassette { get; }

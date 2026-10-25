@@ -1,9 +1,8 @@
 using System;
 using System.IO;
-using MZRaku.Hardware;
 using Z80Core;
 
-namespace MZRaku;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Assembled Sharp MZ-700 machine: Z80 + memory + I/O devices + cassette.

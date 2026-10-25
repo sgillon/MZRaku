@@ -1,6 +1,6 @@
 using System;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// The PCM format and buffering <see cref="Sound"/> plays at, so a front
@@ -14,7 +14,7 @@ public readonly record struct AudioOutFormat(
 /// <summary>
 /// Where <see cref="Sound"/> sends its PCM (v1.4 design decision D4).
 /// The front end supplies one to <see cref="Sound.Start"/>; on Windows
-/// that is <see cref="WinmmWaveOut"/>. All members are called from the
+/// that is the app's <c>WinmmWaveOut</c>. All members are called from the
 /// sound feed thread except <see cref="Reset"/>, which the emulation
 /// side calls on mute, and <see cref="IDisposable.Dispose"/>.
 /// </summary>

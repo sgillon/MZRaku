@@ -1,7 +1,6 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
-using MZRaku.Hardware;
 
 namespace MZRaku;
 

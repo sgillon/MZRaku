@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// MZ-700 / MZ-800 auto-typer: drives the keyboard matrix from a queue

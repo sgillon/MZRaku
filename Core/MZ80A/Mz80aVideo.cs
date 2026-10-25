@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Sharp MZ-80A text-mode video renderer.

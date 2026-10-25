@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// One parsed Sharp .mzf cassette image — the format Sharp used
@@ -11,7 +11,7 @@ namespace MZRaku.Hardware;
 /// program data following the header.
 ///
 /// The <see cref="Cassette"/> / <see cref="Mz80aCassette"/> classes
-/// both consume this shape — MzfImage lives at the Hardware namespace
+/// both consume this shape — MzfImage lives at the Core namespace
 /// root rather than nested inside one of them so per-machine code
 /// paths don't have to reach through a sibling machine's class to
 /// name it (v1.2 audit F-001 pulled it out of Cassette for exactly

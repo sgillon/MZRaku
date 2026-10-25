@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// MZ-700 text-mode video renderer.

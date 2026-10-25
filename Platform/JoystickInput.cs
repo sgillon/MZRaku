@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 
-namespace MZRaku.Hardware;
+namespace MZRaku;
 
 /// <summary>
 /// Windows joystick → <see cref="Joystick"/> bridge. Uses the WinMM

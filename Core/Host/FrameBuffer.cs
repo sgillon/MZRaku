@@ -1,4 +1,4 @@
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// A rendered image as plain 32-bit ARGB pixels (0xAARRGGBB, the same

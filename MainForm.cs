@@ -4,7 +4,6 @@ using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
-using MZRaku.Hardware;
 
 namespace MZRaku;
 
@@ -19,7 +18,7 @@ public sealed class MainForm : Form
     private MZ80A? _mz80a => _session.Mz80a;
     private MZ800? _mz800 => _session.Mz800;
     private IMachine Active => _session.Active;
-    private readonly Hardware.IJoystickSource _joystickInput;
+    private readonly IJoystickSource _joystickInput;
     private readonly System.Windows.Forms.Timer _timer = new();
     private readonly StatusStrip _status = new();
     // Left pane: persistent machine identity (MZ-700 / MZ-80A). Fixed
@@ -159,7 +158,7 @@ public sealed class MainForm : Form
 
         // The host gamepad drives the session's joystick (the session
         // polls it each frame, only on the MZ-700 and MZ-800).
-        _joystickInput = new Hardware.JoystickInput(_session.Joystick);
+        _joystickInput = new JoystickInput(_session.Joystick);
         _joystickInput.SetButtonIndices(_settings.JoyButton1Index, _settings.JoyButton2Index);
         _session.JoystickSource = _joystickInput;
         // --keys=<file>: scripted keys go through the same path as real

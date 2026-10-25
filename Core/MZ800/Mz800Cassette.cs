@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// MZ-800 cassette: a mounted tape (a sequence of files) served to the

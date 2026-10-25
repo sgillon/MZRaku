@@ -1,4 +1,4 @@
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// MZ-80A analogue of <see cref="CharMapOverrides"/>. Same shape

@@ -1,10 +1,10 @@
-namespace MZRaku.Hardware;
+namespace MZRaku.Core;
 
 /// <summary>
 /// A host gamepad feeding a machine's <see cref="Joystick"/> (v1.4
 /// design decision D5). The front end creates one bound to the active
 /// machine's <see cref="Joystick"/>; on Windows that is
-/// <see cref="JoystickInput"/> (WinMM). Host slot 0 drives MZ stick 1
+/// the app's <c>JoystickInput</c> (WinMM). Host slot 0 drives MZ stick 1
 /// and slot 1 drives MZ stick 2.
 /// </summary>
 public interface IJoystickSource

@@ -1,8 +1,7 @@
 using System;
 using System.IO;
-using MZRaku.Hardware;
 
-namespace MZRaku;
+namespace MZRaku.Core;
 
 /// <summary>
 /// Owns the per-machine startup pipelines MainForm's Timer_Tick
