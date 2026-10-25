@@ -95,7 +95,6 @@ public sealed class MainForm : Form
     private readonly string? _initialCassette;
     private readonly bool _autoLoadBasic;
     private readonly string? _dumpPath;
-    private DumpTraceRecorder? _dumpTrace => _session.DumpTrace;
     private bool _started;
     private DebuggerForm? _debugger;
     private MemoryViewerForm? _memViewer;
@@ -116,9 +115,8 @@ public sealed class MainForm : Form
     private ToolStripMenuItem? _scanlinesMenuItem;
     // Phase 5.2 retired the standalone View → Green screen menu item;
     // the toggle now lives entirely in Settings → Display → MZ-80A
-    // display group. EmulatorSession.ApplyMz80aScreenColor() is still
-    // the single apply-point, called from session construction +
-    // OnSettingsApplied.
+    // display group. EmulatorSession applies it at construction and in
+    // ApplySettings (from OnSettingsApplied).
     private ToolStripMenuItem? _pauseMenuItem;
     private readonly bool _startFullScreen;
     // Captures the pre-override scanlines value when --scanlines was
@@ -534,8 +532,8 @@ public sealed class MainForm : Form
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
         // A --dump run swallows real keys here too, so no hotkey or
-        // menu shortcut fires (see IgnoreHostKeys).
-        if (IgnoreHostKeys) return true;
+        // menu shortcut fires (see EmulatorSession.IgnoresHostKeys).
+        if (_session.IgnoresHostKeys) return true;
         // Alt+Enter is the full-screen toggle. Catching it here keeps it
         // out of Windows' own Alt-handling (which would otherwise pop
         // the system menu or eat the keystroke).
@@ -948,54 +946,31 @@ public sealed class MainForm : Form
     private void InjectScriptedKey(KeyScript.Event ev)
     {
         var keyData = (Keys)ev.KeyData;
-        _injectingScriptedKey = true;
-        try
+        if (ev.Kind == KeyScript.EventKind.Up)
         {
-            if (ev.Kind == KeyScript.EventKind.Up)
-            {
-                OnKeyUp(this, new KeyEventArgs(keyData));
-                return;
-            }
-            int wm = (keyData & Keys.Alt) != 0 ? WM_SYSKEYDOWN : WM_KEYDOWN;
-            var msg = Message.Create(Handle, wm, (IntPtr)(int)(keyData & Keys.KeyCode), IntPtr.Zero);
-            if (ProcessCmdKey(ref msg, keyData)) return;
-            OnKeyDown(this, new KeyEventArgs(keyData));
-            if (ev.Text is char c) OnKeyPress(this, new KeyPressEventArgs(c));
+            OnKeyUp(this, new KeyEventArgs(keyData));
+            return;
         }
-        finally
-        {
-            _injectingScriptedKey = false;
-        }
+        int wm = (keyData & Keys.Alt) != 0 ? WM_SYSKEYDOWN : WM_KEYDOWN;
+        var msg = Message.Create(Handle, wm, (IntPtr)(int)(keyData & Keys.KeyCode), IntPtr.Zero);
+        if (ProcessCmdKey(ref msg, keyData)) return;
+        OnKeyDown(this, new KeyEventArgs(keyData));
+        if (ev.Text is char c) OnKeyPress(this, new KeyPressEventArgs(c));
     }
 
-    private bool _injectingScriptedKey;
-
-    // --dump runs ignore the real keyboard, as they do the gamepad: a
-    // captured frame must not depend on keys pressed while its window
-    // happens to have focus (the regression suite opens several at
-    // once). Scripted --keys input still gets through.
-    private bool IgnoreHostKeys => _dumpTrace != null && !_injectingScriptedKey;
-
-    // Key events go straight to the machine's keyboard (IKeyboardInput),
-    // which owns the mapping and the PC-shift handling. KeyData keeps
-    // the modifier flags so the override layer can match bindings such
-    // as Control+G; HostKey has Keys' values, so a cast converts it.
+    // Key events go to the session (which ignores them during --dump
+    // runs). KeyData keeps the modifier flags; HostKey has Keys'
+    // values, so a cast converts it.
     private void OnKeyDown(object? s, KeyEventArgs e)
     {
-        if (IgnoreHostKeys) return;
-        if (Active.KeyboardInput.OnKeyDown((HostKey)e.KeyData)) e.Handled = true;
+        if (_session.KeyDown((HostKey)e.KeyData)) e.Handled = true;
     }
 
-    private void OnKeyPress(object? s, KeyPressEventArgs e)
-    {
-        if (IgnoreHostKeys) return;
-        Active.KeyboardInput.OnKeyPress(e.KeyChar);
-    }
+    private void OnKeyPress(object? s, KeyPressEventArgs e) => _session.KeyPress(e.KeyChar);
 
     private void OnKeyUp(object? s, KeyEventArgs e)
     {
-        if (IgnoreHostKeys) return;
-        if (Active.KeyboardInput.OnKeyUp((HostKey)e.KeyData)) e.Handled = true;
+        if (_session.KeyUp((HostKey)e.KeyData)) e.Handled = true;
     }
 
     private void OnDragEnter(object? s, DragEventArgs e)
@@ -1206,24 +1181,10 @@ public sealed class MainForm : Form
         // longer needs reverting on close.
         if (_scanlinesMenuItem != null) _scanlinesMenuItem.Checked = _settings.DisplayScanlines;
         _scanlinesRestoreOnClose = null;
-        // MZ-80A live-apply (Phase 5.2): both toggles push through
-        // immediately when MZ-80A is the active machine, matching how
-        // the retired View → Green screen menu item behaved. When
-        // MZ-700 is active the settings persist silently and take
-        // effect on the next MZ-80A boot.
-        if (_mz80a != null)
-        {
-            _session.ApplyMz80aScreenColor();
-            _mz80a.Keyboard.InvertLetterShift = _settings.Mz80aInvertLetterShift;
-        }
-        // MZ-800 live-apply (Phase 8.1): the MZ-1R25 board toggles
-        // straight away, so the same title can be compared with and
-        // without it.
-        if (_mz800 != null) _mz800.Mem.VramExpansion = _settings.Mz800VramExpansion;
+        // The machine side: MZ-80A screen colour and letter shift,
+        // MZ-800 VRAM expansion, gamepad buttons.
+        _session.ApplySettings();
         _display.Invalidate();
-        // Joystick button bindings can be re-pushed live; ROM paths take
-        // effect on the next Reset, so we don't touch the running machine.
-        _joystickInput.SetButtonIndices(_settings.JoyButton1Index, _settings.JoyButton2Index);
     }
 
     private void OpenDebugger()

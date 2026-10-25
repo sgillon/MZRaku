@@ -13,8 +13,9 @@ namespace MZRaku;
 /// Being built up in v1.4 Phase 2, a step at a time, out of MainForm.
 /// So far it owns creating the machine and applying its settings,
 /// start (ROMs, sound, the --dump hooks and recorder, autoload), reset,
-/// the ready checks autoload waits on, running frames, and loading
-/// cassettes, BASIC and BASIC source.
+/// the ready checks autoload waits on, running frames, loading
+/// cassettes, BASIC and BASIC source, host keys and the --keys script,
+/// and applying changed settings.
 /// </summary>
 public sealed class EmulatorSession
 {
@@ -145,21 +146,57 @@ public sealed class EmulatorSession
 
     private KeyScript? _keyScript;
     private Action<KeyScript.Event>? _deliverScriptedKey;
+    private bool _deliveringScriptedKey;
 
     /// <summary>
     /// Play a --keys script: after each frame, the events now due go to
-    /// <paramref name="deliver"/>, which feeds them in as host keys.
+    /// <paramref name="deliver"/>, which feeds them in as host keys
+    /// (through <see cref="KeyDown"/>, <see cref="KeyPress"/> and
+    /// <see cref="KeyUp"/>, after any front-end hotkeys). Keys it
+    /// delivers get through even when <see cref="IgnoresHostKeys"/>.
     /// </summary>
     public void UseKeyScript(KeyScript script, Action<KeyScript.Event> deliver)
     {
         _keyScript = script;
-        _deliverScriptedKey = deliver;
+        _deliverScriptedKey = ev =>
+        {
+            _deliveringScriptedKey = true;
+            try { deliver(ev); }
+            finally { _deliveringScriptedKey = false; }
+        };
     }
 
+    /// <summary>
+    /// True while real keys must be ignored: --dump runs ignore the
+    /// real keyboard, as they do the gamepad, so a captured frame
+    /// doesn't depend on keys pressed while its window happens to have
+    /// focus (the regression suite opens several at once). Scripted
+    /// --keys input still gets through. Front ends check it before
+    /// their own hotkeys too.
+    /// </summary>
+    public bool IgnoresHostKeys => DumpTrace != null && !_deliveringScriptedKey;
+
+    // Key events go straight to the machine's keyboard (IKeyboardInput),
+    // which owns the mapping and the PC-shift handling. The key keeps
+    // its modifier flags so the override layer can match bindings such
+    // as Control+G.
+
+    /// <summary>A host key went down. True if the machine used it.</summary>
+    public bool KeyDown(HostKey key) =>
+        !IgnoresHostKeys && Active.KeyboardInput.OnKeyDown(key);
+
+    /// <summary>The character a host key press typed.</summary>
+    public void KeyPress(char c)
+    {
+        if (!IgnoresHostKeys) Active.KeyboardInput.OnKeyPress(c);
+    }
+
+    /// <summary>A host key came up. True if the machine used it.</summary>
+    public bool KeyUp(HostKey key) =>
+        !IgnoresHostKeys && Active.KeyboardInput.OnKeyUp(key);
+
     private AutoLoadOrchestrator AutoLoad { get; set; } = null!;   // created in Start()
-    // Internal until the front end's host-key gating moves here (v1.4
-    // Phase 2 step 5).
-    internal DumpTraceRecorder? DumpTrace { get; private set; }
+    private DumpTraceRecorder? DumpTrace { get; set; }
 
     // Exactly one of these is populated, from Settings.CurrentMachine.
     // Machine-specific hardware (Sound, Ppi, Pit, Cassette, Keyboard,
@@ -181,10 +218,31 @@ public sealed class EmulatorSession
                         "MZ-700";
 
     /// <summary>
+    /// Push the settings that change live into the running machine,
+    /// after the user applies them: the MZ-80A screen colour and
+    /// inverted letter shift, the MZ-800 VRAM expansion board, and the
+    /// gamepad button numbers. The other machines' settings are only
+    /// saved, and take effect when that machine next starts; ROM paths
+    /// wait for the next Reset.
+    /// </summary>
+    public void ApplySettings()
+    {
+        if (Mz80a != null)
+        {
+            ApplyMz80aScreenColor();
+            Mz80a.Keyboard.InvertLetterShift = _settings.Mz80aInvertLetterShift;
+        }
+        // The MZ-1R25 board toggles straight away, so the same title
+        // can be compared with and without it.
+        if (Mz800 != null) Mz800.Mem.VramExpansion = _settings.Mz800VramExpansion;
+        JoystickSource?.SetButtonIndices(_settings.JoyButton1Index, _settings.JoyButton2Index);
+    }
+
+    /// <summary>
     /// Push the MZ-80A green-screen setting into its video. No-op on the
     /// other machines.
     /// </summary>
-    public void ApplyMz80aScreenColor()
+    private void ApplyMz80aScreenColor()
     {
         if (Mz80a == null) return;
         if (_settings.Mz80aGreenScreen)
