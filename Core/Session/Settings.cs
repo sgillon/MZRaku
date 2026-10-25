@@ -728,7 +728,7 @@ public sealed class Settings
     /// absolute path. Relative paths are resolved against
     /// <see cref="AppContext.BaseDirectory"/>. Empty stays empty.
     /// </summary>
-    internal static string Resolve(string storedPath)
+    public static string Resolve(string storedPath)
     {
         if (string.IsNullOrEmpty(storedPath)) return storedPath;
         if (Path.IsPathRooted(storedPath)) return storedPath;
@@ -740,7 +740,7 @@ public sealed class Settings
     /// relative-to-base when the file lives under the executable
     /// directory (so the INI file stays portable), absolute otherwise.
     /// </summary>
-    internal static string MakeStorable(string absolutePath)
+    public static string MakeStorable(string absolutePath)
     {
         var baseDir = Path.GetFullPath(AppContext.BaseDirectory).TrimEnd(Path.DirectorySeparatorChar);
         var full = Path.GetFullPath(absolutePath);

@@ -44,6 +44,7 @@
 
   <ItemGroup>
     <ProjectReference Include="Z80Core\Z80Core.csproj" />
+    <ProjectReference Include="Core\MZRaku.Core.csproj" />
   </ItemGroup>
 
   <!-- Sibling sub-projects build separately; exclude their sources from
@@ -53,6 +54,8 @@
     <None Remove="tools/**/*" />
     <Compile Remove="Z80Core/**/*.cs" />
     <None Remove="Z80Core/**/*" />
+    <Compile Remove="Core/**/*.cs" />
+    <None Remove="Core/**/*" />
   </ItemGroup>
 
   <!-- Embedded resources for the single-file publish: the app icon

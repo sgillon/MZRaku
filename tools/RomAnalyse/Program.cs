@@ -68,7 +68,7 @@ internal static class Program
 
         Console.WriteLine();
         Console.WriteLine("--- Simulated RomKeyTables.Build (what FontSheet sees) ---");
-        // Mirror the same skip-list logic as Hardware/SpecialKeyMap.cs:
+        // Mirror the same skip-list logic as Core/MZ700/SpecialKeyMap.cs:
         var slotLabels = new HashSet<(int row, int col)>
         {
             (0,0),(0,4),(0,6),(7,2),(7,3),(7,4),(7,5),(7,6),(7,7),

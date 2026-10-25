@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The emulation core: machines, devices, keyboard and tape handling,
+       settings and EmulatorSession. Plain net8.0, no Windows Forms, so
+       any front end can use it (the WinForms app today, MZRakuCLI and
+       the headless runner next). See docs/v1.4-plan.md, decision D7. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>MZRaku.Core</AssemblyName>
+    <RootNamespace>MZRaku.Core</RootNamespace>
+    <!-- The three video renderers write pixels through pointers. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <!-- Embedded in the assembly, as Z80Core does, so the single-file
+       release has no separate .pdb. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Z80Core\Z80Core.csproj" />
+  </ItemGroup>
+
+</Project>

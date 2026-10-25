@@ -35,7 +35,7 @@ public sealed class IoBus : IIoBus
             //             polled by S-BASIC's MUSIC for note duration.
             //   bits 1-6 = MZ-1X03 joystick lines (active-low, multiplexed
             //              by VBLK between axis pulses and switch states —
-            //              see Hardware/Joystick.cs).
+            //              see Core/Devices/Joystick.cs).
             //   bit 7   = VBLANK signal (also tracked on PPI PortC PC7).
             bool vblkHigh = (Ppi.PortCIn & 0x80) != 0;
             byte v = Joystick.GetPortBits(vblkHigh);
