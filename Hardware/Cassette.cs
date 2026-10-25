@@ -76,7 +76,7 @@ public sealed class Cassette : CassetteTrapBase
 
     public event Action<string>? OnSaved;
 
-    // Where SAVE'd cassettes land. Set by MainForm at startup.
+    // Where SAVE'd cassettes land: saves/ next to the exe.
     public string SaveDirectory { get; set; } =
         Path.Combine(AppContext.BaseDirectory, "saves");
 

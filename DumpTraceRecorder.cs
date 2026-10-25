@@ -15,7 +15,7 @@ namespace MZRaku;
 ///
 /// The recorder is a no-op when <c>dumpPath == null</c> (99.9% of
 /// runs) — the WriteLog / BankSwitchLog StringBuilders on MZ-700
-/// stay null in that case too (see MainForm.Start's tracing wire),
+/// stay null in that case too (see EmulatorSession.Start's tracing wire),
 /// so PIT writes and bank switches short-circuit their
 /// null-conditional AppendLines with zero cost.
 /// </summary>
@@ -33,8 +33,9 @@ internal sealed class DumpTraceRecorder
     public event Action<string>? OnError;
 
     /// <summary>
-    /// Fired after a successful dump + .trace write. MainForm
-    /// subscribes and closes the form (dump-and-exit shape).
+    /// Fired after a successful dump + .trace write. EmulatorSession
+    /// passes it on as DumpComplete, and the front end closes
+    /// (dump-and-exit shape).
     /// </summary>
     public event Action? OnDumpComplete;
 

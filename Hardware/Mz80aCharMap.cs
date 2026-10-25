@@ -102,8 +102,8 @@ public static class Mz80aCharMap
     }
 
     /// <summary>
-    /// Optional override layer set by the host application (typically
-    /// <c>MainForm</c> from <c>Settings.Mz80aCharMapOverrides</c>).
+    /// Optional override layer set by <c>EmulatorSession</c> from
+    /// <c>Settings.Mz80aCharMapOverrides</c>.
     /// When non-null, its entries take precedence over
     /// <see cref="Defaults"/>.
     /// </summary>

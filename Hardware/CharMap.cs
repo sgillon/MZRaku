@@ -101,8 +101,8 @@ public static class CharMap
     }
 
     /// <summary>
-    /// Optional override layer set by the host application (typically
-    /// <c>MainForm</c> from <c>Settings.CharMapOverrides</c>). When
+    /// Optional override layer set by <c>EmulatorSession</c> from
+    /// <c>Settings.CharMapOverrides</c>. When
     /// non-null, its entries take precedence over <see cref="Defaults"/>.
     /// </summary>
     public static CharMapOverrides? Overrides;

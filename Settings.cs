@@ -648,8 +648,8 @@ public sealed class Settings
     /// Scans all three machines regardless of the active one, so a
     /// --mz80a / --mz800 CLI override on a DefaultMachine=MZ700 INI
     /// still finds that machine's files without a save round-trip
-    /// first. Called from Load() and again from MainForm after the CLI
-    /// machine override has been applied.
+    /// first. Called from Load() and again by EmulatorSession, after
+    /// the front end has applied the CLI machine override.
     /// </summary>
     public bool EnsureRomPaths()
     {

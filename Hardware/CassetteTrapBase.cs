@@ -55,7 +55,7 @@ public abstract class CassetteTrapBase
     /// <summary>
     /// Raised on both trap-driven LOADs and <see cref="DirectInject"/>
     /// with a short "Loaded / Injected: name load=… exec=… size=…"
-    /// message. MainForm subscribes to update the status label.
+    /// message. EmulatorSession passes it on as a status message.
     /// </summary>
     public event Action<string>? OnLoaded;
 

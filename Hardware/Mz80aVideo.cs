@@ -53,7 +53,7 @@ public sealed class Mz80aVideo
 
     /// <summary>
     /// Foreground pixel colour as a 32-bit ARGB int (0xAARRGGBB). Set
-    /// by MainForm from Settings — pure green (0xFF00FF00) for the
+    /// by EmulatorSession from Settings — pure green (0xFF00FF00) for the
     /// authentic P1-phosphor look (matches EmuZ-80A's tint,
     /// user-confirmed via MS Paint dropper 2026-07-12), white
     /// (0xFFFFFFFF) otherwise. Reverse-video swaps this with

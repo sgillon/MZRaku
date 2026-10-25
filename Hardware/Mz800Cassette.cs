@@ -40,7 +40,7 @@ public sealed class Mz800Cassette : CassetteTrapBase
     }
 
     // Phase 5 blank-screen diagnostics: capture the trap-time state so
-    // MainForm can show it in the OnLoaded status message. Zeroed until
+    // the OnLoaded status message can show it. Zeroed until
     // the first trap fires.
     public ushort LastHeaderRetPc;
     public ushort LastDataRetPc;

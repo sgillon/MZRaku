@@ -10,12 +10,13 @@ namespace MZRaku;
 /// machine for its whole lifetime: switching machine means a new
 /// session (the WinForms front end relaunches the process).
 ///
-/// Being built up in v1.4 Phase 2, a step at a time, out of MainForm.
-/// So far it owns creating the machine and applying its settings,
-/// start (ROMs, sound, the --dump hooks and recorder, autoload), reset,
-/// the ready checks autoload waits on, running frames, loading
-/// cassettes, BASIC and BASIC source, host keys and the --keys script,
-/// and applying changed settings.
+/// Built in v1.4 Phase 2 out of MainForm. It owns creating the machine
+/// and applying its settings, start (ROMs, sound, the --dump hooks and
+/// recorder, autoload), reset, the ready checks autoload waits on,
+/// running frames, loading cassettes, BASIC and BASIC source, host keys
+/// and the --keys script, and applying changed settings. The front end
+/// keeps the window, dialogs, frame pacing, pause and the audio and
+/// gamepad devices it hands in.
 /// </summary>
 public sealed class EmulatorSession
 {

@@ -5,8 +5,8 @@ using MZRaku.Hardware;
 namespace MZRaku;
 
 /// <summary>
-/// Owns the two per-machine startup pipelines MainForm's Timer_Tick
-/// used to run inline: wait for the ROM to be ready → auto-load
+/// Owns the per-machine startup pipelines MainForm's Timer_Tick
+/// used to run inline (now run by EmulatorSession.RunFrame): wait for the ROM to be ready → auto-load
 /// BASIC (if requested) → wait for BASIC's Ready prompt → inject
 /// the pending cassette or type a BASIC source, with auto-RUN
 /// where the flow permits it.
@@ -27,12 +27,13 @@ namespace MZRaku;
 ///   _mz80aLoadDoneFrame + _mz80aRunTyped).
 /// - _wasGraphMode for the MZ-700 / MZ-800 GRAPH-mode auto-Font-Sheet.
 ///
-/// Depends on the host (MainForm) for:
-/// - Two ROM-ready detectors (MZ-700 and MZ-80A).
+/// Depends on its owner (EmulatorSession) for:
+/// - The ROM-ready detectors (MZ-700, MZ-80A and MZ-800).
 /// - MZ-80A BASIC-ready detector.
-/// - Status-label writer + fatal-error dialog.
-/// - Font Sheet opener (called on MZ-700 ALPHA→GRAPH transitions).
-/// - BASIC source typer (uses MainForm's cursor-anchor logic).
+/// - Status message + fatal error (raised as session events).
+/// - Font Sheet opener (MZ-700 / MZ-800 ALPHA→GRAPH transitions).
+/// - BASIC source typer.
+/// - GRAPH-mode indicator updates.
 /// </summary>
 internal sealed class AutoLoadOrchestrator
 {
@@ -110,7 +111,7 @@ internal sealed class AutoLoadOrchestrator
         set => _basicLoadedFrame = value;
     }
 
-    /// <summary>Reset all autoload state — called from MainForm.ResetMachine.</summary>
+    /// <summary>Reset all autoload state — called from EmulatorSession.Reset.</summary>
     public void ResetForFreshMachine()
     {
         _basicLoadedFrame = -1;
@@ -120,7 +121,7 @@ internal sealed class AutoLoadOrchestrator
         _wasGraphMode = false;
     }
 
-    /// <summary>Called once per host frame from MainForm.Timer_Tick.</summary>
+    /// <summary>Called once per frame from EmulatorSession.RunFrame.</summary>
     public void OnFrame(int bootFrames)
     {
         if (_machine != null) OnMz700Frame(bootFrames);

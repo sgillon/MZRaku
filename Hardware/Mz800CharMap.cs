@@ -83,8 +83,8 @@ public static class Mz800CharMap
     }
 
     /// <summary>
-    /// Optional override layer set by the host application
-    /// (<c>MainForm</c> from <c>Settings.Mz800CharMapOverrides</c>).
+    /// Optional override layer set by <c>EmulatorSession</c> from
+    /// <c>Settings.Mz800CharMapOverrides</c>.
     /// When non-null, its entries take precedence over
     /// <see cref="Defaults"/> and its suppressions hide them.
     /// </summary>
