@@ -21,6 +21,7 @@ internal static class Program
 {
     private const string Usage =
         "Usage: MZRakuHeadless [--mz700|--mz80a|--mz800] [--basic] [--keys=<file>]\n" +
+        "                      [--insert=<cassette>]\n" +
         "                      --dump=<path> [--dumpframe=N] [cassette.mzf|.zip]\n\n" +
         "Runs unpaced and writes the same --dump files as MZRaku.exe at frame N\n" +
         "(default 120), then exits. Window options (--display, --scanlines) are\n" +
@@ -34,6 +35,7 @@ internal static class Program
         string? dumpPath = null;
         int dumpFrame = 120;
         string? keysPath = null;
+        string? insertPath = null;
         MachineType? machineOverride = null;
 
         foreach (var a in args)
@@ -55,6 +57,8 @@ internal static class Program
             }
             else if (a.StartsWith("--keys=", StringComparison.OrdinalIgnoreCase))
                 keysPath = a.Substring(7);
+            else if (a.StartsWith("--insert=", StringComparison.OrdinalIgnoreCase))
+                insertPath = a.Substring(9);
             else if (a.Equals("--help", StringComparison.OrdinalIgnoreCase) || a == "-h" || a == "/?")
             {
                 Console.WriteLine(Usage);
@@ -107,6 +111,7 @@ internal static class Program
             session.Start(() => new NullAudioOut(), dumpPath, dumpFrame);
             if (session.QueueStartupLoad(cassettePath, autoLoadBasic) == EmulatorSession.LoadResult.BasicMissing)
                 Console.Error.WriteLine(session.BasicMissingMessage);
+            if (insertPath != null) session.InsertCassetteAtStartup(insertPath);
         }
         catch (Exception ex)
         {

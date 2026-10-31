@@ -1,0 +1,4 @@
+# Insert cassette (--insert) + the monitor's L command: RDINF reads the
+# header, RDDAT the data, then the monitor runs the program.
+150  type "L"
+160  key  Return

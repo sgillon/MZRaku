@@ -5,7 +5,7 @@ result against an approved "golden" copy. The emulator is
 frame-deterministic, so an unchanged build reproduces every golden
 byte for byte. Any difference means behaviour changed.
 
-There are 27 cases: 6 on the MZ-700, 6 on the MZ-80A and 15 on the
+There are 28 cases: 7 on the MZ-700, 6 on the MZ-80A and 15 on the
 MZ-800. The authoritative list is the `CASES` table in `regress.py`.
 This page explains each case and what it uses, so **keep it in step
 with that table.**
@@ -32,7 +32,7 @@ python tools/regress/regress.py --headless   run through the headless runner ins
   builds the runner rather than the app, and `--no-build` works as
   before. Goldens are approved from the app only, so it refuses
   `--approve`.
-- The last line reads `27/27 cases match golden`. A failing case
+- The last line reads `28/28 cases match golden`. A failing case
   prints `DIFF` with what differed, or `FAIL` if it produced no
   output or timed out.
 
@@ -99,6 +99,7 @@ Software paths are relative to `_mz-information-repository/`.
 | `mz700_panic` | 1200 | `MZ-700/Software/Space Panic(1983)(Solo Software).zip`; `keys/mz700_panic.keys` | A machine-code game. The script presses Space at frame 600 to leave the attract screen and start play. |
 | `mz700_music` | 1400 | BASIC; `keys/mz700_music.keys` | Typed `TEMPO`/`MUSIC` with octaves, sharps, durations and a rest. The notes are checked in `.snd.txt`. |
 | `mz700_typing` | 1520 | BASIC; `keys/mz700_typing.keys` | Live typing: letters, digits, shifted symbols, cursor-key editing (overtyping a stored line), and graphic characters typed in GRAPH mode |
+| `mz700_insert` | 600 | `--insert=MZ-700/Software/Space Panic(1983)(Solo Software).zip`; `keys/mz700_insert.keys` | Insert cassette (not Load): the script types the monitor's `L`, which reads the tape through the RDINF ($04D8) and RDDAT ($04F8) traps and runs the game to its attract screen. Added in v1.5.0 for the trap-address fix. |
 
 ### MZ-80A
 
@@ -143,7 +144,7 @@ commit, cases and why).
 - `_regression/out/` holds the latest run.
 
 The v1.4.0 baseline is commit a80994a: all 27 cases approved on
-clean `main`.
+clean `main`. v1.5.0 adds cases as its fixes land (`mz700_insert`).
 
 ## Adding a case
 

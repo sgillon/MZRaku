@@ -87,6 +87,7 @@ public sealed class MainForm : Form
     private readonly Settings _settings = Settings.Load();
     private readonly ToolStripMenuItem[] _scaleMenuItems = new ToolStripMenuItem[3];
     private readonly string? _initialCassette;
+    private readonly string? _insertPath;
     private readonly bool _autoLoadBasic;
     private readonly string? _dumpPath;
     private bool _started;
@@ -128,9 +129,10 @@ public sealed class MainForm : Form
         int dumpFrame = 120,
         int? displayScaleOverride = null, bool startFullScreen = false,
         bool? scanlinesOverride = null, MachineType? machineOverride = null,
-        KeyScript? keyScript = null)
+        KeyScript? keyScript = null, string? insertPath = null)
     {
         _initialCassette = cassettePath;
+        _insertPath = insertPath;
         _autoLoadBasic = autoLoadBasic;
         _dumpPath = dumpPath;
         _dumpFrame = dumpFrame;
@@ -612,6 +614,8 @@ public sealed class MainForm : Form
             if (_session.QueueStartupLoad(_initialCassette, _autoLoadBasic)
                 == EmulatorSession.LoadResult.BasicMissing)
                 ShowBasicMissing();
+            // --insert=<path>: File → Insert cassette, at startup.
+            if (_insertPath != null) _session.InsertCassetteAtStartup(_insertPath);
             _pace.Restart();
             _pacedFrames = 0;
             _timer.Start();

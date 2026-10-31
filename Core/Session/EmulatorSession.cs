@@ -574,6 +574,18 @@ public sealed class EmulatorSession
         }
     }
 
+    /// <summary>
+    /// <c>--insert=&lt;path&gt;</c>: <see cref="InsertCassette"/> from the
+    /// command line, after <see cref="Start"/>. On a machine that can't
+    /// insert it reports so through <see cref="StatusMessage"/>; a file
+    /// that can't be read throws, as at Insert cassette.
+    /// </summary>
+    public void InsertCassetteAtStartup(string path)
+    {
+        if (CanInsertCassette) InsertCassette(path);
+        else StatusMessage?.Invoke($"--insert ignored: the {MachineLabel} has no Insert cassette.");
+    }
+
     /// <summary>Load BASIC into the running machine now.</summary>
     public LoadResult LoadBasic()
     {

@@ -17,22 +17,26 @@ namespace MZRaku.Core;
 ///   offset 24..127: comment / padding
 ///   offset 128... : raw file data (size bytes)
 ///
-/// The monitor 1Z-013A tape routines we hook:
-///   $0436 = RDTAPE (reads header into $10F0, 128 bytes)
-///   $04D8 = read data (uses parameters in header at $10F0 to read into RAM)
+/// The monitor 1Z-013A tape routines we hook (its jump table sends
+/// RDINF $0027 to $04D8 and RDDAT $002A to $04F8):
+///   $04D8 = RDINF (reads the 128-byte header into $10F0)
+///   $04F8 = RDDAT (uses the header at $10F0 to read the data into RAM)
+/// $0436 is WRINF, the header *write*; trapping it as the header read
+/// (before v1.5) sent the monitor's L to the data trap, which emptied
+/// the tape before RDDAT ran.
 ///
 /// Trap semantics: when CPU PC enters one of the trap addresses AND an MZF is
 /// queued, we:
 ///   - Write header bytes into RAM $10F0..$116F (if not yet written)
-///   - Write data bytes into RAM at load_addr..load_addr+size-1 (for $04D8)
+///   - Write data bytes into RAM at load_addr..load_addr+size-1 (for $04F8)
 ///   - Pop the return address from the stack and set PC to it
 ///   - Clear carry flag (success)
 ///   - Re-enable interrupts (EI state) since tape routines disable them
 /// </summary>
 public sealed class Mz700Cassette : CassetteTrapBase
 {
-    internal const ushort TrapReadHeader = 0x0436;
-    internal const ushort TrapReadData = 0x04D8;
+    internal const ushort TrapReadHeader = 0x04D8;   // RDINF
+    internal const ushort TrapReadData = 0x04F8;     // RDDAT
     internal const ushort TrapBreakWait = 0x02C8;
 
     // S-BASIC's outgoing tape header lives at $0FFC — cleverly tucked
@@ -221,7 +225,7 @@ public sealed class Mz700Cassette : CassetteTrapBase
         if (pc == TrapReadHeader && !HeaderDelivered)
         {
             HeaderTrapHits++;
-            // $0436: reads 128-byte header into $10F0. Entry has not yet pushed anything.
+            // $04D8 RDINF: reads 128-byte header into $10F0. Entry has not yet pushed anything.
             WriteHeaderToBuffer();
             HeaderDelivered = true;
             // Return with CY=0 (success) + pop the stack + jump to
@@ -234,7 +238,7 @@ public sealed class Mz700Cassette : CassetteTrapBase
         if (pc == TrapReadData && !DataDelivered)
         {
             DataTrapHits++;
-            // $04D8: reads data using header at $10F0
+            // $04F8 RDDAT: reads data using header at $10F0
             // Ensure header is present in memory
             if (!HeaderDelivered)
             {

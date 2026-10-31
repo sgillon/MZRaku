@@ -84,7 +84,8 @@ ZIPS = {
 #   "tests" = the four MZ-800 test-pattern PNGs, "wav" = rendered audio
 #   (MZ-800), "snd" = speaker-input event log (MZ-700 / MZ-80A)
 #   A path after --cassette is relative to the repository (or names a
-#   ZIPS entry); --keys=<file> names a scripted-input file in keys/
+#   ZIPS entry), as is one after --insert= (File -> Insert cassette);
+#   --keys=<file> names a scripted-input file in keys/
 #   (format: KeyScript.cs).
 CASES = [
     # --- MZ-700 ---
@@ -94,6 +95,7 @@ CASES = [
     ("mz700_panic",    ["--mz700", "--cassette", MZ700_SW + "Space Panic(1983)(Solo Software).zip", "--keys=mz700_panic.keys"], 1200, ["snd"]),   # Space starts a game
     ("mz700_music",    ["--mz700", "--basic", "--keys=mz700_music.keys"], 1400, ["snd"]),
     ("mz700_typing",   ["--mz700", "--basic", "--keys=mz700_typing.keys"], 1520, ["snd"]),
+    ("mz700_insert",   ["--mz700", "--insert=" + MZ700_SW + "Space Panic(1983)(Solo Software).zip", "--keys=mz700_insert.keys"], 600, ["snd"]),   # Insert cassette + monitor L
     # --- MZ-80A ---
     ("mz80a_monitor",  ["--mz80a"],                                   200, ["snd"]),
     ("mz80a_basic",    ["--mz80a", "--basic"],                        400, ["snd"]),
@@ -141,6 +143,8 @@ def check_sources():
             if i > 0 and args[i - 1] == "--cassette" and a not in ZIPS \
                     and not os.path.exists(os.path.join(INFO, a)):
                 problems.append(f"missing {os.path.join(INFO, a)}")
+            elif a.startswith("--insert=") and not os.path.exists(os.path.join(INFO, a[len("--insert="):])):
+                problems.append(f"missing {os.path.join(INFO, a[len('--insert='):])}")
             elif a.startswith("--keys=") and not os.path.exists(os.path.join(KEYS, a[len("--keys="):])):
                 problems.append(f"missing {os.path.join(KEYS, a[len('--keys='):])}")
     for parts in ZIPS.values():
@@ -180,6 +184,8 @@ def resolve(args):
     for i, a in enumerate(args):
         if i > 0 and args[i - 1] == "--cassette":
             a = os.path.join(MEDIA, a) if a in ZIPS else os.path.join(INFO, a)
+        elif a.startswith("--insert="):
+            a = "--insert=" + os.path.join(INFO, a[len("--insert="):])
         elif a.startswith("--keys="):
             a = "--keys=" + os.path.join(KEYS, a[len("--keys="):])
         out.append(a)

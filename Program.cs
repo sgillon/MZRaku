@@ -13,6 +13,7 @@ internal static class Program
         string? dumpPath = null;
         int dumpFrame = 120;
         string? keysPath = null;
+        string? insertPath = null;
         int? displayScaleOverride = null;
         bool startFullScreen = false;
         bool? scanlinesOverride = null;
@@ -48,6 +49,12 @@ internal static class Program
             else if (a.StartsWith("--keys=", StringComparison.OrdinalIgnoreCase))
             {
                 keysPath = a.Substring(7);
+            }
+            else if (a.StartsWith("--insert=", StringComparison.OrdinalIgnoreCase))
+            {
+                // Insert a cassette for the machine's own LOAD, as File →
+                // Insert cassette does (regression suite; not in --help yet).
+                insertPath = a.Substring(9);
             }
             else if (a.Equals("--scanlines", StringComparison.OrdinalIgnoreCase))
             {
@@ -174,7 +181,7 @@ internal static class Program
 
         ApplicationConfiguration.Initialize();
         var form = new MainForm(cassettePath, autoLoadBasic, dumpPath, dumpFrame,
-            displayScaleOverride, startFullScreen, scanlinesOverride, machineOverride, keyScript);
+            displayScaleOverride, startFullScreen, scanlinesOverride, machineOverride, keyScript, insertPath);
         Application.Run(form);
     }
 }

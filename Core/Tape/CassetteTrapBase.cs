@@ -12,7 +12,7 @@ namespace MZRaku.Core;
 /// <list type="bullet">
 ///   <item>A <see cref="MzfImage"/> is queued via <see cref="Queue"/>.</item>
 ///   <item>When the CPU's PC hits a machine-specific trap address
-///     (MZ-700: $0436 / $04D8; MZ-80A: $0027 / $002A) the trap
+///     (MZ-700 and MZ-800: $04D8 / $04F8; MZ-80A: $0027 / $002A) the trap
 ///     injects header or data into RAM at
 ///     <see cref="HeaderBufferAddr"/> / the header's load address,
 ///     synthesises a successful RET (CY=0, pop the return address

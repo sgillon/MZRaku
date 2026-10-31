@@ -211,7 +211,7 @@ internal sealed class AutoLoadOrchestrator
                     // the menu's LoadCassetteFile does. Can't use
                     // BASIC's LOAD command because S-BASIC bypasses
                     // the monitor's tape routines (the ones trapped
-                    // at $0436/$04D8) — its own tape code reads
+                    // at $04D8/$04F8) — its own tape code reads
                     // PortC bit 5 directly and has no real cassette.
                     var img = MzfImage.Parse(CassetteFile.ReadBytes(_pendingCassette));
                     _mz700!.Cassette.DirectInject(img, jumpExec: false);
