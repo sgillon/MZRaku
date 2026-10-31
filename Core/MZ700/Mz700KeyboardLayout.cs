@@ -26,7 +26,7 @@ namespace MZRaku.Core;
 ///
 /// Labels:
 /// - For character keys, the unshifted / shifted glyphs are looked up at
-///   render time from <see cref="MzGlyphCatalog"/>. No need to duplicate
+///   render time from <see cref="Mz700GlyphCatalog"/>. No need to duplicate
 ///   them here.
 /// - Function and modifier keys carry <see cref="MzKey.FixedLabel"/>.
 ///
@@ -39,7 +39,7 @@ namespace MZRaku.Core;
 /// TODOs on the right SHIFT and the SPACE row below); check them against
 /// the Owner's Manual p.114. They affect only how the diagram looks.
 /// </summary>
-public static class MzKeyboardLayout
+public static class Mz700KeyboardLayout
 {
     // Key records and kinds are the shared MzKey / MzKeyKind
     // (Core/Keyboard/MzKey.cs).
@@ -79,7 +79,7 @@ public static class MzKeyboardLayout
         // on MzKeyKind.Function.
         // PF5 → matrix (9, 3). Confirmed against Owner's Manual
         // 2026-06-12 (alongside CTRL=(8,6) correction). Wired in
-        // SpecialKeyMap → HostKey.F5.
+        // Mz700SpecialKeyMap → HostKey.F5.
         // ============================================================
         new("PF1", 9, 7, X: 0f,   Y: FnRowY, W: 1.5f, H: FnRowH, MzKeyKind.Function, "F1"),
         new("PF2", 9, 6, X: 1.5f, Y: FnRowY, W: 1.5f, H: FnRowH, MzKeyKind.Function, "F2"),

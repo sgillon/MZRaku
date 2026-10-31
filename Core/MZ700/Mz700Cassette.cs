@@ -29,7 +29,7 @@ namespace MZRaku.Core;
 ///   - Clear carry flag (success)
 ///   - Re-enable interrupts (EI state) since tape routines disable them
 /// </summary>
-public sealed class Cassette : CassetteTrapBase
+public sealed class Mz700Cassette : CassetteTrapBase
 {
     public const ushort TrapReadHeader = 0x0436;
     public const ushort TrapReadData = 0x04D8;
@@ -65,14 +65,14 @@ public sealed class Cassette : CassetteTrapBase
     // MZ-700-specific typed handle to the memory; the base holds it as
     // Z80Core.IMemory (Mem) for the shared read/write path, but
     // RomEnabled + the SAVE trap's raw RAM peek need the concrete type.
-    private MZ700Memory _mem = null!;
-    public MZ700Memory Memory
+    private Mz700Memory _mem = null!;
+    public Mz700Memory Memory
     {
         get => _mem;
         set { _mem = value; Mem = value; }
     }
 
-    public Keyboard Keyboard = null!;
+    public Mz700Keyboard Keyboard = null!;
 
     public event Action<string>? OnSaved;
 
@@ -199,7 +199,7 @@ public sealed class Cassette : CassetteTrapBase
             // and large PIT periods, the natural timeout can take many seconds
             // under our emulation. Short-circuit it, returning CY=1 if the
             // user is actually holding the BREAK key (matrix (8,5), driven
-            // by PC Esc via SpecialKeyMap) and CY=0 otherwise — that's what
+            // by PC Esc via Mz700SpecialKeyMap) and CY=0 otherwise — that's what
             // a real MZ-700 would report on a normal LOAD with no break held,
             // and what BASIC needs to honour the user's Esc when polling for
             // break during a RUN.
@@ -270,7 +270,7 @@ public sealed class Cassette : CassetteTrapBase
     }
 
     // BREAK lives on matrix (8, 7). Active low, so a held key reads as
-    // 0 in that bit. SpecialKeyMap binds Esc to this position; this
+    // 0 in that bit. Mz700SpecialKeyMap binds Esc to this position; this
     // helper is what makes the BreakWait trap honour it.
     private bool IsBreakHeld() => (Keyboard.ReadRow(8) & (1 << 7)) == 0;
 

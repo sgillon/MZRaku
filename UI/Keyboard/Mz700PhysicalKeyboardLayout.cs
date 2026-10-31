@@ -7,7 +7,7 @@ namespace MZRaku;
 
 /// <summary>
 /// MZ-700 adapter for <see cref="IPhysicalKeyboardLayout"/>. Wraps
-/// <see cref="MzKeyboardLayout"/>'s static keycap table and supplies
+/// <see cref="Mz700KeyboardLayout"/>'s static keycap table and supplies
 /// the MZ-700-specific cap colour palette (white / amber / blue by
 /// function group, per the real hardware). Introduced in v1.1 Phase
 /// 5.5a — no user-visible behaviour change.
@@ -16,7 +16,7 @@ public sealed class Mz700PhysicalKeyboardLayout : IPhysicalKeyboardLayout
 {
     public Mz700PhysicalKeyboardLayout()
     {
-        Keys = MzKeyboardLayout.Keys
+        Keys = Mz700KeyboardLayout.Keys
             .Select(k => new PhysicalKey(
                 Id: k.Id,
                 Row: k.Row,
@@ -29,15 +29,15 @@ public sealed class Mz700PhysicalKeyboardLayout : IPhysicalKeyboardLayout
             .ToList();
     }
 
-    public float Width => MzKeyboardLayout.Width;
-    public float Height => MzKeyboardLayout.Height;
+    public float Width => Mz700KeyboardLayout.Width;
+    public float Height => Mz700KeyboardLayout.Height;
     public IReadOnlyList<PhysicalKey> Keys { get; }
 
     public char? FindGlyphAt(int row, int col, bool mzShift) =>
-        MzGlyphCatalog.FindByPrintableSlot(row, col, mzShift);
+        Mz700GlyphCatalog.FindByPrintableSlot(row, col, mzShift);
 
     public string? FindSpecialLabelAt(int row, int col) =>
-        MzGlyphCatalog.FindSpecialLabel(row, col);
+        Mz700GlyphCatalog.FindSpecialLabel(row, col);
 
     // Real MZ-700 cap colours (preserved verbatim from the pre-Phase-5.5a
     // MzKeyboardDiagram.ColorsForKind):

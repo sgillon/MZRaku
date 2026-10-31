@@ -6,7 +6,7 @@ namespace MZRaku.Core;
 /// Physical layout of the MZ-800 keyboard, for the keyboard diagram
 /// (via <c>Mz800PhysicalKeyboardLayout</c>) and the editor's reachability
 /// checks. Same coordinate system and <see cref="MzKey"/>
-/// record as <see cref="MzKeyboardLayout"/>: X / Y / W / H in key units
+/// record as <see cref="Mz700KeyboardLayout"/>: X / Y / W / H in key units
 /// (1.0 = a standard alphabetic cap), top-left origin.
 ///
 /// LAYOUT SOURCE: the MZ-800 Owner's Manual p. 4-4 "Special keys"
@@ -152,7 +152,7 @@ public static class Mz800KeyboardLayout
     /// Keys the safety gate requires to have at least one PC binding
     /// before Settings → Apply saves without a confirm prompt: every key
     /// on a real matrix slot except the blank filler cap. Mirrors
-    /// <see cref="MzKeyboardLayout.EssentialKeys"/>.
+    /// <see cref="Mz700KeyboardLayout.EssentialKeys"/>.
     /// </summary>
     public static IEnumerable<MzKey> EssentialKeys
     {

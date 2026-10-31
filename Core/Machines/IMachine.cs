@@ -71,7 +71,7 @@ public interface IMachine
     /// HeaderTrapHits + DataTrapHits + DataDelivered uniformly.
     /// MZ-700-specific fields (WriteTapeTrapHits, BreakWaitTrapHits,
     /// SAVE-tape machinery) live on the concrete
-    /// <see cref="Core.Cassette"/> class and callers that need
+    /// <see cref="Mz700Cassette"/> class and callers that need
     /// them cast.
     /// </summary>
     CassetteTrapBase Cassette { get; }

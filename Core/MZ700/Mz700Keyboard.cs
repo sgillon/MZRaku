@@ -15,7 +15,7 @@ namespace MZRaku.Core;
 /// keystroke.
 ///
 /// Non-character keys (cursor, function, Enter, Esc, Backspace,
-/// Insert, MZ Ctrl) take a separate path through SpecialKeyMap on
+/// Insert, MZ Ctrl) take a separate path through Mz700SpecialKeyMap on
 /// KeyDown, since they don't fire KeyPress.
 ///
 /// v1.2 audit F-015 / F-021 hoisted the matrix backing, hold
@@ -24,7 +24,7 @@ namespace MZRaku.Core;
 /// MZ-700-specific bits: the $1170 RAM mirror, the CharMap lookup,
 /// and the scan-detection auto-typer.
 /// </summary>
-public sealed class Keyboard : KeyboardMatrixBase
+public sealed class Mz700Keyboard : KeyboardMatrixBase
 {
     // Direct hook into RAM so we can mirror PC shift-key state at
     // $1170, which the monitor's GETKY checks (bit 0) to choose
@@ -32,10 +32,10 @@ public sealed class Keyboard : KeyboardMatrixBase
     // at $0C2A. Neither the monitor ROM nor S-BASIC ever writes to
     // $1170, so without this shortcut shifted alphanumerics would
     // be unreachable.
-    public MZ700Memory? Memory;
+    public Mz700Memory? Memory;
 
     // User-editable physical-key overrides, consulted before
-    // SpecialKeyMap and CharMap in OnKeyDown. Null = no overrides
+    // Mz700SpecialKeyMap and CharMap in OnKeyDown. Null = no overrides
     // loaded; behaviour matches pre-layered code.
     public KeyOverride? Overrides;
 
@@ -47,10 +47,10 @@ public sealed class Keyboard : KeyboardMatrixBase
     /// </summary>
     public readonly KeyboardAutoTyper AutoType;
 
-    public Keyboard()
+    public Mz700Keyboard()
     {
         AutoType = new KeyboardAutoTyper(this,
-            ch => CharMap.TryLookup(ch, out var p) ? (p.Row, p.Col, p.MzShift) : null,
+            ch => Mz700CharMap.TryLookup(ch, out var p) ? (p.Row, p.Col, p.MzShift) : null,
             OnShiftStateChanged);
     }
 
@@ -72,11 +72,11 @@ public sealed class Keyboard : KeyboardMatrixBase
     /// Layered lookup order:
     ///   1. <see cref="Overrides"/> — user-editable physical-key
     ///      map, modifier-aware (combined key wins over bare).
-    ///   2. <see cref="SpecialKeyMap"/> — built-in non-character
+    ///   2. <see cref="Mz700SpecialKeyMap"/> — built-in non-character
     ///      keys (cursors, F-keys, Enter, Esc, GRAPH, ALPHA, MZ
     ///      Ctrl).
     ///   3. Defer to <see cref="OnKeyPress"/> for printables, which
-    ///      consults <see cref="CharMap"/> with the resolved Unicode
+    ///      consults <see cref="Mz700CharMap"/> with the resolved Unicode
     ///      character so host keyboard layout / AltGr / dead keys
     ///      all work transparently.
     ///
@@ -115,7 +115,7 @@ public sealed class Keyboard : KeyboardMatrixBase
         }
 
         // Layer 2: built-in defaults (bare VK only).
-        if (SpecialKeyMap.Map.TryGetValue(bareVk, out var rc))
+        if (Mz700SpecialKeyMap.Map.TryGetValue(bareVk, out var rc))
         {
             // Non-printable: drive matrix directly, pass PC shift
             // through (no explicit shift requirement on this hold).
@@ -165,7 +165,7 @@ public sealed class Keyboard : KeyboardMatrixBase
         var vk = _pendingDownVk;
         _pendingDownVk = HostKey.None;
 
-        if (!CharMap.TryLookup(ch, out var p))
+        if (!Mz700CharMap.TryLookup(ch, out var p))
         {
             Diag.Record(InputLayer.None, -1, -1, null);
             return;

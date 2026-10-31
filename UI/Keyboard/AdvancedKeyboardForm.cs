@@ -13,7 +13,7 @@ namespace MZRaku;
 /// flow. Runs as a resizable modal so the fixed-size Settings dialog
 /// doesn't have to grow to fit the full matrix.
 ///
-/// Edits made here mutate the shared <see cref="CharMapOverrides"/> /
+/// Edits made here mutate the shared <see cref="Mz700CharMapOverrides"/> /
 /// <see cref="KeyOverride"/> instances directly; the parent Settings
 /// dialog re-reads them once this form closes. Persistence still rides
 /// on the parent's Apply / OK.

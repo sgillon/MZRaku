@@ -11,11 +11,11 @@ namespace MZRaku;
 /// it to the <see cref="KeyOverride"/> layer.
 ///
 /// Differences from the char editor:
-///   * Save target is <see cref="KeyOverride"/>, not <see cref="CharMapOverrides"/>.
+///   * Save target is <see cref="KeyOverride"/>, not <see cref="Mz700CharMapOverrides"/>.
 ///   * MzShift is tri-state — force on / force off / pass through the
 ///     user's actual PC shift state (the natural default).
 ///   * Conflict detection looks at <see cref="KeyOverride"/> and
-///     <see cref="SpecialKeyMap.Map"/> — the two VK-side layers — and
+///     <see cref="Mz700SpecialKeyMap.Map"/> — the two VK-side layers — and
 ///     flags a captured key that already produces a different slot.
 ///
 /// Capture accepts any key the user presses,
@@ -253,7 +253,7 @@ public sealed class VkBindingEditorForm : Form
         }
         else if (_context.SpecialKeyMap.TryGetValue(k, out var def))
         {
-            // SpecialKeyMap defaults carry no shift state — model them as
+            // Special-key map defaults carry no shift state — model them as
             // pass-through for comparison and display.
             bool sameSlot = def.Row == Row && def.Col == Col && targetShift == null;
             if (sameSlot)

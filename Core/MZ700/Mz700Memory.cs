@@ -17,7 +17,7 @@ namespace MZRaku.Core;
 /// bank-switching, otherwise BASIC's memory init loops will re-enable the ROM
 /// and crash.
 /// </summary>
-public sealed class MZ700Memory : IMemory
+public sealed class Mz700Memory : IMemory
 {
     public byte[] Rom = new byte[0x1000];        // 4KB monitor ROM
     public byte[] Ram = new byte[0x10000];       // full 64K RAM backing
@@ -27,7 +27,7 @@ public sealed class MZ700Memory : IMemory
     public bool RomEnabled = true;
     public bool VramIoEnabled = true;
 
-    public IoBus? IoBus;
+    public Mz700IoBus? IoBus;
     public Z80Cpu? Cpu;
     public System.Text.StringBuilder? BankSwitchLog;
 

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace MZRaku.Core;
 
 /// <summary>
-/// MZ-80A analogue of <see cref="SpecialKeyMap"/>. Built-in defaults for
+/// MZ-80A analogue of <see cref="Mz700SpecialKeyMap"/>. Built-in defaults for
 /// PC virtual-keys that don't produce a printable character (Enter,
 /// cursor arrows, INST/DEL, CLR/HOME, BREAK/CTRL, GRPH). Consulted by
 /// <see cref="Mz80aKeyboard.OnKeyDown"/> before deferring to the

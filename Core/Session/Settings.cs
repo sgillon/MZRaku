@@ -142,9 +142,9 @@ public sealed class Settings
 
     // User-editable physical-key overrides for MZ-700. Empty by default;
     // built-in defaults (Enter, arrows, GRAPH, ALPHA, ...) live in
-    // SpecialKeyMap. Anything in here is consulted FIRST by
-    // Keyboard.OnKeyDown. Persisted at [KeyOverrides.MZ700].
-    public KeyOverride KeyOverrides { get; } = new();
+    // Mz700SpecialKeyMap. Anything in here is consulted FIRST by
+    // Mz700Keyboard.OnKeyDown. Persisted at [KeyOverrides.MZ700].
+    public KeyOverride Mz700KeyOverrides { get; } = new();
 
     // User-editable physical-key overrides for MZ-80A. Same KeyOverride
     // shape as the MZ-700 map above (row 0-9, bit 0-7, MZ shift state);
@@ -162,8 +162,8 @@ public sealed class Settings
 
     // User-editable character-map overrides. Empty by default; built-in
     // defaults (letters, digits, common punctuation) live in CharMap.
-    // Anything in here is consulted FIRST by CharMap.TryLookup.
-    public CharMapOverrides CharMapOverrides { get; } = new();
+    // Anything in here is consulted FIRST by Mz700CharMap.TryLookup.
+    public Mz700CharMapOverrides Mz700CharMapOverrides { get; } = new();
 
     // MZ-80A char-map overrides. Persisted to [CharMap.MZ80A] in
     // settings.ini. Consulted FIRST by Mz80aCharMap.TryLookup; defaults
@@ -295,7 +295,7 @@ public sealed class Settings
                 s.JoyButton2Index = GetInt(ini, "Joystick", "Button2", s.JoyButton2Index);
                 if (ini.TryGetValue("KeyOverrides.MZ700", out var koMz700))
                 {
-                    foreach (var kv in koMz700) s.KeyOverrides.TryParseLine(kv.Key, kv.Value);
+                    foreach (var kv in koMz700) s.Mz700KeyOverrides.TryParseLine(kv.Key, kv.Value);
                 }
                 if (ini.TryGetValue("KeyOverrides.MZ80A", out var koMz80a))
                 {
@@ -307,7 +307,7 @@ public sealed class Settings
                 }
                 if (ini.TryGetValue("CharMap", out var cm))
                 {
-                    foreach (var kv in cm) s.CharMapOverrides.TryParseLine(kv.Key, kv.Value);
+                    foreach (var kv in cm) s.Mz700CharMapOverrides.TryParseLine(kv.Key, kv.Value);
                 }
                 if (ini.TryGetValue("CharMap.MZ80A", out var cm80a))
                 {
@@ -492,7 +492,7 @@ public sealed class Settings
             sb.AppendLine(";                t = force MZ shift on");
             sb.AppendLine(";                f = force MZ shift off");
             sb.AppendLine(";                - = pass through whatever PC shift is currently held");
-            foreach (var line in KeyOverrides.SerialiseLines()) sb.AppendLine(line);
+            foreach (var line in Mz700KeyOverrides.SerialiseLines()) sb.AppendLine(line);
             sb.AppendLine();
 
             sb.AppendLine("[KeyOverrides.MZ80A]");
@@ -536,7 +536,7 @@ public sealed class Settings
             sb.AppendLine(";                    we have a char, the OS has resolved the shift.)");
             sb.AppendLine(";   <glyph>          Free-text comment showing the literal character,");
             sb.AppendLine(";                    purely for hand-editing readability.");
-            foreach (var line in CharMapOverrides.SerialiseLines()) sb.AppendLine(line);
+            foreach (var line in Mz700CharMapOverrides.SerialiseLines()) sb.AppendLine(line);
             sb.AppendLine();
 
             sb.AppendLine("[CharMap.MZ80A]");

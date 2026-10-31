@@ -6,26 +6,26 @@ namespace MZRaku;
 
 /// <summary>
 /// MZ-700 adapter for <see cref="IKeyboardEditorContext"/>. Wraps the
-/// MZ-700 statics (<see cref="CharMap"/>, <see cref="SpecialKeyMap"/>,
-/// <see cref="MzGlyphCatalog"/>, <see cref="MatrixCoverage"/>) and the
+/// MZ-700 statics (<see cref="Mz700CharMap"/>, <see cref="Mz700SpecialKeyMap"/>,
+/// <see cref="Mz700GlyphCatalog"/>, <see cref="MatrixCoverage"/>) and the
 /// caller-supplied mutable override layers so the shared editor UI can
 /// consume them through the interface. Introduced in v1.1 Phase 5.5a.
 /// </summary>
 public sealed class Mz700KeyboardEditorContext : IKeyboardEditorContext
 {
     private readonly MZ700 _machine;
-    private readonly CharMapOverrides _charOverrides;
+    private readonly Mz700CharMapOverrides _charOverrides;
 
     public Mz700KeyboardEditorContext(
         MZ700 machine,
-        CharMapOverrides charOverrides,
+        Mz700CharMapOverrides charOverrides,
         KeyOverride keyOverrides)
     {
         _machine = machine;
         _charOverrides = charOverrides;
         KeyOverrides = keyOverrides;
         CharOverrides = new Adapter(charOverrides);
-        CharDefaults = CharMap.Defaults.ToDictionary(
+        CharDefaults = Mz700CharMap.Defaults.ToDictionary(
             kv => kv.Key,
             kv => new MatrixPress(kv.Value.Row, kv.Value.Col, kv.Value.MzShift));
         SpecialKeyMap = SpecialKeyMap_Load();
@@ -42,21 +42,21 @@ public sealed class Mz700KeyboardEditorContext : IKeyboardEditorContext
     public IReadOnlyDictionary<HostKey, (int Row, int Col)> SpecialKeyMap { get; }
 
     public IReadOnlyDictionary<HostKey, string> SpecialKeyLabels =>
-        Core.SpecialKeyMap.Labels;
+        Core.Mz700SpecialKeyMap.Labels;
 
     public KeyOverride KeyOverrides { get; }
 
     public (int Row, int Col) ShiftSlot => (8, 0);
 
     public IMatrixReference MatrixReference => Mz700MatrixReference.View;
-    public IReadOnlyList<MzKey> LayoutKeys => MzKeyboardLayout.Keys;
-    public IEnumerable<MzKey> EssentialLayoutKeys => MzKeyboardLayout.EssentialKeys;
+    public IReadOnlyList<MzKey> LayoutKeys => Mz700KeyboardLayout.Keys;
+    public IEnumerable<MzKey> EssentialLayoutKeys => Mz700KeyboardLayout.EssentialKeys;
 
     public char? FindGlyphAt(int row, int col, bool mzShift) =>
-        MzGlyphCatalog.FindByPrintableSlot(row, col, mzShift);
+        Mz700GlyphCatalog.FindByPrintableSlot(row, col, mzShift);
 
     public string? FindSpecialLabelAt(int row, int col) =>
-        MzGlyphCatalog.FindSpecialLabel(row, col);
+        Mz700GlyphCatalog.FindSpecialLabel(row, col);
 
     public IReadOnlyList<MatrixReferenceSlot> FindUnboundSlots()
     {
@@ -74,9 +74,9 @@ public sealed class Mz700KeyboardEditorContext : IKeyboardEditorContext
 
     private IEnumerable<(int Row, int Col)> CollectBoundSlots()
     {
-        foreach (var kv in Core.SpecialKeyMap.Map)
+        foreach (var kv in Core.Mz700SpecialKeyMap.Map)
             yield return (kv.Value.row, kv.Value.col);
-        foreach (var kv in CharMap.Defaults)
+        foreach (var kv in Mz700CharMap.Defaults)
         {
             // Suppressed defaults don't fire at runtime; treating them as
             // "bound" would hide a slot the user has deliberately
@@ -90,11 +90,11 @@ public sealed class Mz700KeyboardEditorContext : IKeyboardEditorContext
             yield return (kv.Value.Row, kv.Value.Col);
     }
 
-    // SpecialKeyMap in Core is Dictionary<HostKey,(int row,int col)>;
+    // Mz700SpecialKeyMap in Core is Dictionary<HostKey,(int row,int col)>;
     // rewrap with Row/Col-cased tuple to match the interface's shape
     // (avoids leaking the lowercase-cased tuple through the abstraction).
     private static IReadOnlyDictionary<HostKey, (int Row, int Col)> SpecialKeyMap_Load() =>
-        Core.SpecialKeyMap.Map.ToDictionary(kv => kv.Key,
+        Core.Mz700SpecialKeyMap.Map.ToDictionary(kv => kv.Key,
             kv => ((int Row, int Col))(kv.Value.row, kv.Value.col));
 
     private static MatrixSlotKind MapKind(Mz700MatrixReference.SlotKind k) => k switch
@@ -113,15 +113,15 @@ public sealed class Mz700KeyboardEditorContext : IKeyboardEditorContext
     };
 
     /// <summary>
-    /// Wraps <see cref="CharMapOverrides"/> in the machine-agnostic
+    /// Wraps <see cref="Mz700CharMapOverrides"/> in the machine-agnostic
     /// <see cref="ICharMapOverridesView"/> shape. Every read converts
-    /// <see cref="CharMap.Press"/> → <see cref="MatrixPress"/>; every
+    /// <see cref="Mz700CharMap.Press"/> → <see cref="MatrixPress"/>; every
     /// write converts back.
     /// </summary>
     private sealed class Adapter : ICharMapOverridesView
     {
-        private readonly CharMapOverrides _inner;
-        public Adapter(CharMapOverrides inner) => _inner = inner;
+        private readonly Mz700CharMapOverrides _inner;
+        public Adapter(Mz700CharMapOverrides inner) => _inner = inner;
 
         public bool TryLookup(char c, out MatrixPress press)
         {
@@ -135,7 +135,7 @@ public sealed class Mz700KeyboardEditorContext : IKeyboardEditorContext
         }
 
         public void Set(char c, MatrixPress press) =>
-            _inner.Set(c, new CharMap.Press(press.Row, press.Col, press.MzShift));
+            _inner.Set(c, new Mz700CharMap.Press(press.Row, press.Col, press.MzShift));
 
         public void Remove(char c) => _inner.Remove(c);
         public void Suppress(char c) => _inner.Suppress(c);

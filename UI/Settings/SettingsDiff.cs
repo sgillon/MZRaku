@@ -61,11 +61,11 @@ internal sealed class SettingsSnapshot
     public int JoyButton1Index { get; init; }
     public int JoyButton2Index { get; init; }
 
-    public IReadOnlyDictionary<char, MatrixPress> CharOverrides { get; init; }
+    public IReadOnlyDictionary<char, MatrixPress> Mz700CharOverrides { get; init; }
         = new Dictionary<char, MatrixPress>();
-    public IReadOnlyCollection<char> SuppressedChars { get; init; }
+    public IReadOnlyCollection<char> Mz700SuppressedChars { get; init; }
         = new HashSet<char>();
-    public IReadOnlyDictionary<HostKey, KeyOverride.Binding> KeyOverrides { get; init; }
+    public IReadOnlyDictionary<HostKey, KeyOverride.Binding> Mz700KeyOverrides { get; init; }
         = new Dictionary<HostKey, KeyOverride.Binding>();
 
     // MZ-80A parallel fields (Phase 5.5b). Populated even when the
@@ -110,10 +110,10 @@ internal sealed class SettingsSnapshot
         Mz800VramExpansion = settings.Mz800VramExpansion,
         JoyButton1Index = settings.JoyButton1Index,
         JoyButton2Index = settings.JoyButton2Index,
-        CharOverrides = settings.CharMapOverrides.All.ToDictionary(
+        Mz700CharOverrides = settings.Mz700CharMapOverrides.All.ToDictionary(
             kv => kv.Key, kv => new MatrixPress(kv.Value.Row, kv.Value.Col, kv.Value.MzShift)),
-        SuppressedChars = new HashSet<char>(settings.CharMapOverrides.AllSuppressed),
-        KeyOverrides = settings.KeyOverrides.All.ToDictionary(kv => kv.Key, kv => kv.Value),
+        Mz700SuppressedChars = new HashSet<char>(settings.Mz700CharMapOverrides.AllSuppressed),
+        Mz700KeyOverrides = settings.Mz700KeyOverrides.All.ToDictionary(kv => kv.Key, kv => kv.Value),
         Mz80aCharOverrides = settings.Mz80aCharMapOverrides.All.ToDictionary(
             kv => kv.Key, kv => new MatrixPress(kv.Value.Strobe, kv.Value.Bit, kv.Value.MzShift)),
         Mz80aSuppressedChars = new HashSet<char>(settings.Mz80aCharMapOverrides.AllSuppressed),
@@ -164,7 +164,7 @@ internal sealed class SettingsSnapshot
     // diff walker can quote the restored slot in the "default restored
     // → (row,col)" line without knowing the native Press type.
     internal static IReadOnlyDictionary<char, MatrixPress> Mz700CharDefaults { get; } =
-        CharMap.Defaults.ToDictionary(
+        Mz700CharMap.Defaults.ToDictionary(
             kv => kv.Key, kv => new MatrixPress(kv.Value.Row, kv.Value.Col, kv.Value.MzShift));
 
     internal static IReadOnlyDictionary<char, MatrixPress> Mz80aCharDefaults { get; } =
@@ -233,14 +233,14 @@ internal static class SettingsDiff
             lines.Add($"Joystick button 2: index {before.JoyButton2Index} → {after.JoyButton2Index}");
 
         lines.AddRange(DescribeCharOverrides(
-            before.CharOverrides, after.CharOverrides,
+            before.Mz700CharOverrides, after.Mz700CharOverrides,
             SettingsSnapshot.Mz700LabelPrefix));
         lines.AddRange(DescribeSuppressed(
-            before.SuppressedChars, after.SuppressedChars,
+            before.Mz700SuppressedChars, after.Mz700SuppressedChars,
             SettingsSnapshot.Mz700CharDefaults,
             SettingsSnapshot.Mz700LabelPrefix));
         lines.AddRange(DescribeKeyOverrides(
-            before.KeyOverrides, after.KeyOverrides,
+            before.Mz700KeyOverrides, after.Mz700KeyOverrides,
             SettingsSnapshot.Mz700LabelPrefix));
 
         lines.AddRange(DescribeCharOverrides(
@@ -442,5 +442,5 @@ internal static class SettingsDiff
     };
 
     private static string VkLabel(HostKey k) =>
-        SpecialKeyMap.Labels.TryGetValue(k, out var s) ? s : k.ToString();
+        Mz700SpecialKeyMap.Labels.TryGetValue(k, out var s) ? s : k.ToString();
 }

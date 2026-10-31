@@ -316,7 +316,7 @@ public sealed class KeyBindingEditorForm : Form
         bool mzShift = _shiftCheck.Checked;
         var target = new MatrixPress(Row, Col, mzShift);
 
-        // Letters are a case-pair on the MZ side — CharMap.Defaults maps
+        // Letters are a case-pair on the MZ side — Mz700CharMap.Defaults maps
         // 'A' and 'a' to the same slot, treating the physical PC key as
         // the unit of binding. Mirror that here: capturing 'a' also routes
         // 'A' (PC Shift+a), so the user can't be left in a state where

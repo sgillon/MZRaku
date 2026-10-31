@@ -29,7 +29,7 @@ namespace MZRaku.Core;
 ///   $E015 R  CRT display: reverse
 ///   $E200-$E2FF R  Set hardware scroll offset (low byte = 8-char units)
 ///
-/// Compared to MZ-700's IoBus (in <see cref="IoBus"/>), $E002 bit
+/// Compared to MZ-700's Mz700IoBus (in <see cref="Mz700IoBus"/>), $E002 bit
 /// meanings are rearranged: cassette motor moves from D0 to D3, V-Gate
 /// takes D0's slot, and INTMSK moves from D2 (MZ-700) to D2 (same
 /// position on MZ-80A too, actually). $E008 loses the joystick and the
@@ -38,7 +38,7 @@ namespace MZRaku.Core;
 /// Video mode ($E014/$E015) and hardware scroll ($E200-$E2FF) are
 /// latched here for <see cref="MZ80A"/> to pass to the renderer; the
 /// sound gate ($E008 W D0) drives <see cref="Sound"/>. The memory-swap side effects
-/// ($E00C/$E010 R) are handled inside <see cref="MZ80AMemory"/>.
+/// ($E00C/$E010 R) are handled inside <see cref="Mz80aMemory"/>.
 /// </summary>
 public sealed class Mz80aIoBus : IIoBus
 {
@@ -47,7 +47,7 @@ public sealed class Mz80aIoBus : IIoBus
 
     public Ppi8255 Ppi = null!;
     public Pit8253 Pit = null!;
-    public MZ80AMemory Memory = null!;
+    public Mz80aMemory Memory = null!;
     public Sound Sound = null!;
     public Z80Core.Z80Cpu Cpu = null!;
 
@@ -74,7 +74,7 @@ public sealed class Mz80aIoBus : IIoBus
         if (addr == 0xE014) { ReverseVideo = false; return 0xFF; }
         if (addr == 0xE015) { ReverseVideo = true; return 0xFF; }
 
-        // Memory-swap toggles are handled by MZ80AMemory itself (the
+        // Memory-swap toggles are handled by Mz80aMemory itself (the
         // side effect must fire even if this method never runs); the
         // returned data byte is discarded by the ROM's LD A,(nn).
         if (addr == 0xE00C || addr == 0xE010) return 0xFF;

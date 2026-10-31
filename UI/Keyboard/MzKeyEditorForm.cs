@@ -13,7 +13,7 @@ namespace MZRaku;
 /// lists the PC keys that currently produce the slot, with Edit and
 /// Reset buttons.
 ///
-/// Character keys (1, A, etc.) edit via <see cref="CharMapOverrides"/>
+/// Character keys (1, A, etc.) edit via <see cref="Mz700CharMapOverrides"/>
 /// — wired here directly through <see cref="KeyBindingEditorForm"/> as
 /// the capture sub-flow.
 ///
@@ -489,10 +489,10 @@ public sealed class MzKeyEditorForm : Form
     {
         var labels = new List<string>();
         // Any VK that's mentioned in the override layer no longer fires
-        // via its SpecialKeyMap default — even if the override targets a
+        // via its special-key map default — even if the override targets a
         // different slot. Mark them all so the default-pass below skips
         // them. Without this, a VK rebound to a different slot would
-        // still appear as bound to its original SpecialKeyMap slot.
+        // still appear as bound to its original special-key map slot.
         var claimedVks = new HashSet<HostKey>();
         foreach (var kv in _keyOverrides.All)
             claimedVks.Add(kv.Key);
@@ -521,7 +521,7 @@ public sealed class MzKeyEditorForm : Form
         // Reset should restore those — so the button needs to be active
         // whenever any restorable suppression exists at the slot. The
         // per-machine default set lives on the editor context; reading
-        // CharMap.Defaults here would silently walk the MZ-700 table on
+        // Mz700CharMap.Defaults here would silently walk the MZ-700 table on
         // MZ-80A and leave the Reset button greyed out for a live slot.
         foreach (var def in _context.CharDefaults)
         {

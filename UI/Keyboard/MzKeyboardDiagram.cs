@@ -273,7 +273,7 @@ public sealed class MzKeyboardDiagram : UserControl
 
         // Resolve unshifted / shifted labels: explicit per-side overrides
         // first, then the CharMap-derived glyph catalog, then the
-        // SpecialKeyMap fallback.
+        // special-key map fallback.
         string? mainText  = k.UnshiftedLabel;
         string? shiftText = k.ShiftedLabel;
 
@@ -288,7 +288,7 @@ public sealed class MzKeyboardDiagram : UserControl
 
             if (mainText == null && shiftText == null)
             {
-                // Fall back to a SpecialKeyMap-style label if the slot has one.
+                // Fall back to a special-key-map label if the slot has one.
                 var special = _layout.FindSpecialLabelAt(row, col);
                 if (special != null)
                     DrawCentredText(g, special, mainRect, FontSizeForLabel(mainRect.Height),

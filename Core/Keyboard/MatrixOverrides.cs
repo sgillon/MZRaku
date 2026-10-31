@@ -7,7 +7,7 @@ namespace MZRaku.Core;
 
 /// <summary>
 /// Generic base for the three user-override stores
-/// (<see cref="CharMapOverrides"/>,
+/// (<see cref="Mz700CharMapOverrides"/>,
 /// <see cref="Mz80aCharMapOverrides"/> and
 /// <see cref="Mz800CharMapOverrides"/>): character → matrix-slot
 /// map, plus a suppression set marking built-in defaults the
@@ -15,7 +15,7 @@ namespace MZRaku.Core;
 /// <see cref="SerialiseLines"/> / <see cref="TryParseLine"/>.
 ///
 /// <typeparamref name="TPress"/> is the machine's native press
-/// record (<see cref="CharMap.Press"/> = Row/Col/MzShift for MZ-700,
+/// record (<see cref="Mz700CharMap.Press"/> = Row/Col/MzShift for MZ-700,
 /// <see cref="Mz80aCharMap.Press"/> and <see cref="Mz800CharMap.Press"/>
 /// = Strobe/Bit/MzShift for MZ-80A and MZ-800).
 /// Two adapter delegates handed to the base at construction bridge

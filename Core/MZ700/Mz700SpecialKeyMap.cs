@@ -6,14 +6,14 @@ namespace MZRaku.Core;
 /// Built-in defaults: PC virtual-key → MZ-700 matrix position for keys
 /// that don't produce a printable character (cursor keys, function keys,
 /// Enter, Esc, Backspace, Insert, MZ Ctrl, ALPHA / GRAPH mode keys).
-/// These are handled directly in <see cref="Keyboard.OnKeyDown"/> — they
+/// These are handled directly in <see cref="Mz700Keyboard.OnKeyDown"/> — they
 /// don't fire WinForms KeyPress, so the char-driven path can't see them.
 ///
 /// Users can override any of these via <see cref="KeyOverride"/>, which
-/// is consulted first. SpecialKeyMap entries are bare VKs only — modifier
+/// is consulted first. Mz700SpecialKeyMap entries are bare VKs only — modifier
 /// combinations live in the override layer.
 /// </summary>
-public static class SpecialKeyMap
+public static class Mz700SpecialKeyMap
 {
     public static readonly Dictionary<HostKey, (int row, int col)> Map = new()
     {
@@ -54,7 +54,7 @@ public static class SpecialKeyMap
         [HostKey.F3]          = (9, 5),
         [HostKey.F4]          = (9, 4),
         // F5 → (9, 3), confirmed against Owner's Manual 2026-06-12. The
-        // diagram-drawing code (MzKeyboardLayout.cs) had inferred this
+        // diagram-drawing code (Mz700KeyboardLayout.cs) had inferred this
         // slot from row-9 symmetry months earlier but it was never wired
         // up here, so PC F5 had no MZ-side effect until now.
         [HostKey.F5]          = (9, 3),

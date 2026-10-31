@@ -85,7 +85,7 @@ public sealed class KeyboardMatrixGrid : UserControl
 
     /// <summary>
     /// Recompute per-slot binding text from the four sources (CharMap
-    /// defaults + overrides, SpecialKeyMap + KeyOverride). Call after
+    /// defaults + overrides, the special-key map + KeyOverride). Call after
     /// settings are reloaded.
     /// </summary>
     public void RefreshBindings()

@@ -10,7 +10,7 @@ namespace MZRaku.Core;
 /// / execute addresses. Payload is <see cref="Size"/> bytes of raw
 /// program data following the header.
 ///
-/// The <see cref="Cassette"/> / <see cref="Mz80aCassette"/> classes
+/// The <see cref="Mz700Cassette"/> / <see cref="Mz80aCassette"/> classes
 /// both consume this shape — MzfImage lives at the Core namespace
 /// root rather than nested inside one of them so per-machine code
 /// paths don't have to reach through a sibling machine's class to

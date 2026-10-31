@@ -1,7 +1,7 @@
 namespace MZRaku.Core;
 
 /// <summary>
-/// MZ-800 analogue of <see cref="CharMapOverrides"/> /
+/// MZ-800 analogue of <see cref="Mz700CharMapOverrides"/> /
 /// <see cref="Mz80aCharMapOverrides"/>: user char → matrix-slot
 /// overrides plus suppressed defaults, consulted ahead of
 /// <see cref="Mz800CharMap.Defaults"/>. Same INI wire format; persisted

@@ -43,7 +43,7 @@ namespace MZRaku.Core;
 /// scroll registers — lives here too because every CPU access to the
 /// $8000 window goes through it; <see cref="Mz800Video"/> only reads.
 /// </summary>
-public sealed class MZ800Memory : IMemory
+public sealed class Mz800Memory : IMemory
 {
     // 16 KB combined ROM: $0000-$0FFF MZ-700 monitor, $1000-$1FFF CG,
     // $2000-$3FFF MZ-800 IPL + monitor + BASIC-IOCS. See tech-ref p. 24
@@ -56,7 +56,7 @@ public sealed class MZ800Memory : IMemory
     public byte[] Ram = new byte[0x10000];
 
     // MZ-700-mode VRAM: 2 KB display codes + 2 KB attributes at
-    // $D000-$DFFF when VRAM is mapped. Same shape as MZ700Memory.
+    // $D000-$DFFF when VRAM is mapped. Same shape as Mz700Memory.
     public byte[] Vram = new byte[0x800];
     public byte[] Aram = new byte[0x800];
 

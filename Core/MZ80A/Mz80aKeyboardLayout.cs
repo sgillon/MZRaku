@@ -5,7 +5,7 @@ namespace MZRaku.Core;
 /// <summary>
 /// Physical layout of the MZ-80A keyboard. Drives the shared
 /// <c>MzKeyboardDiagram</c> via <c>Mz80aPhysicalKeyboardLayout</c>.
-/// Sibling to <see cref="MzKeyboardLayout"/> — same coordinate system
+/// Sibling to <see cref="Mz700KeyboardLayout"/> — same coordinate system
 /// (1.0 unit = standard alphabetic key, top-left origin), same
 /// resolution-independent scaling.
 ///
@@ -219,7 +219,7 @@ public static class Mz80aKeyboardLayout
     /// NumPad0-9 / Add / Subtract / Decimal / Enter keys through
     /// to the NP slots, drop the filter and they graduate back to
     /// essential automatically. Mirrors
-    /// <see cref="MzKeyboardLayout.EssentialKeys"/>'s Blank-filler
+    /// <see cref="Mz700KeyboardLayout.EssentialKeys"/>'s Blank-filler
     /// filter in spirit — both exclude slots we don't expect the
     /// user to reach through the default binding set.
     /// </summary>

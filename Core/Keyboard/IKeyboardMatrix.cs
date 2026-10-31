@@ -2,7 +2,7 @@ namespace MZRaku.Core;
 
 /// <summary>
 /// The minimum surface Ppi8255 needs to feed keyboard row data back
-/// on Port B reads. The MZ-700's rich <see cref="Keyboard"/> class
+/// on Port B reads. The MZ-700's rich <see cref="Mz700Keyboard"/> class
 /// implements this (its full public API is far bigger, spanning
 /// auto-typer, CharMap-driven typing, staged shift bits, ROM-scan
 /// diagnostics), and the leaner <see cref="Mz80aKeyboard"/> and

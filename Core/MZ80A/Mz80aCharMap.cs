@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace MZRaku.Core;
 
 /// <summary>
-/// MZ-80A analogue of <see cref="CharMap"/>: static translation from the
+/// MZ-80A analogue of <see cref="Mz700CharMap"/>: static translation from the
 /// Unicode character a PC keystroke resolves to (after host-OS layout,
 /// AltGr, dead-key handling) to an MZ-80A matrix strobe/bit position
 /// plus MZ-shift state. Lets the keyboard matrix be driven by the CHAR

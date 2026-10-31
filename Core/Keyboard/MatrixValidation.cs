@@ -8,8 +8,8 @@ namespace MZRaku.Core;
 /// Single entry point for the startup-time consistency check between
 /// the canonical matrix references (<see cref="Mz700MatrixReference"/>,
 /// <see cref="Mz80aMatrixReference"/>, <see cref="Mz800MatrixReference"/>)
-/// and the data files that consume them: <see cref="SpecialKeyMap"/>,
-/// <see cref="CharMap"/>, <see cref="MzKeyboardLayout"/>,
+/// and the data files that consume them: <see cref="Mz700SpecialKeyMap"/>,
+/// <see cref="Mz700CharMap"/>, <see cref="Mz700KeyboardLayout"/>,
 /// <see cref="Mz80aSpecialKeyMap"/>, <see cref="Mz80aCharMap"/>,
 /// <see cref="Mz800SpecialKeyMap"/>, <see cref="Mz800CharMap"/>.
 ///
@@ -26,7 +26,7 @@ public static class MatrixValidation
 {
     /// <summary>
     /// Runs every validator and returns all complaints in source order
-    /// (MZ-700 reference → SpecialKeyMap → CharMap → MzKeyboardLayout →
+    /// (MZ-700 reference → Mz700SpecialKeyMap → CharMap → Mz700KeyboardLayout →
     /// MZ-80A reference → Mz80aSpecialKeyMap → Mz80aCharMap). Each line
     /// is prefixed with the source so the origin is obvious.
     /// </summary>
@@ -34,9 +34,9 @@ public static class MatrixValidation
     {
         var all = new List<string>();
         AddPrefixed(all, "Mz700MatrixReference", Mz700MatrixReference.Validate());
-        AddPrefixed(all, "SpecialKeyMap",        SpecialKeyMap.Validate());
-        AddPrefixed(all, "CharMap",              CharMap.Validate());
-        AddPrefixed(all, "MzKeyboardLayout",     MzKeyboardLayout.Validate());
+        AddPrefixed(all, "Mz700SpecialKeyMap",   Mz700SpecialKeyMap.Validate());
+        AddPrefixed(all, "Mz700CharMap",         Mz700CharMap.Validate());
+        AddPrefixed(all, "Mz700KeyboardLayout",  Mz700KeyboardLayout.Validate());
         AddPrefixed(all, "Mz80aMatrixReference", Mz80aMatrixReference.Validate());
         AddPrefixed(all, "Mz80aSpecialKeyMap",   Mz80aSpecialKeyMap.Validate());
         AddPrefixed(all, "Mz80aCharMap",         Mz80aCharMap.Validate());

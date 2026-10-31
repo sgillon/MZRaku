@@ -5,7 +5,7 @@ namespace MZRaku.Core;
 
 /// <summary>
 /// Shared LOAD-trap plumbing for the three Sharp cassette classes
-/// (<see cref="Cassette"/> on MZ-700, <see cref="Mz80aCassette"/>
+/// (<see cref="Mz700Cassette"/> on MZ-700, <see cref="Mz80aCassette"/>
 /// on MZ-80A, <see cref="Mz800Cassette"/> on MZ-800). Each machine's
 /// tape routines expose distinct entry
 /// points but converge on the same pattern:
@@ -24,7 +24,7 @@ namespace MZRaku.Core;
 /// </list>
 ///
 /// v1.2 audit F-025 hoisted this shape here. The concrete
-/// <see cref="Cassette"/> keeps its BreakWait short-circuit + SAVE
+/// <see cref="Mz700Cassette"/> keeps its BreakWait short-circuit + SAVE
 /// trap machinery + $1170 mirror hooks on top of the base; MZ-80A
 /// only extends the base with its two trap-address checks. MZ-700
 /// SAVE handling stays MZ-700-only — SA-1510 doesn't expose a
@@ -38,7 +38,7 @@ public abstract class CassetteTrapBase
 
     // All three machines use Z80Core's IMemory for reads/writes at this
     // layer. Concrete classes still hold a typed field for
-    // per-machine members (MZ700Memory.RomEnabled, etc.); the base
+    // per-machine members (Mz700Memory.RomEnabled, etc.); the base
     // just needs the read/write surface.
     protected IMemory Mem = null!;
     public Z80Cpu Cpu = null!;

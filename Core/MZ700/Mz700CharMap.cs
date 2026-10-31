@@ -31,7 +31,7 @@ namespace MZRaku.Core;
 /// the MZ-700 produces, so PC ';' lands on (0,2) regardless of the
 /// PC keyboard layout that produced it.
 /// </summary>
-public static class CharMap
+public static class Mz700CharMap
 {
     public readonly record struct Press(int Row, int Col, bool MzShift);
 
@@ -102,10 +102,10 @@ public static class CharMap
 
     /// <summary>
     /// Optional override layer set by <c>EmulatorSession</c> from
-    /// <c>Settings.CharMapOverrides</c>. When
+    /// <c>Settings.Mz700CharMapOverrides</c>. When
     /// non-null, its entries take precedence over <see cref="Defaults"/>.
     /// </summary>
-    public static CharMapOverrides? Overrides;
+    public static Mz700CharMapOverrides? Overrides;
 
     public static bool TryLookup(char c, out Press press)
     {

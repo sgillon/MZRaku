@@ -37,10 +37,10 @@ public sealed class Mz80aCassette : CassetteTrapBase
     public const ushort TrapRdInf = 0x0027;
     public const ushort TrapRdDat = 0x002A;
 
-    // Typed field so callers wire Memory as MZ80AMemory; base holds
+    // Typed field so callers wire Memory as Mz80aMemory; base holds
     // it as IMemory (Mem) for its read/write path.
-    private MZ80AMemory _mem = null!;
-    public MZ80AMemory Memory
+    private Mz80aMemory _mem = null!;
+    public Mz80aMemory Memory
     {
         get => _mem;
         set { _mem = value; Mem = value; }

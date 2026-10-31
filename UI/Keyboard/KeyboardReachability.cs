@@ -74,7 +74,7 @@ internal static class KeyboardReachability
     /// override > canonical unshifted glyph > canonical shifted
     /// glyph > synthetic "(row,col)" coord fallback. Glyph lookups
     /// go through the context adapter so MZ-700 reads
-    /// <see cref="MzGlyphCatalog"/> and MZ-80A reads
+    /// <see cref="Mz700GlyphCatalog"/> and MZ-80A reads
     /// <see cref="Mz80aMatrixReference.FindGlyph"/>.
     /// </summary>
     public static string DescribeKeyForGate(MzKey k, IKeyboardEditorContext context)

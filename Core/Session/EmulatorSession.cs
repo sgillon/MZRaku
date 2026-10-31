@@ -64,8 +64,8 @@ public sealed class EmulatorSession
         // Mz800CharMap.
         if (Mz700 != null)
         {
-            Mz700.Keyboard.Overrides = _settings.KeyOverrides;
-            CharMap.Overrides = _settings.CharMapOverrides;
+            Mz700.Keyboard.Overrides = _settings.Mz700KeyOverrides;
+            Mz700CharMap.Overrides = _settings.Mz700CharMapOverrides;
         }
         if (Mz80a != null)
         {
@@ -341,7 +341,7 @@ public sealed class EmulatorSession
         // Autoload orchestrator (v1.2 audit F-055). Owns the two
         // per-machine BASIC + cassette + BASIC-source pipelines.
         AutoLoad = new AutoLoadOrchestrator(
-            machine: Mz700,
+            mz700: Mz700,
             mz80a: Mz80a,
             mz800: Mz800,
             settings: _settings,

@@ -5,7 +5,7 @@ namespace MZRaku.Core;
 /// <summary>
 /// Canonical MZ-700 keyboard matrix reference — the single source of
 /// truth for "which slot holds what." Every other matrix-aware piece of
-/// the codebase (SpecialKeyMap, MzKeyboardLayout, CharMap,
+/// the codebase (Mz700SpecialKeyMap, Mz700KeyboardLayout, CharMap,
 /// tools/RomAnalyse) is expected to derive from or validate against
 /// this table.
 ///
@@ -138,12 +138,12 @@ public static class Mz700MatrixReference
         Put(m, 0, 1, SlotKind.Char,  "COLON", ":", "*");
         Put(m, 0, 2, SlotKind.Char,  "SEMI",  ";", "+");
         // (0, 3) — empty in the scan matrix per owner's manual
-        // 2026-06-13. MzKeyboardLayout previously had the @ key wired
+        // 2026-06-13. Mz700KeyboardLayout previously had the @ key wired
         // here, which was wrong — @ actually lives at (1, 5).
         Put(m, 0, 3, SlotKind.Unused, "row0col3");
         Put(m, 0, 4, SlotKind.Mode,  "ALPHA");
         // POUND key shows ↓ unshifted (the MZ display-↓ glyph, not the
-        // cursor-down VK at (7, 4)) and £ shifted, per MzKeyboardLayout.
+        // cursor-down VK at (7, 4)) and £ shifted, per Mz700KeyboardLayout.
         Put(m, 0, 5, SlotKind.Char,  "POUND", "↓", "£");
         Put(m, 0, 6, SlotKind.Mode,  "GRAPH");
         // (0, 7) — physical "blank" dummy filler cap on the QWERTY row,
@@ -156,14 +156,14 @@ public static class Mz700MatrixReference
         // ============================================================
         // Row 1 — Y, Z, square brackets, and the @ key. Confirmed
         // against owner's manual 2026-06-13. NOTE: (1, 5) = @ supersedes
-        // the prior (0, 3) assumption baked into MzKeyboardLayout —
+        // the prior (0, 3) assumption baked into Mz700KeyboardLayout —
         // that file needs reconciling.
         // ============================================================
         Put(m, 1, 0, SlotKind.Unused, "row1col0");
         Put(m, 1, 1, SlotKind.Unused, "row1col1");
         Put(m, 1, 2, SlotKind.Unused, "row1col2");
         // Brackets: ] at (1, 3), [ at (1, 4) per owner's manual
-        // 2026-06-13. CharMap.Defaults has them the other way around —
+        // 2026-06-13. Mz700CharMap.Defaults has them the other way around —
         // another drift to reconcile when wiring.
         Put(m, 1, 3, SlotKind.Char,   "RBRK", "]", "}");
         Put(m, 1, 4, SlotKind.Char,   "LBRK", "[", "{");

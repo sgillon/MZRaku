@@ -5,7 +5,7 @@ namespace MZRaku.Core;
 /// <summary>
 /// Intel 8255 PPI emulation. Generic three-port implementation shared
 /// by all three machines — per-machine bit wiring lives with the port
-/// consumers, not here. See <see cref="IoBus"/> for MZ-700's Port C
+/// consumers, not here. See <see cref="Mz700IoBus"/> for MZ-700's Port C
 /// bit map (cassette motor, speaker gate, INTMSK, cursor blink,
 /// VBLANK) and <see cref="Mz80aIoBus"/> for the MZ-80A's simpler use.
 ///
@@ -15,7 +15,7 @@ namespace MZRaku.Core;
 /// (driven from MZ700's <c>CyclesPerTempoToggle</c> empirical fit —
 /// see its comment for the calibration history) exposed via
 /// <see cref="TempoBit"/> for
-/// MZ-700's IoBus to read on $E008 bit 0.
+/// MZ-700's Mz700IoBus to read on $E008 bit 0.
 ///
 /// Control (0xE003 on MZ-700): 8255 control word (writes accepted,
 /// mode semantics ignored — no consumer depends on mode setup).

@@ -36,7 +36,7 @@ public interface IMatrixReference
     /// <summary>
     /// Matrix coordinates of MZ SHIFT on this machine. Always
     /// considered "bound" — SHIFT is wired via the modifier path
-    /// (Keyboard.OnKeyDown / OnKeyUp updating <c>_pcShift</c>) not
+    /// (Mz700Keyboard.OnKeyDown / OnKeyUp updating <c>_pcShift</c>) not
     /// through any override layer, so the unbound-slot finder must
     /// treat it as reachable. MZ-700 is (8, 0); MZ-80A is (0, 0).
     /// </summary>

@@ -3,7 +3,7 @@ namespace MZRaku.Core;
 /// <summary>
 /// What a physical key on an MZ keyboard is, for drawing it in the
 /// keyboard diagram. Shared by the three machines' layouts
-/// (<see cref="MzKeyboardLayout"/>, <see cref="Mz80aKeyboardLayout"/>,
+/// (<see cref="Mz700KeyboardLayout"/>, <see cref="Mz80aKeyboardLayout"/>,
 /// <see cref="Mz800KeyboardLayout"/>).
 /// </summary>
 public enum MzKeyKind

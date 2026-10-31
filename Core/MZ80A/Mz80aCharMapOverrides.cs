@@ -1,7 +1,7 @@
 namespace MZRaku.Core;
 
 /// <summary>
-/// MZ-80A analogue of <see cref="CharMapOverrides"/>. Same shape
+/// MZ-80A analogue of <see cref="Mz700CharMapOverrides"/>. Same shape
 /// and INI serialisation (hex codepoint + coord,coord,shift), but
 /// entries store <see cref="Mz80aCharMap.Press"/> — matrix
 /// coordinates are the same shape (10 strobes × 8 bits) as MZ-700's
@@ -15,7 +15,7 @@ namespace MZRaku.Core;
 ///
 /// v1.2 audit F-023 lifted the storage + serialisation into a
 /// generic <see cref="MatrixOverrides{TPress}"/> shared with
-/// <see cref="CharMapOverrides"/>.
+/// <see cref="Mz700CharMapOverrides"/>.
 /// </summary>
 public sealed class Mz80aCharMapOverrides : MatrixOverrides<Mz80aCharMap.Press>
 {

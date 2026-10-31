@@ -29,11 +29,11 @@ public sealed class Mz800Cassette : CassetteTrapBase
     public const ushort TrapReadHeader = 0x04D8;
     public const ushort TrapReadData   = 0x04F8;
 
-    // Typed field so callers wire Memory as MZ800Memory; base holds
+    // Typed field so callers wire Memory as Mz800Memory; base holds
     // it as IMemory (Mem) for its read/write path. Same shape as
     // Mz80aCassette.Memory.
-    private MZ800Memory _mem = null!;
-    public MZ800Memory Memory
+    private Mz800Memory _mem = null!;
+    public Mz800Memory Memory
     {
         get => _mem;
         set { _mem = value; Mem = value; }

@@ -428,7 +428,7 @@ internal sealed class MemoryViewerForm : DebugToolForm
 
     private static string OnOff(bool on) => on ? "on" : "off";
 
-    private static string Mz800ModeName(MZ800Memory mem)
+    private static string Mz800ModeName(Mz800Memory mem)
         => mem.Mz700Mode ? "MZ-700 mode" : mem.Is640BitmapMode ? "640×200" : "320×200";
 
     private string BankTooltip() => _machine.Kind switch

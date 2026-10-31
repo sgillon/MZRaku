@@ -322,7 +322,7 @@ public static class Mz80aMatrixReference
     /// character of the reference's UnshiftedGlyph / ShiftedGlyph
     /// string (both are stored as strings for two-char slots like
     /// NP_00's "00"; the diagram / editor only ever wants one char).
-    /// Mirrors <see cref="MzGlyphCatalog.FindByPrintableSlot"/> on
+    /// Mirrors <see cref="Mz700GlyphCatalog.FindByPrintableSlot"/> on
     /// the MZ-700 side.
     /// </summary>
     public static char? FindGlyph(int strobe, int bit, bool mzShift)
@@ -336,7 +336,7 @@ public static class Mz80aMatrixReference
     /// Friendly label for a non-printable slot on MZ-80A, or null when
     /// the slot has no such label. Derived from
     /// <see cref="Slot.Id"/> for kinds other than Char / Unused /
-    /// Unknown. Mirrors <see cref="MzGlyphCatalog.FindSpecialLabel"/>
+    /// Unknown. Mirrors <see cref="Mz700GlyphCatalog.FindSpecialLabel"/>
     /// on the MZ-700 side (which reads
     /// <see cref="Mz700MatrixReference.SpecialLabels"/>).
     /// </summary>

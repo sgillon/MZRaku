@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace MZRaku.Core;
 
 /// <summary>
-/// MZ-800 analogue of <see cref="CharMap"/>: static translation from
+/// MZ-800 analogue of <see cref="Mz700CharMap"/>: static translation from
 /// the Unicode character a PC keystroke resolves to (after host-OS
 /// layout, AltGr, dead-key handling) to an MZ-800 matrix (strobe, bit)
 /// plus MZ-shift state. Lets the keyboard matrix be driven by the
@@ -14,7 +14,7 @@ namespace MZRaku.Core;
 /// same discipline MZ-700's CharMap follows against its own reference.
 /// Because MZ-800's matrix is nearly identical to MZ-700's, the
 /// collision-preference overrides and UK-layout fallbacks below mirror
-/// <see cref="CharMap"/> position-for-position.
+/// <see cref="Mz700CharMap"/> position-for-position.
 ///
 /// MZ-800 text-mode convention matches MZ-700's: default text mode is
 /// UPPERCASE, so lowercase PC letters alias the same unshifted slot
@@ -108,7 +108,7 @@ public static class Mz800CharMap
     /// typeable slot (Char, Space, or Enter). Glyph identity is not
     /// checked — UK fallbacks (£ → MZ '#') are intentional and would
     /// false-positive a strict glyph match. Mirrors
-    /// <see cref="CharMap.Validate"/>.
+    /// <see cref="Mz700CharMap.Validate"/>.
     /// </summary>
     public static IReadOnlyList<string> Validate()
     {

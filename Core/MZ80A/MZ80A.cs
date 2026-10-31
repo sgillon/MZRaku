@@ -14,7 +14,7 @@ namespace MZRaku.Core;
 public sealed class MZ80A : MzMachineBase, IMachine
 {
     // Cpu is inherited from MzMachineBase (v1.2 audit F-060).
-    public MZ80AMemory Mem { get; } = new();
+    public Mz80aMemory Mem { get; } = new();
     public Ppi8255 Ppi = new();
     public Pit8253 Pit = new();
     public Mz80aIoBus Io = new();

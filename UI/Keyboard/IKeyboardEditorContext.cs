@@ -10,7 +10,7 @@ namespace MZRaku;
 /// serve both MZ-700 and MZ-80A without duplication.
 ///
 /// A concrete implementation adapts one machine's statics
-/// (<c>CharMap</c>, <c>SpecialKeyMap</c>, <c>MzGlyphCatalog</c>,
+/// (<c>CharMap</c>, <c>Mz700SpecialKeyMap</c>, <c>Mz700GlyphCatalog</c>,
 /// <c>MatrixCoverage</c>) and its mutable overrides
 /// (<c>CharMapOverrides</c>, <c>KeyOverride</c>) into this shape. The
 /// UI never touches the machine-specific types directly.
@@ -74,7 +74,7 @@ public interface IKeyboardEditorContext
 
     /// <summary>
     /// Physical-layout keys for this machine
-    /// (<see cref="MzKeyboardLayout.Keys"/> for MZ-700,
+    /// (<see cref="Mz700KeyboardLayout.Keys"/> for MZ-700,
     /// <see cref="Mz80aKeyboardLayout.Keys"/> for MZ-80A). Feeds
     /// <see cref="PcKeyIndex.BuildLabelsByMzKey"/> so the diagram
     /// can label per-cap.
@@ -107,7 +107,7 @@ public interface IKeyboardEditorContext
 }
 
 /// <summary>
-/// Machine-agnostic mirror of <c>CharMap.Press</c> /
+/// Machine-agnostic mirror of <c>Mz700CharMap.Press</c> /
 /// <c>Mz80aCharMap.Press</c>. Fields Row/Col match the UI vocabulary
 /// (matrix rows and columns) — MZ-80A code refers to the same integers
 /// as Strobe/Bit but the shape is identical.

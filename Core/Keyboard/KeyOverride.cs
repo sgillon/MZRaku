@@ -8,7 +8,7 @@ namespace MZRaku.Core;
 /// combined with modifier flags) to a specific matrix position. Each
 /// machine has its own store. Consulted ahead of the machine's
 /// special-key map and character map in its keyboard's
-/// <c>OnKeyDown</c> (e.g. <see cref="Keyboard.OnKeyDown"/> on the
+/// <c>OnKeyDown</c> (e.g. <see cref="Mz700Keyboard.OnKeyDown"/> on the
 /// MZ-700), so a user can rebind any key without touching the
 /// built-in defaults.
 ///
@@ -44,7 +44,7 @@ public sealed class KeyOverride
     public IEnumerable<KeyValuePair<HostKey, Binding>> All => _map;
 
     /// <summary>
-    /// Two-stage lookup for use from <see cref="Keyboard.OnKeyDown"/>:
+    /// Two-stage lookup for use from <see cref="Mz700Keyboard.OnKeyDown"/>:
     /// the combined-modifier form wins, falling back to the bare VK
     /// (modifier flags stripped). Returns null if neither matches.
     /// </summary>

@@ -10,7 +10,7 @@ namespace MZRaku;
 ///
 /// MZ-700: two 16 × 16 sections, one per font bank (bank 0 = ALPHA,
 /// bank 1 = GRAPH). Cells that the keyboard can produce in that bank
-/// per <see cref="RomKeyTables"/> are outlined green, and clicking one
+/// per <see cref="Mz700RomKeyTables"/> are outlined green, and clicking one
 /// enqueues the (row, col, shift) into the auto-typer — the point being
 /// to reach MZ-only glyphs (graphics blocks, kana) that have no PC-key
 /// equivalent. Bank 1 clicks are parked pending the attribute-byte fix
@@ -218,7 +218,7 @@ public sealed class FontSheetForm : Form
         // mode-dependent and produce the wrong glyph. Refuse rather than
         // silently mistype.
         bool inGraphMode = (_mz700.Mem.Read(0x0060) & 0x10) != 0;
-        bool wantGraphMode = bank == RomKeyTables.GraphBank;
+        bool wantGraphMode = bank == Mz700RomKeyTables.GraphBank;
         if (inGraphMode != wantGraphMode)
         {
             string need = wantGraphMode ? "GRAPH" : "ALPHA";
@@ -235,7 +235,7 @@ public sealed class FontSheetForm : Form
         // the auto-typer-vs-PC-keystroke difference without finding the
         // missing state. Outline stays so the reachable set is visible,
         // but clicking is suppressed until the attribute write is solved.
-        if (bank == RomKeyTables.GraphBank)
+        if (bank == Mz700RomKeyTables.GraphBank)
         {
             _statusLabel.Text =
                 "Bank 1 click-to-type is a known limitation — the glyph lands "
@@ -243,7 +243,7 @@ public sealed class FontSheetForm : Form
             return;
         }
 
-        _mz700.Keyboard.AutoType.TypePress(new CharMap.Press(slot.Value.Row, slot.Value.Col, slot.Value.MzShift));
+        _mz700.Keyboard.AutoType.TypePress(new Mz700CharMap.Press(slot.Value.Row, slot.Value.Col, slot.Value.MzShift));
         string shiftTxt = slot.Value.MzShift ? "shift+" : "";
         _statusLabel.Text =
             $"Typed bank {bank} code ${code:X2} via {shiftTxt}({slot.Value.Row},{slot.Value.Col}).";

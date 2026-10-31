@@ -58,7 +58,7 @@ public sealed class Mz80aKeyboardEditorContext : IKeyboardEditorContext
     public IReadOnlyDictionary<HostKey, (int Row, int Col)> SpecialKeyMap { get; }
 
     // Mz80aSpecialKeyMap has Labels but no per-slot labels. The MZ-700
-    // sibling exposes SpecialKeyMap.Labels for VK captions on the
+    // sibling exposes Mz700SpecialKeyMap.Labels for VK captions on the
     // matrix grid — same purpose here.
     public IReadOnlyDictionary<HostKey, string> SpecialKeyLabels =>
         Mz80aSpecialKeyMap.Labels;

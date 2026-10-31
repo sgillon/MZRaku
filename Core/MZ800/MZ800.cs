@@ -23,7 +23,7 @@ namespace MZRaku.Core;
 public sealed class MZ800 : MzMachineBase, IMachine
 {
     // Cpu is inherited from MzMachineBase (v1.2 audit F-060).
-    public MZ800Memory Mem { get; } = new();
+    public Mz800Memory Mem { get; } = new();
     public Ppi8255 Ppi = new();
     public Pit8253 Pit = new();
     public Z80Pio Pio = new();
@@ -320,7 +320,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
     }
 
     /// <summary>
-    /// Pick a renderer per <see cref="MZ800Memory.Mz700Mode"/> and, in
+    /// Pick a renderer per <see cref="Mz800Memory.Mz700Mode"/> and, in
     /// MZ-800 mode, the DMD register (tech-ref p. 17 Table-1):
     ///
     ///   DMD  resolution  colours  planes shown        lookup

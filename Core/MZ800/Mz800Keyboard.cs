@@ -7,7 +7,7 @@ namespace MZRaku.Core;
 /// <see cref="Mz800MatrixReference"/> (walk-validated with the user
 /// 2026-08-28).
 ///
-/// Input model closely mirrors <see cref="Keyboard"/> (MZ-700's), not
+/// Input model closely mirrors <see cref="Mz700Keyboard"/> (MZ-700's), not
 /// <see cref="Mz80aKeyboard"/> — MZ-800 in MZ-700 mode runs the 1Z-013B
 /// monitor which is a superset of MZ-700's own 1Z-013B monitor, and it
 /// uses the same $1170 RAM location as a PC-shift mirror the GETKY
@@ -36,7 +36,7 @@ public sealed class Mz800Keyboard : KeyboardMatrixBase
     /// checks in GETKY to choose between unshifted / shifted keyboard
     /// tables. Wired by <see cref="MZ800"/> at construction.
     /// </summary>
-    public MZ800Memory? Memory;
+    public Mz800Memory? Memory;
 
     /// <summary>
     /// User-editable physical-key overrides (<c>[KeyOverrides.MZ800]</c>),
@@ -72,9 +72,9 @@ public sealed class Mz800Keyboard : KeyboardMatrixBase
 
     /// <summary>
     /// PC KeyDown. Returns true if the form should consider the event
-    /// handled. Mirrors <see cref="Keyboard.OnKeyDown"/>:
+    /// handled. Mirrors <see cref="Mz700Keyboard.OnKeyDown"/>:
     ///   - Auto-repeat: if the VK is already held, no-op return true.
-    ///   - SpecialKeyMap match: drive matrix directly, pass PC shift
+    ///   - Mz800SpecialKeyMap match: drive matrix directly, pass PC shift
     ///     through (no explicit shift requirement on the hold).
     ///   - Bare Shift key: don't touch shift state yet — the next
     ///     press's char-map entry may want to override it. Deferring
@@ -116,7 +116,7 @@ public sealed class Mz800Keyboard : KeyboardMatrixBase
                 // Stage the key bit the same way CharMap shifted
                 // presses do — assert SHIFT now via ApplyShiftState,
                 // let the ROM scan pick it up, THEN drop the key
-                // bit. No SpecialKeyMap entries currently need this
+                // bit. No Mz800SpecialKeyMap entries currently need this
                 // for MZ-800 but the branch keeps parity with
                 // Mz80aKeyboard so future overrides work uniformly.
                 _stagedKeyBits.Add(new StagedPress(bareVk, sp.Strobe, sp.Bit, LiveShiftStageFrames));

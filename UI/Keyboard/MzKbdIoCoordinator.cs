@@ -47,9 +47,9 @@ internal static class MzKbdIoCoordinator
         MachineType.MZ800 => new("MZ-800", "mz800", s.Mz800CharMapOverrides.Count,
             s.Mz800CharMapOverrides.SerialiseLines, s.Mz800CharMapOverrides.Clear,
             s.Mz800CharMapOverrides.TryParseLine, s.Mz800KeyOverrides),
-        _ => new("MZ-700", "mz700", s.CharMapOverrides.Count,
-            s.CharMapOverrides.SerialiseLines, s.CharMapOverrides.Clear,
-            s.CharMapOverrides.TryParseLine, s.KeyOverrides),
+        _ => new("MZ-700", "mz700", s.Mz700CharMapOverrides.Count,
+            s.Mz700CharMapOverrides.SerialiseLines, s.Mz700CharMapOverrides.Clear,
+            s.Mz700CharMapOverrides.TryParseLine, s.Mz700KeyOverrides),
     };
 
     public static void PromptAndExport(IWin32Window owner, Settings settings, MachineType activeMachine)

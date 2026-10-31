@@ -39,9 +39,9 @@ public static class PcKeyIndex
         AccumulateChars(slotLabels, context);
         AccumulateVks(slotLabels, context);
         // MZ SHIFT is driven directly from PC Shift through the
-        // keyboard modifier path (Keyboard.OnKeyDown / OnKeyUp
+        // keyboard modifier path (Mz700Keyboard.OnKeyDown / OnKeyUp
         // updating _pcShift, then ApplyShiftState writing the
-        // effective bit). It doesn't appear in SpecialKeyMap or the
+        // effective bit). It doesn't appear in the special-key map or the
         // override layer, so inject a synthetic label at the
         // reference's ShiftSlot.
         var shiftSlot = context.ShiftSlot;

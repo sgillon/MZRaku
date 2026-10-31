@@ -6,7 +6,7 @@ namespace MZRaku.Core;
 /// all three machines' keyboards so the HID Diagnostic pane renders a
 /// single consistent view regardless of which machine is monitored.
 /// <see cref="Override"/> is populated by each machine's OnKeyDown
-/// (<see cref="Keyboard.OnKeyDown"/>,
+/// (<see cref="Mz700Keyboard.OnKeyDown"/>,
 /// <see cref="Mz80aKeyboard.OnKeyDown"/>,
 /// <see cref="Mz800Keyboard.OnKeyDown"/>) — each carries its own
 /// <see cref="KeyOverride"/> field, wired via the Settings dialog
@@ -17,7 +17,7 @@ public enum InputLayer { None, Override, SpecialKey, Character }
 /// <summary>
 /// Per-frame telemetry the HID Diagnostic form reads to render its
 /// "what just happened" view. Populated by the concrete keyboard
-/// classes (<see cref="Keyboard"/>, <see cref="Mz80aKeyboard"/>) in
+/// classes (<see cref="Mz700Keyboard"/>, <see cref="Mz80aKeyboard"/>) in
 /// their KeyDown / KeyPress / KeyUp / ReadRow paths — the diagnostic
 /// itself never subscribes to events or duplicates mapping logic.
 /// </summary>

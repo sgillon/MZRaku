@@ -8,7 +8,7 @@ namespace MZRaku.Core;
 /// of matrix presses so the CLI --basic autorun can send "RUN\r", Load
 /// BASIC source can type a program, the Font Sheet can inject a clicked
 /// glyph, and any host-side scripted-input flow can play through the
-/// same matrix as a live human. Split out of <see cref="Keyboard"/> in
+/// same matrix as a live human. Split out of <see cref="Mz700Keyboard"/> in
 /// v1.2 audit F-016 — the live-key handling and the auto-typer are
 /// separate subsystems that happen to share the same matrix. v1.3.0
 /// Phase 8.5 made it machine-neutral: the owning keyboard supplies its
@@ -105,7 +105,7 @@ public sealed class KeyboardAutoTyper
     /// which knows the MZ display code but not necessarily its
     /// host-keyboard glyph.
     /// </summary>
-    public void TypePress(CharMap.Press p) => _typeQueue.Enqueue(new Press(p.Row, p.Col, p.MzShift));
+    public void TypePress(Mz700CharMap.Press p) => _typeQueue.Enqueue(new Press(p.Row, p.Col, p.MzShift));
 
     public void Tick()
     {

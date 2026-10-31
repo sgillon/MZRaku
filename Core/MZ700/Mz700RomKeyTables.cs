@@ -23,7 +23,7 @@ namespace MZRaku.Core;
 /// Unshifted entries win on duplicates so the simpler keystroke is the
 /// canonical way to reach a given glyph. Banks are independent.
 /// </summary>
-public sealed class RomKeyTables
+public sealed class Mz700RomKeyTables
 {
     public const int AlphaBank = 0;
     public const int GraphBank = 1;

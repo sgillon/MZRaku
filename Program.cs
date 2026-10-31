@@ -140,7 +140,7 @@ internal static class Program
         }
 
         // Cross-check the canonical matrix reference against its
-        // consumer files (SpecialKeyMap / CharMap / MzKeyboardLayout).
+        // consumer files (Mz700SpecialKeyMap / CharMap / Mz700KeyboardLayout).
         // Silent if all four agree; logs to debug output and shows a
         // warning dialog otherwise. The reference was introduced to
         // catch the drift that had been letting slot bugs hide for

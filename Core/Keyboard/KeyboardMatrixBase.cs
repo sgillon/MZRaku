@@ -4,7 +4,7 @@ namespace MZRaku.Core;
 
 /// <summary>
 /// Shared plumbing for the two Sharp keyboards
-/// (<see cref="Keyboard"/> and <see cref="Mz80aKeyboard"/>): the
+/// (<see cref="Mz700Keyboard"/> and <see cref="Mz80aKeyboard"/>): the
 /// 10 × 8 active-low matrix backing, the KeyDown→KeyPress→KeyUp
 /// hold bookkeeping, the shift-race stage buffer, the "any-hold
 /// gates PC shift" effective-shift rule. All three machines' 8255 PPI
@@ -15,7 +15,7 @@ namespace MZRaku.Core;
 /// v1.2 audit F-015 / F-021 extracted this. Concrete keyboards keep
 /// only the per-machine behaviour: MZ-700 writes $1170 as its shift
 /// mirror and drives a scan-detection auto-typer; MZ-80A holds
-/// GraphMode / InvertLetterShift / different SpecialKeyMap shape /
+/// GraphMode / InvertLetterShift / different special-key map shape /
 /// time-based auto-typer / Ctrl-key routing. Each machine's
 /// OnKeyDown / OnKeyPress / OnKeyUp handlers stay per-machine
 /// because the divergences there (Ctrl handling, RAM mirror,

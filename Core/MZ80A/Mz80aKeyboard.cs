@@ -8,7 +8,7 @@ namespace MZRaku.Core;
 /// (printed p.167) via <see cref="Mz80aMatrixReference"/>.
 ///
 /// Two-layer input mirroring the MZ-700 stack:
-///   1. SpecialKeyMap (non-printables — arrows, INST/DEL, HOME,
+///   1. Mz80aSpecialKeyMap (non-printables — arrows, INST/DEL, HOME,
 ///      BREAK/CTRL, GRPH, Enter) is consulted in
 ///      <see cref="OnKeyDown"/> and asserts directly.
 ///   2. Character keys defer from OnKeyDown to
@@ -91,7 +91,7 @@ public sealed class Mz80aKeyboard : KeyboardMatrixBase
     /// <summary>
     /// Host key-down (<see cref="IKeyboardInput"/>). Returns true if the
     /// key was consumed (the front end treats it as handled). Non-printables
-    /// (SpecialKeyMap) return true and assert directly; character
+    /// (Mz80aSpecialKeyMap) return true and assert directly; character
     /// keys return false and wait for OnKeyPress to pair them with
     /// a char.
     /// </summary>
@@ -276,7 +276,7 @@ public sealed class Mz80aKeyboard : KeyboardMatrixBase
     /// <summary>
     /// Enqueue a string for auto-typing. Non-CharMap chars are
     /// silently skipped. '\r' / '\n' become the SA-5510 Enter key
-    /// (SpecialKeyMap[Enter] → strobe 7, bit 3).
+    /// (Mz80aSpecialKeyMap[Enter] → strobe 7, bit 3).
     /// </summary>
     public void TypeString(string s)
     {
@@ -343,7 +343,7 @@ public sealed class Mz80aKeyboard : KeyboardMatrixBase
                     var ph = _autoCurrent!.Value;
                     SetMatrix(ph.Strobe, ph.Bit, false);
                     if (ph.MzShift) SetMatrix(0, 0, false);
-                    // Enter uses SpecialKeyMap coords (strobe 7,
+                    // Enter uses Mz80aSpecialKeyMap coords (strobe 7,
                     // bit 3); any other press advances via the
                     // short release window. Enter needs BASIC's
                     // line-tokenise pause.

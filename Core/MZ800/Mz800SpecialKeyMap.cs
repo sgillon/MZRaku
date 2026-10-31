@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace MZRaku.Core;
 
 /// <summary>
-/// MZ-800 analogue of <see cref="SpecialKeyMap"/>. PC virtual-key →
+/// MZ-800 analogue of <see cref="Mz700SpecialKeyMap"/>. PC virtual-key →
 /// MZ-800 matrix (strobe, bit) for keys that don't produce a printable
 /// character (cursor arrows, function keys, Enter, Esc/BREAK, Insert /
 /// Delete / Backspace, MZ CTRL, ALPHA / GRAPH mode toggles, TAB).
@@ -16,7 +16,7 @@ namespace MZRaku.Core;
 /// MZ-800 keyboard is almost identical to MZ-700's (per user
 /// walk-through 2026-08-28 — same 10×8 shape, same slot positions for
 /// nearly every key), so this map's structure mirrors
-/// <see cref="SpecialKeyMap"/> exactly. The one MZ-800 addition is
+/// <see cref="Mz700SpecialKeyMap"/> exactly. The one MZ-800 addition is
 /// <see cref="HostKey.Tab"/> → the (0, 3) TAB slot, which MZ-700 leaves
 /// unused.
 /// </summary>
@@ -41,14 +41,14 @@ public static class Mz800SpecialKeyMap
         [HostKey.Escape]     = new(8, 7, null),   // BREAK
         // WinForms normalises Left/Right Ctrl KeyDowns to
         // ControlKey in KeyEventArgs.KeyCode, so match on the
-        // generic form. Same pattern as MZ-700's SpecialKeyMap.
+        // generic form. Same pattern as MZ-700's Mz700SpecialKeyMap.
         [HostKey.ControlKey] = new(8, 6, null),   // CTRL
         [HostKey.F1]         = new(9, 7, null),
         [HostKey.F2]         = new(9, 6, null),
         [HostKey.F3]         = new(9, 5, null),
         [HostKey.F4]         = new(9, 4, null),
         [HostKey.F5]         = new(9, 3, null),
-        // F11/F12 = GRAPH/ALPHA, same policy as MZ-700's SpecialKeyMap.
+        // F11/F12 = GRAPH/ALPHA, same policy as MZ-700's Mz700SpecialKeyMap.
         // AltGr and RCtrl were rejected there because WinForms folds
         // them and AltGr's synthetic LCtrl briefly asserts MZ CTRL.
         [HostKey.F11]        = new(0, 6, null),   // GRAPH

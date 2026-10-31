@@ -27,7 +27,7 @@ namespace MZRaku.Core;
 /// Unlike the MZ-700 there's no attribute RAM at $D800 — the MZ-80A is
 /// monochrome and uses that region as the extra 2 KiB scroll buffer.
 /// </summary>
-public sealed class MZ80AMemory : IMemory
+public sealed class Mz80aMemory : IMemory
 {
     public byte[] Rom = new byte[0x1000];    // 4 KiB monitor ROM (SA-1510)
     public byte[] Ram = new byte[0x10000];   // full 64 KiB RAM backing

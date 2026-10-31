@@ -418,7 +418,7 @@ public sealed class MainForm : Form
         for (int i = 0; i < 3; i++)
         {
             int scale = i + 1;
-            var item = new ToolStripMenuItem($"&{scale}× ({Video.PixelWidth * scale}×{Video.PixelHeight * scale})",
+            var item = new ToolStripMenuItem($"&{scale}× ({Mz700Video.PixelWidth * scale}×{Mz700Video.PixelHeight * scale})",
                 null, (_, _) => ApplyDisplayScale(scale))
             {
                 ShortcutKeys = Keys.Control | (Keys.D0 + scale),
@@ -542,7 +542,7 @@ public sealed class MainForm : Form
             return true;
         }
         // Alt+F4 must close the emulator. F4 alone is wired to MZ F4 via
-        // SpecialKeyMap so the normal OnKeyDown path marks it as handled
+        // Mz700SpecialKeyMap so the normal OnKeyDown path marks it as handled
         // — that would swallow Alt+F4 too and the user gets no way out
         // of full-screen short of Task Manager. Catch it here, ahead of
         // the matrix path, so Close() fires (which honours FormClosing
@@ -582,8 +582,8 @@ public sealed class MainForm : Form
         if (scale > 3) scale = 3;
         int chrome = (MainMenuStrip?.Height ?? 0) + _status.Height;
         ClientSize = new Size(
-            Video.PixelWidth * scale,
-            Video.PixelHeight * scale + chrome);
+            Mz700Video.PixelWidth * scale,
+            Mz700Video.PixelHeight * scale + chrome);
         for (int i = 0; i < _scaleMenuItems.Length; i++)
         {
             if (_scaleMenuItems[i] != null)
@@ -897,8 +897,8 @@ public sealed class MainForm : Form
         e.Graphics.SmoothingMode = SmoothingMode.None;
 
         var cr = _display.ClientRectangle;
-        const int RefWidth = Video.PixelWidth;   // 320 — the CRT's "column count" reference
-        const int RefHeight = Video.PixelHeight; // 200
+        const int RefWidth = Mz700Video.PixelWidth;   // 320 — the CRT's "column count" reference
+        const int RefHeight = Mz700Video.PixelHeight; // 200
         float sx = (float)cr.Width / RefWidth;
         float sy = (float)cr.Height / RefHeight;
         float scale = Math.Min(sx, sy);
@@ -1234,7 +1234,7 @@ public sealed class MainForm : Form
         // was ported to IKeyboardEditorContext; the MZ-80A refusal here
         // was a pre-Phase-5.5a artefact.
         IKeyboardEditorContext? context =
-            _machine != null ? new Mz700KeyboardEditorContext(_machine, _settings.CharMapOverrides, _settings.KeyOverrides) :
+            _machine != null ? new Mz700KeyboardEditorContext(_machine, _settings.Mz700CharMapOverrides, _settings.Mz700KeyOverrides) :
             _mz80a   != null ? new Mz80aKeyboardEditorContext(_mz80a,  _settings.Mz80aCharMapOverrides, _settings.Mz80aKeyOverrides) :
             _mz800   != null ? new Mz800KeyboardEditorContext(_mz800,  _settings.Mz800CharMapOverrides, _settings.Mz800KeyOverrides) :
             null;

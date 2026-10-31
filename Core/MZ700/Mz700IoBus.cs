@@ -7,11 +7,11 @@ namespace MZRaku.Core;
 /// Routes memory-mapped I/O (0xE000-0xE00F) to 8255 PPI, 8253 PIT, and misc.
 /// Also stubs Z80 IN/OUT port access (MZ-700 does not use port I/O).
 /// </summary>
-public sealed class IoBus : IIoBus
+public sealed class Mz700IoBus : IIoBus
 {
     public Ppi8255 Ppi = null!;
     public Pit8253 Pit = null!;
-    public MZ700Memory Memory = null!;
+    public Mz700Memory Memory = null!;
     public Joystick Joystick = null!;
     public Sound Sound = null!;
 

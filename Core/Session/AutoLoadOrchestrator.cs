@@ -37,7 +37,7 @@ namespace MZRaku.Core;
 /// </summary>
 internal sealed class AutoLoadOrchestrator
 {
-    private readonly MZ700? _machine;
+    private readonly MZ700? _mz700;
     private readonly MZ80A? _mz80a;
     private readonly MZ800? _mz800;
     private readonly Settings _settings;
@@ -61,7 +61,7 @@ internal sealed class AutoLoadOrchestrator
     private bool _wasGraphMode;
 
     public AutoLoadOrchestrator(
-        MZ700? machine,
+        MZ700? mz700,
         MZ80A? mz80a,
         MZ800? mz800,
         Settings settings,
@@ -75,7 +75,7 @@ internal sealed class AutoLoadOrchestrator
         Action<string> typeBasicSource,
         Action<bool?> updateModeLabel)
     {
-        _machine = machine;
+        _mz700 = mz700;
         _mz80a = mz80a;
         _mz800 = mz800;
         _settings = settings;
@@ -124,7 +124,7 @@ internal sealed class AutoLoadOrchestrator
     /// <summary>Called once per frame from EmulatorSession.RunFrame.</summary>
     public void OnFrame(int bootFrames)
     {
-        if (_machine != null) OnMz700Frame(bootFrames);
+        if (_mz700 != null) OnMz700Frame(bootFrames);
         else if (_mz80a != null) OnMz80aFrame(bootFrames);
         else if (_mz800 != null) OnMz800Frame(bootFrames);
     }
@@ -151,7 +151,7 @@ internal sealed class AutoLoadOrchestrator
             }
             else
             {
-                bool graph = (_machine!.Mem.Read(0x0060) & 0x10) != 0;
+                bool graph = (_mz700!.Mem.Read(0x0060) & 0x10) != 0;
                 _updateModeLabel(graph);
                 if (graph && !_wasGraphMode)
                     _openFontSheet();
@@ -168,7 +168,7 @@ internal sealed class AutoLoadOrchestrator
         {
             try
             {
-                _machine!.AutoLoadBasic(_settings.BasicFullPath);
+                _mz700!.AutoLoadBasic(_settings.BasicFullPath);
                 _setStatus("BASIC loaded.");
                 _pendingLoadBasic = false;
                 _basicLoadedFrame = bootFrames;
@@ -214,15 +214,15 @@ internal sealed class AutoLoadOrchestrator
                     // at $0436/$04D8) — its own tape code reads
                     // PortC bit 5 directly and has no real cassette.
                     var img = MzfImage.Parse(CassetteFile.ReadBytes(_pendingCassette));
-                    _machine!.Cassette.DirectInject(img, jumpExec: false);
+                    _mz700!.Cassette.DirectInject(img, jumpExec: false);
                     if (img.Type == 0x02 || img.Type == 0x05)
                     {
-                        _machine.Cassette.FixupBasicProgramPointers(img.LoadAddr, img.Data.Length);
+                        _mz700.Cassette.FixupBasicProgramPointers(img.LoadAddr, img.Data.Length);
                         // Auto-RUN: with the program injected and
                         // pointers fixed, BASIC's RUN preprocesses
                         // lengths and starts execution. End-to-end
                         // automation from CLI.
-                        _machine.Keyboard.AutoType.TypeString("RUN\r");
+                        _mz700.Keyboard.AutoType.TypeString("RUN\r");
                         _setStatus($"Loaded {img.Filename}. Running.");
                     }
                     else
@@ -238,7 +238,7 @@ internal sealed class AutoLoadOrchestrator
                     // address. Bypasses the monitor's tape-LOAD flow
                     // (which would need a working keyboard-driven
                     // command prompt).
-                    _machine!.DirectInjectCassette(_pendingCassette);
+                    _mz700!.DirectInjectCassette(_pendingCassette);
                     _setStatus($"Loaded: {Path.GetFileName(_pendingCassette)}");
                 }
             }

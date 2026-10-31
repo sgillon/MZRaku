@@ -11,19 +11,19 @@ public sealed class MZ700 : MzMachineBase, IMachine
 {
     // Mem is an auto-property (not a field) so this class can satisfy
     // IMachine's read-only property requirement. Declared type stays
-    // MZ700Memory so MZ-700-typed callers can still reach VRAM/ARAM/Ram
+    // Mz700Memory so MZ-700-typed callers can still reach VRAM/ARAM/Ram
     // directly; IMachine.Mem is exposed as Z80Core.IMemory via explicit
     // interface impl below. Cpu is inherited from MzMachineBase (F-060).
-    public MZ700Memory Mem { get; } = new();
+    public Mz700Memory Mem { get; } = new();
     public Ppi8255 Ppi = new();
     public Pit8253 Pit = new();
-    public IoBus Io = new();
-    public Keyboard Keyboard = new();
-    public Video Video { get; } = new();
-    public Cassette Cassette { get; } = new();
+    public Mz700IoBus Io = new();
+    public Mz700Keyboard Keyboard = new();
+    public Mz700Video Video { get; } = new();
+    public Mz700Cassette Cassette { get; } = new();
     public Sound Sound { get; } = new();
     public Joystick Joystick = new();
-    public RomKeyTables KeyTables = new();
+    public Mz700RomKeyTables KeyTables = new();
 
     public MachineType Kind => MachineType.MZ700;
     double IMachine.FramesPerSecond => FramesPerSecond;

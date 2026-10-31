@@ -29,15 +29,15 @@ namespace MZRaku.Core;
 ///                 PA4 = inverted PIT OUT0 → timer interrupt)
 ///
 /// Status: PPI + PIT hot-wired in both mode dispatches; OUT $E0-$E6
-/// and IN $E0/$E1 drive the bank latches (<see cref="MZ800Memory.HandleBankOut"/>
-/// / <see cref="MZ800Memory.HandleBankIn"/>); CRTC + palette wired
+/// and IN $E0/$E1 drive the bank latches (<see cref="Mz800Memory.HandleBankOut"/>
+/// / <see cref="Mz800Memory.HandleBankIn"/>); CRTC + palette wired
 /// PIO control/data, the PSG and both joystick ports wired.
 /// </summary>
 public sealed class Mz800IoBus : IIoBus
 {
     public Ppi8255 Ppi = null!;
     public Pit8253 Pit = null!;
-    public MZ800Memory Memory = null!;
+    public Mz800Memory Memory = null!;
     public Sound Sound = null!;
     public Z80Cpu Cpu = null!;
     public Z80Pio Pio = null!;
@@ -53,7 +53,7 @@ public sealed class Mz800IoBus : IIoBus
     public event Action<byte>? OnE008Write;
 
     // Every CRTC register byte (WF, RF, DMD, palette, scroll, BCOL)
-    // lives in MZ800Memory — the one place CPU VRAM access and the
+    // lives in Mz800Memory — the one place CPU VRAM access and the
     // renderer both read it.
 
     /// <summary>
@@ -103,9 +103,9 @@ public sealed class Mz800IoBus : IIoBus
 
     /// <summary>
     /// $E000-$E00F memory-mapped I/O window — MZ-700 mode only.
-    /// Same shape as MZ-700's IoBus.MemIn (PPI at $E000-$E003, PIT
+    /// Same shape as MZ-700's Mz700IoBus.MemIn (PPI at $E000-$E003, PIT
     /// at $E004-$E007, $E008 for TEMP/HBLK). Called from
-    /// <see cref="MZ800Memory.Read"/> when Config is B_Mz700 and
+    /// <see cref="Mz800Memory.Read"/> when Config is B_Mz700 and
     /// addr is in $E000-$E00F.
     /// </summary>
     public byte MemIn(ushort addr)
@@ -116,7 +116,7 @@ public sealed class Mz800IoBus : IIoBus
         if (off == 8)
         {
             // MZ-700-mode $E008: TEMP bit + HBLK. Modelled the same
-            // way MZ-700's IoBus does — TempoBit at D0 for MUSIC
+            // way MZ-700's Mz700IoBus does — TempoBit at D0 for MUSIC
             // duration polling. D1-D6 read 0: the MZ-800 has no
             // MZ-1X03 lines here (its joystick is on $F0/$F1), and
             // the tech-ref doesn't say what the undriven bits read.
@@ -188,7 +188,7 @@ public sealed class Mz800IoBus : IIoBus
 
     /// <summary>
     /// Z80 OUT port — see <see cref="In"/> for the layout. CRTC's
-    /// DMD register (OUT $CE) hooks into <see cref="MZ800Memory.SetDmdRegister"/>
+    /// DMD register (OUT $CE) hooks into <see cref="Mz800Memory.SetDmdRegister"/>
     /// to flip MZ-700/MZ-800 mode. Other CRTC + palette + PSG + PIO
     /// writes get captured for future phases but aren't acted on yet.
     /// </summary>
@@ -238,7 +238,7 @@ public sealed class Mz800IoBus : IIoBus
         }
 
         // Palette write ($F0 OUT — same port as joystick-1 IN, direction
-        // decides which device). Decode in MZ800Memory.WritePalette.
+        // decides which device). Decode in Mz800Memory.WritePalette.
         if (p == 0xF0) { Memory.WritePalette(value); LogCrtcWrite(p, value, 0); return; }
 
         // SN76489 PSG ($F2 OUT, write-only).

@@ -38,7 +38,7 @@ public sealed class SettingsForm : Form
 
     private readonly Settings _settings;
     private readonly IJoystickSource? _joystickInput;
-    private readonly MZ700? _machine;
+    private readonly MZ700? _mz700;
     // MZ-80A instance for Phase 5.5b Advanced Keyboard editor.
     // Populated by MainForm.OpenSettings when the active machine is
     // MZ-80A; null on MZ-700. Enables OpenAdvancedKeyboard to
@@ -138,12 +138,12 @@ public sealed class SettingsForm : Form
     /// button bindings).</summary>
     public event Action? Applied;
 
-    public SettingsForm(Settings settings, IJoystickSource? joystickInput = null, MZ700? machine = null,
+    public SettingsForm(Settings settings, IJoystickSource? joystickInput = null, MZ700? mz700 = null,
         Tab initialTab = Tab.Startup, MZ80A? mz80a = null, MZ800? mz800 = null)
     {
         _settings = settings;
         _joystickInput = joystickInput;
-        _machine = machine;
+        _mz700 = mz700;
         _mz80a = mz80a;
         _mz800 = mz800;
         Text = "Settings";
@@ -798,13 +798,13 @@ public sealed class SettingsForm : Form
 
     /// <summary>
     /// Returns an editor context for the currently-active machine, or
-    /// null if none of <see cref="_machine"/>, <see cref="_mz80a"/> and
+    /// null if none of <see cref="_mz700"/>, <see cref="_mz80a"/> and
     /// <see cref="_mz800"/> is populated (shouldn't happen in normal use — the host always
     /// runs one of them). Same pattern for OpenAdvancedKeyboard,
     /// OnKeyboardDiagramKeyClicked, and any future keyboard entry point.
     /// </summary>
     private IKeyboardEditorContext? TryBuildActiveEditorContext() =>
-        _machine != null ? new Mz700KeyboardEditorContext(_machine, _settings.CharMapOverrides, _settings.KeyOverrides) :
+        _mz700 != null ? new Mz700KeyboardEditorContext(_mz700, _settings.Mz700CharMapOverrides, _settings.Mz700KeyOverrides) :
         _mz80a   != null ? new Mz80aKeyboardEditorContext(_mz80a,  _settings.Mz80aCharMapOverrides, _settings.Mz80aKeyOverrides) :
         _mz800   != null ? new Mz800KeyboardEditorContext(_mz800,  _settings.Mz800CharMapOverrides, _settings.Mz800KeyOverrides) :
         null;
@@ -1065,9 +1065,9 @@ public sealed class SettingsForm : Form
             Mz800VramExpansion = _chkMz800VramExpansion.Checked,
             JoyButton1Index = (int)_numButton1.Value,
             JoyButton2Index = (int)_numButton2.Value,
-            CharOverrides = baseSnap.CharOverrides,
-            SuppressedChars = baseSnap.SuppressedChars,
-            KeyOverrides = baseSnap.KeyOverrides,
+            Mz700CharOverrides = baseSnap.Mz700CharOverrides,
+            Mz700SuppressedChars = baseSnap.Mz700SuppressedChars,
+            Mz700KeyOverrides = baseSnap.Mz700KeyOverrides,
             Mz80aCharOverrides = baseSnap.Mz80aCharOverrides,
             Mz80aSuppressedChars = baseSnap.Mz80aSuppressedChars,
             Mz80aKeyOverrides = baseSnap.Mz80aKeyOverrides,
@@ -1116,7 +1116,7 @@ public sealed class SettingsForm : Form
         var unreachableIds = _kbdDiagram?.UnreachableKeyIds;
         if (unreachableIds == null || unreachableIds.Count == 0) return true;
 
-        // Walk the active machine's layout keys — MZ-700 = MzKeyboardLayout,
+        // Walk the active machine's layout keys — MZ-700 = Mz700KeyboardLayout,
         // MZ-80A = Mz80aKeyboardLayout, MZ-800 = Mz800KeyboardLayout — via
         // the editor context.
         var context = TryBuildActiveEditorContext();
