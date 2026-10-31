@@ -10,14 +10,10 @@ namespace MZRaku;
 public sealed class MainForm : Form
 {
     // The session owns the machine (v1.4 Phase 2). Exactly one of
-    // _machine / _mz80a / _mz800 is non-null; machine-specific accesses
-    // are gated on it, and IMachine-surface calls use Active, which
-    // works for all three.
+    // _session.Mz700 / Mz80a / Mz800 is non-null; machine-specific
+    // accesses are gated on it, and IMachine-surface calls use
+    // _session.Active, which works for all three.
     private readonly EmulatorSession _session;
-    private MZ700? _machine => _session.Mz700;
-    private MZ80A? _mz80a => _session.Mz80a;
-    private MZ800? _mz800 => _session.Mz800;
-    private IMachine Active => _session.Active;
     private readonly IJoystickSource _joystickInput;
     private readonly System.Windows.Forms.Timer _timer = new();
     private readonly StatusStrip _status = new();
@@ -87,7 +83,6 @@ public sealed class MainForm : Form
     // without needing a helper wrapper.
     private int _statusLastSetFrame = -1;
     private const int StatusIdleFrames = 300;   // ~5 s at 60 Hz
-    private string MachineLabel => _session.MachineLabel;
     private readonly PictureBox _display = new();
     private readonly Settings _settings = Settings.Load();
     private readonly ToolStripMenuItem[] _scaleMenuItems = new ToolStripMenuItem[3];
@@ -201,13 +196,13 @@ public sealed class MainForm : Form
         // ALPHA/GRAPH mode indicator (right, fixed). The MZ-800 adds a
         // display-mode pane before the mode indicator. Order matters —
         // leftmost item first.
-        _machineLabel.Text = MachineLabel;
+        _machineLabel.Text = _session.MachineLabel;
         _status.Items.Add(_machineLabel);
         _status.Items.Add(_statusLabel);
         _status.Items.Add(_tapeLabel);
-        if (_mz800 != null) _status.Items.Add(_displayModeLabel);
+        if (_session.Mz800 != null) _status.Items.Add(_displayModeLabel);
         _status.Items.Add(_modeLabel);
-        if (_mz800 != null)
+        if (_session.Mz800 != null)
         {
             _status.ShowItemToolTips = true;
             _modeLabel.ToolTipText = "MZ-800 BASIC keyboard mode: ALPHA (normal), " +
@@ -227,7 +222,7 @@ public sealed class MainForm : Form
         };
         _session.GraphModeSampled += UpdateModeLabel;
         _session.DumpComplete += Close;
-        if (_mz800 != null)
+        if (_session.Mz800 != null)
             _session.FrameRan += frame => { if (frame % 10 == 0) UpdateMz800ModeLabel(); };
 
         // Every direct assignment to _statusLabel.Text starts the
@@ -238,7 +233,7 @@ public sealed class MainForm : Form
         _statusLabel.TextChanged += (_, _) =>
         {
             _statusLastSetFrame =
-                string.IsNullOrEmpty(_statusLabel.Text) ? -1 : _bootFrames;
+                string.IsNullOrEmpty(_statusLabel.Text) ? -1 : _session.FrameCount;
         };
         // Docking order matters: the Fill control must be added LAST so the
         // menu (top) and status strip (bottom) claim their space first.
@@ -314,7 +309,7 @@ public sealed class MainForm : Form
             _memViewer?.Dispose();
             _hidDiag?.Dispose();
             _soundDiag?.Dispose();
-            Active.Sound.Dispose();
+            _session.Active.Sound.Dispose();
         };
         // After FormClosing: a paint can still arrive until the window goes.
         FormClosed += (_, _) => _displayBitmap?.Dispose();
@@ -350,7 +345,7 @@ public sealed class MainForm : Form
         // Machine selection — radio pair. Selecting the non-active
         // machine writes settings.ini and prompts a restart; no live
         // switch (the debugger, memory viewer, sound diagnostic all
-        // hold references to the current _machine, so tearing it
+        // hold references to the current machine, so tearing it
         // down mid-run is messier than an application restart).
         var machine = new ToolStripMenuItem("&Machine");
         var mz700Item = new ToolStripMenuItem("MZ-&700")
@@ -375,8 +370,8 @@ public sealed class MainForm : Form
 
         system.DropDownItems.Add(new ToolStripMenuItem("&Reset", null, (_, _) => _session.Reset()) { ShortcutKeys = Keys.Control | Keys.R });
 
-        // Pause / resume: global shortcut for the same Active.Pause /
-        // Active.Resume toggle the Debugger's pause button drives.
+        // Pause / resume: global shortcut for the same IMachine.Pause /
+        // Resume toggle the Debugger's pause button drives.
         // Pause and Scroll Lock are both caught in ProcessCmdKey (menu
         // ShortcutKeys can't take a bare non-modifier key); bind both
         // so keyboards without a physical Pause key (e.g. Logitech
@@ -384,7 +379,7 @@ public sealed class MainForm : Form
         _pauseMenuItem = new ToolStripMenuItem("&Pause emulator", null, (_, _) => TogglePause())
         {
             ShortcutKeyDisplayString = "Pause / ScrLk",
-            Checked = Active.Paused,
+            Checked = _session.Active.Paused,
         };
         system.DropDownItems.Add(_pauseMenuItem);
 
@@ -566,14 +561,14 @@ public sealed class MainForm : Form
     }
 
     /// <summary>
-    /// Flip Active.Paused. Menu check mark, title-bar suffix, and
+    /// Flip IMachine.Paused. Menu check mark, title-bar suffix, and
     /// display dim overlay all follow via RefreshPauseIndicator on
     /// the next frame.
     /// </summary>
     private void TogglePause()
     {
-        if (Active.Paused) Active.Resume();
-        else Active.Pause();
+        if (_session.Active.Paused) _session.Active.Resume();
+        else _session.Active.Pause();
     }
 
     private void ApplyDisplayScale(int scale, bool persist = true)
@@ -629,8 +624,7 @@ public sealed class MainForm : Form
         }
     }
 
-    private int _bootFrames => _session.FrameCount;
-    // Tracks the last observed Active.Paused so Timer_Tick can react
+    // Tracks the last observed IMachine.Paused so Timer_Tick can react
     // only on transitions — title-bar suffix + display overlay flip
     // together, without either dependency having to know about the
     // other. See RefreshPauseIndicator.
@@ -643,9 +637,9 @@ public sealed class MainForm : Form
 
     // TAPE chip state tracking. Snapshots of the cassette's trap-hit
     // counters between frames so a fresh hit (delta) can extend the
-    // flash window; _tapeFlashEndFrame is the deadline in _bootFrames
-    // terms after which the chip decays back to Steady (if a cassette
-    // is still queued) or Idle.
+    // flash window; _tapeFlashEndFrame is the deadline, in
+    // _session.FrameCount terms, after which the chip decays back
+    // to Steady (if a cassette is still queued) or Idle.
     private int _tapeFlashEndFrame = -1;
     private int _tapeLastHeaderHits;
     private int _tapeLastDataHits;
@@ -662,16 +656,15 @@ public sealed class MainForm : Form
     /// </summary>
     private void UpdateTapeLabel()
     {
-        if (_machine == null && _mz80a == null && _mz800 == null) return;
         // Shared trap-state reads collapse to IMachine.Cassette
         // (CassetteTrapBase surface). WriteTapeTrapHits is
         // MZ-700-only (SA-1510 SAVE traps not wired yet); MZ-80A
         // and MZ-800 score zero.
-        var cass = Active.Cassette;
+        var cass = _session.Active.Cassette;
         bool pending = cass.Pending != null;
         int headerHits = cass.HeaderTrapHits;
         int dataHits   = cass.DataTrapHits;
-        int writeHits  = _machine?.Cassette.WriteTapeTrapHits ?? 0;
+        int writeHits  = _session.Mz700?.Cassette.WriteTapeTrapHits ?? 0;
 
         // Any fresh trap hit extends the flash window. Also handles the
         // MZ-700 SAVE path (WriteTapeTrapHits) even though it has no
@@ -680,14 +673,14 @@ public sealed class MainForm : Form
             dataHits   != _tapeLastDataHits   ||
             writeHits  != _tapeLastWriteHits)
         {
-            _tapeFlashEndFrame  = _bootFrames + TapeFlashFrames;
+            _tapeFlashEndFrame  = _session.FrameCount + TapeFlashFrames;
             _tapeLastHeaderHits = headerHits;
             _tapeLastDataHits   = dataHits;
             _tapeLastWriteHits  = writeHits;
         }
 
         TapeState want =
-            _bootFrames < _tapeFlashEndFrame ? TapeState.Flash :
+            _session.FrameCount < _tapeFlashEndFrame ? TapeState.Flash :
             pending                          ? TapeState.Steady :
                                                TapeState.Idle;
         if (want == _tapeState) return;
@@ -710,21 +703,21 @@ public sealed class MainForm : Form
     }
 
     /// <summary>
-    /// React to Active.Paused changes: title-bar suffix + display
+    /// React to IMachine.Paused changes: title-bar suffix + display
     /// invalidate so Display_Paint's overlay flips in sync. Runs every
     /// frame; the transition guard keeps it cheap when the state's
     /// steady.
     /// </summary>
     private void RefreshPauseIndicator()
     {
-        bool paused = Active.Paused;
+        bool paused = _session.Active.Paused;
         if (paused == _wasPaused) return;
         _wasPaused = paused;
         Text = paused ? TitleBase + " — PAUSED" : TitleBase;
         if (_pauseMenuItem != null) _pauseMenuItem.Checked = paused;
         // Silence the wave output on pause. IMachine.Sound covers both
         // machines (F-061).
-        Active.Sound.Muted = paused;
+        _session.Active.Sound.Muted = paused;
         _display.Invalidate();
     }
 
@@ -763,7 +756,7 @@ public sealed class MainForm : Form
     /// </summary>
     private void UpdateMz800ModeLabel()
     {
-        SetModeLabel(_mz800!.BasicKeyboardMode switch
+        SetModeLabel(_session.Mz800!.BasicKeyboardMode switch
         {
             0 => "ALPHA",
             1 => "LOCK",
@@ -771,7 +764,7 @@ public sealed class MainForm : Form
             _ => "—",
         });
 
-        var m = _mz800.Mem;
+        var m = _session.Mz800.Mem;
         string text = m.Mz700Mode ? "MZ-700" : m.Is640BitmapMode ? "640×200" : "320×200";
         if (_displayModeLabel.Text == text) return;
         _displayModeLabel.Text = text;
@@ -791,7 +784,7 @@ public sealed class MainForm : Form
     private void RevertStatusIfIdle()
     {
         if (_statusLastSetFrame < 0) return;
-        if (_bootFrames - _statusLastSetFrame < StatusIdleFrames) return;
+        if (_session.FrameCount - _statusLastSetFrame < StatusIdleFrames) return;
         _statusLabel.Text = "";   // TextChanged resets _statusLastSetFrame
     }
 
@@ -810,7 +803,7 @@ public sealed class MainForm : Form
         if (dp.MemoryViewer) OpenMemoryViewer();
         if (dp.HidDiagnostic) OpenHidDiag();
         if (dp.FontSheet) OpenFontSheet();
-        if (dp.SoundDiagnostic && SoundDiagnosticForm.Supports(Active.Kind)) OpenSoundDiag();
+        if (dp.SoundDiagnostic && SoundDiagnosticForm.Supports(_session.Active.Kind)) OpenSoundDiag();
         if (dp.KeyboardMatrix) OpenKeyboardMatrix();
         // Return focus to the main window so the emulator gets input
         // events; the last pane opened would otherwise steal it. Not
@@ -833,9 +826,9 @@ public sealed class MainForm : Form
 
     private void Timer_Tick(object? s, EventArgs e)
     {
-        long due = (long)(_pace.Elapsed.TotalSeconds * Active.FramesPerSecond);
+        long due = (long)(_pace.Elapsed.TotalSeconds * _session.Active.FramesPerSecond);
         long behind = due - _pacedFrames;
-        if (Active.Paused || behind > MaxCatchUpFrames)
+        if (_session.Active.Paused || behind > MaxCatchUpFrames)
         {
             // Paused: RunFrame only re-renders, one per tick is plenty.
             _pacedFrames = due - 1;
@@ -876,7 +869,7 @@ public sealed class MainForm : Form
         // real MZ-800 CRT hardware paints 320-mode pixels 2× wide and
         // 640-mode pixels at native density into the same physical
         // display area.
-        var frameBuffer = ((IMachine?)_machine ?? (IMachine?)_mz80a ?? _mz800)?.VideoFrame;
+        var frameBuffer = _session.Active.VideoFrame;
         if (frameBuffer == null)
         {
             e.Graphics.Clear(Color.Black);
@@ -929,7 +922,7 @@ public sealed class MainForm : Form
         // opacity — dark enough to unambiguously signal pause, light
         // enough that the underlying frame is still legible for
         // debugging inspection.
-        if (Active.Paused)
+        if (_session.Active.Paused)
         {
             using var pauseDim = new SolidBrush(Color.FromArgb(110, 0, 0, 0));
             e.Graphics.FillRectangle(pauseDim, x, y, w, h);
@@ -1163,7 +1156,7 @@ public sealed class MainForm : Form
 
     private void OpenSettings(SettingsForm.Tab tab = SettingsForm.Tab.Startup)
     {
-        using var dlg = new SettingsForm(_settings, _joystickInput, _machine, tab, _mz80a, _mz800);
+        using var dlg = new SettingsForm(_settings, _joystickInput, _session.Mz700, tab, _session.Mz80a, _session.Mz800);
         dlg.Applied += OnSettingsApplied;
         dlg.ShowDialog(this);
     }
@@ -1191,7 +1184,7 @@ public sealed class MainForm : Form
     {
         if (_debugger == null || _debugger.IsDisposed)
         {
-            _debugger = new DebuggerForm(Active, _session.Reset, _settings);
+            _debugger = new DebuggerForm(_session.Active, _session.Reset, _settings);
             // First open ever: park just to the right of the main window.
             // The form ctor honours any saved geometry, so this only
             // applies when nothing's been persisted yet.
@@ -1207,7 +1200,7 @@ public sealed class MainForm : Form
     {
         if (_memViewer == null || _memViewer.IsDisposed)
         {
-            _memViewer = new MemoryViewerForm(Active, _settings);
+            _memViewer = new MemoryViewerForm(_session.Active, _settings);
             // First open ever: park below the main window so it doesn't
             // fight the debugger for the right-side slot.
             if (!_settings.MemoryViewerWindow.HasGeometry)
@@ -1221,7 +1214,7 @@ public sealed class MainForm : Form
     private void OpenFontSheet()
     {
         if (_fontSheet == null || _fontSheet.IsDisposed)
-            _fontSheet = new FontSheetForm(Active);
+            _fontSheet = new FontSheetForm(_session.Active);
         _fontSheet.Owner = this;
         _fontSheet.Show();
         _fontSheet.BringToFront();
@@ -1234,9 +1227,9 @@ public sealed class MainForm : Form
         // was ported to IKeyboardEditorContext; the MZ-80A refusal here
         // was a pre-Phase-5.5a artefact.
         IKeyboardEditorContext? context =
-            _machine != null ? new Mz700KeyboardEditorContext(_machine, _settings.Mz700CharMapOverrides, _settings.Mz700KeyOverrides) :
-            _mz80a   != null ? new Mz80aKeyboardEditorContext(_mz80a,  _settings.Mz80aCharMapOverrides, _settings.Mz80aKeyOverrides) :
-            _mz800   != null ? new Mz800KeyboardEditorContext(_mz800,  _settings.Mz800CharMapOverrides, _settings.Mz800KeyOverrides) :
+            _session.Mz700 != null ? new Mz700KeyboardEditorContext(_session.Mz700, _settings.Mz700CharMapOverrides, _settings.Mz700KeyOverrides) :
+            _session.Mz80a != null ? new Mz80aKeyboardEditorContext(_session.Mz80a, _settings.Mz80aCharMapOverrides, _settings.Mz80aKeyOverrides) :
+            _session.Mz800 != null ? new Mz800KeyboardEditorContext(_session.Mz800, _settings.Mz800CharMapOverrides, _settings.Mz800KeyOverrides) :
             null;
         if (context == null) return;
         if (_matrixForm == null || _matrixForm.IsDisposed)
@@ -1253,8 +1246,7 @@ public sealed class MainForm : Form
         // Pick whichever machine is active. MZ-700 / MZ-80A since the
         // form was made machine-aware (v1.1.0 Phase 4); MZ-800 since
         // v1.3.0 Phase 8.
-        IMachine? active = (IMachine?)_machine ?? (IMachine?)_mz80a ?? _mz800;
-        if (active == null) return;
+        IMachine active = _session.Active;
         if (_hidDiag == null || _hidDiag.IsDisposed)
         {
             _hidDiag = new HidDiagnosticForm(active, _joystickInput);
@@ -1276,10 +1268,10 @@ public sealed class MainForm : Form
 
     private void OpenSoundDiag()
     {
-        if (!SoundDiagnosticForm.Supports(Active.Kind)) { NotAvailableOnThisMachine("Sound Diagnostic", "MZ-700 and MZ-800"); return; }
+        if (!SoundDiagnosticForm.Supports(_session.Active.Kind)) { NotAvailableOnThisMachine("Sound Diagnostic", "MZ-700 and MZ-800"); return; }
         if (_soundDiag == null || _soundDiag.IsDisposed)
         {
-            _soundDiag = new SoundDiagnosticForm(Active);
+            _soundDiag = new SoundDiagnosticForm(_session.Active);
             _soundDiag.Location = new Point(Bounds.Right + 8, Bounds.Top);
         }
         _soundDiag.Owner = this;
@@ -1297,7 +1289,7 @@ public sealed class MainForm : Form
     private void NotAvailableOnThisMachine(string pane, string machines)
     {
         MessageBox.Show(this,
-            $"{pane} is currently available on the {machines} only; it isn't available on the {MachineLabel} yet.",
+            $"{pane} is currently available on the {machines} only; it isn't available on the {_session.MachineLabel} yet.",
             "MZRaku", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
