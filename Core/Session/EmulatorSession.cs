@@ -710,16 +710,20 @@ public sealed class EmulatorSession
     /// and the keyboard input loop is active. This is exactly the state
     /// BASIC's startup at $7D79 needs — the call into monitor at $0033
     /// works cleanly only after the monitor has set up its stack and
-    /// stopped clearing RAM around $1200.
+    /// stopped clearing RAM around $1200. The banner is printed before
+    /// the boot tone (a ~120 ms note through the monitor's melody
+    /// routine), so the "*" prompt on row 1, printed after it, must be
+    /// there too: injecting during the tone would leave its gate open.
     /// </summary>
     private bool MonitorReady()
     {
         if (_monitorReady) return true;
         var v = Mz700!.Mem.Vram;
-        // MZ display codes: M=$0D O=$0F N=$0E I=$09 T=$14 1=$21 Z=$1A *=$2A
+        // MZ display codes: M=$0D O=$0F N=$0E I=$09 T=$14 1=$21 Z=$1A -=$2A *=$6B
         if (v[4] == 0x0D && v[5] == 0x0F && v[6] == 0x0E && v[7] == 0x09 &&
             v[8] == 0x14 && v[9] == 0x0F && v[10] == 0x12 &&
-            v[12] == 0x21 && v[13] == 0x1A && v[14] == 0x2A)
+            v[12] == 0x21 && v[13] == 0x1A && v[14] == 0x2A &&
+            v[40] == 0x6B)
         {
             _monitorReady = true;
         }

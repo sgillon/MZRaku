@@ -37,7 +37,6 @@ public sealed class Mz700Cassette : CassetteTrapBase
 {
     internal const ushort TrapReadHeader = 0x04D8;   // RDINF
     internal const ushort TrapReadData = 0x04F8;     // RDDAT
-    internal const ushort TrapBreakWait = 0x02C8;
 
     // S-BASIC 1Z-013B's own tape routines, used with the monitor ROM
     // banked out. BASIC keeps a jump table at the monitor's vectors:
@@ -64,7 +63,6 @@ public sealed class Mz700Cassette : CassetteTrapBase
     private static readonly byte[] BasicWriteBody = { 0xF3, 0xCD, 0x5A, 0x0B, 0xD4, 0x85, 0x0B };   // DI; CALL $0B5A; CALL NC,$0B85
     private const ushort BasicTapeFlagAddr = 0x0050;
 
-    internal int BreakWaitTrapHits;
     public int WriteTapeTrapHits;
 
     // The header block of the SAVE in progress, until its data block
@@ -80,8 +78,6 @@ public sealed class Mz700Cassette : CassetteTrapBase
         get => _mem;
         set { _mem = value; Mem = value; }
     }
-
-    internal Mz700Keyboard Keyboard = null!;
 
     internal event Action<string>? OnSaved;
 
@@ -183,24 +179,6 @@ public sealed class Mz700Cassette : CassetteTrapBase
                 return ServeBasicRead(pc == TrapBasicReadHeader);
             return false;
         }
-        if (pc == TrapBreakWait)
-        {
-            // Monitor's "press PLAY / check BREAK" wait. With no physical tape
-            // and large PIT periods, the natural timeout can take many seconds
-            // under our emulation. Short-circuit it, returning CY=1 if the
-            // user is actually holding the BREAK key (matrix (8,5), driven
-            // by PC Esc via Mz700SpecialKeyMap) and CY=0 otherwise — that's what
-            // a real MZ-700 would report on a normal LOAD with no break held,
-            // and what BASIC needs to honour the user's Esc when polling for
-            // break during a RUN.
-            BreakWaitTrapHits++;
-            if (IsBreakHeld())
-                Cpu.F |= 0x01;
-            else
-                Cpu.F &= 0xFE;
-            Cpu.PC = PopFromStack();
-            return true;
-        }
         if (Pending == null) return false;
         if (pc == TrapReadHeader && !HeaderDelivered)
         {
@@ -297,11 +275,6 @@ public sealed class Mz700Cassette : CassetteTrapBase
     {
         _saveHeader = null;
     }
-
-    // BREAK lives on matrix (8, 7). Active low, so a held key reads as
-    // 0 in that bit. Mz700SpecialKeyMap binds Esc to this position; this
-    // helper is what makes the BreakWait trap honour it.
-    private bool IsBreakHeld() => (Keyboard.ReadRow(8) & (1 << 7)) == 0;
 
     /// <summary>
     /// One of S-BASIC's tape writes (SAVE), taken at the write body

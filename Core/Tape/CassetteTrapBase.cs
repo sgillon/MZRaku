@@ -24,8 +24,8 @@ namespace MZRaku.Core;
 /// </list>
 ///
 /// v1.2 audit F-025 hoisted this shape here. The concrete
-/// <see cref="Mz700Cassette"/> keeps its BreakWait short-circuit + SAVE
-/// trap machinery + $1170 mirror hooks on top of the base; MZ-80A
+/// <see cref="Mz700Cassette"/> keeps its S-BASIC tape traps (LOAD and
+/// SAVE) + $1170 mirror hooks on top of the base; MZ-80A
 /// only extends the base with its two trap-address checks. MZ-700
 /// SAVE handling stays MZ-700-only — SA-1510 doesn't expose a
 /// wait-loop trap on the WRITE side that would benefit from the

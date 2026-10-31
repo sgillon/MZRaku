@@ -31,8 +31,8 @@ public sealed class MZ700 : MzMachineBase, IMachine
     public bool IsSideEffectRead(ushort addr) => Mem.IsIoRead(addr);
     // IMachine.Cassette upcasts to CassetteTrapBase for the interface
     // consumers; MZ-700-typed callers keep the concrete Cassette
-    // property above (with WriteTapeTrapHits, BreakWaitTrapHits, and
-    // the SAVE-tape surface).
+    // property above (with WriteTapeTrapHits and the SAVE-tape
+    // surface).
     CassetteTrapBase IMachine.Cassette => Cassette;
     // The front end's paint reads whichever machine's rendered bitmap is
     // non-null; the concrete Video property stays for callers that
@@ -76,7 +76,6 @@ public sealed class MZ700 : MzMachineBase, IMachine
         Keyboard.Memory = Mem;
         Cassette.Memory = Mem;
         Cassette.Cpu = Cpu;
-        Cassette.Keyboard = Keyboard;
         Io.Joystick = Joystick;
         Joystick.Cpu = Cpu;
         Cpu.PreStep = Cassette.OnPreStep;

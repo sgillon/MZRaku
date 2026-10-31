@@ -343,7 +343,7 @@ internal sealed class DumpTraceRecorder
             var sb0 = new StringBuilder("RAM @ $1200: ");
             for (int i = 0; i < 32; i++) sb0.Append($"{_mz700.Mem.Read((ushort)(0x1200 + i)):X2} ");
             w.WriteLine(sb0.ToString());
-            w.WriteLine($"Tape trap hits: BreakWait={_mz700.Cassette.BreakWaitTrapHits} Header={_mz700.Cassette.HeaderTrapHits} Data={_mz700.Cassette.DataTrapHits} WriteTape={_mz700.Cassette.WriteTapeTrapHits}");
+            w.WriteLine($"Tape trap hits: Header={_mz700.Cassette.HeaderTrapHits} Data={_mz700.Cassette.DataTrapHits} WriteTape={_mz700.Cassette.WriteTapeTrapHits}");
         }
         else if (_mz800 != null)
         {

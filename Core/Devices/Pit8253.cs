@@ -23,8 +23,8 @@ public sealed class Pit8253
         public ushort Reload;
         public ushort Value;
         // Default to mode 3 (square wave). On real hardware the mode is
-        // undefined at power-on, but the monitor's pre-LOAD break-wait at
-        // $02C8 polls C2's OUT for toggling activity before any control word
+        // undefined at power-on, but the monitor's melody tempo wait at
+        // $02C8 polls for toggling activity before any control word
         // has been written — that only works if our default mode keeps the
         // counter cycling. Mode 0 (one-shot) takes effect only after BASIC
         // explicitly programs it.
@@ -89,12 +89,10 @@ public sealed class Pit8253
         for (int i = 0; i < 3; i++) Counters[i] = new Counter();
         // On real hardware the 8253 counters begin receiving their clock
         // inputs from power-on even before the ROM writes a control word.
-        // 1Z-013A routines (e.g. the $02C8 break-wait) busy-wait on the
+        // 1Z-013A routines (e.g. the melody tempo wait at $02C8) busy-wait on the
         // TEMPO signal at $E008 bit 0 — which is C1.OUT — long before any
         // counter is explicitly programmed, so default C1 to a free-running
         // square wave with a small reload so the output toggles promptly.
-        // (The $02C8 break-wait is also short-circuited by Cassette.OnPreStep
-        // for safety in our emulation.)
         Counters[1].Reload = 8;
         Counters[1].Value = 8;
         Counters[1].Running = true;

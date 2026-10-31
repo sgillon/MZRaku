@@ -69,8 +69,8 @@ public interface IMachine
     /// <see cref="CassetteTrapBase"/> level so the front end's TAPE
     /// activity chip + auto-load orchestrator can poll Pending +
     /// HeaderTrapHits + DataTrapHits + DataDelivered uniformly.
-    /// MZ-700-specific fields (WriteTapeTrapHits, BreakWaitTrapHits,
-    /// SAVE-tape machinery) live on the concrete
+    /// MZ-700-specific fields (WriteTapeTrapHits, SAVE-tape
+    /// machinery) live on the concrete
     /// <see cref="Mz700Cassette"/> class and callers that need
     /// them cast.
     /// </summary>
