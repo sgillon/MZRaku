@@ -43,12 +43,6 @@ public sealed class MZ80A : MzMachineBase, IMachine
     public const int FramesPerSecond = 60;
     public const int CyclesPerFrame = (int)(CpuClockHz / FramesPerSecond);
 
-    // Best-guess PIT input clock for counter 0 (audio path per the
-    // block diagram on p.162). 895 kHz is the MZ-700 value; tune for
-    // MZ-80A once we can stopwatch a MUSIC note against a known
-    // reference in Phase 5.
-    public const double PitC0InputHz = 895_000.0;
-
     // Debugger control (Paused, _stepFrameRequested, Pause/Resume/
     // StepInstruction/StepFrame) is inherited from MzMachineBase
     // (v1.2 audit F-060).
@@ -265,16 +259,6 @@ public sealed class MZ80A : MzMachineBase, IMachine
         // switch to Queue + typed "L\r" would exercise the real trap
         // path.
         Cassette.DirectInject(img, jumpExec: true);
-    }
-
-    public void AutoLoadCassette(string path, bool autoRun)
-    {
-        if (!File.Exists(path))
-            throw new FileNotFoundException("Cassette image not found", path);
-        var img = MzfImage.Parse(CassetteFile.ReadBytes(path));
-        // Same direct-inject shortcut as AutoLoadBasic — bypasses the
-        // monitor's L command until a keyboard auto-typer exists.
-        Cassette.DirectInject(img, jumpExec: ShouldJumpExecForType(img.Type));
     }
 
     public void DirectInjectCassette(string path)

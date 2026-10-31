@@ -44,9 +44,6 @@ public sealed class Mz700KeyboardEditorContext : IKeyboardEditorContext
     public IReadOnlyDictionary<HostKey, string> SpecialKeyLabels =>
         Core.SpecialKeyMap.Labels;
 
-    public IReadOnlyDictionary<(int Row, int Col), string> SlotLabels =>
-        Mz700MatrixReference.SpecialLabels;
-
     public KeyOverride KeyOverrides { get; }
 
     public (int Row, int Col) ShiftSlot => (8, 0);

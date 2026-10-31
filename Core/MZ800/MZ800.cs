@@ -85,7 +85,6 @@ public sealed class MZ800 : MzMachineBase, IMachine
     // 895 kHz — C0 now times BASIC's PIO interrupt, so its rate sets
     // the ISR cadence (10928 counts ≈ 9.9 ms ≈ 101 Hz).
     public const double PitC0InputHz = 1_108_400.0;
-    public const double PitC2InputHz = 15_700.0;
 
     private int _pitC0Accum;
     private int _pitC1Accum;
@@ -595,16 +594,6 @@ public sealed class MZ800 : MzMachineBase, IMachine
             byte mode = Mem.Ram[BasicKeyModeFlag];
             return mode <= 2 ? mode : null;
         }
-    }
-
-    public void AutoLoadCassette(string path, bool autoRun)
-    {
-        if (!File.Exists(path))
-            throw new FileNotFoundException("Cassette image not found", path);
-        var img = MzfImage.Parse(CassetteFile.ReadBytes(path));
-        // Same direct-inject shortcut as MZ-80A — the trap path lands
-        // in Phase 4 when the keyboard auto-typer for MZ-800 arrives.
-        Cassette.DirectInject(img, jumpExec: ShouldJumpExecForType(img.Type));
     }
 
     public void DirectInjectCassette(string path)

@@ -115,9 +115,6 @@ public interface IMachine
     /// <summary>Direct-inject a BASIC .mzf cassette image and jump to its exec entry.</summary>
     void AutoLoadBasic(string basicPath);
 
-    /// <summary>Queue a cassette image for LOAD dispatch; optionally auto-type L+Enter.</summary>
-    void AutoLoadCassette(string path, bool autoRun);
-
     /// <summary>Parse a cassette image and direct-inject it (bypassing the monitor's LOAD).</summary>
     void DirectInjectCassette(string path);
 }

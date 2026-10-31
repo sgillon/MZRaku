@@ -63,7 +63,6 @@ public sealed class Mz80aKeyboardEditorContext : IKeyboardEditorContext
     public IReadOnlyDictionary<HostKey, string> SpecialKeyLabels =>
         Mz80aSpecialKeyMap.Labels;
 
-    public IReadOnlyDictionary<(int Row, int Col), string> SlotLabels => _slotLabels;
 
     public KeyOverride KeyOverrides { get; }
 

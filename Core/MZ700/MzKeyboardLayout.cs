@@ -248,28 +248,6 @@ public static class MzKeyboardLayout
     };
 
     /// <summary>
-    /// All keys that point at the given matrix slot. Used by the diagram
-    /// to highlight every physical key bound to a slot, and by the
-    /// reverse lookup to translate a PC keystroke's resolved slot back
-    /// to one or more diagram keys.
-    /// </summary>
-    public static IEnumerable<MzKey> KeysAtSlot(int row, int col)
-    {
-        foreach (var k in Keys)
-            if (k.Row == row && k.Col == col) yield return k;
-    }
-
-    /// <summary>
-    /// Returns the key with the given id, or null if no such key exists.
-    /// </summary>
-    public static MzKey? FindById(string id)
-    {
-        foreach (var k in Keys)
-            if (k.Id == id) return k;
-        return null;
-    }
-
-    /// <summary>
     /// Keys the safety gate (P2-9) requires to have at least one PC
     /// binding before Settings → Apply / OK will save without a confirm
     /// prompt. Every key that corresponds to a real MZ-700 matrix slot

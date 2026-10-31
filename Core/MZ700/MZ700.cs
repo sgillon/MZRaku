@@ -41,8 +41,6 @@ public sealed class MZ700 : MzMachineBase, IMachine
     IKeyboardInput IMachine.KeyboardInput => Keyboard;
 
     public const double CpuClockHz = 3546900.0;             // MZ-700 master clock ~3.5MHz
-    public const double PitC0InputHz = 895000.0;            // counter 0 input clock
-    public const double PitC2InputHz = 15700.0;             // counter 2 input (HBLANK rate)
     public const int FramesPerSecond = 60;
     public const int CyclesPerFrame = (int)(CpuClockHz / FramesPerSecond);
 
@@ -249,18 +247,6 @@ public sealed class MZ700 : MzMachineBase, IMachine
         // unreliable in our emulation (keyboard-scan ISR doesn't run because
         // the monitor main loop stays in DI state most of the time).
         Cassette.DirectInject(img, jumpExec: true);
-    }
-
-    public void AutoLoadCassette(string path, bool autoRun)
-    {
-        if (!File.Exists(path)) throw new FileNotFoundException("Cassette image not found", path);
-        var img = MzfImage.Parse(CassetteFile.ReadBytes(path));
-        Cassette.Queue(img);
-        if (autoRun)
-        {
-            // Trigger the monitor's LOAD command (the trap will inject data and monitor auto-runs)
-            Keyboard.AutoType.TypeString("L\r");
-        }
     }
 
     public void DirectInjectCassette(string path)

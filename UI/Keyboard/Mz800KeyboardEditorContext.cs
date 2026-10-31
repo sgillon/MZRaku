@@ -51,7 +51,6 @@ public sealed class Mz800KeyboardEditorContext : IKeyboardEditorContext
 
     public IReadOnlyDictionary<HostKey, string> SpecialKeyLabels => Mz800SpecialKeyMap.Labels;
 
-    public IReadOnlyDictionary<(int Row, int Col), string> SlotLabels => _slotLabels;
 
     public KeyOverride KeyOverrides { get; }
 

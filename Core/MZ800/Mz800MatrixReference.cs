@@ -374,14 +374,6 @@ public static class Mz800MatrixReference
 
     public static IReadOnlyDictionary<(int strobe, int bit), string> SpecialLabels => _specialLabels;
 
-    /// <summary>All slots of a given kind, in (strobe, bit) order.</summary>
-    public static IEnumerable<Slot> OfKind(SlotKind kind)
-    {
-        for (int s = 0; s < Strobes; s++)
-            for (int b = 0; b < Bits; b++)
-                if (All[(s, b)].Kind == kind) yield return All[(s, b)];
-    }
-
     /// <summary>
     /// Self-check: every cell present, no duplicate Ids, and a report
     /// of any <see cref="SlotKind.Unknown"/> cells still awaiting

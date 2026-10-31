@@ -50,10 +50,6 @@ public interface IKeyboardEditorContext
     /// display, per-slot bind text).</summary>
     IReadOnlyDictionary<HostKey, string> SpecialKeyLabels { get; }
 
-    /// <summary>Friendly labels for non-printable matrix slots (Enter,
-    /// GRAPH, cursors, SHIFT, CTRL, BREAK, F-keys).</summary>
-    IReadOnlyDictionary<(int Row, int Col), string> SlotLabels { get; }
-
     /// <summary>Mutable VK-override layer — shared type across both
     /// machines (matrix coords are the only thing it stores).</summary>
     KeyOverride KeyOverrides { get; }

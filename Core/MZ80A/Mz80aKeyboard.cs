@@ -305,8 +305,6 @@ public sealed class Mz80aKeyboard : KeyboardMatrixBase
             _typeQueue.Enqueue(p);
     }
 
-    public bool AutoTypeIdle => _autoPhase == AutoPhase.Idle && _typeQueue.Count == 0;
-
     private void TickAutoType()
     {
         switch (_autoPhase)

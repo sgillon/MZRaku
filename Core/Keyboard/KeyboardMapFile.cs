@@ -29,7 +29,6 @@ namespace MZRaku.Core;
 /// </summary>
 public static class KeyboardMapFile
 {
-    public const string FileExtension = ".mzkbd";
     public const string FileFilter =
         "MZ keyboard mapping (*.mzkbd)|*.mzkbd|All files|*.*";
 
