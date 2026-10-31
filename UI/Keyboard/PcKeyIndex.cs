@@ -26,13 +26,13 @@ namespace MZRaku;
 public static class PcKeyIndex
 {
     /// <summary>
-    /// For each <see cref="MzKeyboardLayout.MzKey"/> in
+    /// For each <see cref="MzKey"/> in
     /// <paramref name="layoutKeys"/>, the joined string of PC keys
     /// that produce the slot it represents. Suitable as the
     /// <c>PcKeyLabels</c> property on the diagram.
     /// </summary>
     public static IReadOnlyDictionary<string, string> BuildLabelsByMzKey(
-        IEnumerable<MzKeyboardLayout.MzKey> layoutKeys,
+        IEnumerable<MzKey> layoutKeys,
         IKeyboardEditorContext context)
     {
         var slotLabels = new Dictionary<(int row, int col), List<string>>();

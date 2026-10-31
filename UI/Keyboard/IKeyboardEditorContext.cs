@@ -79,7 +79,7 @@ public interface IKeyboardEditorContext
     /// <see cref="PcKeyIndex.BuildLabelsByMzKey"/> so the diagram
     /// can label per-cap.
     /// </summary>
-    IReadOnlyList<MzKeyboardLayout.MzKey> LayoutKeys { get; }
+    IReadOnlyList<MzKey> LayoutKeys { get; }
 
     /// <summary>
     /// Layout keys the safety gate treats as essential — every one
@@ -87,7 +87,7 @@ public interface IKeyboardEditorContext
     /// pass without warning. All three machines currently emit every
     /// non-Blank layout key with real matrix coordinates.
     /// </summary>
-    IEnumerable<MzKeyboardLayout.MzKey> EssentialLayoutKeys { get; }
+    IEnumerable<MzKey> EssentialLayoutKeys { get; }
 
     /// <summary>Canonical printable glyph at (row, col, mzShift), or null
     /// if the slot has no printable glyph on this machine.</summary>

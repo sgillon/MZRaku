@@ -40,7 +40,7 @@ internal static class KeyboardReachability
     /// shouldn't nag every Apply.
     /// </summary>
     public static bool IsKeyFullyReachable(
-        MzKeyboardLayout.MzKey k,
+        MzKey k,
         IReadOnlyDictionary<(int row, int col, bool shift), IReadOnlyList<string>> labels,
         IKeyboardEditorContext context)
     {
@@ -68,7 +68,7 @@ internal static class KeyboardReachability
     }
 
     /// <summary>
-    /// Renders one <see cref="MzKeyboardLayout.MzKey"/> as the short
+    /// Renders one <see cref="MzKey"/> as the short
     /// label the safety-gate confirm dialog lists. Preference order:
     /// fixed label > unshifted layout override > shifted layout
     /// override > canonical unshifted glyph > canonical shifted
@@ -77,7 +77,7 @@ internal static class KeyboardReachability
     /// <see cref="MzGlyphCatalog"/> and MZ-80A reads
     /// <see cref="Mz80aMatrixReference.FindGlyph"/>.
     /// </summary>
-    public static string DescribeKeyForGate(MzKeyboardLayout.MzKey k, IKeyboardEditorContext context)
+    public static string DescribeKeyForGate(MzKey k, IKeyboardEditorContext context)
     {
         if (!string.IsNullOrEmpty(k.FixedLabel)) return k.FixedLabel!;
         if (!string.IsNullOrEmpty(k.UnshiftedLabel)) return k.UnshiftedLabel!;

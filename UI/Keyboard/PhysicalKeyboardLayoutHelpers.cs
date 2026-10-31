@@ -7,33 +7,31 @@ namespace MZRaku;
 /// Shared helpers for concrete <see cref="IPhysicalKeyboardLayout"/>
 /// adapters. Both Mz700PhysicalKeyboardLayout and
 /// Mz80aPhysicalKeyboardLayout used to carry byte-identical copies of
-/// these two methods; any future KeyKind addition or palette-tint
+/// these two methods; any future MzKeyKind addition or palette-tint
 /// tweak had to land in both. Keeping them here means one source of
 /// truth per operation.
 /// </summary>
 internal static class PhysicalKeyboardLayoutHelpers
 {
     /// <summary>
-    /// Canonical <see cref="MzKeyboardLayout.KeyKind"/> →
-    /// <see cref="PhysicalKeyKind"/> mapping. MZ-700 and MZ-80A both
-    /// derive their layouts from the shared KeyKind enum
-    /// (the MZ-80A and MZ-800 layouts deliberately reuse the MZ-700's
-    /// for exactly this symmetry), so one switch expression serves
-    /// every machine.
+    /// Canonical <see cref="MzKeyKind"/> →
+    /// <see cref="PhysicalKeyKind"/> mapping. All three machines'
+    /// layouts use the shared MzKeyKind enum, so one switch
+    /// expression serves every machine.
     /// A machine that doesn't emit a given kind simply never passes
     /// it here.
     /// </summary>
-    public static PhysicalKeyKind MapKind(MzKeyboardLayout.KeyKind k) => k switch
+    public static PhysicalKeyKind MapKind(MzKeyKind k) => k switch
     {
-        MzKeyboardLayout.KeyKind.Character => PhysicalKeyKind.Character,
-        MzKeyboardLayout.KeyKind.Modifier  => PhysicalKeyKind.Modifier,
-        MzKeyboardLayout.KeyKind.Mode      => PhysicalKeyKind.Mode,
-        MzKeyboardLayout.KeyKind.Function  => PhysicalKeyKind.Function,
-        MzKeyboardLayout.KeyKind.Cursor    => PhysicalKeyKind.Cursor,
-        MzKeyboardLayout.KeyKind.Edit      => PhysicalKeyKind.Edit,
-        MzKeyboardLayout.KeyKind.Enter     => PhysicalKeyKind.Enter,
-        MzKeyboardLayout.KeyKind.Space     => PhysicalKeyKind.Space,
-        MzKeyboardLayout.KeyKind.Blank     => PhysicalKeyKind.Blank,
+        MzKeyKind.Character => PhysicalKeyKind.Character,
+        MzKeyKind.Modifier  => PhysicalKeyKind.Modifier,
+        MzKeyKind.Mode      => PhysicalKeyKind.Mode,
+        MzKeyKind.Function  => PhysicalKeyKind.Function,
+        MzKeyKind.Cursor    => PhysicalKeyKind.Cursor,
+        MzKeyKind.Edit      => PhysicalKeyKind.Edit,
+        MzKeyKind.Enter     => PhysicalKeyKind.Enter,
+        MzKeyKind.Space     => PhysicalKeyKind.Space,
+        MzKeyKind.Blank     => PhysicalKeyKind.Blank,
         _                                  => PhysicalKeyKind.Character,
     };
 

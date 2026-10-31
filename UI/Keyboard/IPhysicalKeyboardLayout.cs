@@ -72,7 +72,7 @@ public readonly record struct PhysicalKey(
     string? ShiftedLabel = null);
 
 /// <summary>
-/// UI-side copy of the <c>KeyKind</c> enum the machines' physical
+/// UI-side copy of the <c>MzKeyKind</c> enum the machines' physical
 /// layouts share. Machine adapters map their native kind onto the
 /// corresponding member; values a machine doesn't have simply aren't
 /// emitted by that adapter.

@@ -57,8 +57,8 @@ public sealed class Mz800KeyboardEditorContext : IKeyboardEditorContext
     public (int Row, int Col) ShiftSlot => (8, 0);
 
     public IMatrixReference MatrixReference => Mz800MatrixReference.View;
-    public IReadOnlyList<MzKeyboardLayout.MzKey> LayoutKeys => Mz800KeyboardLayout.Keys;
-    public IEnumerable<MzKeyboardLayout.MzKey> EssentialLayoutKeys => Mz800KeyboardLayout.EssentialKeys;
+    public IReadOnlyList<MzKey> LayoutKeys => Mz800KeyboardLayout.Keys;
+    public IEnumerable<MzKey> EssentialLayoutKeys => Mz800KeyboardLayout.EssentialKeys;
 
     public char? FindGlyphAt(int row, int col, bool mzShift) =>
         Mz800MatrixReference.FindGlyph(row, col, mzShift);

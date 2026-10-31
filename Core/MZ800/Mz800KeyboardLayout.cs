@@ -5,7 +5,7 @@ namespace MZRaku.Core;
 /// <summary>
 /// Physical layout of the MZ-800 keyboard, for the keyboard diagram
 /// (via <c>Mz800PhysicalKeyboardLayout</c>) and the editor's reachability
-/// checks. Same coordinate system and <see cref="MzKeyboardLayout.MzKey"/>
+/// checks. Same coordinate system and <see cref="MzKey"/>
 /// record as <see cref="MzKeyboardLayout"/>: X / Y / W / H in key units
 /// (1.0 = a standard alphabetic cap), top-left origin.
 ///
@@ -26,15 +26,15 @@ namespace MZRaku.Core;
 /// </summary>
 public static class Mz800KeyboardLayout
 {
-    private const MzKeyboardLayout.KeyKind Character = MzKeyboardLayout.KeyKind.Character;
-    private const MzKeyboardLayout.KeyKind Modifier  = MzKeyboardLayout.KeyKind.Modifier;
-    private const MzKeyboardLayout.KeyKind Mode      = MzKeyboardLayout.KeyKind.Mode;
-    private const MzKeyboardLayout.KeyKind Function  = MzKeyboardLayout.KeyKind.Function;
-    private const MzKeyboardLayout.KeyKind Cursor    = MzKeyboardLayout.KeyKind.Cursor;
-    private const MzKeyboardLayout.KeyKind Edit      = MzKeyboardLayout.KeyKind.Edit;
-    private const MzKeyboardLayout.KeyKind Enter     = MzKeyboardLayout.KeyKind.Enter;
-    private const MzKeyboardLayout.KeyKind Space     = MzKeyboardLayout.KeyKind.Space;
-    private const MzKeyboardLayout.KeyKind Blank     = MzKeyboardLayout.KeyKind.Blank;
+    private const MzKeyKind Character = MzKeyKind.Character;
+    private const MzKeyKind Modifier  = MzKeyKind.Modifier;
+    private const MzKeyKind Mode      = MzKeyKind.Mode;
+    private const MzKeyKind Function  = MzKeyKind.Function;
+    private const MzKeyKind Cursor    = MzKeyKind.Cursor;
+    private const MzKeyKind Edit      = MzKeyKind.Edit;
+    private const MzKeyKind Enter     = MzKeyKind.Enter;
+    private const MzKeyKind Space     = MzKeyKind.Space;
+    private const MzKeyKind Blank     = MzKeyKind.Blank;
 
     // Main block 15.5 units wide, 0.5-unit gap, 4-unit editing cluster.
     public const float Width  = 20f;
@@ -56,7 +56,7 @@ public static class Mz800KeyboardLayout
     private const float CursorMidY = 2.5f;
     private const float CursorDnY  = 3.5f;
 
-    public static readonly IReadOnlyList<MzKeyboardLayout.MzKey> Keys = new MzKeyboardLayout.MzKey[]
+    public static readonly IReadOnlyList<MzKey> Keys = new MzKey[]
     {
         // Function row — F1 to F5, half-height.
         new("PF1", 9, 7, X: 0f,   Y: FnRowY, W: 1.5f, H: FnRowH, Function, "F1"),
@@ -154,7 +154,7 @@ public static class Mz800KeyboardLayout
     /// on a real matrix slot except the blank filler cap. Mirrors
     /// <see cref="MzKeyboardLayout.EssentialKeys"/>.
     /// </summary>
-    public static IEnumerable<MzKeyboardLayout.MzKey> EssentialKeys
+    public static IEnumerable<MzKey> EssentialKeys
     {
         get
         {
@@ -188,7 +188,7 @@ public static class Mz800KeyboardLayout
         return complaints;
     }
 
-    private static Mz800MatrixReference.SlotKind ExpectedSlotKind(MzKeyboardLayout.KeyKind k) => k switch
+    private static Mz800MatrixReference.SlotKind ExpectedSlotKind(MzKeyKind k) => k switch
     {
         Character => Mz800MatrixReference.SlotKind.Char,
         Function  => Mz800MatrixReference.SlotKind.Function,
