@@ -1,0 +1,6 @@
+# Insert cassette (--insert) + S-BASIC's own LOAD (ROM banked out): the
+# traps on BASIC's tape reads deliver header and data; then RUN.
+420  type "LOAD"
+460  key  Return
+560  type "RUN"
+600  key  Return

@@ -57,6 +57,21 @@ public sealed class Mz700Cassette : CassetteTrapBase
     // [load..load+size], and write a .mzf file in one go.
     internal const ushort TrapWriteTape = 0x0D47;
 
+    // S-BASIC 1Z-013B's own tape reads, used by its LOAD with the
+    // monitor ROM banked out. BASIC keeps a jump table at the monitor's
+    // vectors: $0027 -> $0A7A (read header, E=$CC) and $002A -> $0A7E
+    // (read data, E=$53). Both take HL = destination, BC = byte count,
+    // and share a body that starts the motor, finds the tape mark and
+    // reads the block, then exits through $0A71 (clears the flag at
+    // $0050, CY=0 on success). Found 2026-10-31 (v1.5 Phase 2.5) from
+    // the call chain while LOAD waited for a tape. The entry bytes are
+    // checked before trapping, so a different BASIC is left alone.
+    internal const ushort TrapBasicReadHeader = 0x0A7A;
+    internal const ushort TrapBasicReadData = 0x0A7E;
+    private static readonly byte[] BasicReadHeaderEntry = { 0x3E, 0xCC, 0x18, 0x02 };   // LD A,$CC; JR $0A80
+    private static readonly byte[] BasicReadDataEntry = { 0x3E, 0x53, 0xD5, 0x16, 0xD2 };   // LD A,$53; PUSH DE; LD D,$D2
+    private const ushort BasicTapeFlagAddr = 0x0050;
+
     internal int BreakWaitTrapHits;
     public int WriteTapeTrapHits;
 
@@ -196,7 +211,15 @@ public sealed class Mz700Cassette : CassetteTrapBase
         if (_saveCommittedThisAttempt && Memory.RomEnabled && pc < 0x1000)
             _saveCommittedThisAttempt = false;
 
-        if (!_mem.RomEnabled) return false;
+        // S-BASIC's LOAD (ROM banked out): serve an inserted cassette.
+        if (!_mem.RomEnabled)
+        {
+            if (Pending != null
+                && ((pc == TrapBasicReadHeader && !HeaderDelivered && EntryMatches(pc, BasicReadHeaderEntry))
+                 || (pc == TrapBasicReadData && !DataDelivered && EntryMatches(pc, BasicReadDataEntry))))
+                return ServeBasicRead(pc == TrapBasicReadHeader);
+            return false;
+        }
         if (pc == TrapBreakWait)
         {
             // Monitor's "press PLAY / check BREAK" wait. With no physical tape
@@ -262,6 +285,51 @@ public sealed class Mz700Cassette : CassetteTrapBase
             return true;
         }
         return false;
+    }
+
+    private bool EntryMatches(ushort addr, byte[] expected)
+    {
+        for (int i = 0; i < expected.Length; i++)
+            if (_mem.Ram[(ushort)(addr + i)] != expected[i]) return false;
+        return true;
+    }
+
+    /// <summary>
+    /// One of S-BASIC's tape reads, served from <see cref="CassetteTrapBase.Pending"/>:
+    /// BC bytes of the header (or data) into RAM at HL, then the
+    /// routine's own exit. With BC = 0 the real routine returns at
+    /// once, so it's left to run.
+    /// </summary>
+    private bool ServeBasicRead(bool header)
+    {
+        int count = (Cpu.B << 8) | Cpu.C;
+        if (count == 0) return false;
+        ushort dest = (ushort)((Cpu.H << 8) | Cpu.L);
+        byte[] src = header ? Pending!.Header : Pending!.Data;
+        int n = Math.Min(count, src.Length);
+        // The real routine banks VRAM out around every port access and
+        // leaves it out, so its stores land in RAM.
+        for (int i = 0; i < n; i++)
+            _mem.Ram[(ushort)(dest + i)] = src[i];
+        _mem.VramIoEnabled = false;
+        _mem.Ram[BasicTapeFlagAddr] = 0;
+        Cpu.A = 0;
+        SynthesiseSuccess();
+        Cpu.IFF1 = Cpu.IFF2 = true;      // the motor-off path ends with EI
+        if (header)
+        {
+            HeaderTrapHits++;
+            HeaderDelivered = true;
+        }
+        else
+        {
+            DataTrapHits++;
+            RaiseLoaded($"Loaded via BASIC tape trap: {Pending.Filename} ({n} bytes at ${dest:X4})");
+            Pending = null;
+            HeaderDelivered = false;
+            DataDelivered = false;
+        }
+        return true;
     }
 
     /// <summary>

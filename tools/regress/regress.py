@@ -96,6 +96,7 @@ CASES = [
     ("mz700_music",    ["--mz700", "--basic", "--keys=mz700_music.keys"], 1400, ["snd"]),
     ("mz700_typing",   ["--mz700", "--basic", "--keys=mz700_typing.keys"], 1520, ["snd"]),
     ("mz700_insert",   ["--mz700", "--insert=" + MZ700_SW + "Space Panic(1983)(Solo Software).zip", "--keys=mz700_insert.keys"], 600, ["snd"]),   # Insert cassette + monitor L
+    ("mz700_insert_basic", ["--mz700", "--basic", "--insert=" + MZ700_SW + "Dragon Caves (1982)(Solo Software).zip", "--keys=mz700_insert_basic.keys"], 900, ["snd"]),   # Insert cassette + S-BASIC LOAD / RUN
     # --- MZ-80A ---
     ("mz80a_monitor",  ["--mz80a"],                                   200, ["snd"]),
     ("mz80a_basic",    ["--mz80a", "--basic"],                        400, ["snd"]),

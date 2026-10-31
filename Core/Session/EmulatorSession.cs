@@ -551,7 +551,8 @@ public sealed class EmulatorSession
     /// <summary>
     /// Insert a cassette for the emulated machine's own LOAD to read
     /// through the tape traps — no direct-inject, no jump; the user
-    /// drives the load. MZ-700: one image for the monitor's L command.
+    /// drives the load. MZ-700: one image for the monitor's L command or
+    /// S-BASIC's LOAD.
     /// MZ-800: the whole tape (every file of a zip / .mzt), read by the
     /// IPL's C option, the monitor's L, or 1Z-016 BASIC's LOAD. Only
     /// where <see cref="CanInsertCassette"/>.
@@ -562,7 +563,7 @@ public sealed class EmulatorSession
         {
             var img = MzfImage.Parse(CassetteFile.ReadBytes(path));
             Mz700.Cassette.Queue(img);
-            StatusMessage?.Invoke($"Queued: {img.Filename}. Type L in Monitor mode to fetch.");
+            StatusMessage?.Invoke($"Queued: {img.Filename}. Type L in the monitor, or LOAD in BASIC, to fetch.");
         }
         else
         {
