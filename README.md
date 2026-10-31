@@ -203,16 +203,28 @@ Z80Core/         Separate class-library project (Z80Core.dll) — Z80 CPU
                  core (main, ED, CB, IX/IY prefixes) and a standalone
                  disassembler. Pure net8.0, no WinForms, no MZ-700-
                  specific code; reusable for other Z80 machines.
-Hardware/        8255 PPI, 8253 PIT, Z80 PIO, SN76489 PSG, memory
-                 maps, keyboards (CharMap + SpecialKeyMap + matrix
-                 reference per machine), video, sound, cassette + zip
-                 loader, joysticks (MZ-1X03, MZ-800 ports, WinMM
-                 bridge).
+Core/            The emulation core (MZRaku.Core.dll). Pure net8.0, no
+                 WinForms, so any front end can use it:
+  Machines/        IMachine, the shared machine base, MachineType.
+  MZ700/           One folder per machine: the machine class plus its
+  MZ80A/           memory map, I/O bus, video, keyboard (char map,
+  MZ800/           special-key map, matrix reference, layout) and
+                   cassette traps. MZ800/ also has the joystick ports.
+  Devices/         Chips shared by the machines: 8255 PPI, 8253 PIT,
+                   Z80 PIO, SN76489 PSG, sound, the MZ-1X03 joystick.
+  Keyboard/        Machine-independent keyboard pieces: overrides,
+                   .mzkbd files, auto-typer, matrix checks.
+  Tape/            .mzf images, cassette + zip loading, tape traps.
+  Host/            What a front end supplies: frames, audio output,
+                   host keys, joystick input.
+  Session/         EmulatorSession (creates and runs the machine),
+                   boot-time auto-load, settings.ini, scripted keys,
+                   --dump output.
 UI/              All WinForms surfaces, grouped by feature area:
   Keyboard/        Diagram, per-key + per-VK editor, matrix grid,
                    capture controls — the diagram-first editing flow
                    in Settings → Keyboard plus the advanced child.
-  Debugger/        DebuggerForm, MemoryViewer, Z80 test runner.
+  Debugger/        DebuggerForm, MemoryViewer.
   Diagnostics/     HID Diagnostic + Font Sheet + Sound Diagnostic —
                    live observation windows (Debug menu, plus Font
                    Sheet under View).
@@ -221,13 +233,13 @@ UI/              All WinForms surfaces, grouped by feature area:
   AboutForm.cs     Help → About dialog (icon, version, build date).
   SmoothControls.cs  Double-buffered Label / ListBox / TableLayout
                    subclasses shared by the debugger windows.
-MainForm.cs      Window, menu, timer-driven RunFrame loop, CLI auto-load.
-MZ700.cs,        Top-level "machines" that wire CPU + I/O + ROMs.
-MZ80A.cs,
-MZ800.cs
-AutoLoadOrchestrator.cs  Boot-time BASIC / cassette / source auto-load.
+Platform/        Windows audio (WinMM wave out) and joystick input.
+MainForm.cs      Window, menu, display and the frame timer; drives the
+                 session.
 Program.cs       Main entry point + CLI argument parsing.
-Settings.cs      INI-backed user preferences (settings.ini).
+tools/           Developer tools: MZRakuHeadless (runs the core with
+                 no window), the regression suite (regress/), and
+                 small .mzf / ROM helpers.
 docs/usage/      Topic-by-topic usage docs.
 roms/            (You supply) Monitor ROM + character generator.
 basic/           (You supply) S-BASIC cassette image.

@@ -181,7 +181,7 @@ keep keyboard focus.
       glyph: `Enter`, `GRAPH`, `ALPHA`, `←`, `→`, `↓`, `↑`, `DEL`,
       `INST`, `SHIFT`, `BREAK`, `CTRL`, `F1`–`F4`.
 
-**Sanity-check a handful of cells (consult `Hardware/CharMap.cs` for
+**Sanity-check a handful of cells (consult `Core/MZ700/Mz700CharMap.cs` for
 the canonical positions):**
 
 - [ ] `(4,7)` shows `A` glyph and PC binding `A a`.

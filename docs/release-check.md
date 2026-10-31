@@ -332,11 +332,11 @@ stays honest.
   ([[project-v1-1-apply-keyboard-regression]]): documented
   workaround verified in Critical smoke.
 - **MZ-800 BASIC SAVE** waits for a tape forever (no tape-write
-  trap yet). Target v1.4.0.
+  trap yet). Target v1.5.0.
 - **MZ-800 no floppy / Quick Disk / printer**; border not drawn.
 - **Font Sheet click-to-type** is view-only on MZ-80A and MZ-800;
   MZ-700 bank-1 still parked. MZ-800 click-to-type targeted at
-  v1.4.0.
+  v1.5.0.
 - **Upgrading from v1.0.x straight to v1.3+** loses custom
   `[KeyOverrides]` and explicit `[Roms]` paths — run 1.1 (or later)
   once first to migrate.

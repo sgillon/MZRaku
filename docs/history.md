@@ -1441,6 +1441,56 @@ ahead of the v1.4 settings work at the start of the arc
     the display side was converted; CPU reads and writes now go through
     the same map.
 
+### 2026-10-17 to 2026-10-31 — v1.4.0: core extraction (tag-only)
+
+v1.4.0 separates the emulation core from the WinForms front end, so
+that a second front end — MZRakuCLI (v1.6.0), then possibly a
+cross-platform GUI — is new code beside the core rather than surgery
+through it. No user-facing change, so it closes as a tag like v1.2.0.
+Plan and step-by-step record: `docs/v1.4-plan.md`. Bugs found along
+the way were recorded, not fixed, and go to v1.5.0.
+
+- **Phase 0 — regression suite first.** Before any refactor, a
+  golden-image suite of 27 cases across all three machines (boots,
+  games, BASIC loads, MUSIC compared as audio, scripted typing),
+  approved on the pre-refactor code. `--keys=<file>` was added so the
+  suite can type through the host-key path the refactor replaces.
+  `python tools/regress/regress.py` runs it; every later commit kept
+  it at 27/27.
+- **Phase 1 — WinForms out of the core's types.** Video frames became
+  a plain pixel buffer (`FrameBuffer`), converted to a `Bitmap` only
+  at the edge; host keys became MZRaku's own `HostKey` codes, with a
+  startup check that they match WinForms `Keys` so saved overrides
+  and `.mzkbd` files are unchanged; audio output and joystick input
+  went behind `IAudioOut` and `IJoystickSource`, with the WinMM code
+  as the Windows implementations.
+- **Phase 2 — `EmulatorSession`.** Creating the machine, applying its
+  settings, the frame loop, auto-load, `--dump`, loading, reset, host
+  keys and the machine side of Settings → Apply moved out of
+  `MainForm` into a session class any front end can drive. Machine
+  switching stays a relaunch.
+- **Phase 3 — its own library.** The core became `MZRaku.Core`, a
+  plain `net8.0` project with no WinForms, in folders by machine
+  (`Core/MZ700`, `Core/MZ80A`, `Core/MZ800`) and role (`Devices`,
+  `Keyboard`, `Tape`, `Host`, `Session`, `Machines`), all moved with
+  `git mv` so history follows. The release is still one exe.
+- **Phase 4 — headless runner.** `tools/MZRakuHeadless` runs the core
+  with no window; `regress.py --headless` matches every golden in
+  about 24 s (against 2½ minutes windowed), which proves the core
+  doesn't depend on the front end.
+- **Phase 5 — code review pass.** With two real users of the core:
+  comments brought up to three machines and the session structure;
+  unused code removed; machine-specific types given a `Mz700` /
+  `Mz80a` / `Mz800` prefix (the machine classes keep `MZ700` /
+  `MZ80A` / `MZ800`); Core's public surface narrowed, compiler-checked,
+  to exactly what the two front ends use (5 types and 273 members
+  became `internal`); `MainForm`'s pass-through properties inlined.
+  Saved `settings.ini` files and `.mzkbd` exports are byte-identical
+  to before.
+- **v1.4.0 tagged (tag-only, no packaged release)** on 2026-10-31,
+  after the release check on all three machines. Next packaged release
+  is v1.5.0, built on this core.
+
 ---
 
 ## Architectural decisions worth knowing
@@ -1716,8 +1766,11 @@ automatically; documented here for human reference.
 
 ## Current status
 
-The project shipped **v1.3.0** on 2026-10-10, adding the Sharp
-MZ-800 as a third machine (see the v1.3.0 section above). v1.2.0
+The project tagged **v1.4.0** on 2026-10-31: the emulation core is
+now its own WinForms-free library, `MZRaku.Core`, ready for a second
+front end (see the v1.4.0 section above). Like v1.2.0 it is tag-only;
+the latest download is still **v1.3.0** (2026-10-10), which added the
+Sharp MZ-800 as a third machine. v1.2.0
 (2026-08-25) was a tag-only codebase-audit release; v1.3.0 is the
 first download to include it. Before that, **v1.1.0** shipped on
 2026-08-22, the second stable release. v1.0.0 (2026-06-20) had
@@ -1741,7 +1794,8 @@ the speaker-NAND dual-gate audio fix, and v1.1's Settings-parity
 push. One known regression carried through from v1.0.0 —
 apply-keyboard bug requiring Ctrl+R after Settings-Apply — is
 documented as a workaround pending fix-forward investigation;
-it is still open at v1.3.0.
+it is still open at v1.4.0, though it no longer reproduces from
+fresh settings.
 
 Tagged releases:
 - **v0.0.5-preview** (2026-05-16) — first public release.
@@ -1780,12 +1834,16 @@ Tagged releases:
   editor and full UI / settings parity. Also real-time frame pacing
   (every machine had run at ~2/3 speed), RTC cascade fix, BASIC
   cold-start Overflow fix, Load BASIC source on all three machines.
+- **v1.4.0** (2026-10-31, tag only) — core extraction: `MZRaku.Core`
+  library with no WinForms, `EmulatorSession`, headless runner,
+  27-case regression suite on all three machines, code review pass.
+  No packaged release.
 
-For the open backlog, see the `project_feature_backlog` memory.
-**v1.4.0** is next: a settings v2 sweep across all three machines,
-plus MZ-800 BASIC SAVE, MZ-800 Font Sheet click-to-type, split
-MZ-800 ROM files and a usage-docs restructure. See
-`docs/roadmap.md`.
+**v1.5.0** is next: features that don't depend on the UI (MZ-800
+BASIC SAVE, MZ-800 Font Sheet click-to-type, volume / mute, `--keys`
+documentation and more), and clearing the parked bugs, including those
+v1.4.0 recorded. Then **v1.6.0** adds MZRakuCLI, a cross-platform
+SDL build on the new core. See `docs/roadmap.md`.
 
 Stretch goals (not committed): cross-platform port (Avalonia +
 Silk.NET evaluation), MZ-80K and MZ-80B support on the same

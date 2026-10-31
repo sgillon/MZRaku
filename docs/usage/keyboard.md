@@ -161,14 +161,19 @@ panel; this section is the long-form companion.
 
 | Layer | File location | What it stores |
 |---|---|---|
-| Built-in char defaults | `Hardware/CharMap.cs` | PC character → MZ slot for printables |
-| Built-in VK defaults | `Hardware/SpecialKeyMap.cs` | PC virtual key → MZ slot for non-printables |
+| Built-in char defaults | `Core/MZ700/Mz700CharMap.cs` | PC character → MZ slot for printables |
+| Built-in VK defaults | `Core/MZ700/Mz700SpecialKeyMap.cs` | PC virtual key → MZ slot for non-printables |
 | User char overrides | `[CharMap]` in `settings.ini` | Your changes to the char defaults |
-| User VK overrides | `[KeyOverrides]` in `settings.ini` | Your changes to the VK defaults |
+| User VK overrides | `[KeyOverrides.MZ700]` in `settings.ini` | Your changes to the VK defaults |
 | Portable export | `*.mzkbd` (anywhere) | Snapshot of just your overrides |
 
 The user override layers are consulted ahead of the built-in defaults,
 so any edit you make in the dialog wins at runtime.
+
+The table shows the MZ-700. The MZ-80A and MZ-800 follow the same
+pattern: `Mz80aCharMap.cs` / `Mz80aSpecialKeyMap.cs` in `Core/MZ80A/`
+with `[CharMap.MZ80A]` / `[KeyOverrides.MZ80A]`, and likewise
+`Core/MZ800/` with `[CharMap.MZ800]` / `[KeyOverrides.MZ800]`.
 
 ## Loading BASIC source
 

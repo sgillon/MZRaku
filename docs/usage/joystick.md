@@ -44,6 +44,6 @@ stick is a quarter of the way from centre, and `Button1` / `Button2`
 are the two triggers. See [MZ-800](mz800.md#joystick). The MZ-80A has
 no joystick.
 
-The relevant code: `Hardware/Mz800Joystick.cs` (MZ-800 ports),
-`Hardware/Joystick.cs` (MZ-side multiplexing on
-$E008), `Hardware/JoystickInput.cs` (WinMM bridge).
+The relevant code: `Core/MZ800/Mz800Joystick.cs` (MZ-800 ports),
+`Core/Devices/Joystick.cs` (MZ-side multiplexing on
+$E008), `Platform/JoystickInput.cs` (WinMM bridge).

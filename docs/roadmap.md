@@ -6,7 +6,8 @@ of the settings v2 sweep; v1.3.0 shipped 2026-10-10; revised
 2026-10-17 to put the cross-platform move ahead of the UI polish
 sweeps and any further machines; revised 2026-10-18 to clear the
 parked bugs in v1.5.0 and to make the v2.0.0 GUI depend on how the
-cross-platform CLI build is received. Every placement is expected to move
+cross-platform CLI build is received; v1.4.0 shipped 2026-10-31
+(tag only). Every placement is expected to move
 as reality lands — this document is the shape, not the contract.
 
 For what has already shipped, see `history.md`. For the current
@@ -15,7 +16,7 @@ maintained by the AI assistant.
 
 ## The shape
 
-- **v1.x** — MZRaku grows as a Sharp emulator. v1.4.0 separates the
+- **v1.x** — MZRaku grows as a Sharp emulator. v1.4.0 separated the
   emulation core from the WinForms front end; v1.5.0 adds features
   that don't depend on the UI and clears the parked bugs; v1.6.0 adds
   MZRakuCLI, a command-line-driven SDL build for Windows, macOS and
@@ -51,62 +52,15 @@ maintained by the AI assistant.
   reminder: users upgrading straight from v1.0.x lose custom
   `[KeyOverrides]` and explicit `[Roms]` paths — run 1.1 (or later)
   once first to migrate.
-
-## v1.4.0 — core extraction (refactor)
-
-Make the emulation core independent of WinForms, so that the
-Avalonia port is a new front end rather than surgery across the
-codebase. No user-facing change, so it is a **tag-only** close
-like v1.2.0; the next packaged release is v1.5.0, built on the
-refactored core. It can proceed alongside the Avalonia learning
-project that gates v2.0.0.
-
-Today the core is nearly portable already: `Hardware/` and the
-machine classes are about 15,000 lines against about 8,800 lines of
-WinForms UI. WinForms leaks into the core in three narrow places:
-
-- **Video** — `IMachine.VideoFrame` and the per-machine video
-  renderers produce a `System.Drawing.Bitmap`.
-- **Keyboard** — the keyboard matrices, special-key maps and
-  diagnostics work in WinForms `Keys` (and `Control.ModifierKeys`).
-- **Sound and joystick** — `WinmmWaveOut` and `JoystickInput` call
-  winmm.dll directly.
-
-**Step 1 — regression coverage for every machine, captured before
-any refactor.** The current golden-image suite (18 cases) is almost
-all MZ-800. Each machine gets around five or six cases, approved on
-the pre-refactor code. The refactor is then checked against them.
-
-- A scripted host-key test hook (for example `--keys=`, giving a list
-  of keys and the frame to press each). The auto-typer writes
-  straight into the keyboard matrix, so it bypasses the host-key
-  mapping that this refactor replaces. Each machine gets a typing
-  case through the hook.
-- **MZ-700** — monitor boot, S-BASIC boot, Dragon Caves (large BASIC
-  load, the cold-start Overflow case), two machine-code games (one
-  compared as audio), a `MUSIC` program compared as audio, scripted
-  typing.
-- **MZ-80A** — monitor boot, BASIC boot, a machine-code game, a typed
-  LOAD + RUN cassette game (the autorun path), a `MUSIC` program
-  compared as audio, scripted typing.
-- **MZ-800** — keep the existing cases (each covers a distinct
-  rendering path) and add scripted typing.
-- **Home for the suite** — the harness script is tracked in the
-  repo. The golden images are screenshots of ROM and game content,
-  so they stay in a git-ignored folder. Test software is read from
-  the local information repository. Target: a full run in about two
-  minutes.
-
-**Step 2 — the extraction itself.**
-
-- Video frames become a plain pixel buffer; the WinForms front end
-  converts to `Bitmap` at the edge.
-- Host keys become MZRaku's own key codes; the WinForms front end
-  maps `Keys` onto them.
-- Audio output and joystick input sit behind interfaces, with the
-  winmm implementations as the Windows back ends.
-- Optionally the core moves into its own class library, with the
-  WinForms app as one front end.
+- **v1.4.0** (2026-10-31) — core extraction. The emulation core is
+  its own `net8.0` library, `MZRaku.Core`, with no WinForms: plain
+  pixel frames, MZRaku's own host-key codes, audio and joystick
+  behind interfaces, and an `EmulatorSession` that creates and runs
+  the machine. A headless runner proves it needs no window. A
+  27-case regression suite (all three machines) guarded every step,
+  then a code review pass renamed, trimmed and narrowed the public
+  surface. Tag-only close (no user-facing change); next packaged
+  release is v1.5.0.
 
 ## v1.5.0 — features that don't depend on the UI
 
@@ -198,8 +152,22 @@ regression case (`--keys=` makes keyboard bugs scriptable).
   pause** ([#2](https://github.com/sgillon/MZRaku/issues/2)) — both
   rechecked 2026-10-04 and largely cured by the v1.3.0 frame-pacing
   fix. Confirm and close the issues, or record why they stay open.
-- **Anything v1.4.0 records** — the core extraction records bugs
-  rather than fixing them; they land here.
+- **What v1.4.0 recorded** — the core extraction recorded bugs
+  rather than fixing them (details in `docs/v1.4-plan.md`):
+  - **MZ-700 Insert cassette for LOAD** — a machine-code tape loaded
+    with the monitor's `L` stops at "PLAY": the read traps sit one
+    routine off (`TrapReadHeader` $0436 is WRINF, `TrapReadData`
+    $04D8 is RDINF; RDDAT is $04F8). Present in v1.3.0.
+  - **One audio chunk after mute** — the sound feed checks `Muted`,
+    waits for queue room, then submits, so a pause during the wait
+    still queues 20 ms.
+  - **Settings change summary** labels MZ-80A and MZ-800 keys with
+    the MZ-700's names (`SettingsDiff.VkLabel`).
+  - **MZ-80A layout never validated** — the startup check doesn't
+    call `Mz80aKeyboardLayout.Validate`.
+  - **MZ-80A PIT counter 0** counts at 895 kHz while the sound path
+    takes it as 1 MHz. Pitch is right; anything timing counter 0's
+    countdown would see it about 10% slow.
 
 ## v1.6.0 — MZRakuCLI: the first cross-platform build
 
