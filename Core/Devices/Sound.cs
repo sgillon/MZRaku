@@ -290,6 +290,9 @@ public sealed class Sound : IDisposable
                     if (_wave != null)
                         while (_wave.BufferedDuration.TotalMilliseconds > ExternalDeviceMs && _running)
                             System.Threading.Thread.Sleep(2);
+                    // A mute during the wait has already flushed the
+                    // device; don't queue a chunk behind it.
+                    if (_muted) continue;
                     FillExternal(buf);
                     _wave?.AddSamples(buf, 0, buf.Length);
                     continue;
@@ -320,6 +323,9 @@ public sealed class Sound : IDisposable
                 {
                     while (_wave.BufferedDuration.TotalMilliseconds > TargetBufferMs && _running)
                         System.Threading.Thread.Sleep(5);
+                    // As above: a mute during the wait means this chunk
+                    // would sound after the flush.
+                    if (_muted) continue;
                     _wave.AddSamples(buf, 0, buf.Length);
                 }
             }
