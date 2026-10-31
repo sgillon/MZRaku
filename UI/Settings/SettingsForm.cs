@@ -82,8 +82,8 @@ public sealed class SettingsForm : Form
         AutoSize = true,
     };
 
-    // ROMs — per-machine as of Phase 5.1a. Both machines' rom sets are
-    // shown side-by-side so the user can maintain both without switching
+    // ROMs — per-machine as of Phase 5.1a. Every machine's rom set is
+    // shown side-by-side so the user can maintain them all without switching
     // machine first; whichever isn't the active machine renders with a
     // "(not active)" title and dimmed group heading (D5).
     private readonly TextBox _txtMz700Monitor = new() { Width = 280 };
@@ -598,10 +598,8 @@ public sealed class SettingsForm : Form
         // the tab content covers the matrix grid (~678 tall) when the
         // expander is open, since the dialog itself is fixed-size.
         //
-        // MZ-80A group at row 4 (Phase 5.2) — the diagram + editor
-        // above are MZ-700-only for now; Phase 5.5 will split them
-        // into an "Edit MZ-700 key mappings…" button + a matching
-        // MZ-80A button and formally scope the tab.
+        // The diagram, export / import and Advanced settings serve the
+        // active machine. Row 4 holds the MZ-80A-only options.
         var layout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -627,20 +625,17 @@ public sealed class SettingsForm : Form
             Margin = new Padding(0, 0, 0, 4),
         }, 0, 0);
 
-        // 5.5c: diagram reflects the currently-active machine. On MZ-700
-        // the PC-key labels + unreachable-essential red outline come from
-        // PcKeyIndex + MzKeyboardLayout.EssentialKeys; on MZ-80A neither
-        // has an analogue yet, so the diagram renders label-less. That's
-        // still a major improvement over pre-5.5c, where MZ-80A users saw
-        // the MZ-700 diagram — extending PcKeyIndex to MZ-80A is v1.2
-        // polish per Q3 defer.
+        // The diagram reflects the currently-active machine (v1.1 5.5c).
+        // Its PC-key labels and the red outline on unreachable essential
+        // keys come from PcKeyIndex and the machine's EssentialLayoutKeys,
+        // through the active IKeyboardEditorContext (v1.2 audit F-036).
         _kbdDiagram = new MzKeyboardDiagram(BuildActiveLayout()) { Dock = DockStyle.Fill };
         _kbdDiagram.KeyClicked += OnKeyboardDiagramKeyClicked;
         RefreshKeyboardDiagramLabels();
         layout.Controls.Add(_kbdDiagram, 0, 1);
 
         // Export / Import row. .mzkbd v2 (v1.2 audit F-037) carries a
-        // [Meta] machine= tag so both machines can round-trip; import
+        // [Meta] machine= tag so every machine can round-trip; import
         // refuses cross-machine files with a "machine mismatch" warning.
         // The MzKbdIoCoordinator handles both dispatch + prompts.
         var ioButtons = new FlowLayoutPanel
@@ -669,9 +664,7 @@ public sealed class SettingsForm : Form
         advancedBtn.Click += (_, _) => OpenAdvancedKeyboard();
         layout.Controls.Add(advancedBtn, 0, 3);
 
-        // MZ-80A group (Phase 5.2) — currently just the InvertLetterShift
-        // checkbox. Phase 5.5 extends this into the MZ-80A key mapping
-        // editor and formally scopes the MZ-700 content above.
+        // MZ-80A group (v1.1 Phase 5.2): the InvertLetterShift checkbox.
         var mz80aGroup = MakeMachineGroup("MZ-80A keyboard", MachineScope.Mz80aOnly);
         mz80aGroup.AutoSize = true;
         mz80aGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
@@ -819,7 +812,7 @@ public sealed class SettingsForm : Form
     /// <summary>
     /// Physical-keyboard-layout for the currently-active machine.
     /// Used by the Keyboard-tab diagram construction. MZ-700 falls
-    /// through as the default so a host that supplies neither machine
+    /// through as the default so a host that supplies no machine
     /// (e.g. Settings opened from a broken state) still renders
     /// something rather than throwing.
     /// </summary>
@@ -873,8 +866,8 @@ public sealed class SettingsForm : Form
     {
         if (_kbdDiagram == null) return;
 
-        // Both machines route through the same parameterised PcKeyIndex
-        // (v1.2 audit F-036). Null context = neither machine held,
+        // Every machine routes through the same parameterised PcKeyIndex
+        // (v1.2 audit F-036). Null context = no machine held,
         // shouldn't happen in normal use — clear labels defensively.
         var context = TryBuildActiveEditorContext();
         if (context == null)
@@ -1039,8 +1032,8 @@ public sealed class SettingsForm : Form
     /// Snapshot of every scalar the dialog currently shows plus the
     /// live keyboard override stores. Reads controls for scalars (the
     /// dialog hasn't pushed them into <see cref="_settings"/> yet)
-    /// and the live <see cref="_settings"/> stores for the four
-    /// override layers (both machines' char + VK maps — the per-key
+    /// and the live <see cref="_settings"/> stores for the six
+    /// override layers (each machine's char + VK maps — the per-key
     /// editor flow has already written whatever the user did there).
     /// </summary>
     private SettingsSnapshot CaptureDialogSnapshot()

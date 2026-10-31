@@ -3,7 +3,7 @@ using System;
 namespace MZRaku.Core;
 
 /// <summary>
-/// Square-wave sound generator shared by both machines. Output
+/// Square-wave sound generator shared by all three machines. Output
 /// frequency = <see cref="InputClockHz"/> / reload value when both
 /// gates are open. Two AND-gated inputs, polled per audio chunk:
 ///   <see cref="Enabled"/> — soft gate. MZ-700 drives this from PPI
@@ -51,7 +51,7 @@ public sealed class Sound : IDisposable
     /// <summary>
     /// When true, FeedLoop stops submitting new PCM chunks and the
     /// wave-out queue is flushed immediately on transition. Used by
-    /// MainForm to silence the currently-playing tone the instant the
+    /// the host to silence the currently-playing tone the instant the
     /// emulator pauses — without it the ~100 ms of already-queued audio
     /// keeps sounding for a beat after pause and any continuous tone
     /// (SA-1510 boot beep, MUSIC held note) sustains indefinitely
@@ -178,7 +178,7 @@ public sealed class Sound : IDisposable
     // whose registers change every ~10 ms (BASIC MUSIC). In external
     // mode the machine renders samples in emulated time via
     // PushSample (emulation thread) and FeedLoop drains them. Frame
-    // pacing is locked to real time (MainForm), so producer and
+    // pacing is locked to real time (by the host), so producer and
     // consumer rates match on average; the drain rate only trims ±0.5 %
     // against a ~1 s moving average of the queue depth, to absorb
     // audio-clock drift without audible pitch change. (A first cut

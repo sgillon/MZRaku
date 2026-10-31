@@ -66,7 +66,7 @@ public sealed class Keyboard : KeyboardMatrixBase
     /// event handled. <paramref name="keyData"/> is the host's
     /// combined VK + modifier flags (e.g. <c>Control | G</c>) so
     /// the override layer can match modifier-aware bindings; the
-    /// bare VK is used as the <see cref="_holds"/> key so KeyUp's
+    /// bare VK is used as the <see cref="KeyboardMatrixBase._holds"/> key so KeyUp's
     /// bare VK still matches.
     ///
     /// Layered lookup order:
@@ -201,7 +201,7 @@ public sealed class Keyboard : KeyboardMatrixBase
     /// asserted, then recomputes the MZ shift bit from remaining
     /// holds and the user's actual PC shift state.
     /// <paramref name="keyData"/> is the combined VK + modifiers;
-    /// the bare VK is what's keyed in <see cref="_holds"/>.
+    /// the bare VK is what's keyed in <see cref="KeyboardMatrixBase._holds"/>.
     ///
     /// Always recomputes shift state at the end — even when no
     /// hold matched the released VK — because the form no longer

@@ -12,7 +12,8 @@ namespace MZRaku.Core;
 /// v1.2 audit F-016 — the live-key handling and the auto-typer are
 /// separate subsystems that happen to share the same matrix. v1.3.0
 /// Phase 8.5 made it machine-neutral: the owning keyboard supplies its
-/// char lookup and shift-mirror side effect. Both machines keep SHIFT
+/// char lookup and shift-mirror side effect. Both owners (the MZ-700
+/// and MZ-800 keyboards; the MZ-80A has its own typer) keep SHIFT
 /// at (8, 0) and CR at (0, 0).
 ///
 /// Uses scan detection rather than fixed hold counts: after

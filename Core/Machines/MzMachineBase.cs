@@ -24,7 +24,7 @@ namespace MZRaku.Core;
 public abstract class MzMachineBase
 {
     /// <summary>
-    /// The Z80 CPU. Same type both machines use, so it lives on
+    /// The Z80 CPU. Same type on every machine, so it lives on
     /// the base. Subclasses wire its Mem/Io/PreStep in their
     /// constructors.
     /// </summary>

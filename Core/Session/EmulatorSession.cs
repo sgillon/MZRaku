@@ -29,10 +29,10 @@ public sealed class EmulatorSession
     public EmulatorSession(Settings settings)
     {
         _settings = settings;
-        // EnsureRomPaths scans for both machines' ROMs, so the CLI
+        // EnsureRomPaths scans for every machine's ROMs, so the CLI
         // override finding e.g. SA-1510.rom under roms/ works even
         // when settings.ini had never seen an MZ-80A launch before.
-        // No-op if the previous Load() already populated both sides.
+        // No-op if the previous Load() already populated them all.
         if (_settings.EnsureRomPaths()) _settings.Save();
         // Construct exactly one of the three machines.
         if (_settings.CurrentMachine == MachineType.MZ700)
@@ -624,7 +624,7 @@ public sealed class EmulatorSession
         Active.RunFrame();
         FrameCount++;
 
-        // BASIC + cassette + BASIC-source pipelines both machines run
+        // BASIC + cassette + BASIC-source pipelines each machine runs
         // (v1.2 audit F-055 extraction). Also handles the per-frame
         // GRAPH-mode indicator + Font Sheet auto-surface for MZ-700
         // and the F11-driven mode indicator for MZ-80A.

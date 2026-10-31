@@ -34,7 +34,7 @@ public sealed class MZ700 : MzMachineBase, IMachine
     // property above (with WriteTapeTrapHits, BreakWaitTrapHits, and
     // the SAVE-tape surface).
     CassetteTrapBase IMachine.Cassette => Cassette;
-    // MainForm's paint reads whichever machine's rendered bitmap is
+    // The front end's paint reads whichever machine's rendered bitmap is
     // non-null; the concrete Video property stays for callers that
     // need MZ-700-specific renderer knobs.
     FrameBuffer? IMachine.VideoFrame => Video.Frame;
@@ -148,7 +148,7 @@ public sealed class MZ700 : MzMachineBase, IMachine
     /// Execute a single video frame. Advances CPU for ~1/60s worth of cycles,
     /// tracking PIT counter ticks and VBLANK signalling.
     ///
-    /// When <see cref="Paused"/> (debugger), the CPU is not advanced — the
+    /// When <see cref="MzMachineBase.Paused"/> (debugger), the CPU is not advanced — the
     /// screen is still re-rendered so the display and debugger panes stay
     /// live. A one-shot "step frame" overrides the pause for one frame, and
     /// a breakpoint hit mid-frame stops the frame early and sets Paused.

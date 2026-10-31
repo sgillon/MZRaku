@@ -28,16 +28,16 @@ namespace MZRaku.Core;
 /// - For character keys, the unshifted / shifted glyphs are looked up at
 ///   render time from <see cref="MzGlyphCatalog"/>. No need to duplicate
 ///   them here.
-/// - Function and modifier keys carry <see cref="FixedLabel"/>.
+/// - Function and modifier keys carry <see cref="MzKey.FixedLabel"/>.
 ///
 /// Multiple keys may share one matrix slot. The reverse lookup treats
 /// this naturally: a PC keystroke maps to one matrix slot, and the
 /// diagram lights every physical key bound to it.
 ///
 /// LAYOUT SOURCE: best-effort from existing hardware knowledge plus
-/// general MZ-700 photographs. Positions marked with a "TODO: verify
-/// against Owner's Manual p.114" comment need a sanity-check pass before
-/// the diagram view ships.
+/// general MZ-700 photographs. Two positions are still unverified (the
+/// TODOs on the right SHIFT and the SPACE row below); check them against
+/// the Owner's Manual p.114. They affect only how the diagram looks.
 /// </summary>
 public static class MzKeyboardLayout
 {

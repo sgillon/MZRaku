@@ -4,7 +4,7 @@ namespace MZRaku.Core;
 
 /// <summary>
 /// Intel 8253 PIT emulation. Generic three-counter implementation
-/// shared by both machines — per-machine counter wiring (which
+/// shared by all three machines — per-machine counter wiring (which
 /// counter drives sound vs tempo vs interrupt, what input clocks
 /// they see) lives with the consumers. See <see cref="IoBus"/> and
 /// <see cref="MZ700"/> for MZ-700 wiring (C0 → sound, C1 → MUSIC

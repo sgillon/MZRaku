@@ -420,7 +420,7 @@ internal sealed class DumpTraceRecorder
     private void AppendPcTrace()
     {
         // Append last 256 PC values (oldest first). Cpu is Z80Cpu
-        // on both machines, so this works via the interface.
+        // on every machine, so this works via the interface.
         _traceLog.AppendLine();
         _traceLog.AppendLine("Recent PC trace (oldest first):");
         int start = _active.Cpu.PcTraceIdx;

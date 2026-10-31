@@ -6,22 +6,24 @@ using System.Linq;
 namespace MZRaku.Core;
 
 /// <summary>
-/// Generic base for the two user-override stores
-/// (<see cref="CharMapOverrides"/> and
-/// <see cref="Mz80aCharMapOverrides"/>): character → matrix-slot
+/// Generic base for the three user-override stores
+/// (<see cref="CharMapOverrides"/>,
+/// <see cref="Mz80aCharMapOverrides"/> and
+/// <see cref="Mz800CharMapOverrides"/>): character → matrix-slot
 /// map, plus a suppression set marking built-in defaults the
 /// runtime should ignore. Persisted to <c>settings.ini</c> via
 /// <see cref="SerialiseLines"/> / <see cref="TryParseLine"/>.
 ///
 /// <typeparamref name="TPress"/> is the machine's native press
 /// record (<see cref="CharMap.Press"/> = Row/Col/MzShift for MZ-700,
-/// <see cref="Mz80aCharMap.Press"/> = Strobe/Bit/MzShift for MZ-80A).
+/// <see cref="Mz80aCharMap.Press"/> and <see cref="Mz800CharMap.Press"/>
+/// = Strobe/Bit/MzShift for MZ-80A and MZ-800).
 /// Two adapter delegates handed to the base at construction bridge
 /// between TPress and the shared internal <c>(int, int, bool)</c>
 /// shape so serialisation, parsing, and lookups don't have to know
 /// which machine they're serving.
 ///
-/// The INI wire format is identical on both machines:
+/// The INI wire format is identical on all three machines:
 /// <c>HHHH=X,Y,shift</c> where HHHH is the 4-digit hex Unicode
 /// codepoint, X/Y are 0-9 / 0-7, shift is <c>t</c> / <c>f</c>.
 /// A value of <c>-</c> marks the codepoint as suppressed. Only the

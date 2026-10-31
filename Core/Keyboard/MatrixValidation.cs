@@ -18,9 +18,9 @@ namespace MZRaku.Core;
 /// fixes on 2026-06-12 and 2026-06-13 had been latent for weeks because
 /// nothing forced the codebase's coordinates to be cross-checked).
 ///
-/// Both machines are validated at every launch — the tables are static
-/// so there's no cost to catching MZ-80A drift while running MZ-700 and
-/// vice versa.
+/// All three machines are validated at every launch — the tables are
+/// static so there's no cost to catching one machine's drift while
+/// running another.
 /// </summary>
 public static class MatrixValidation
 {

@@ -22,7 +22,7 @@ namespace MZRaku.Core;
 /// - Combined caps: BREAK/CTRL, INST/DEL, CLR/HOME are each ONE
 ///   physical key (one matrix slot) with two labels visible on the
 ///   cap — the second label is the shifted function, per real
-///   hardware. Rendered here with a single <see cref="MzKey.FixedLabel"/>
+///   hardware. Rendered here with a single <see cref="MzKeyboardLayout.MzKey.FixedLabel"/>
 ///   ("BREAK/CTRL" etc.); a future diagram enhancement could split
 ///   these onto two lines to match the physical cap more closely.
 /// - Cursor keys: MZ-80A has only two physical cursor caps —

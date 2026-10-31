@@ -4,7 +4,7 @@ namespace MZRaku.Core;
 
 /// <summary>
 /// Intel 8255 PPI emulation. Generic three-port implementation shared
-/// by both machines — per-machine bit wiring lives with the port
+/// by all three machines — per-machine bit wiring lives with the port
 /// consumers, not here. See <see cref="IoBus"/> for MZ-700's Port C
 /// bit map (cassette motor, speaker gate, INTMSK, cursor blink,
 /// VBLANK) and <see cref="Mz80aIoBus"/> for the MZ-80A's simpler use.

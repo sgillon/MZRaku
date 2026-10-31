@@ -17,7 +17,7 @@ namespace MZRaku;
 /// the pre-edit state from the live objects.
 ///
 /// The keyboard-override fields are normalised to <see cref="MatrixPress"/>
-/// so the diff walker sees the same shape for both machines; the labels
+/// so the diff walker sees the same shape for every machine; the labels
 /// carry the machine tag (see <see cref="Mz80aLabelPrefix"/>).
 /// </summary>
 internal sealed class SettingsSnapshot
@@ -44,9 +44,9 @@ internal sealed class SettingsSnapshot
     // property.
     public bool Mz80aGreenScreen { get; init; }
     public bool Mz80aInvertLetterShift { get; init; }
-    // Per-machine ROM paths (Phase 5.1c). Both machines' paths are
+    // Per-machine ROM paths (Phase 5.1c). Every machine's paths are
     // editable in the ROMs tab regardless of active machine, so the
-    // diff has to cover both sets independently.
+    // diff has to cover each set independently.
     public string Mz700MonitorPath { get; init; } = "";
     public string Mz700FontPath { get; init; } = "";
     public string Mz700BasicPath { get; init; } = "";
@@ -160,7 +160,7 @@ internal sealed class SettingsSnapshot
         settings.JoyButton2Index = JoyButton2Index;
     }
 
-    // Both machines' char defaults, normalised to MatrixPress so the
+    // Each machine's char defaults, normalised to MatrixPress so the
     // diff walker can quote the restored slot in the "default restored
     // → (row,col)" line without knowing the native Press type.
     internal static IReadOnlyDictionary<char, MatrixPress> Mz700CharDefaults { get; } =

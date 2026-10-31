@@ -18,8 +18,8 @@ namespace MZRaku.Core;
 /// Phase 6.0 scope: control words (vector, mode select, I/O mask,
 /// interrupt control, mask, enable flip-flop), mode-3 logic equation
 /// with edge-triggered interrupt request, data-port reads of the input
-/// pins. Not modelled yet: mode 0/1/2 handshakes (ARDY/ASTB — printer
-/// strobes, Phase 7), IEI/IEO daisy-chain priority and the
+/// pins. Not modelled: mode 0/1/2 handshakes (ARDY/ASTB — printer
+/// strobes; no printer is emulated), IEI/IEO daisy-chain priority and the
 /// interrupt-under-service latch cleared by RETI (the CPU's own IFF1
 /// keeps the ISR from re-entering in practice).
 /// </summary>

@@ -46,7 +46,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
     public bool IsSideEffectRead(ushort addr) => Mem.IsIoRead(addr);
     CassetteTrapBase IMachine.Cassette => Cassette;
     // 640×200 modes render into Video.FrameHi, everything else into
-    // Video.Frame; MainForm scales whichever comes back.
+    // Video.Frame; the front end scales whichever comes back.
     FrameBuffer? IMachine.VideoFrame => Mem.Is640BitmapMode ? Video.FrameHi : Video.Frame;
     IKeyboardInput IMachine.KeyboardInput => Keyboard;
 

@@ -7,7 +7,7 @@ namespace MZRaku.Core;
 /// (<see cref="Keyboard"/> and <see cref="Mz80aKeyboard"/>): the
 /// 10 × 8 active-low matrix backing, the KeyDown→KeyPress→KeyUp
 /// hold bookkeeping, the shift-race stage buffer, the "any-hold
-/// gates PC shift" effective-shift rule. Both machines' 8255 PPI
+/// gates PC shift" effective-shift rule. All three machines' 8255 PPI
 /// wiring is identical at this layer (strobe 0-9 → Port A, column
 /// bits back on Port B, pressed = 0), so the primitives are shared
 /// verbatim.
@@ -16,7 +16,7 @@ namespace MZRaku.Core;
 /// only the per-machine behaviour: MZ-700 writes $1170 as its shift
 /// mirror and drives a scan-detection auto-typer; MZ-80A holds
 /// GraphMode / InvertLetterShift / different SpecialKeyMap shape /
-/// time-based auto-typer / Ctrl-key routing. Both machines'
+/// time-based auto-typer / Ctrl-key routing. Each machine's
 /// OnKeyDown / OnKeyPress / OnKeyUp handlers stay per-machine
 /// because the divergences there (Ctrl handling, RAM mirror,
 /// case-inversion, GraphMode toggle) resist a clean shared skeleton

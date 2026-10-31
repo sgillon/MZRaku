@@ -5,25 +5,29 @@ namespace MZRaku.Core;
 
 /// <summary>
 /// User-editable override layer that maps a PC virtual key (optionally
-/// combined with modifier flags) to a specific MZ-700 matrix position.
-/// Consulted ahead of <see cref="SpecialKeyMap"/> and <see cref="CharMap"/>
-/// in <see cref="Keyboard.OnKeyDown"/>, so a user can rebind any key
-/// without touching the built-in defaults.
+/// combined with modifier flags) to a specific matrix position. Each
+/// machine has its own store. Consulted ahead of the machine's
+/// special-key map and character map in its keyboard's
+/// <c>OnKeyDown</c> (e.g. <see cref="Keyboard.OnKeyDown"/> on the
+/// MZ-700), so a user can rebind any key without touching the
+/// built-in defaults.
 ///
 /// Lookup priority inside this layer alone: combined-modifier match wins
 /// over a bare-VK match, so e.g. an entry for <c>Control+G</c> beats an
 /// entry for plain <c>G</c> when both are present.
 ///
-/// Persisted to the <c>[KeyOverrides]</c> section of <c>settings.ini</c>
-/// via <see cref="Serialise"/> / <see cref="Parse"/>.
+/// Persisted to the <c>[KeyOverrides.MZ700]</c>,
+/// <c>[KeyOverrides.MZ80A]</c> and <c>[KeyOverrides.MZ800]</c> sections
+/// of <c>settings.ini</c> via <see cref="SerialiseLines"/> /
+/// <see cref="TryParseLine"/>.
 /// </summary>
 public sealed class KeyOverride
 {
-    /// <param name="Row">MZ-700 matrix row 0-9.</param>
-    /// <param name="Col">MZ-700 matrix column 0-7.</param>
+    /// <param name="Row">Matrix row (MZ-700) or strobe (MZ-80A, MZ-800).</param>
+    /// <param name="Col">Matrix column (MZ-700) or bit (MZ-80A, MZ-800), 0-7.</param>
     /// <param name="MzShift">
-    /// true  → force MZ shift bit (8,0) SET while held.
-    /// false → force MZ shift bit (8,0) CLEAR while held.
+    /// true  → force the machine's SHIFT SET while held.
+    /// false → force the machine's SHIFT CLEAR while held.
     /// null  → pass through the user's actual PC shift state.
     /// </param>
     public readonly record struct Binding(int Row, int Col, bool? MzShift);

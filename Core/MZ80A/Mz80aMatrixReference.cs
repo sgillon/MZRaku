@@ -337,7 +337,8 @@ public static class Mz80aMatrixReference
     /// the slot has no such label. Derived from
     /// <see cref="Slot.Id"/> for kinds other than Char / Unused /
     /// Unknown. Mirrors <see cref="MzGlyphCatalog.FindSpecialLabel"/>
-    /// on the MZ-700 side (which reads SpecialKeyMap.SlotLabels).
+    /// on the MZ-700 side (which reads
+    /// <see cref="Mz700MatrixReference.SpecialLabels"/>).
     /// </summary>
     public static string? FindSpecialLabel(int strobe, int bit)
     {

@@ -27,7 +27,8 @@ public sealed class Settings
 
     // The machine currently running this session. Set by Load() from
     // DefaultMachine, then possibly overwritten by the --mz700 /
-    // --mz80a / --mz800 CLI flag in MainForm. NOT persisted — Save() writes
+    // --mz80a / --mz800 command-line flag (read by the front end).
+    // NOT persisted — Save() writes
     // DefaultMachine only. Callers that ask "which machine is active"
     // (menu check-marks, About dialog, ROM-missing message, etc.)
     // read this. Named CurrentMachine (not Type) to avoid clashing
@@ -72,7 +73,7 @@ public sealed class Settings
     public bool Mz800VramExpansion { get; set; } = true;
 
     // Paths to the system files (monitor ROM, character font, BASIC
-    // cassette image), split by machine so both machines can coexist
+    // cassette image), split by machine so all three machines can coexist
     // in one settings.ini. Auto-detected on first run by scanning the
     // program directory for each machine's expected filenames; the
     // user can edit settings.ini afterwards to point them elsewhere.
@@ -101,7 +102,7 @@ public sealed class Settings
     };
 
     // Convenience passthrough properties: read the ACTIVE machine's
-    // ROM paths, so callers that don't care which machine (MainForm's
+    // ROM paths, so callers that don't care which machine (the app's
     // startup ROM-missing check, the Settings UI's ROMs tab, etc.)
     // just see one set. Write-through so EnsureRomPaths' auto-detect
     // updates the right sub-section.
@@ -259,7 +260,7 @@ public sealed class Settings
 
                 // [Machine] DefaultMachine=MZ700|MZ80A|MZ800. Absent →
                 // default MZ700. CurrentMachine mirrors DefaultMachine
-                // at this point; MainForm may then override it from a
+                // at this point; the front end may then override it from a
                 // --mz700 / --mz80a / --mz800 CLI flag without touching
                 // the persisted DefaultMachine.
                 var typeStr = GetString(ini, "Machine", "DefaultMachine", "");
@@ -317,8 +318,8 @@ public sealed class Settings
                     foreach (var kv in cm800) s.Mz800CharMapOverrides.TryParseLine(kv.Key, kv.Value);
                 }
                 // [DebugPanes] — which diagnostic panes open on
-                // startup. All default false. Wired at Phase 5.1a;
-                // boot-time application lands in Phase 5.3.
+                // startup. All default false. The front end opens
+                // them once the main window is shown.
                 var dp = s.DebugPanesAtStartup;
                 dp.Debugger = GetBool(ini, "DebugPanes", "Debugger", dp.Debugger);
                 dp.MemoryViewer = GetBool(ini, "DebugPanes", "MemoryViewer", dp.MemoryViewer);

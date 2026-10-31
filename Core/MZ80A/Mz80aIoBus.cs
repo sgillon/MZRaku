@@ -35,10 +35,9 @@ namespace MZRaku.Core;
 /// position on MZ-80A too, actually). $E008 loses the joystick and the
 /// speaker-NAND dual-gate — a single bit does the sound gating job.
 ///
-/// Phase 1 status: PPI + PIT are hot-wired. Video mode toggles
-/// ($E014/$E015), hardware scroll ($E200-$E2FF), and sound gate
-/// ($E008 W D0) are recognised but ignored at the device level — they
-/// come online in Phases 2 and 5. The memory-swap side effects
+/// Video mode ($E014/$E015) and hardware scroll ($E200-$E2FF) are
+/// latched here for <see cref="MZ80A"/> to pass to the renderer; the
+/// sound gate ($E008 W D0) drives <see cref="Sound"/>. The memory-swap side effects
 /// ($E00C/$E010 R) are handled inside <see cref="MZ80AMemory"/>.
 /// </summary>
 public sealed class Mz80aIoBus : IIoBus
@@ -52,8 +51,8 @@ public sealed class Mz80aIoBus : IIoBus
     public Sound Sound = null!;
     public Z80Core.Z80Cpu Cpu = null!;
 
-    // Phase 2 will populate this with a video renderer; the video-mode
-    // and scroll registers ($E014/$E015/$E200-$E2FF) toggle its state.
+    // Set by the video-mode and scroll registers ($E014/$E015/
+    // $E200-$E2FF); MZ80A.RenderFrame copies both to Mz80aVideo.
     public bool ReverseVideo;
     public int ScrollOffset;
 

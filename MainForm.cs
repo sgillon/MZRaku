@@ -731,8 +731,9 @@ public sealed class MainForm : Form
     /// <summary>
     /// Updates the right-hand mode indicator. <paramref name="graph"/>
     /// null → grey "—" (mode unknowable / not-yet-meaningful), false
-    /// → normal "ALPHA", true → highlighted "GRAPH". Cheap enough to
-    /// call every 10 frames from either machine's tick block.
+    /// → normal "ALPHA", true → highlighted "GRAPH". Handles the
+    /// session's GraphModeSampled, raised every 10 frames on the MZ-700
+    /// and MZ-80A.
     /// </summary>
     private void UpdateModeLabel(bool? graph) =>
         SetModeLabel(graph is null ? "—" : graph.Value ? "GRAPH" : "ALPHA");

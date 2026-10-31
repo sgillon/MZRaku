@@ -5,8 +5,9 @@ namespace MZRaku.Core;
 /// on Port B reads. The MZ-700's rich <see cref="Keyboard"/> class
 /// implements this (its full public API is far bigger, spanning
 /// auto-typer, CharMap-driven typing, staged shift bits, ROM-scan
-/// diagnostics), and the leaner <see cref="Mz80aKeyboard"/> also
-/// implements it. Both machines strobe rows 0-9 the same way at the
+/// diagnostics), and the leaner <see cref="Mz80aKeyboard"/> and
+/// <see cref="Mz800Keyboard"/> also implement it. All three machines
+/// strobe rows 0-9 the same way at the
 /// 8255 layer, so the interface stays trivial.
 /// </summary>
 public interface IKeyboardMatrix
@@ -21,7 +22,7 @@ public interface IKeyboardMatrix
 
     /// <summary>
     /// Per-frame telemetry surface consumed by HidDiagnosticForm.
-    /// Same shape on both machines — last KeyDown / KeyPress / KeyUp,
+    /// Same shape on all three machines — last KeyDown / KeyPress / KeyUp,
     /// last-matched input layer, last scanned row. Kept separate
     /// from <see cref="ReadRow"/> because it's diagnostic scaffolding,
     /// not part of the PPI wiring.

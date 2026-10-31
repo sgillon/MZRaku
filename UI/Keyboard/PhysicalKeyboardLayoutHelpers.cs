@@ -16,9 +16,10 @@ internal static class PhysicalKeyboardLayoutHelpers
     /// <summary>
     /// Canonical <see cref="MzKeyboardLayout.KeyKind"/> →
     /// <see cref="PhysicalKeyKind"/> mapping. MZ-700 and MZ-80A both
-    /// derive their layouts from the shared MZ-700 KeyKind enum
-    /// (Mz80aKeyboardLayout deliberately reuses it for exactly this
-    /// symmetry), so one switch expression serves both machines.
+    /// derive their layouts from the shared KeyKind enum
+    /// (the MZ-80A and MZ-800 layouts deliberately reuse the MZ-700's
+    /// for exactly this symmetry), so one switch expression serves
+    /// every machine.
     /// A machine that doesn't emit a given kind simply never passes
     /// it here.
     /// </summary>

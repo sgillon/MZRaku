@@ -3,11 +3,12 @@ namespace MZRaku.Core;
 
 /// <summary>
 /// Which mapping layer resolved the last PC keystroke. Shared across
-/// both machines' keyboards so the HID Diagnostic pane renders a
+/// all three machines' keyboards so the HID Diagnostic pane renders a
 /// single consistent view regardless of which machine is monitored.
-/// <see cref="Override"/> is populated by both
-/// <see cref="Keyboard.OnKeyDown"/> and
-/// <see cref="Mz80aKeyboard.OnKeyDown"/> — each carries its own
+/// <see cref="Override"/> is populated by each machine's OnKeyDown
+/// (<see cref="Keyboard.OnKeyDown"/>,
+/// <see cref="Mz80aKeyboard.OnKeyDown"/>,
+/// <see cref="Mz800Keyboard.OnKeyDown"/>) — each carries its own
 /// <see cref="KeyOverride"/> field, wired via the Settings dialog
 /// per machine.
 /// </summary>

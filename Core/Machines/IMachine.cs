@@ -3,10 +3,10 @@ using Z80Core;
 namespace MZRaku.Core;
 
 /// <summary>
-/// The surface a MainForm-style host needs to drive a Sharp MZ
-/// machine — CPU, memory, the debugger controls, the frame loop,
-/// plus the small subset of hardware that BOTH machines have AND
-/// MainForm accesses uniformly (sound output, the rendered video
+/// The surface a host (the session and the front ends) needs to
+/// drive a Sharp MZ machine — CPU, memory, the debugger controls,
+/// the frame loop, plus the small subset of hardware that every
+/// machine has AND the host accesses uniformly (sound output, the rendered video
 /// frame, cassette-trap state). Machine-specific hardware
 /// (PPI, PIT, joystick multiplex, ROM key tables) stays off this
 /// interface — panes that need those cast to the concrete class
@@ -33,16 +33,17 @@ public interface IMachine
     IMemory Mem { get; }
 
     /// <summary>
-    /// The machine's speaker output. Both machines drive the same
+    /// The machine's speaker output. All three machines drive the same
     /// <see cref="Core.Sound"/> class — MZ-700 uses its
     /// two-gate NAND (PC3 + $E008 D0), MZ-80A pins Enabled=true
-    /// and uses only the hard gate. MainForm's mute-on-pause /
+    /// and uses only the hard gate, MZ-800 feeds it rendered PCM
+    /// (ExternalPcm) from the PSG and PIT. The host's mute-on-pause /
     /// Dispose-on-close paths run through this getter.
     /// </summary>
     Sound Sound { get; }
 
     /// <summary>
-    /// Emulated frames per second of real time — what MainForm paces
+    /// Emulated frames per second of real time — what the host paces
     /// RunFrame against. 60 for MZ-700 / MZ-80A; ≈50.08 for MZ-800,
     /// whose frame is a real PAL raster (312 × 227 cycles, Phase 7.2).
     /// </summary>
@@ -65,7 +66,7 @@ public interface IMachine
 
     /// <summary>
     /// The machine's cassette-trap state. Exposed at the shared
-    /// <see cref="CassetteTrapBase"/> level so MainForm's TAPE
+    /// <see cref="CassetteTrapBase"/> level so the front end's TAPE
     /// activity chip + auto-load orchestrator can poll Pending +
     /// HeaderTrapHits + DataTrapHits + DataDelivered uniformly.
     /// MZ-700-specific fields (WriteTapeTrapHits, BreakWaitTrapHits,

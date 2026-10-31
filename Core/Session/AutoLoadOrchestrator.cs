@@ -4,8 +4,9 @@ using System.IO;
 namespace MZRaku.Core;
 
 /// <summary>
-/// Owns the per-machine startup pipelines MainForm's Timer_Tick
-/// used to run inline (now run by EmulatorSession.RunFrame): wait for the ROM to be ready → auto-load
+/// Owns the per-machine startup pipelines, run each frame by
+/// <see cref="EmulatorSession.RunFrame"/> (MainForm's Timer_Tick
+/// ran them inline before v1.2): wait for the ROM to be ready → auto-load
 /// BASIC (if requested) → wait for BASIC's Ready prompt → inject
 /// the pending cassette or type a BASIC source, with auto-RUN
 /// where the flow permits it.
@@ -470,8 +471,8 @@ internal sealed class AutoLoadOrchestrator
                 }
                 else
                 {
-                    // Non-MC without BASIC has no target on MZ-800 in
-                    // Phase 4 scope. Inject at load address without
+                    // Non-MC without BASIC has no target on MZ-800.
+                    // Inject at load address without
                     // jumping so the debugger / memory viewer can
                     // still see the payload.
                     _mz800!.Cassette.DirectInject(img, jumpExec: false);

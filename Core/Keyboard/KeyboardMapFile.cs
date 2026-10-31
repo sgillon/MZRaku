@@ -8,8 +8,8 @@ namespace MZRaku.Core;
 /// Save / load helpers for the <c>.mzkbd</c> keyboard-mapping
 /// exchange file. Two sections (<c>[CharMap]</c> and
 /// <c>[KeyOverrides]</c>) using the same line formats
-/// <see cref="CharMapOverrides.SerialiseLines"/> /
-/// <see cref="Mz80aCharMapOverrides.SerialiseLines"/> /
+/// <see cref="MatrixOverrides{TPress}.SerialiseLines"/> (each
+/// machine's character overrides) and
 /// <see cref="KeyOverride.SerialiseLines"/> already write into
 /// <c>settings.ini</c>, plus a header comment block documenting the
 /// shape for hand-editors.
@@ -36,9 +36,9 @@ public static class KeyboardMapFile
     /// <summary>
     /// Writes the machine-tagged file at <paramref name="path"/>.
     /// <paramref name="charSerialisedLines"/> feeds the [CharMap]
-    /// section (MZ-700 CharMapOverrides.SerialiseLines() or MZ-80A
-    /// Mz80aCharMapOverrides.SerialiseLines() — same wire format
-    /// both sides). <paramref name="keyOverrides"/> is the shared
+    /// section (the machine's character overrides'
+    /// SerialiseLines() — the same wire format on all three
+    /// machines). <paramref name="keyOverrides"/> is the shared
     /// KeyOverride type. Built-in defaults are never included.
     /// </summary>
     public static void Save(

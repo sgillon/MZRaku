@@ -11,7 +11,7 @@ namespace MZRaku;
 /// spec — no machine-specific branches in the drawing.
 ///
 /// Introduced in v1.1 Phase 5.5a alongside <see cref="IKeyboardEditorContext"/>
-/// so <c>MzKeyboardDiagram</c> serves both machines with one class.
+/// so <c>MzKeyboardDiagram</c> serves every machine with one class.
 /// </summary>
 public interface IPhysicalKeyboardLayout
 {
@@ -72,8 +72,8 @@ public readonly record struct PhysicalKey(
     string? ShiftedLabel = null);
 
 /// <summary>
-/// Superset of the <c>KeyKind</c> enums on both machines' physical
-/// layouts. Machine adapters map their native kind onto the
+/// UI-side copy of the <c>KeyKind</c> enum the machines' physical
+/// layouts share. Machine adapters map their native kind onto the
 /// corresponding member; values a machine doesn't have simply aren't
 /// emitted by that adapter.
 /// </summary>

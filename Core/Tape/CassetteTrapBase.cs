@@ -4,9 +4,10 @@ using Z80Core;
 namespace MZRaku.Core;
 
 /// <summary>
-/// Shared LOAD-trap plumbing for the two Sharp cassette classes
+/// Shared LOAD-trap plumbing for the three Sharp cassette classes
 /// (<see cref="Cassette"/> on MZ-700, <see cref="Mz80aCassette"/>
-/// on MZ-80A). Both machines' tape routines expose distinct entry
+/// on MZ-80A, <see cref="Mz800Cassette"/> on MZ-800). Each machine's
+/// tape routines expose distinct entry
 /// points but converge on the same pattern:
 /// <list type="bullet">
 ///   <item>A <see cref="MzfImage"/> is queued via <see cref="Queue"/>.</item>
@@ -35,7 +36,7 @@ public abstract class CassetteTrapBase
     public const ushort HeaderBufferAddr = 0x10F0;
     public const int HeaderSize = 128;
 
-    // Both machines use Z80Core's IMemory for reads/writes at this
+    // All three machines use Z80Core's IMemory for reads/writes at this
     // layer. Concrete classes still hold a typed field for
     // per-machine members (MZ700Memory.RomEnabled, etc.); the base
     // just needs the read/write surface.
@@ -47,7 +48,7 @@ public abstract class CassetteTrapBase
     public bool DataDelivered;
 
     // Counters tick each time OnPreStep injects header / body.
-    // Consumed by MainForm's TAPE activity chip to flash on
+    // Consumed by the front end's TAPE activity chip to flash on
     // trap-hit deltas.
     public int HeaderTrapHits;
     public int DataTrapHits;

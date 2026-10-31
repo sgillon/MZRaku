@@ -15,7 +15,7 @@ namespace MZRaku;
 /// (<c>CharMapOverrides</c>, <c>KeyOverride</c>) into this shape. The
 /// UI never touches the machine-specific types directly.
 ///
-/// Both machines share the same 10-strobe × 8-bit matrix shape and the
+/// All three machines share the same 10-strobe × 8-bit matrix shape and the
 /// same <see cref="KeyOverride"/> type (matrix coordinates are the only
 /// thing that layer stores). What differs — and what this interface
 /// mediates — is the char-map's <c>Press</c> type (structurally
@@ -88,7 +88,7 @@ public interface IKeyboardEditorContext
     /// <summary>
     /// Layout keys the safety gate treats as essential — every one
     /// must be reachable from at least one PC binding for Apply to
-    /// pass without warning. Both machines currently emit every
+    /// pass without warning. All three machines currently emit every
     /// non-Blank layout key with real matrix coordinates.
     /// </summary>
     IEnumerable<MzKeyboardLayout.MzKey> EssentialLayoutKeys { get; }
@@ -140,7 +140,7 @@ public interface ICharMapOverridesView
 /// <c>Mz80aMatrixReference.Slot</c>. Used by
 /// <see cref="IKeyboardEditorContext.FindUnboundSlots"/> so the
 /// AdvancedKeyboardForm's unbound-slot list renders identically for
-/// either machine.
+/// any machine.
 /// </summary>
 public readonly record struct MatrixReferenceSlot(
     int Row,
@@ -151,10 +151,10 @@ public readonly record struct MatrixReferenceSlot(
     string? ShiftedGlyph = null);
 
 /// <summary>
-/// Superset of the slot-kind enums on both machines' matrix references.
+/// Superset of the slot-kind enums on the three machines' matrix references.
 /// Machine adapters map their native kind onto the corresponding member;
-/// values a machine doesn't have (MZ-80A has no Function or Blank; both
-/// have all others) simply aren't emitted by that adapter.
+/// values a machine doesn't have (MZ-80A has no Function or Blank; the
+/// MZ-700 and MZ-800 have all of them) simply aren't emitted by that adapter.
 /// </summary>
 public enum MatrixSlotKind
 {

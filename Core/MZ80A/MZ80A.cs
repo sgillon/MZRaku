@@ -8,13 +8,8 @@ namespace MZRaku.Core;
 /// Assembled Sharp MZ-80A machine: Z80 (2 MHz) + 8255 PPI + 8253 PIT
 /// + 48 KiB RAM + memory-swap-capable ROM layout + monochrome text VRAM.
 ///
-/// Phase 1 status: this class boots the SA-1510 monitor blind — CPU
-/// steps against ROM at $0000, MMIO dispatches to a functional Ppi/Pit
-/// pair, memory swap works, VRAM writes land in the buffer (but aren't
-/// rendered yet). Video, keyboard, sound, and cassette are stubbed and
-/// come online in Phases 2/3/4/5. Debugger and memory viewer already
-/// work via the shared IMachine interface — set a breakpoint at $0100
-/// in the SA-1510 disassembly and it will hit.
+/// The debugger and memory viewer work through the shared IMachine
+/// interface.
 /// </summary>
 public sealed class MZ80A : MzMachineBase, IMachine
 {
@@ -42,11 +37,8 @@ public sealed class MZ80A : MzMachineBase, IMachine
     IKeyboardInput IMachine.KeyboardInput => Keyboard;
 
     // MZ-80A crystal is 8 MHz divided down; CPU runs at 2 MHz per the
-    // Owner's Manual §3.1 text. PIT input clock rates are best-guess
-    // for Phase 1 (exact rates from the schematic section pinned down
-    // in Phase 5 when sound comes online). For the blind boot only
-    // the CPU rate matters — the ROM's inner loops depend on how many
-    // Z80 cycles per frame we allow.
+    // Owner's Manual §3.1 text. The PIT counters' input clocks are set
+    // in AccumulatePit, and the sound path's at the end of RunFrame.
     public const double CpuClockHz = 2_000_000.0;
     public const int FramesPerSecond = 60;
     public const int CyclesPerFrame = (int)(CpuClockHz / FramesPerSecond);
@@ -239,7 +231,9 @@ public sealed class MZ80A : MzMachineBase, IMachine
 
     protected override void AccumulatePit(int cpuCycles)
     {
-        // C0 (audio input) coarse rate 895 kHz — refined in Phase 5.
+        // C0 (audio input) counts at 895 kHz, the MZ-700's rate; never
+        // confirmed for the MZ-80A. The sound path assumes 1 MHz for
+        // C0 (see the end of RunFrame), so the two differ.
         _pitC0Accum += cpuCycles * 895;
         int c0 = _pitC0Accum / 2000;
         _pitC0Accum -= c0 * 2000;
