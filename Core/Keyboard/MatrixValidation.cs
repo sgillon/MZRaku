@@ -26,8 +26,8 @@ public static class MatrixValidation
 {
     /// <summary>
     /// Runs every validator and returns all complaints in source order
-    /// (MZ-700 reference → Mz700SpecialKeyMap → CharMap → Mz700KeyboardLayout →
-    /// MZ-80A reference → Mz80aSpecialKeyMap → Mz80aCharMap). Each line
+    /// (for each machine: matrix reference → special-key map → char map
+    /// → keyboard layout). Each line
     /// is prefixed with the source so the origin is obvious.
     /// </summary>
     internal static IReadOnlyList<string> RunAll()
@@ -40,6 +40,7 @@ public static class MatrixValidation
         AddPrefixed(all, "Mz80aMatrixReference", Mz80aMatrixReference.Validate());
         AddPrefixed(all, "Mz80aSpecialKeyMap",   Mz80aSpecialKeyMap.Validate());
         AddPrefixed(all, "Mz80aCharMap",         Mz80aCharMap.Validate());
+        AddPrefixed(all, "Mz80aKeyboardLayout",  Mz80aKeyboardLayout.Validate());
         AddPrefixed(all, "Mz800MatrixReference", Mz800MatrixReference.Validate());
         AddPrefixed(all, "Mz800SpecialKeyMap",   Mz800SpecialKeyMap.Validate());
         AddPrefixed(all, "Mz800CharMap",         Mz800CharMap.Validate());
