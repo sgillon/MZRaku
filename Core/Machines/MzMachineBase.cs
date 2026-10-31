@@ -3,11 +3,11 @@ using Z80Core;
 namespace MZRaku.Core;
 
 /// <summary>
-/// Shared base for the two Sharp machine classes (<see cref="MZ700"/>
-/// and <see cref="MZ80A"/>): the Z80 CPU (same type on both
-/// machines), the debugger-control surface (Paused +
+/// Shared base for the three Sharp machine classes (<see cref="MZ700"/>,
+/// <see cref="MZ80A"/> and <see cref="MZ800"/>): the Z80 CPU (same
+/// type on all three), the debugger-control surface (Paused +
 /// Pause/Resume/StepInstruction/StepFrame), and the shared
-/// pause/step state machine both use identically.
+/// pause/step state machine they all use identically.
 ///
 /// The subclasses still implement <see cref="IMachine"/> directly —
 /// this base is inheritance for the parts they genuinely share, not

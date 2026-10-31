@@ -7,12 +7,13 @@ namespace MZRaku;
 /// The data / mutation surface the keyboard-editor UI needs from a Sharp
 /// MZ machine. Introduced in v1.1 Phase 5.5a so the same editor widgets
 /// (matrix grid, per-slot editor, per-binding editors, advanced form)
-/// serve both MZ-700 and MZ-80A without duplication.
+/// serve every machine without duplication (the MZ-700 and MZ-80A
+/// then, the MZ-800 since v1.3).
 ///
-/// A concrete implementation adapts one machine's statics
-/// (<c>CharMap</c>, <c>Mz700SpecialKeyMap</c>, <c>Mz700GlyphCatalog</c>,
+/// A concrete implementation adapts one machine's statics (its char
+/// map, special-key map and glyph catalog, and
 /// <c>MatrixCoverage</c>) and its mutable overrides
-/// (<c>CharMapOverrides</c>, <c>KeyOverride</c>) into this shape. The
+/// (character overrides and <c>KeyOverride</c>) into this shape. The
 /// UI never touches the machine-specific types directly.
 ///
 /// All three machines share the same 10-strobe × 8-bit matrix shape and the
@@ -50,8 +51,8 @@ public interface IKeyboardEditorContext
     /// display, per-slot bind text).</summary>
     IReadOnlyDictionary<HostKey, string> SpecialKeyLabels { get; }
 
-    /// <summary>Mutable VK-override layer — shared type across both
-    /// machines (matrix coords are the only thing it stores).</summary>
+    /// <summary>Mutable VK-override layer — shared type across all
+    /// three machines (matrix coords are the only thing it stores).</summary>
     KeyOverride KeyOverrides { get; }
 
     /// <summary>

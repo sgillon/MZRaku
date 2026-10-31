@@ -8,7 +8,7 @@ namespace MZRaku;
 
 /// <summary>
 /// Owner-drawn read-only view of the 10×8 keyboard matrix (shared by
-/// both MZ-family machines — the shape is the same, only the label /
+/// all three machines — the shape is the same, only the label /
 /// binding data differs). Each cell renders the matrix coordinate, the
 /// MZ glyph(s) the slot produces (or a friendly label for non-printable
 /// slots like Enter / GRAPH / cursors), and the PC keystroke(s)

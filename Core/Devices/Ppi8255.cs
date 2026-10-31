@@ -10,7 +10,7 @@ namespace MZRaku.Core;
 /// VBLANK) and <see cref="Mz80aIoBus"/> for the MZ-80A's simpler use.
 ///
 /// One shared surface exposed here: the keyboard-matrix strobe path
-/// (<see cref="Keyboard"/> = <see cref="IKeyboardMatrix"/>) both
+/// (<see cref="Keyboard"/> = <see cref="IKeyboardMatrix"/>) all three
 /// machines wire the same way, and a separate fast TEMPO signal
 /// (driven from MZ700's <c>CyclesPerTempoToggle</c> empirical fit —
 /// see its comment for the calibration history) exposed via
@@ -27,8 +27,9 @@ public sealed class Ppi8255
     public byte PortCOut;   // low nibble outputs
     internal byte PortCIn;    // high nibble inputs (bits 4-7)
 
-    // Held as the interface so either MZ-700's Keyboard or MZ-80A's
-    // Mz80aKeyboard can feed the strobed row bits into Port B.
+    // Held as the interface so each machine's keyboard (Mz700Keyboard,
+    // Mz80aKeyboard, Mz800Keyboard) can feed the strobed row bits into
+    // Port B.
     internal IKeyboardMatrix? Keyboard;
 
     internal bool InterruptMask => (PortCOut & 0x04) != 0;

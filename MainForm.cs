@@ -715,8 +715,8 @@ public sealed class MainForm : Form
         _wasPaused = paused;
         Text = paused ? TitleBase + " — PAUSED" : TitleBase;
         if (_pauseMenuItem != null) _pauseMenuItem.Checked = paused;
-        // Silence the wave output on pause. IMachine.Sound covers both
-        // machines (F-061).
+        // Silence the wave output on pause. IMachine.Sound covers all
+        // three machines (F-061).
         _session.Active.Sound.Muted = paused;
         _display.Invalidate();
     }

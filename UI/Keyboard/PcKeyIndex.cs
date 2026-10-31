@@ -19,8 +19,8 @@ namespace MZRaku;
 ///   unshifted AND shifted halves are both reachable.
 ///
 /// Parameterised on <see cref="IKeyboardEditorContext"/> in v1.2
-/// audit F-036 so both MZ-700 and MZ-80A run through the same code
-/// paths. Previously read MZ-700 statics directly and the MZ-80A
+/// audit F-036 so every machine runs through the same code paths
+/// (the MZ-700 and MZ-80A then, the MZ-800 since v1.3). Previously read MZ-700 statics directly and the MZ-80A
 /// diagram rendered label-less as a result.
 /// </summary>
 public static class PcKeyIndex

@@ -19,7 +19,9 @@ namespace MZRaku.Core;
 ///   ALPHA  (1.50 wide)  on the QWERTY row
 ///   CTRL   (1.75 wide)  on the ASDF row
 ///   SHIFT  (2.00 wide)  on the ZXCV row
-/// MZ-700 has only ONE SHIFT key — no right SHIFT.
+/// The MZ-700 has two SHIFT keys, left and right, both on matrix slot
+/// (8, 0). The right SHIFT closes the ZXCV row; its width is still a
+/// TODO (below).
 ///
 /// Cursor cluster (INST / DEL / arrows) sits in its own block to the
 /// right of the main typewriter area, separated by a visual gap.
