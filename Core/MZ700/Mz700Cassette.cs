@@ -39,47 +39,37 @@ public sealed class Mz700Cassette : CassetteTrapBase
     internal const ushort TrapReadData = 0x04F8;     // RDDAT
     internal const ushort TrapBreakWait = 0x02C8;
 
-    // S-BASIC's outgoing tape header lives at $0FFC — cleverly tucked
-    // into the $0000-$0FFF region that's RAM when BASIC has the monitor
-    // ROM banked out. Layout is the standard MZF: type at +0, filename
-    // at +1 (terminated by $0D), size LE at +$12, load LE at +$14.
-    // Discovered empirically by dumping RAM during a SAVE attempt and
-    // spotting the filename "VARTEST" at $0FFD-$1003.
-    internal const ushort BasicSaveHeaderAddr = 0x0FFC;
-
-    // SAVE-tape trap address: the "press RECORD and PLAY" wait loop
-    // inside the monitor's tape-write routine. This is the SAVE
-    // counterpart to <see cref="TrapBreakWait"/> at $02C8 used by LOAD.
-    // Found empirically: the SAVE prompt was reproduced in S-BASIC and
-    // the debugger paused at PC=$0D47 while the prompt was on screen.
-    // Trapping here lets us short-circuit the wait, snapshot the header
-    // BASIC has prepared at $10F0, snapshot the data from
-    // [load..load+size], and write a .mzf file in one go.
-    internal const ushort TrapWriteTape = 0x0D47;
-
-    // S-BASIC 1Z-013B's own tape reads, used by its LOAD with the
-    // monitor ROM banked out. BASIC keeps a jump table at the monitor's
-    // vectors: $0027 -> $0A7A (read header, E=$CC) and $002A -> $0A7E
-    // (read data, E=$53). Both take HL = destination, BC = byte count,
-    // and share a body that starts the motor, finds the tape mark and
-    // reads the block, then exits through $0A71 (clears the flag at
-    // $0050, CY=0 on success). Found 2026-10-31 (v1.5 Phase 2.5) from
-    // the call chain while LOAD waited for a tape. The entry bytes are
-    // checked before trapping, so a different BASIC is left alone.
+    // S-BASIC 1Z-013B's own tape routines, used with the monitor ROM
+    // banked out. BASIC keeps a jump table at the monitor's vectors:
+    //   $0021 -> $0A3B write header (E=$CC)   $0027 -> $0A7A read header
+    //   $0024 -> $0A3F write data   (E=$53)   $002A -> $0A7E read data
+    //   $002D -> $0A94 verify
+    // Each takes HL = buffer and BC = byte count; reads and writes exit
+    // through $0A71 (POP DE, clear the flag at $0050, RET with CY=0 on
+    // success; the motor-off routine before it ends with EI). Found
+    // 2026-10-31 (v1.5 Phases 2.5 / 2.6) from the call chain while LOAD
+    // waited for a tape. The bytes at each trap are checked first, so a
+    // different BASIC is left alone.
     internal const ushort TrapBasicReadHeader = 0x0A7A;
     internal const ushort TrapBasicReadData = 0x0A7E;
     private static readonly byte[] BasicReadHeaderEntry = { 0x3E, 0xCC, 0x18, 0x02 };   // LD A,$CC; JR $0A80
     private static readonly byte[] BasicReadDataEntry = { 0x3E, 0x53, 0xD5, 0x16, 0xD2 };   // LD A,$53; PUSH DE; LD D,$D2
+
+    // SAVE: the write body at $0A67, where both writes meet once BASIC
+    // has printed "WRITING <name>" and passed the motor check, just
+    // before it writes the tape mark and the block. DE pushed at $0A41
+    // is the only thing above the return address. E says which block
+    // ($CC header, $53 data); HL and BC are still the caller's.
+    internal const ushort TrapBasicWrite = 0x0A67;
+    private static readonly byte[] BasicWriteBody = { 0xF3, 0xCD, 0x5A, 0x0B, 0xD4, 0x85, 0x0B };   // DI; CALL $0B5A; CALL NC,$0B85
     private const ushort BasicTapeFlagAddr = 0x0050;
 
     internal int BreakWaitTrapHits;
     public int WriteTapeTrapHits;
 
-    // Once a SAVE has been committed within an attempt, ignore further
-    // hits on the wait-loop trap. Without this we'd write the same
-    // .mzf dozens of times as BASIC re-enters the wait. Cleared on
-    // machine reset and on any new BasicSaveHeaderAddr filename.
-    private bool _saveCommittedThisAttempt;
+    // The header block of the SAVE in progress, until its data block
+    // arrives. Cleared on machine reset.
+    private byte[]? _saveHeader;
 
     // MZ-700-specific typed handle to the memory; the base holds it as
     // Z80Core.IMemory (Mem) for the shared read/write path, but
@@ -181,39 +171,12 @@ public sealed class Mz700Cassette : CassetteTrapBase
     {
         ushort pc = Cpu.PC;
 
-        // SAVE-tape trap lives in S-BASIC's own code (high-RAM region),
-        // so it must run with ROM banked OUT — the opposite of the other
-        // traps. Specifically NOT gated by Memory.RomEnabled. Found
-        // empirically by pausing the debugger during a SAVE prompt.
-        //
-        // We do NOT pop the stack or change PC: $0D47 is mid-routine
-        // (not the entry), so the stack at this point has saved
-        // registers from the routine's own PUSHes, not a clean return
-        // address. Best we can do for now is snapshot the .mzf once
-        // and let BASIC stay in its wait loop — the user resets to
-        // escape. Properly exiting the wait needs disassembly of the
-        // routine around $0D40-$0D60 to find the post-wait address.
-        if (pc == TrapWriteTape && !Memory.RomEnabled)
-        {
-            WriteTapeTrapHits++;
-            if (!_saveCommittedThisAttempt)
-            {
-                CommitSavedTape();
-                _saveCommittedThisAttempt = true;
-            }
-            return false;
-        }
-
-        // Re-arm the SAVE trap once BASIC has gone back to executing
-        // monitor ROM code (i.e. the Ready prompt's keyboard/display
-        // calls). Without this the BREAK-on-save short-circuit would
-        // also fire on the next SAVE before any data has been written.
-        if (_saveCommittedThisAttempt && Memory.RomEnabled && pc < 0x1000)
-            _saveCommittedThisAttempt = false;
-
-        // S-BASIC's LOAD (ROM banked out): serve an inserted cassette.
+        // S-BASIC (ROM banked out): SAVE writes a .mzf; LOAD reads an
+        // inserted cassette.
         if (!_mem.RomEnabled)
         {
+            if (pc == TrapBasicWrite && EntryMatches(pc, BasicWriteBody))
+                return TakeBasicWrite();
             if (Pending != null
                 && ((pc == TrapBasicReadHeader && !HeaderDelivered && EntryMatches(pc, BasicReadHeaderEntry))
                  || (pc == TrapBasicReadData && !DataDelivered && EntryMatches(pc, BasicReadDataEntry))))
@@ -230,14 +193,8 @@ public sealed class Mz700Cassette : CassetteTrapBase
             // a real MZ-700 would report on a normal LOAD with no break held,
             // and what BASIC needs to honour the user's Esc when polling for
             // break during a RUN.
-            //
-            // Special case: once a SAVE has been committed, force CY=1 so
-            // BASIC abandons its tape-write loop and returns to Ready —
-            // there's no real tape to acknowledge so it would otherwise
-            // generate tape signal forever.
             BreakWaitTrapHits++;
-            bool breakHeld = _saveCommittedThisAttempt || IsBreakHeld();
-            if (breakHeld)
+            if (IsBreakHeld())
                 Cpu.F |= 0x01;
             else
                 Cpu.F &= 0xFE;
@@ -338,7 +295,7 @@ public sealed class Mz700Cassette : CassetteTrapBase
     /// </summary>
     internal void ResetSaveState()
     {
-        _saveCommittedThisAttempt = false;
+        _saveHeader = null;
     }
 
     // BREAK lives on matrix (8, 7). Active low, so a held key reads as
@@ -347,29 +304,49 @@ public sealed class Mz700Cassette : CassetteTrapBase
     private bool IsBreakHeld() => (Keyboard.ReadRow(8) & (1 << 7)) == 0;
 
     /// <summary>
-    /// Read the 128-byte header BASIC has prepared at $0FFC, snapshot
-    /// the data from [load..load+size], and write a .mzf file. Called
-    /// from inside the SAVE-wait trap (ROM banked out, so $0FFC..$0FFF
-    /// reads as RAM); pop+return is the caller's job.
+    /// One of S-BASIC's tape writes (SAVE), taken at the write body
+    /// instead of going to tape: the header block is kept, and the data
+    /// block that follows completes a .mzf in <see cref="SaveDirectory"/>.
+    /// Then the routine's own exit, so BASIC carries on to Ready.
     /// </summary>
-    private void CommitSavedTape()
+    private bool TakeBasicWrite()
     {
-        var header = new byte[128];
-        for (int i = 0; i < 128; i++)
-            header[i] = Mem.Read((ushort)(BasicSaveHeaderAddr + i));
+        ushort src = (ushort)((Cpu.H << 8) | Cpu.L);
+        int count = (Cpu.B << 8) | Cpu.C;
+        var block = new byte[count];
+        for (int i = 0; i < count; i++)
+            block[i] = _mem.Ram[(ushort)(src + i)];
 
-        ushort size = (ushort)(header[0x12] | (header[0x13] << 8));
-        ushort loadAddr = (ushort)(header[0x14] | (header[0x15] << 8));
-
-        if (size == 0)
+        if (Cpu.E == 0xCC)
+            _saveHeader = block;
+        else if (_saveHeader == null)
+            OnSaved?.Invoke("Save skipped: a data block arrived without a header.");
+        else
         {
-            OnSaved?.Invoke($"Save skipped: header at ${BasicSaveHeaderAddr:X4} has size=0 (not populated).");
-            return;
+            WriteSavedTape(_saveHeader, block);
+            _saveHeader = null;
         }
 
-        var data = new byte[size];
-        for (int i = 0; i < size; i++)
-            data[i] = Mem.Read((ushort)(loadAddr + i));
+        // The exit at $0A6E/$0A71: DE back, flag cleared, CY=0, EI.
+        ushort de = PopFromStack();
+        Cpu.D = (byte)(de >> 8);
+        Cpu.E = (byte)de;
+        _mem.Ram[BasicTapeFlagAddr] = 0;
+        Cpu.A = 0;
+        SynthesiseSuccess();
+        Cpu.IFF1 = Cpu.IFF2 = true;
+        return true;
+    }
+
+    /// <summary>
+    /// Write a SAVE's header and data blocks as a .mzf. The header is
+    /// padded or cut to 128 bytes, as on tape.
+    /// </summary>
+    private void WriteSavedTape(byte[] headerBlock, byte[] data)
+    {
+        var header = new byte[HeaderSize];
+        Array.Copy(headerBlock, header, Math.Min(headerBlock.Length, HeaderSize));
+        ushort loadAddr = (ushort)(header[0x14] | (header[0x15] << 8));
 
         // Header filename: ASCII at byte 1, 0x0D terminator.
         int nameLen = 0;
@@ -394,7 +371,7 @@ public sealed class Mz700Cassette : CassetteTrapBase
                 finalPath = Path.Combine(SaveDirectory, $"{name}-{n++}.mzf");
 
             using var fs = File.Create(finalPath);
-            fs.Write(header, 0, 128);
+            fs.Write(header, 0, HeaderSize);
             fs.Write(data, 0, data.Length);
         }
         catch (Exception ex)
@@ -402,6 +379,7 @@ public sealed class Mz700Cassette : CassetteTrapBase
             OnSaved?.Invoke($"Save failed: {ex.Message}");
             return;
         }
+        WriteTapeTrapHits++;
         OnSaved?.Invoke($"Saved via tape trap: {Path.GetFileName(finalPath)} ({data.Length} bytes from ${loadAddr:X4})");
     }
 }

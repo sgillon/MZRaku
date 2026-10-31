@@ -82,7 +82,8 @@ ZIPS = {
 # name, CLI args, dump frame, extra artefacts to compare.
 # README.md (next to this script) describes every case: keep it in step.
 #   "tests" = the four MZ-800 test-pattern PNGs, "wav" = rendered audio
-#   (MZ-800), "snd" = speaker-input event log (MZ-700 / MZ-80A)
+#   (MZ-800), "snd" = speaker-input event log (MZ-700 / MZ-80A),
+#   "save" = the .mzf a scripted SAVE wrote (compared byte for byte)
 #   A path after --cassette is relative to the repository (or names a
 #   ZIPS entry), as is one after --insert= (File -> Insert cassette);
 #   --keys=<file> names a scripted-input file in keys/
@@ -96,6 +97,7 @@ CASES = [
     ("mz700_music",    ["--mz700", "--basic", "--keys=mz700_music.keys"], 1400, ["snd"]),
     ("mz700_typing",   ["--mz700", "--basic", "--keys=mz700_typing.keys"], 1520, ["snd"]),
     ("mz700_insert",   ["--mz700", "--insert=" + MZ700_SW + "Space Panic(1983)(Solo Software).zip", "--keys=mz700_insert.keys"], 600, ["snd"]),   # Insert cassette + monitor L
+    ("mz700_save",     ["--mz700", "--basic", "--keys=mz700_save.keys"], 1100, ["snd", "save"]),   # S-BASIC SAVE: .mzf written, back at Ready
     ("mz700_insert_basic", ["--mz700", "--basic", "--insert=" + MZ700_SW + "Dragon Caves (1982)(Solo Software).zip", "--keys=mz700_insert_basic.keys"], 900, ["snd"]),   # Insert cassette + S-BASIC LOAD / RUN
     # --- MZ-80A ---
     ("mz80a_monitor",  ["--mz80a"],                                   200, ["snd"]),
@@ -193,6 +195,15 @@ def resolve(args):
     return out
 
 
+def collect_save(box, base):
+    """A scripted SAVE writes saves/<name>.mzf in the sandbox; keep the first."""
+    saves = os.path.join(box, "saves")
+    if os.path.isdir(saves):
+        files = sorted(f for f in os.listdir(saves) if f.lower().endswith(".mzf"))
+        if files:
+            shutil.copyfile(os.path.join(saves, files[0]), base + ".save.mzf")
+
+
 def run_case(case):
     name, args, frame, _ = case
     base = os.path.join(OUT, name)
@@ -209,6 +220,7 @@ def run_case(case):
                                capture_output=True, text=True)
         except subprocess.TimeoutExpired:
             return name, "TIMEOUT"
+        collect_save(box, base)
         if os.path.exists(base + ".png"):
             return name, "ok"
         err = r.stderr.strip().replace("\n", " ")
@@ -223,6 +235,7 @@ def run_case(case):
         subprocess.run(cmd, timeout=frame / 50 * 3 + 60, cwd=box, startupinfo=si)
     except subprocess.TimeoutExpired:
         return name, "TIMEOUT"
+    collect_save(box, base)
     return name, "ok" if os.path.exists(base + ".png") else "NO OUTPUT"
 
 
@@ -331,7 +344,8 @@ def main():
     for name, _, frame, extras in cases:
         base_out, base_gold = os.path.join(OUT, name), os.path.join(GOLDEN, name)
         artefacts = ([".png"] + (TEST_SUFFIXES if "tests" in extras else [])
-                     + ([".wav"] if "wav" in extras else []) + ([".snd.txt"] if "snd" in extras else []))
+                     + ([".wav"] if "wav" in extras else []) + ([".snd.txt"] if "snd" in extras else [])
+                     + ([".save.mzf"] if "save" in extras else []))
         if status[name] != "ok":
             print(f"FAIL  {name:12} {status[name]}"); failed += 1; continue
         if approve:
@@ -344,6 +358,11 @@ def main():
             if s == ".wav":
                 if md5(base_out + s) != md5(base_gold + s):
                     problems.append(f"{s}: audio differs")
+            elif s == ".save.mzf":
+                if not os.path.exists(base_gold + s):
+                    problems.append(f"{s}: NO GOLDEN")
+                elif md5(base_out + s) != md5(base_gold + s):
+                    problems.append(f"{s}: " + ("MISSING" if not os.path.exists(base_out + s) else "saved file differs"))
             elif s == ".snd.txt":
                 r = compare_text(base_out + s, base_gold + s)
                 if r: problems.append(f"{s}: {r}")

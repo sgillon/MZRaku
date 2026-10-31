@@ -5,7 +5,7 @@ result against an approved "golden" copy. The emulator is
 frame-deterministic, so an unchanged build reproduces every golden
 byte for byte. Any difference means behaviour changed.
 
-There are 29 cases: 8 on the MZ-700, 6 on the MZ-80A and 15 on the
+There are 30 cases: 9 on the MZ-700, 6 on the MZ-80A and 15 on the
 MZ-800. The authoritative list is the `CASES` table in `regress.py`.
 This page explains each case and what it uses, so **keep it in step
 with that table.**
@@ -32,7 +32,7 @@ python tools/regress/regress.py --headless   run through the headless runner ins
   builds the runner rather than the app, and `--no-build` works as
   before. Goldens are approved from the app only, so it refuses
   `--approve`.
-- The last line reads `29/29 cases match golden`. A failing case
+- The last line reads `30/30 cases match golden`. A failing case
   prints `DIFF` with what differed, or `FAIL` if it produced no
   output or timed out.
 
@@ -62,6 +62,7 @@ otherwise, because a different ROM would change the results.
 | `.test.png`, `.test640.png`, `.testscroll.png`, `.testsplit.png` | `mz800_ipl` | Synthetic MZ-800 patterns drawn through the real renderers: 320-mode colour bars, 640-mode bit order and banks, hardware scroll, and split-screen scroll (the tech-ref p. 10 example). Pixel-exact. |
 | `.wav` | `mz800_ipl`, `mz800_basic`, `uridium`, `manic` | MZ-800 rendered audio (PSG plus PIT), byte-identical (md5) |
 | `.snd.txt` | all MZ-700 and MZ-80A cases | Log of every change at the speaker's inputs (soft gate, hard gate, counter reload, input clock), compared line by line. MZ-700/80A sound is generated in real time, so the log is what can be compared exactly. |
+| `.save.mzf` | `mz700_save` | The `.mzf` a scripted SAVE wrote into the sandbox's `saves/`, byte-identical (md5) |
 
 ## Inputs
 
@@ -100,6 +101,7 @@ Software paths are relative to `_mz-information-repository/`.
 | `mz700_music` | 1400 | BASIC; `keys/mz700_music.keys` | Typed `TEMPO`/`MUSIC` with octaves, sharps, durations and a rest. The notes are checked in `.snd.txt`. |
 | `mz700_typing` | 1520 | BASIC; `keys/mz700_typing.keys` | Live typing: letters, digits, shifted symbols, cursor-key editing (overtyping a stored line), and graphic characters typed in GRAPH mode |
 | `mz700_insert` | 600 | `--insert=MZ-700/Software/Space Panic(1983)(Solo Software).zip`; `keys/mz700_insert.keys` | Insert cassette (not Load): the script types the monitor's `L`, which reads the tape through the RDINF ($04D8) and RDDAT ($04F8) traps and runs the game to its attract screen. Added in v1.5.0 for the trap-address fix. |
+| `mz700_save` | 1100 | BASIC; `keys/mz700_save.keys` | S-BASIC `SAVE "TEST"` of a one-line program, through the trap on BASIC's tape-write body ($0A67). The saved file is kept as `.save.mzf` and compared byte for byte; the screen shows BASIC back at Ready. Added in v1.5.0. |
 | `mz700_insert_basic` | 900 | BASIC; `--insert=MZ-700/Software/Dragon Caves (1982)(Solo Software).zip`; `keys/mz700_insert_basic.keys` | Insert cassette + S-BASIC's own `LOAD` (ROM banked out), through the traps on BASIC's tape reads ($0A7A header, $0A7E data); then `RUN` to the title screen. A > 25 KB program, so the load crosses $D000. Added in v1.5.0. |
 
 ### MZ-80A
@@ -145,15 +147,15 @@ commit, cases and why).
 - `_regression/out/` holds the latest run.
 
 The v1.4.0 baseline is commit a80994a: all 27 cases approved on
-clean `main`. v1.5.0 adds cases as its fixes land (`mz700_insert`, `mz700_insert_basic`).
+clean `main`. v1.5.0 adds cases as its fixes land (`mz700_insert`, `mz700_insert_basic`, `mz700_save`).
 
 ## Adding a case
 
 1. Put any new software in `_mz-information-repository/`, under its
    machine's `Software/` folder.
 2. Add a row to `CASES` in `regress.py`: name, command-line
-   arguments, dump frame, and extra artefacts (`tests`, `wav` or
-   `snd`). Add a key script to `keys/` if it needs input.
+   arguments, dump frame, and extra artefacts (`tests`, `wav`,
+   `snd` or `save`). Add a key script to `keys/` if it needs input.
 3. Run it a few times to confirm it is stable. Check the output by
    eye, then approve it and log the approval.
 4. Add it to the tables above.
