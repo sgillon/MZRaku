@@ -47,7 +47,6 @@ public sealed class MZ80A : MzMachineBase, IMachine
     // StepInstruction/StepFrame) is inherited from MzMachineBase
     // (v1.2 audit F-060).
 
-    private int _pitC0Accum;
     private int _pitC1Accum;
 
     internal MZ80A()
@@ -193,14 +192,16 @@ public sealed class MZ80A : MzMachineBase, IMachine
         // real hardware. Prefer counter 0 when it's actively running;
         // fall back to counter 1 so those MC games still make sound.
         //
-        // Per-counter input clock: service manual labels CLK0 as "2M"
-        // and CLK1 as "31.5k", but empirical MUSIC "A" gives reload
-        // 2274 which resolves to 439.8 Hz only if C0's effective clock
-        // is 1 MHz — so there's a hidden ÷2 stage between the "2M" net
-        // and the CLK0 pin. C1 stays at 2 MHz for now: schematic value
-        // 31.5 kHz would drastically change MC-game pitch, and we lack
-        // ground-truth to verify against. See project-mz80a-clk1-rate
-        // for the pending C1 correction.
+        // Per-counter input clock: the service manual's CPU board
+        // schematic (IC47 8253) clocks CLK0 from the 2 MHz line, and
+        // OUT0 drives an LS74 wired as a ÷2 toggle (IC48) before the
+        // SOUND buffer. So the tone is 2 MHz / reload / 2: MUSIC "A"'s
+        // reload 2274 gives 439.8 Hz. Sound takes that as a 1 MHz
+        // input clock; the counter itself counts at 2 MHz
+        // (AccumulatePit). The counter-1 fallback's 2 MHz is empirical
+        // (it gives those games a plausible pitch): on the schematic
+        // OUT1 only clocks counter 2, and the counter itself counts at
+        // 31.5 kHz, so how those games really sound is unconfirmed.
         var c0 = Pit.Counters[0];
         var c1 = Pit.Counters[1];
         int reload;
@@ -225,12 +226,11 @@ public sealed class MZ80A : MzMachineBase, IMachine
 
     protected override void AccumulatePit(int cpuCycles)
     {
-        // C0 (audio input) counts at 895 kHz, the MZ-700's rate; never
-        // confirmed for the MZ-80A. The sound path assumes 1 MHz for
-        // C0 (see the end of RunFrame), so the two differ.
-        _pitC0Accum += cpuCycles * 895;
-        int c0 = _pitC0Accum / 2000;
-        _pitC0Accum -= c0 * 2000;
+        // C0 (audio) counts the 2 MHz CPU clock, one tick per cycle
+        // (service manual schematic: CLK0 = "2M"). The ÷2 that halves
+        // the tone sits after OUT0; see the end of RunFrame. Before
+        // v1.5 this counted at 895 kHz, the MZ-700's rate.
+        int c0 = cpuCycles;
 
         // C1 CLK per MZ-80A service manual: 31.5 kHz signal (user
         // schematic check 2026-07-25). Earlier value of 15.72 kHz
