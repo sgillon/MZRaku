@@ -17,12 +17,21 @@ python tools/regress/regress.py              build (Debug), run every case, comp
 python tools/regress/regress.py --no-build   use the existing build
 python tools/regress/regress.py fist manic   only cases whose name contains a filter
 python tools/regress/regress.py --approve    run and overwrite the goldens
+python tools/regress/regress.py --headless   run through the headless runner instead
 ```
 
-- A full run takes about 2¼ minutes. Cases run in real time, four
+- A full run takes about 2½ minutes. Cases run in real time, four
   at once.
 - Each window opens minimised and doesn't take focus. A `--dump`
   run ignores the real keyboard and gamepad.
+- `--headless` runs the same cases through `tools/MZRakuHeadless`, a
+  console runner built on `MZRaku.Core` alone: no window, no sound
+  device, frames unpaced. It is compared against the same goldens,
+  which proves the core doesn't depend on the Windows front end. A
+  full run takes under half a minute, one case per CPU core. It
+  builds the runner rather than the app, and `--no-build` works as
+  before. Goldens are approved from the app only, so it refuses
+  `--approve`.
 - The last line reads `27/27 cases match golden`. A failing case
   prints `DIFF` with what differed, or `FAIL` if it produced no
   output or timed out.
@@ -36,7 +45,8 @@ Each case gets a fresh `_regression/sandbox/<case>/` containing:
 - the firmware listed below.
 
 The harness launches
-`MZRaku.exe <args> --dump=<out> --dumpframe=<N>`. The emulator runs
+`MZRaku.exe <args> --dump=<out> --dumpframe=<N>` (or
+`MZRakuHeadless.exe` with the same arguments). The emulator runs
 `N` emulated frames, writes its dump files and exits. Frames count
 from launch.
 

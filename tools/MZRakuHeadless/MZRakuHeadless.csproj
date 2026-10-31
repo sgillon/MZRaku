@@ -4,7 +4,7 @@
        unpaced, with no window or sound device, and writes the same
        dump files as the app. Built on MZRaku.Core alone, so it also
        proves the core needs no Windows Forms. The regression suite
-       runs it with `regress.py headless`. -->
+       runs it through regress.py's headless option. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>

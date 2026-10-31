@@ -9,6 +9,8 @@ PNGs and the rendered-audio .wav against the approved copies.
     python tools/regress/regress.py --approve    run all cases, overwrite goldens
     python tools/regress/regress.py --no-build   skip `dotnet build`
     python tools/regress/regress.py jetpac uri   only cases whose name contains a filter
+    python tools/regress/regress.py --headless   run the cases through tools/MZRakuHeadless
+                                                 instead of the app (same goldens)
 
 Only this script and settings.ini are tracked. Everything it reads or
 writes is local and git-ignored, because ROMs, software and screenshots
@@ -24,8 +26,11 @@ Every case runs in a fresh sandbox, so results don't depend on the
 developer's bin\\Debug settings.ini, and that file is never written.
 
 Emulation is frame-deterministic (--dump counts emulated frames), so an
-unchanged build reproduces the goldens byte-for-byte. Runs are paced in
-real time, hence the parallel worker pool.
+unchanged build reproduces the goldens byte-for-byte. App runs are paced
+in real time, hence the parallel worker pool. --headless runs use the
+console runner on the core alone, unpaced; matching the app's goldens
+proves the core doesn't depend on the front end. Goldens are approved
+from the app only.
 """
 import hashlib, os, shutil, struct, subprocess, sys, zipfile, zlib
 from concurrent.futures import ThreadPoolExecutor
@@ -33,6 +38,12 @@ from concurrent.futures import ThreadPoolExecutor
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 BUILD = os.path.join(REPO, "bin", "Debug", "net8.0-windows")
+EXE = "MZRaku.exe"
+PROJECT = None   # None = the app (repo root); --headless sets the runner's project
+HEADLESS = False
+# --headless: the console runner (tools/MZRakuHeadless), same arguments.
+HEADLESS_PROJECT = os.path.join(REPO, "tools", "MZRakuHeadless", "MZRakuHeadless.csproj")
+HEADLESS_BUILD = os.path.join(REPO, "tools", "MZRakuHeadless", "bin", "Debug", "net8.0")
 INFO = os.path.join(REPO, "_mz-information-repository")
 REG = os.path.join(REPO, "_regression")
 OUT = os.path.join(REG, "out")
@@ -117,7 +128,7 @@ def sha1(p):
 def check_sources():
     """Fail early, naming the file, if the build or repository isn't as expected."""
     problems = []
-    if not os.path.exists(os.path.join(BUILD, "MZRaku.exe")):
+    if not os.path.exists(os.path.join(BUILD, EXE)):
         problems.append(f"no build at {BUILD}")
     for dst, (src, want) in FIRMWARE.items():
         p = os.path.join(INFO, src)
@@ -182,7 +193,19 @@ def run_case(case):
         if f.startswith(name + "."):
             os.remove(os.path.join(OUT, f))
     box = make_sandbox(name)
-    cmd = [os.path.join(box, "MZRaku.exe")] + resolve(args) + [f"--dump={base}", f"--dumpframe={frame}"]
+    cmd = [os.path.join(box, EXE)] + resolve(args) + [f"--dump={base}", f"--dumpframe={frame}"]
+    if HEADLESS:
+        # Unpaced, so allow the real-time length plus start-up. Its
+        # status lines are captured; errors are shown if the case fails.
+        try:
+            r = subprocess.run(cmd, timeout=frame / 50 + 30, cwd=box,
+                               capture_output=True, text=True)
+        except subprocess.TimeoutExpired:
+            return name, "TIMEOUT"
+        if os.path.exists(base + ".png"):
+            return name, "ok"
+        err = r.stderr.strip().replace("\n", " ")
+        return name, f"NO OUTPUT (exit {r.returncode}{': ' + err[:200] if err else ''})"
     # Open minimised without taking focus, so a run doesn't cover the
     # screen or steal keystrokes typed elsewhere (dump runs ignore the
     # real keyboard anyway).
@@ -270,13 +293,21 @@ def md5(p):
 
 
 def main():
+    global BUILD, EXE, PROJECT, HEADLESS
     argv = sys.argv[1:]
     approve = "--approve" in argv
     filters = [a for a in argv if not a.startswith("--")]
     cases = [c for c in CASES if not filters or any(f in c[0] for f in filters)]
+    workers = WORKERS
+    if "--headless" in argv:
+        if approve:
+            sys.exit("regress: goldens are approved from the app; drop --headless")
+        HEADLESS, BUILD, EXE, PROJECT = True, HEADLESS_BUILD, "MZRakuHeadless.exe", HEADLESS_PROJECT
+        workers = os.cpu_count() or WORKERS   # not paced, so one per core
 
     if "--no-build" not in argv:
-        r = subprocess.run(["dotnet", "build", "-c", "Debug", "--nologo", "-v", "q"], cwd=REPO,
+        r = subprocess.run(["dotnet", "build"] + ([PROJECT] if PROJECT else [])
+                           + ["-c", "Debug", "--nologo", "-v", "q"], cwd=REPO,
                            capture_output=True, text=True)
         if r.returncode != 0:
             print(r.stdout[-3000:]); sys.exit("build failed")
@@ -286,7 +317,7 @@ def main():
     os.makedirs(GOLDEN, exist_ok=True)
     build_media()
 
-    with ThreadPoolExecutor(WORKERS) as pool:
+    with ThreadPoolExecutor(workers) as pool:
         status = dict(pool.map(run_case, cases))
 
     failed = 0
