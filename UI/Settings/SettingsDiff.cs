@@ -241,7 +241,7 @@ internal static class SettingsDiff
             SettingsSnapshot.Mz700LabelPrefix));
         lines.AddRange(DescribeKeyOverrides(
             before.Mz700KeyOverrides, after.Mz700KeyOverrides,
-            SettingsSnapshot.Mz700LabelPrefix));
+            SettingsSnapshot.Mz700LabelPrefix, Mz700SpecialKeyMap.Labels));
 
         lines.AddRange(DescribeCharOverrides(
             before.Mz80aCharOverrides, after.Mz80aCharOverrides,
@@ -252,7 +252,7 @@ internal static class SettingsDiff
             SettingsSnapshot.Mz80aLabelPrefix));
         lines.AddRange(DescribeKeyOverrides(
             before.Mz80aKeyOverrides, after.Mz80aKeyOverrides,
-            SettingsSnapshot.Mz80aLabelPrefix));
+            SettingsSnapshot.Mz80aLabelPrefix, Mz80aSpecialKeyMap.Labels));
 
         lines.AddRange(DescribeCharOverrides(
             before.Mz800CharOverrides, after.Mz800CharOverrides,
@@ -263,7 +263,7 @@ internal static class SettingsDiff
             SettingsSnapshot.Mz800LabelPrefix));
         lines.AddRange(DescribeKeyOverrides(
             before.Mz800KeyOverrides, after.Mz800KeyOverrides,
-            SettingsSnapshot.Mz800LabelPrefix));
+            SettingsSnapshot.Mz800LabelPrefix, Mz800SpecialKeyMap.Labels));
 
         return lines;
     }
@@ -393,14 +393,15 @@ internal static class SettingsDiff
     private static IEnumerable<string> DescribeKeyOverrides(
         IReadOnlyDictionary<HostKey, KeyOverride.Binding> before,
         IReadOnlyDictionary<HostKey, KeyOverride.Binding> after,
-        string prefix)
+        string prefix,
+        IReadOnlyDictionary<HostKey, string> keyLabels)
     {
         var allKeys = before.Keys.Union(after.Keys).OrderBy(k => k.ToString());
         foreach (var k in allKeys)
         {
             bool wasOverride = before.TryGetValue(k, out var prev);
             bool isOverride = after.TryGetValue(k, out var curr);
-            string label = $"{prefix}PC {VkLabel(k)}";
+            string label = $"{prefix}PC {VkLabel(k, keyLabels)}";
 
             if (!wasOverride && isOverride)
                 yield return $"{label} override added → MZ slot ({curr.Row},{curr.Col}) {ShiftWord(curr.MzShift)}";
@@ -441,6 +442,8 @@ internal static class SettingsDiff
         _ => "shift pass-through",
     };
 
-    private static string VkLabel(HostKey k) =>
-        Mz700SpecialKeyMap.Labels.TryGetValue(k, out var s) ? s : k.ToString();
+    // The machine's own special-key labels: an MZ-80A Home reads
+    // "Home (CLR/HOME)", an MZ-800 F11 "F11 (GRAPH)".
+    private static string VkLabel(HostKey k, IReadOnlyDictionary<HostKey, string> keyLabels) =>
+        keyLabels.TryGetValue(k, out var s) ? s : k.ToString();
 }
