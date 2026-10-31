@@ -138,6 +138,29 @@ public abstract class KeyboardMatrixBase : IKeyboardMatrix, IKeyboardInput
     }
 
     /// <summary>
+    /// The host window lost focus (<see cref="IKeyboardInput.ReleaseHeldKeys"/>):
+    /// release each host hold's matrix bit, drop staged presses and the
+    /// pending KeyDown, forget PC shift, and recompute the shift bit.
+    /// Unlike <see cref="ReleaseAll"/> it leaves other matrix bits (the
+    /// auto-typer's) alone, and does nothing when no host key is down.
+    /// Without it a hotkey such as Ctrl+Shift+K, whose key-ups go to the
+    /// dialog it opens, left MZ CTRL and SHIFT held until a reset.
+    /// </summary>
+    public virtual void ReleaseHeldKeys()
+    {
+        if (_holds.Count == 0 && _stagedKeyBits.Count == 0 &&
+            _pendingDownVk == HostKey.None && !_pcShift)
+            return;
+        foreach (var h in _holds.Values)
+            SetMatrix(h.Row, h.Col, false);
+        _holds.Clear();
+        _stagedKeyBits.Clear();
+        _pendingDownVk = HostKey.None;
+        _pcShift = false;
+        ApplyShiftState();
+    }
+
+    /// <summary>
     /// Write the current <see cref="EffectiveMzShift"/> value to
     /// the shift matrix bit and fire the
     /// <see cref="OnShiftStateChanged"/> hook so per-machine

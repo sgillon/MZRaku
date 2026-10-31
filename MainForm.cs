@@ -247,6 +247,10 @@ public sealed class MainForm : Form
         KeyDown += OnKeyDown;
         KeyPress += OnKeyPress;
         KeyUp += OnKeyUp;
+        // Losing focus releases held keys: a hotkey such as Ctrl+Shift+K
+        // opens a dialog that takes the key-ups, which otherwise left MZ
+        // CTRL and SHIFT held and the keyboard dead until a reset.
+        Deactivate += (_, _) => _session.ReleaseHostKeys();
 
         // Size last, after menu + status strip are docked so their heights
         // are known. Sets ClientSize so the video area is exactly N× native.

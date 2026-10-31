@@ -195,6 +195,17 @@ public sealed class EmulatorSession
     public bool KeyUp(HostKey key) =>
         !IgnoresHostKeys && Active.KeyboardInput.OnKeyUp(key);
 
+    /// <summary>
+    /// The host window lost keyboard focus: release every key held down,
+    /// since their key-ups will go to whichever window has focus now.
+    /// --dump runs keep their scripted keys (the suite's windows take
+    /// focus from each other).
+    /// </summary>
+    public void ReleaseHostKeys()
+    {
+        if (!IgnoresHostKeys) Active.KeyboardInput.ReleaseHeldKeys();
+    }
+
     private AutoLoadOrchestrator AutoLoad { get; set; } = null!;   // created in Start()
     private DumpTraceRecorder? DumpTrace { get; set; }
 
