@@ -272,7 +272,11 @@ public sealed class MainForm : Form
             //
             // The keybd_event(VK_MENU) trick simulates a press+release
             // of the Alt key, which temporarily lifts the lock. It's a
-            // hack but is the standard documented workaround.
+            // hack but is the standard documented workaround. Only when
+            // another window is in front, though: started from Explorer
+            // or a shortcut, the form is already foreground, so the Alt
+            // tap landed here and put the menu bar in keyboard mode (the
+            // first letter typed opened a menu: D → Debug).
             //
             // --dump runs skip it: they take no keyboard input, and the
             // regression suite runs several at once in the background,
@@ -280,8 +284,11 @@ public sealed class MainForm : Form
             // focus.
             if (_dumpPath == null)
             {
-                keybd_event(VK_MENU, 0, 0, UIntPtr.Zero);
-                keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                if (GetForegroundWindow() != Handle)
+                {
+                    keybd_event(VK_MENU, 0, 0, UIntPtr.Zero);
+                    keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                }
                 SetForegroundWindow(Handle);
                 Activate();
                 Focus();
@@ -1303,6 +1310,9 @@ public sealed class MainForm : Form
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
