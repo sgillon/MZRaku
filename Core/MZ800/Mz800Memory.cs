@@ -49,7 +49,7 @@ public sealed class Mz800Memory : IMemory
     // $2000-$3FFF MZ-800 IPL + monitor + BASIC-IOCS. See tech-ref p. 24
     // "4-10 ROM configuration". The IPL's entry point at CPU $E800 is
     // ROM offset $2800.
-    public byte[] Rom = new byte[0x4000];
+    internal byte[] Rom = new byte[0x4000];
 
     // Full 64 KB backing DRAM. All writes to non-ROM/non-IO regions
     // land here; reads from RAM-visible regions pull from here.
@@ -57,8 +57,8 @@ public sealed class Mz800Memory : IMemory
 
     // MZ-700-mode VRAM: 2 KB display codes + 2 KB attributes at
     // $D000-$DFFF when VRAM is mapped. Same shape as Mz700Memory.
-    public byte[] Vram = new byte[0x800];
-    public byte[] Aram = new byte[0x800];
+    internal byte[] Vram = new byte[0x800];
+    internal byte[] Aram = new byte[0x800];
 
     // MZ-800 bitmap VRAM: four planes, indexed by CPU address − $8000
     // through the WF / RF formats. 16 KB each: 320×200 uses the low
@@ -66,25 +66,25 @@ public sealed class Mz800Memory : IMemory
     // window, even screen bytes at $0000-$1F3F and odd at $2000-$3F3F
     // (tech-ref p. 15). Planes III / IV exist only with the MZ-1R25
     // (<see cref="VramExpansion"/>).
-    public byte[] PlaneI   = new byte[0x4000];
-    public byte[] PlaneII  = new byte[0x4000];
-    public byte[] PlaneIII = new byte[0x4000];
-    public byte[] PlaneIV  = new byte[0x4000];
+    internal byte[] PlaneI   = new byte[0x4000];
+    internal byte[] PlaneII  = new byte[0x4000];
+    internal byte[] PlaneIII = new byte[0x4000];
+    internal byte[] PlaneIV  = new byte[0x4000];
 
     // Bank latches — see the class comment for the port table.
     /// <summary>$0000-$0FFF shows the MZ-700 monitor ROM (1Z-013B).</summary>
-    public bool RomLow = true;
+    internal bool RomLow = true;
     /// <summary>$1000-$1FFF shows the CG-ROM (IN $E0 / IN $E1).</summary>
-    public bool CgRom = true;
+    internal bool CgRom = true;
     /// <summary>VRAM is mapped: $8000-$BFFF planes (MZ-800 mode) or
     /// $D000-$DFFF text/attribute VRAM (MZ-700 mode).</summary>
-    public bool VramOn = true;
+    internal bool VramOn = true;
     /// <summary>$E000-$FFFF shows the MZ-800 IPL/monitor ROM (MZ-800
     /// mode) or key/timer I/O + ROM (MZ-700 mode, from $E000).</summary>
-    public bool RomHigh = true;
+    internal bool RomHigh = true;
     /// <summary>OUT $E5 — the top block ($D000+ in MZ-700 mode, $E000+
     /// in MZ-800 mode) is deselected until OUT $E6.</summary>
-    public bool Prohibited;
+    internal bool Prohibited;
 
     /// <summary>Compact bank-state label for traces and logs.</summary>
     public string BankState
@@ -109,8 +109,8 @@ public sealed class Mz800Memory : IMemory
     /// </summary>
     public bool Mz700Mode;
 
-    public Mz800IoBus? IoBus;
-    public Z80Cpu? Cpu;
+    internal Mz800IoBus? IoBus;
+    internal Z80Cpu? Cpu;
 
     /// <summary>
     /// Write Format register, OUT ($CC),A (tech-ref p. 20): D7-D5 write
@@ -127,10 +127,10 @@ public sealed class Mz800Memory : IMemory
     public byte RfRegister;
 
     /// <summary>OUT ($CC),A.</summary>
-    public void SetWfRegister(byte value) => WfRegister = value;
+    internal void SetWfRegister(byte value) => WfRegister = value;
 
     /// <summary>OUT ($CD),A.</summary>
-    public void SetRfRegister(byte value) => RfRegister = value;
+    internal void SetRfRegister(byte value) => RfRegister = value;
 
     /// <summary>
     /// Display Mode register, OUT ($CE),A (tech-ref p. 17 Table-1):
@@ -154,21 +154,21 @@ public sealed class Mz800Memory : IMemory
     /// only pixels in the group selected by <see cref="PaletteGroup"/>
     /// do (see <see cref="Mz800Video.SixteenColourLut"/>).
     /// </summary>
-    public byte[] Palette = new byte[4];
+    internal byte[] Palette = new byte[4];
 
     /// <summary>
     /// Palette switch SW0/SW1 (tech-ref p. 22): which of the four
     /// 16-colour groups — selected by the pixel's plane III / IV bits —
     /// is shown through PLT0-3 in 320×200 16-colour mode.
     /// </summary>
-    public int PaletteGroup;
+    internal int PaletteGroup;
 
     /// <summary>
     /// Border colour — 4-bit IGRB, written via OUT ($CF),A with B=6
     /// (BCOL, tech-ref p. 23). The palette does not apply to the
     /// border (p. 22).
     /// </summary>
-    public byte BorderColour;
+    internal byte BorderColour;
 
     /// <summary>
     /// OUT ($F0),A palette write (tech-ref p. 22). D6-D4 = register
@@ -182,7 +182,7 @@ public sealed class Mz800Memory : IMemory
     /// `$88` would set PLT0 to grey. So the whole high nibble is the
     /// select and anything other than 0-4 is dropped.
     /// </summary>
-    public void WritePalette(byte value)
+    internal void WritePalette(byte value)
     {
         int select = value >> 4;
         if (select < 4) Palette[select] = (byte)(value & 0x0F);
@@ -197,11 +197,11 @@ public sealed class Mz800Memory : IMemory
     /// 640×200 4-colour) show only what planes I/II hold (tech-ref
     /// p. 17: "not assured").
     /// </summary>
-    public bool VramExpansion = true;
+    internal bool VramExpansion = true;
 
     /// <summary>OUT ($CF),A with B=6 (BCOL): low nibble I G R B,
     /// high nibble unused (tech-ref p. 23).</summary>
-    public void SetBorderColour(byte value) => BorderColour = (byte)(value & 0x0F);
+    internal void SetBorderColour(byte value) => BorderColour = (byte)(value & 0x0F);
 
     /// <summary>
     /// Hardware-scroll registers (tech-ref pp. 10-12), OUT ($CF),A with
@@ -216,43 +216,43 @@ public sealed class Mz800Memory : IMemory
     ///                     offset in 8-byte units (5 = one raster);
     ///                     must stay ≤ SW. Default 0.
     /// </summary>
-    public byte Ssa = 0x00;
+    internal byte Ssa = 0x00;
     /// <inheritdoc cref="Ssa" />
-    public byte Sea = 0x7D;
+    internal byte Sea = 0x7D;
     /// <inheritdoc cref="Ssa" />
-    public byte Sw  = 0x7D;
+    internal byte Sw  = 0x7D;
     /// <inheritdoc cref="Ssa" />
-    public ushort Sof;
+    internal ushort Sof;
 
     /// <summary>OUT ($CF),A with B=4 — sets <see cref="Ssa"/>.</summary>
-    public void SetSsa(byte value) => Ssa = (byte)(value & 0x7F);
+    internal void SetSsa(byte value) => Ssa = (byte)(value & 0x7F);
     /// <summary>OUT ($CF),A with B=5 — sets <see cref="Sea"/>.</summary>
-    public void SetSea(byte value) => Sea = (byte)(value & 0x7F);
+    internal void SetSea(byte value) => Sea = (byte)(value & 0x7F);
     /// <summary>OUT ($CF),A with B=3 — sets <see cref="Sw"/>.</summary>
-    public void SetSw(byte value)  => Sw  = (byte)(value & 0x7F);
+    internal void SetSw(byte value)  => Sw  = (byte)(value & 0x7F);
 
     /// <summary>OUT ($CF),A with B=1 — sets the low 8 bits of
     /// <see cref="Sof"/> (SOF7..SOF0), preserving SOF9..SOF8.</summary>
-    public void SetSof1(byte value)
+    internal void SetSof1(byte value)
         => Sof = (ushort)((Sof & 0x0300) | value);
 
     /// <summary>OUT ($CF),A with B=2 — sets the high 2 bits of
     /// <see cref="Sof"/> (SOF9..SOF8, low bits of value), preserving
     /// SOF7..SOF0.</summary>
-    public void SetSof2(byte value)
+    internal void SetSof2(byte value)
         => Sof = (ushort)((Sof & 0x00FF) | ((value & 0x03) << 8));
 
     /// <summary>
     /// Optional --dump= log of every bank-latch change (PC, port, before
     /// → after). Capped at 4096 entries.
     /// </summary>
-    public System.Text.StringBuilder? BankSwitchLog;
+    internal System.Text.StringBuilder? BankSwitchLog;
 
     /// <summary>
     /// Optional --dump= log of CPU writes to $8000-$BFFF (PC, address,
     /// value, bank state, mode, WF). Capped at 4096 entries.
     /// </summary>
-    public System.Text.StringBuilder? VideoWriteLog;
+    internal System.Text.StringBuilder? VideoWriteLog;
     private int _videoWriteLogEntries;
     private const int VideoWriteLogCap = 4096;
 
@@ -262,7 +262,7 @@ public sealed class Mz800Memory : IMemory
     /// does this program change mode?" without reading the full CRTC
     /// log. Capped at 1024 entries.
     /// </summary>
-    public System.Text.StringBuilder? ModeFlipLog;
+    internal System.Text.StringBuilder? ModeFlipLog;
     private int _modeFlipLogEntries;
     private const int ModeFlipLogCap = 1024;
 
@@ -440,7 +440,7 @@ public sealed class Mz800Memory : IMemory
     /// Only in MZ-700 mode with the high ROM mapped (and not
     /// prohibited); in MZ-800 mode the I/O lives on ports instead.
     /// </summary>
-    public bool IsIoRead(ushort addr)
+    internal bool IsIoRead(ushort addr)
         => Mz700Mode && RomHigh && !Prohibited && addr >= 0xE000 && addr <= 0xE00F;
 
     public byte Read(ushort addr)
@@ -506,7 +506,7 @@ public sealed class Mz800Memory : IMemory
     /// OUT ($E0-$E6) bank control — tech-ref p. 4-5. <paramref name="cmd"/>
     /// is the port's low nibble. See the class comment for the table.
     /// </summary>
-    public void HandleBankOut(byte cmd)
+    internal void HandleBankOut(byte cmd)
     {
         string prev = BankState;
         switch (cmd)
@@ -538,7 +538,7 @@ public sealed class Mz800Memory : IMemory
     /// MZ-800 mode, VRAM at $8000; IN $E1 undoes both. The tech-ref
     /// defines no IN behaviour for $E2-$E6.
     /// </summary>
-    public void HandleBankIn(byte cmd)
+    internal void HandleBankIn(byte cmd)
     {
         string prev = BankState;
         switch (cmd)
@@ -586,7 +586,7 @@ public sealed class Mz800Memory : IMemory
     /// of DMD — the mode only decides where a mapped VRAM appears
     /// ($D000 vs $8000).
     /// </summary>
-    public void SetDmdRegister(byte value)
+    internal void SetDmdRegister(byte value)
     {
         var prevMode = Mz700Mode;
         ushort pc = Cpu != null ? Cpu.PC : (ushort)0;
@@ -612,7 +612,7 @@ public sealed class Mz800Memory : IMemory
     /// </summary>
     public bool Is640BitmapMode => (DmdRegister & 0x0C) == 0x04;
 
-    public void LoadRom(byte[] rom)
+    internal void LoadRom(byte[] rom)
     {
         int n = Math.Min(rom.Length, Rom.Length);
         Array.Copy(rom, Rom, n);
@@ -623,7 +623,7 @@ public sealed class Mz800Memory : IMemory
     /// (the OUT $E4 map), CRTC registers at their defaults, and blank
     /// bitmap planes.
     /// </summary>
-    public void ResetBankState()
+    internal void ResetBankState()
     {
         Mz700Mode = false;
         RomLow = CgRom = VramOn = RomHigh = true;

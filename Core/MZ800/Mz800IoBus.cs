@@ -35,18 +35,18 @@ namespace MZRaku.Core;
 /// </summary>
 public sealed class Mz800IoBus : IIoBus
 {
-    public Ppi8255 Ppi = null!;
-    public Pit8253 Pit = null!;
-    public Mz800Memory Memory = null!;
-    public Sound Sound = null!;
-    public Z80Cpu Cpu = null!;
-    public Z80Pio Pio = null!;
-    public Sn76489 Psg = null!;
+    internal Ppi8255 Ppi = null!;
+    internal Pit8253 Pit = null!;
+    internal Mz800Memory Memory = null!;
+    internal Sound Sound = null!;
+    internal Z80Cpu Cpu = null!;
+    internal Z80Pio Pio = null!;
+    internal Sn76489 Psg = null!;
     /// <summary>Host gamepad state for IN $F0/$F1.</summary>
-    public Joystick Joystick = null!;
+    internal Joystick Joystick = null!;
     /// <summary>CRTC status for IN $CE — supplied by the machine, which
     /// owns the beam position (see MZ800.CrtcStatus).</summary>
-    public Func<byte>? CrtcStatus;
+    internal Func<byte>? CrtcStatus;
 
     /// <summary>Fires on every MZ-700-mode write to $E008 (the Sound
     /// Diagnostic's counter-0 gate log line).</summary>
@@ -60,7 +60,7 @@ public sealed class Mz800IoBus : IIoBus
     /// Optional --dump= log of CRTC and palette writes ($CC / $CD / $CE /
     /// $CF with its B selector / $F0), with PC. Capped at 4096 entries.
     /// </summary>
-    public System.Text.StringBuilder? CrtcWriteLog;
+    internal System.Text.StringBuilder? CrtcWriteLog;
     private int _crtcWriteLogEntries;
     private const int CrtcWriteLogCap = 4096;
 
@@ -83,7 +83,7 @@ public sealed class Mz800IoBus : IIoBus
     /// ($D0-$D3) writes, plus PIO interrupt requests — how software
     /// sets up its interrupt and sound paths. Capped at 4096 entries.
     /// </summary>
-    public System.Text.StringBuilder? IntIoWriteLog;
+    internal System.Text.StringBuilder? IntIoWriteLog;
     private int _intIoWriteLogEntries;
     private const int IntIoWriteLogCap = 4096;
 
@@ -92,7 +92,7 @@ public sealed class Mz800IoBus : IIoBus
 
     /// <summary>Append a free-form line (e.g. an interrupt request) to
     /// <see cref="IntIoWriteLog"/>, sharing its cap.</summary>
-    public void LogIntIoNote(string line)
+    internal void LogIntIoNote(string line)
     {
         if (IntIoWriteLog == null || _intIoWriteLogEntries >= IntIoWriteLogCap) return;
         _intIoWriteLogEntries++;
@@ -108,7 +108,7 @@ public sealed class Mz800IoBus : IIoBus
     /// <see cref="Mz800Memory.Read"/> when Config is B_Mz700 and
     /// addr is in $E000-$E00F.
     /// </summary>
-    public byte MemIn(ushort addr)
+    internal byte MemIn(ushort addr)
     {
         int off = addr & 0x000F;
         if (off <= 3) return Ppi.Read(off);
@@ -128,7 +128,7 @@ public sealed class Mz800IoBus : IIoBus
         return 0xFF;
     }
 
-    public void MemOut(ushort addr, byte value)
+    internal void MemOut(ushort addr, byte value)
     {
         int off = addr & 0x000F;
         if (off <= 3) { Ppi.Write(off, value); return; }

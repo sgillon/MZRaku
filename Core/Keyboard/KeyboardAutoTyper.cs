@@ -69,7 +69,7 @@ public sealed class KeyboardAutoTyper
     /// <param name="lookup">The machine's char map (null = not typeable).</param>
     /// <param name="shiftMirror">Machine side effect of a typed SHIFT
     /// change, e.g. the 1Z-013B monitor's $1170 mirror.</param>
-    public KeyboardAutoTyper(
+    internal KeyboardAutoTyper(
         KeyboardMatrixBase kb,
         Func<char, (int Row, int Col, bool MzShift)?> lookup,
         Action<bool> shiftMirror)
@@ -80,14 +80,14 @@ public sealed class KeyboardAutoTyper
     }
 
     /// <summary>True when nothing is queued or in progress.</summary>
-    public bool Idle => _phase == AutoPhase.Idle && _typeQueue.Count == 0;
+    internal bool Idle => _phase == AutoPhase.Idle && _typeQueue.Count == 0;
 
-    public void TypeString(string s)
+    internal void TypeString(string s)
     {
         foreach (char ch in s) TypeChar(ch);
     }
 
-    public void TypeChar(char ch)
+    internal void TypeChar(char ch)
     {
         // CR/LF aren't in the char maps (Enter is a special key); translate here.
         if (ch == '\r' || ch == '\n')
@@ -107,7 +107,7 @@ public sealed class KeyboardAutoTyper
     /// </summary>
     public void TypePress(Mz700CharMap.Press p) => _typeQueue.Enqueue(new Press(p.Row, p.Col, p.MzShift));
 
-    public void Tick()
+    internal void Tick()
     {
         switch (_phase)
         {

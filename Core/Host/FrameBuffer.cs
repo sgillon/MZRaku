@@ -17,7 +17,7 @@ public sealed class FrameBuffer
     public int Height { get; }
     public int[] Pixels { get; }
 
-    public FrameBuffer(int width, int height)
+    internal FrameBuffer(int width, int height)
     {
         Width = width;
         Height = height;

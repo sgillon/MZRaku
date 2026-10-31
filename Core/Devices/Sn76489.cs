@@ -63,7 +63,7 @@ public sealed class Sn76489
     /// <summary>Noise control: D2 = white (1) / periodic (0), D1-D0 = rate.</summary>
     public int NoiseControl => _period[3];
 
-    public void Reset()
+    internal void Reset()
     {
         Array.Clear(_period);
         Array.Clear(_counter);
@@ -74,7 +74,7 @@ public sealed class Sn76489
         _lfsr = LfsrSeed;
     }
 
-    public void Write(byte value)
+    internal void Write(byte value)
     {
         OnWrite?.Invoke(value);
         if ((value & 0x80) != 0)
@@ -108,7 +108,7 @@ public sealed class Sn76489
     /// Advance one internal step (input clock ÷ 16) and return the
     /// summed output level of all four channels, 0..1.
     /// </summary>
-    public float Step()
+    internal float Step()
     {
         for (int ch = 0; ch < 3; ch++)
         {

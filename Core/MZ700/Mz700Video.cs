@@ -13,14 +13,14 @@ namespace MZRaku.Core;
 /// </summary>
 public sealed class Mz700Video
 {
-    public const int CharCols = 40;
-    public const int CharRows = 25;
-    public const int CharWidth = 8;
-    public const int CharHeight = 8;
+    internal const int CharCols = 40;
+    internal const int CharRows = 25;
+    internal const int CharWidth = 8;
+    internal const int CharHeight = 8;
     public const int PixelWidth = CharCols * CharWidth;      // 320
     public const int PixelHeight = CharRows * CharHeight;    // 200
 
-    public byte[] FontRom = new byte[4096];
+    internal byte[] FontRom = new byte[4096];
 
     // 8 MZ-700 colors (B,R,G wiring): 0=blk,1=blu,2=red,3=mag,4=grn,5=cyan,6=yel,7=wht
     private static readonly int[] Palette = new int[]
@@ -35,21 +35,21 @@ public sealed class Mz700Video
         unchecked((int)0xFFFFFFFF), // white
     };
 
-    public FrameBuffer Frame = new(PixelWidth, PixelHeight);
+    internal FrameBuffer Frame = new(PixelWidth, PixelHeight);
 
     // Standalone-glyph cache for picker / matrix-grid UIs. Keyed by
     // (display-code, font-bank, scale-factor) so multiple scales coexist.
     // Invalidated when the font ROM is reloaded.
     private readonly Dictionary<(byte code, int bank, int scale), FrameBuffer> _glyphCache = new();
 
-    public void LoadFont(byte[] font)
+    internal void LoadFont(byte[] font)
     {
         int n = Math.Min(font.Length, FontRom.Length);
         Array.Copy(font, FontRom, n);
         InvalidateGlyphCache();
     }
 
-    public void LoadFontHex(string hexText)
+    internal void LoadFontHex(string hexText)
     {
         // font_hex.txt: each line contains 8 hex bytes representing one character row
         // (or some similar layout). We parse tokens and fill sequentially.
@@ -94,7 +94,7 @@ public sealed class Mz700Video
         return glyph;
     }
 
-    public void InvalidateGlyphCache() => _glyphCache.Clear();
+    internal void InvalidateGlyphCache() => _glyphCache.Clear();
 
     private FrameBuffer RenderGlyph(byte code, int bank, int scale)
     {
@@ -125,7 +125,7 @@ public sealed class Mz700Video
     private static bool IsHex(char c)
         => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 
-    public unsafe void Render(byte[] vram, byte[] aram)
+    internal unsafe void Render(byte[] vram, byte[] aram)
     {
         fixed (int* pix = Frame.Pixels)
         {

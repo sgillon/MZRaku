@@ -39,8 +39,8 @@ public sealed class KeyScript
     // Frames a typed or keyed press is held, and the gap after releasing
     // it. Matches the MZ-80A auto-typer's cadence; the hold outlasts the
     // two-frame shift staging in KeyboardMatrixBase.
-    public const int HoldFrames = 4;
-    public const int GapFrames = 4;
+    internal const int HoldFrames = 4;
+    internal const int GapFrames = 4;
 
     public enum EventKind { Down, Up }
 
@@ -60,7 +60,7 @@ public sealed class KeyScript
     /// Count one emulated frame and hand every event now due to
     /// <paramref name="inject"/>, in script order.
     /// </summary>
-    public void OnFrame(Action<Event> inject)
+    internal void OnFrame(Action<Event> inject)
     {
         _frames++;
         while (_next < _events.Count && _events[_next].Frame <= _frames)
@@ -70,7 +70,7 @@ public sealed class KeyScript
     public static KeyScript Load(string path) => Parse(File.ReadAllLines(path));
 
     /// <exception cref="FormatException">With the line number and the problem.</exception>
-    public static KeyScript Parse(IEnumerable<string> lines)
+    internal static KeyScript Parse(IEnumerable<string> lines)
     {
         var events = new List<Event>();
         var held = new HashSet<HostKey>();     // generic VKs held by down

@@ -71,8 +71,8 @@ public static class Mz700MatrixReference
         string? UnshiftedGlyph = null,
         string? ShiftedGlyph = null);
 
-    public const int Rows = 10;
-    public const int Cols = 8;
+    internal const int Rows = 10;
+    internal const int Cols = 8;
 
     // Cell map. Every (row, col) pair in [0..9] × [0..7] has an entry —
     // including Unused and Unknown — so callers can enumerate the whole
@@ -298,7 +298,7 @@ public static class Mz700MatrixReference
         => m[(row, col)] = new Slot(row, col, kind, id, unshifted, shifted);
 
     /// <summary>Look up a slot by coordinates. Returns null only if out of range.</summary>
-    public static Slot? Get(int row, int col)
+    internal static Slot? Get(int row, int col)
         => All.TryGetValue((row, col), out var s) ? s : null;
 
     /// <summary>
@@ -319,7 +319,7 @@ public static class Mz700MatrixReference
     ///   £ (UK Shift+3) to (5, 5, true) so the user gets MZ '#' on
     ///   screen — a deliberate UK-layout fallback, not a missing binding.
     /// </summary>
-    public static bool IsKnownUnreachableFromPc(int row, int col, bool shift)
+    internal static bool IsKnownUnreachableFromPc(int row, int col, bool shift)
     {
         if (row == 1 && col == 5 && shift) return true;
         if (row == 0 && col == 5 && !shift) return true;
@@ -361,7 +361,7 @@ public static class Mz700MatrixReference
     /// from glyphs; empty / unknown cells have none). Mirrors
     /// <see cref="Mz80aMatrixReference.FindSpecialLabel"/>.
     /// </summary>
-    public static string? FindSpecialLabel(int row, int col) =>
+    internal static string? FindSpecialLabel(int row, int col) =>
         _specialLabels.TryGetValue((row, col), out var s) ? s : null;
 
     /// <summary>
@@ -370,7 +370,7 @@ public static class Mz700MatrixReference
     /// whose scan bytes are handled by the keyboard ROM, not
     /// display codes that reach VRAM.
     /// </summary>
-    public static IReadOnlyDictionary<(int row, int col), string> SpecialLabels => _specialLabels;
+    internal static IReadOnlyDictionary<(int row, int col), string> SpecialLabels => _specialLabels;
 
     /// <summary>
     /// Self-check: every cell present, no duplicate Ids, and a report
@@ -378,7 +378,7 @@ public static class Mz700MatrixReference
     /// confirmation. Returns a list of human-readable complaints; an
     /// empty list means the reference is fully populated.
     /// </summary>
-    public static IReadOnlyList<string> Validate()
+    internal static IReadOnlyList<string> Validate()
     {
         var complaints = new List<string>();
         for (int r = 0; r < Rows; r++)

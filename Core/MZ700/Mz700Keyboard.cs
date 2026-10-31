@@ -32,12 +32,12 @@ public sealed class Mz700Keyboard : KeyboardMatrixBase
     // at $0C2A. Neither the monitor ROM nor S-BASIC ever writes to
     // $1170, so without this shortcut shifted alphanumerics would
     // be unreachable.
-    public Mz700Memory? Memory;
+    internal Mz700Memory? Memory;
 
     // User-editable physical-key overrides, consulted before
     // Mz700SpecialKeyMap and CharMap in OnKeyDown. Null = no overrides
     // loaded; behaviour matches pre-layered code.
-    public KeyOverride? Overrides;
+    internal KeyOverride? Overrides;
 
     /// <summary>
     /// Auto-typer companion (v1.2 audit F-016 extraction). Owns
@@ -47,7 +47,7 @@ public sealed class Mz700Keyboard : KeyboardMatrixBase
     /// </summary>
     public readonly KeyboardAutoTyper AutoType;
 
-    public Mz700Keyboard()
+    internal Mz700Keyboard()
     {
         AutoType = new KeyboardAutoTyper(this,
             ch => Mz700CharMap.TryLookup(ch, out var p) ? (p.Row, p.Col, p.MzShift) : null,

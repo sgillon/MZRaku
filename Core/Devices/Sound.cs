@@ -82,7 +82,7 @@ public sealed class Sound : IDisposable
     /// and input clock is appended as <c>&lt;cycle&gt; &lt;input&gt;=&lt;value&gt;</c>.
     /// Set through <see cref="StartEventLog"/>.
     /// </summary>
-    public System.Text.StringBuilder? EventLog { get; private set; }
+    internal System.Text.StringBuilder? EventLog { get; private set; }
     private Func<long>? _eventClock;
 
     /// <summary>
@@ -90,7 +90,7 @@ public sealed class Sound : IDisposable
     /// (the emulated CPU cycle count). The first line records the
     /// current state, so the log stands on its own.
     /// </summary>
-    public void StartEventLog(Func<long> clock)
+    internal void StartEventLog(Func<long> clock)
     {
         _eventClock = clock;
         EventLog = new System.Text.StringBuilder();
@@ -101,7 +101,7 @@ public sealed class Sound : IDisposable
         EventLog?.Append(_eventClock!()).Append(' ').AppendLine(what);
 
     private double _inputClockHz = 895000.0;
-    public double InputClockHz
+    internal double InputClockHz
     {
         get => _inputClockHz;
         set
@@ -121,7 +121,7 @@ public sealed class Sound : IDisposable
     // Audible iff both gates are asserted. Cleared by Reset (FF1.CL
     // = system RESET line on the schematic).
     private volatile bool _enabled;
-    public bool Enabled
+    internal bool Enabled
     {
         get => _enabled;
         set
@@ -157,7 +157,7 @@ public sealed class Sound : IDisposable
         }
     }
 
-    public void SetReload(int reload)
+    internal void SetReload(int reload)
     {
         if (reload != _reload) LogEvent($"reload={reload}");
         _reload = reload;
@@ -191,10 +191,10 @@ public sealed class Sound : IDisposable
     /// <see cref="PushSample"/> instead of generating the square wave.
     /// Set once by the host machine before <see cref="Start"/>.
     /// </summary>
-    public bool ExternalPcm;
+    internal bool ExternalPcm;
 
     /// <summary>Output sample rate the host must render at.</summary>
-    public const int OutputSampleRate = SampleRate;
+    internal const int OutputSampleRate = SampleRate;
 
     private readonly short[] _ring = new short[SampleRate];   // 1 s
     private volatile int _ringWrite;
@@ -210,7 +210,7 @@ public sealed class Sound : IDisposable
     /// emulation thread. Drops the sample if the ring is full (the
     /// emulator running far ahead of real time, e.g. while muted).
     /// </summary>
-    public void PushSample(short s)
+    internal void PushSample(short s)
     {
         int w = _ringWrite;
         int next = (w + 1) % _ring.Length;
@@ -258,7 +258,7 @@ public sealed class Sound : IDisposable
     /// (opened in <see cref="OutputFormat"/>). Sound owns it from here
     /// and disposes it in <see cref="Dispose"/>.
     /// </summary>
-    public void Start(IAudioOut output)
+    internal void Start(IAudioOut output)
     {
         _wave = output;
         _running = true;

@@ -32,7 +32,7 @@ public sealed class KeyboardDiagnostics
     public bool? LastMzShift;
     public int LastScanRow = -1;
 
-    public void Record(InputLayer layer, int row, int col, bool? mzShift)
+    internal void Record(InputLayer layer, int row, int col, bool? mzShift)
     {
         LastLayer = layer;
         LastRow = row;

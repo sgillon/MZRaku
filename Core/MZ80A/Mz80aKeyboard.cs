@@ -44,7 +44,7 @@ public sealed class Mz80aKeyboard : KeyboardMatrixBase
     /// punctuation are unaffected — their char-map entries decide
     /// shift by glyph identity, not case.
     /// </summary>
-    public bool InvertLetterShift { get; set; } = false;
+    internal bool InvertLetterShift { get; set; } = false;
 
     /// <summary>
     /// Tracks whether the MZ-80A is in GRPH mode (true) or ALPHA
@@ -66,7 +66,7 @@ public sealed class Mz80aKeyboard : KeyboardMatrixBase
     /// topology so nothing here is machine-specific. Null = no
     /// overrides layer wired.
     /// </summary>
-    public KeyOverride? Overrides;
+    internal KeyOverride? Overrides;
 
     protected override (int Row, int Col) ShiftSlot => (0, 0);
 
@@ -241,7 +241,7 @@ public sealed class Mz80aKeyboard : KeyboardMatrixBase
     /// staged shifted-key-bit assertions (SHIFT-then-key ordering
     /// guarantee) and the auto-typer state machine.
     /// </summary>
-    public void TickFrame()
+    internal void TickFrame()
     {
         TickStagedKeyBits();
         TickAutoType();
@@ -278,12 +278,12 @@ public sealed class Mz80aKeyboard : KeyboardMatrixBase
     /// silently skipped. '\r' / '\n' become the SA-5510 Enter key
     /// (Mz80aSpecialKeyMap[Enter] → strobe 7, bit 3).
     /// </summary>
-    public void TypeString(string s)
+    internal void TypeString(string s)
     {
         foreach (char ch in s) TypeChar(ch);
     }
 
-    public void TypeChar(char ch)
+    internal void TypeChar(char ch)
     {
         if (ch == '\r' || ch == '\n')
         {

@@ -85,7 +85,7 @@ public static class Mz800SpecialKeyMap
     /// at an out-of-range or Char/Unused/Blank/Unknown slot — this map
     /// is for non-printable slots only.
     /// </summary>
-    public static IReadOnlyList<string> Validate()
+    internal static IReadOnlyList<string> Validate()
     {
         var complaints = new List<string>();
         foreach (var kv in Map)

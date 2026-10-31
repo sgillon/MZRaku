@@ -15,12 +15,12 @@ public sealed class MZ80A : MzMachineBase, IMachine
 {
     // Cpu is inherited from MzMachineBase (v1.2 audit F-060).
     public Mz80aMemory Mem { get; } = new();
-    public Ppi8255 Ppi = new();
-    public Pit8253 Pit = new();
-    public Mz80aIoBus Io = new();
+    internal Ppi8255 Ppi = new();
+    internal Pit8253 Pit = new();
+    internal Mz80aIoBus Io = new();
     public Mz80aVideo Video { get; } = new();
     public Mz80aKeyboard Keyboard = new();
-    public Mz80aCassette Cassette { get; } = new();
+    internal Mz80aCassette Cassette { get; } = new();
     // MZ-80A sound path is simpler than MZ-700's dual-gate NAND — a
     // single hard gate at $E008 D0 in front of the audio amplifier,
     // fed by PIT counter 1's OUT (per Owner's Manual p.163 text). We
@@ -39,9 +39,9 @@ public sealed class MZ80A : MzMachineBase, IMachine
     // MZ-80A crystal is 8 MHz divided down; CPU runs at 2 MHz per the
     // Owner's Manual §3.1 text. The PIT counters' input clocks are set
     // in AccumulatePit, and the sound path's at the end of RunFrame.
-    public const double CpuClockHz = 2_000_000.0;
-    public const int FramesPerSecond = 60;
-    public const int CyclesPerFrame = (int)(CpuClockHz / FramesPerSecond);
+    internal const double CpuClockHz = 2_000_000.0;
+    internal const int FramesPerSecond = 60;
+    internal const int CyclesPerFrame = (int)(CpuClockHz / FramesPerSecond);
 
     // Debugger control (Paused, _stepFrameRequested, Pause/Resume/
     // StepInstruction/StepFrame) is inherited from MzMachineBase
@@ -50,7 +50,7 @@ public sealed class MZ80A : MzMachineBase, IMachine
     private int _pitC0Accum;
     private int _pitC1Accum;
 
-    public MZ80A()
+    internal MZ80A()
     {
         Cpu.Mem = Mem;
         Cpu.Io = Io;

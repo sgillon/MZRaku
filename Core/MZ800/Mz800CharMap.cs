@@ -88,7 +88,7 @@ public static class Mz800CharMap
     /// When non-null, its entries take precedence over
     /// <see cref="Defaults"/> and its suppressions hide them.
     /// </summary>
-    public static Mz800CharMapOverrides? Overrides;
+    internal static Mz800CharMapOverrides? Overrides;
 
     public static bool TryLookup(char c, out Press press)
     {
@@ -110,7 +110,7 @@ public static class Mz800CharMap
     /// false-positive a strict glyph match. Mirrors
     /// <see cref="Mz700CharMap.Validate"/>.
     /// </summary>
-    public static IReadOnlyList<string> Validate()
+    internal static IReadOnlyList<string> Validate()
     {
         var complaints = new List<string>();
         foreach (var kv in Defaults)

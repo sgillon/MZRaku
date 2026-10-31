@@ -48,7 +48,7 @@ public sealed class KeyOverride
     /// the combined-modifier form wins, falling back to the bare VK
     /// (modifier flags stripped). Returns null if neither matches.
     /// </summary>
-    public Binding? Resolve(HostKey keyData)
+    internal Binding? Resolve(HostKey keyData)
     {
         if (_map.TryGetValue(keyData, out var b)) return b;
         var bare = keyData & HostKey.KeyCode;

@@ -33,19 +33,19 @@ namespace MZRaku.Core;
 /// </summary>
 public abstract class CassetteTrapBase
 {
-    public const ushort HeaderBufferAddr = 0x10F0;
-    public const int HeaderSize = 128;
+    internal const ushort HeaderBufferAddr = 0x10F0;
+    internal const int HeaderSize = 128;
 
     // All three machines use Z80Core's IMemory for reads/writes at this
     // layer. Concrete classes still hold a typed field for
     // per-machine members (Mz700Memory.RomEnabled, etc.); the base
     // just needs the read/write surface.
     protected IMemory Mem = null!;
-    public Z80Cpu Cpu = null!;
+    internal Z80Cpu Cpu = null!;
 
     public MzfImage? Pending;
-    public bool HeaderDelivered;
-    public bool DataDelivered;
+    internal bool HeaderDelivered;
+    internal bool DataDelivered;
 
     // Counters tick each time OnPreStep injects header / body.
     // Consumed by the front end's TAPE activity chip to flash on
@@ -58,7 +58,7 @@ public abstract class CassetteTrapBase
     /// with a short "Loaded / Injected: name load=… exec=… size=…"
     /// message. EmulatorSession passes it on as a status message.
     /// </summary>
-    public event Action<string>? OnLoaded;
+    internal event Action<string>? OnLoaded;
 
     public virtual void Queue(MzfImage image)
     {

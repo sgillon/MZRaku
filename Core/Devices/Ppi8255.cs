@@ -22,16 +22,16 @@ namespace MZRaku.Core;
 /// </summary>
 public sealed class Ppi8255
 {
-    public byte PortA;      // keyboard strobe
-    public byte PortBIn;    // current keyboard row value (pushed by Keyboard)
+    internal byte PortA;      // keyboard strobe
+    internal byte PortBIn;    // current keyboard row value (pushed by Keyboard)
     public byte PortCOut;   // low nibble outputs
-    public byte PortCIn;    // high nibble inputs (bits 4-7)
+    internal byte PortCIn;    // high nibble inputs (bits 4-7)
 
     // Held as the interface so either MZ-700's Keyboard or MZ-80A's
     // Mz80aKeyboard can feed the strobed row bits into Port B.
-    public IKeyboardMatrix? Keyboard;
+    internal IKeyboardMatrix? Keyboard;
 
-    public bool InterruptMask => (PortCOut & 0x04) != 0;
+    internal bool InterruptMask => (PortCOut & 0x04) != 0;
 
     // Read by the Sound Diagnostic pane for its live "soft gate" gauge.
     // The change event below is what drives the log line; the diagnostic
@@ -45,7 +45,7 @@ public sealed class Ppi8255
     public event Action<byte, byte>? PortCChanged;
 
 
-    public byte Read(int reg)
+    internal byte Read(int reg)
     {
         switch (reg & 3)
         {
@@ -63,7 +63,7 @@ public sealed class Ppi8255
         return 0xFF;
     }
 
-    public void Write(int reg, byte val)
+    internal void Write(int reg, byte val)
     {
         switch (reg & 3)
         {
@@ -104,7 +104,7 @@ public sealed class Ppi8255
         }
     }
 
-    public void SetCursorBlink(bool bit)
+    internal void SetCursorBlink(bool bit)
     {
         // Slow visible-cursor signal at ~3 Hz period. Set on BOTH PC4 and
         // PC6 of PortCIn — the cursor-display software (monitor and BASIC)
@@ -121,10 +121,10 @@ public sealed class Ppi8255
     /// 555/556 timer's RC oscillator is independent of video timing on
     /// real hardware.
     /// </summary>
-    public bool TempoBit;
+    internal bool TempoBit;
 
     private int _cursorBlinkFrame;
-    public void SetVBlank(bool vbl)
+    internal void SetVBlank(bool vbl)
     {
         if (vbl)
         {

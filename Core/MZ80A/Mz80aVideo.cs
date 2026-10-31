@@ -30,18 +30,18 @@ namespace MZRaku.Core;
 /// </summary>
 public sealed class Mz80aVideo
 {
-    public const int CharCols = 40;
-    public const int CharRows = 25;
-    public const int CharWidth = 8;
-    public const int CharHeight = 8;
-    public const int PixelWidth = CharCols * CharWidth;      // 320
-    public const int PixelHeight = CharRows * CharHeight;    // 200
+    internal const int CharCols = 40;
+    internal const int CharRows = 25;
+    internal const int CharWidth = 8;
+    internal const int CharHeight = 8;
+    internal const int PixelWidth = CharCols * CharWidth;      // 320
+    internal const int PixelHeight = CharRows * CharHeight;    // 200
 
     // 2 KiB single-bank character generator ROM (SA-CG.rom).
-    public byte[] FontRom = new byte[2048];
+    internal byte[] FontRom = new byte[2048];
 
     /// <summary>When true, the whole screen renders black-on-white.</summary>
-    public bool Reverse;
+    internal bool Reverse;
 
     /// <summary>
     /// Hardware scroll offset in 8-character units (0-255). The
@@ -49,7 +49,7 @@ public sealed class Mz80aVideo
     /// within the 2 KiB VRAM window. Set by the CPU via reads to
     /// $E200-$E2FF (low byte = offset).
     /// </summary>
-    public int ScrollOffset;
+    internal int ScrollOffset;
 
     /// <summary>
     /// Foreground pixel colour as a 32-bit ARGB int (0xAARRGGBB). Set
@@ -59,12 +59,12 @@ public sealed class Mz80aVideo
     /// (0xFFFFFFFF) otherwise. Reverse-video swaps this with
     /// <see cref="BackgroundArgb"/> per-frame.
     /// </summary>
-    public int ForegroundArgb = unchecked((int)0xFF00FF00);
+    internal int ForegroundArgb = unchecked((int)0xFF00FF00);
 
     /// <summary>Background pixel colour, mate to <see cref="ForegroundArgb"/>.</summary>
-    public int BackgroundArgb = unchecked((int)0xFF000000);
+    internal int BackgroundArgb = unchecked((int)0xFF000000);
 
-    public FrameBuffer Frame = new(PixelWidth, PixelHeight);
+    internal FrameBuffer Frame = new(PixelWidth, PixelHeight);
 
     // Standalone-glyph cache for the Font Sheet pane, keyed by
     // (display-code, scale-factor). MZ-80A has a single font bank (no
@@ -72,7 +72,7 @@ public sealed class Mz80aVideo
     // that Video.cs threads through its equivalent cache.
     private readonly Dictionary<(byte code, int scale), FrameBuffer> _glyphCache = new();
 
-    public void LoadFont(byte[] font)
+    internal void LoadFont(byte[] font)
     {
         int n = Math.Min(font.Length, FontRom.Length);
         Array.Copy(font, FontRom, n);
@@ -96,7 +96,7 @@ public sealed class Mz80aVideo
         return glyph;
     }
 
-    public void InvalidateGlyphCache() => _glyphCache.Clear();
+    internal void InvalidateGlyphCache() => _glyphCache.Clear();
 
     private FrameBuffer RenderGlyph(byte code, int scale)
     {
@@ -126,7 +126,7 @@ public sealed class Mz80aVideo
         return glyph;
     }
 
-    public unsafe void Render(byte[] vram)
+    internal unsafe void Render(byte[] vram)
     {
         // MZ-80A is monochrome. Foreground/background come from
         // configurable ARGB fields (green-phosphor by default), swapped

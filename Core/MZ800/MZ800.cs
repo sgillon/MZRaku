@@ -26,13 +26,13 @@ public sealed class MZ800 : MzMachineBase, IMachine
     public Mz800Memory Mem { get; } = new();
     public Ppi8255 Ppi = new();
     public Pit8253 Pit = new();
-    public Z80Pio Pio = new();
+    internal Z80Pio Pio = new();
     /// <summary>Host gamepad state, read through IN $F0/$F1 (Mz800Joystick).</summary>
     public Joystick Joystick = new();
     public Mz800IoBus Io = new();
     public Mz800Video Video { get; } = new();
     public Mz800Keyboard Keyboard = new();
-    public Mz800Cassette Cassette { get; } = new();
+    internal Mz800Cassette Cassette { get; } = new();
     // Audio output. Runs in external-PCM mode: RenderAudio mixes the
     // PSG + gated PIT counter-0 audio-in in emulated time and queues
     // samples; Sound's feed thread plays them. The $E008 D0 write in
@@ -65,17 +65,17 @@ public sealed class MZ800 : MzMachineBase, IMachine
     // lines from VSYNC to change the palette mid-frame for its rolling
     // colour bars — so the renderer takes a per-display-row palette
     // snapshot instead of using the end-of-frame registers.
-    public const int CyclesPerLine = 227;
-    public const int LinesPerFrame = 312;
-    public const int CyclesPerFrame = CyclesPerLine * LinesPerFrame;
-    public const double FramesPerSecond = CpuClockHz / CyclesPerFrame;   // ≈ 50.08
+    internal const int CyclesPerLine = 227;
+    internal const int LinesPerFrame = 312;
+    internal const int CyclesPerFrame = CyclesPerLine * LinesPerFrame;
+    internal const double FramesPerSecond = CpuClockHz / CyclesPerFrame;   // ≈ 50.08
     // First display line after the start of VSYNC. Calibrated against
     // EmuZ-800 with G.P.S.'s title bars: its 40-line bar group sweeps
     // from VSYNC-end + 1 + offset, offset 0..231, and EmuZ-800 turns it
     // round exactly as the last bar reaches the bottom display row —
     // so line 3 + 1 + 231 + 39 = 274 is display row 199.
-    public const int DisplayFirstLine = 75;
-    public const int DisplayLines = 200;
+    internal const int DisplayFirstLine = 75;
+    internal const int DisplayLines = 200;
     private const int VSyncLines = 3;
     private const int HBlankCycles = 44;
 
@@ -97,7 +97,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
     // toggle was added.
     private const int CyclesPerTempoToggle = MZ700.CyclesPerTempoToggle;
 
-    public MZ800()
+    internal MZ800()
     {
         Cpu.Mem = Mem;
         Cpu.Io = Io;
@@ -308,7 +308,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
     ///   D1          — the IPL branches on it at $E853 (likely the SW1
     ///                 MZ-700/MZ-800 switch); returned as 0.
     /// </summary>
-    public byte CrtcStatus()
+    internal byte CrtcStatus()
     {
         int line = _frameCycle / CyclesPerLine;
         int inLine = _frameCycle % CyclesPerLine;
@@ -458,7 +458,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
     /// <see cref="Sound.OutputSampleRate"/>). Set under --dump=;
     /// DumpTraceRecorder writes it out as a .wav for offline checks.
     /// </summary>
-    public MemoryStream? AudioCapture;
+    internal MemoryStream? AudioCapture;
 
     private void RenderAudio(int cpuCycles)
     {
@@ -551,7 +551,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
     /// BASIC's own boot does. False if the text is too long or the
     /// previous text hasn't been consumed.
     /// </summary>
-    public bool TypeIntoBasic(string text)
+    internal bool TypeIntoBasic(string text)
     {
         if (text.Length > BasicKeyBufferMax) return false;
         if (Mem.Ram[BasicKeyBufferPos] != Mem.Ram[BasicKeyBufferLen]) return false;

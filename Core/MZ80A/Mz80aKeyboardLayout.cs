@@ -241,7 +241,7 @@ public static class Mz80aKeyboardLayout
     /// Returns a list of complaints; empty means every (Row, Col)
     /// lands on a slot of the matching kind.
     /// </summary>
-    public static IReadOnlyList<string> Validate()
+    internal static IReadOnlyList<string> Validate()
     {
         var complaints = new List<string>();
         foreach (var k in Keys)

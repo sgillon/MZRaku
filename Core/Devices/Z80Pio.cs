@@ -23,7 +23,7 @@ namespace MZRaku.Core;
 /// interrupt-under-service latch cleared by RETI (the CPU's own IFF1
 /// keeps the ISR from re-entering in practice).
 /// </summary>
-public sealed class Z80Pio
+internal sealed class Z80Pio
 {
     public sealed class Port
     {

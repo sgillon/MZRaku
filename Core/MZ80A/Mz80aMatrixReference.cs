@@ -74,8 +74,8 @@ public static class Mz80aMatrixReference
         string? UnshiftedGlyph = null,
         string? ShiftedGlyph = null);
 
-    public const int Strobes = 10;
-    public const int Bits = 8;
+    internal const int Strobes = 10;
+    internal const int Bits = 8;
 
     public static readonly IReadOnlyDictionary<(int strobe, int bit), Slot> All = BuildAll();
 
@@ -314,7 +314,7 @@ public static class Mz80aMatrixReference
     /// add its (strobe, bit, shift) here so the safety gate stays
     /// quiet about it.
     /// </summary>
-    public static bool IsKnownUnreachableFromPc(int strobe, int bit, bool mzShift) => false;
+    internal static bool IsKnownUnreachableFromPc(int strobe, int bit, bool mzShift) => false;
 
     /// <summary>
     /// Canonical printable glyph at (strobe, bit, mzShift), or null if
@@ -359,7 +359,7 @@ public static class Mz80aMatrixReference
     /// means the reference is fully populated. Mirrors
     /// <see cref="Mz700MatrixReference.Validate"/>.
     /// </summary>
-    public static IReadOnlyList<string> Validate()
+    internal static IReadOnlyList<string> Validate()
     {
         var complaints = new List<string>();
         for (int s = 0; s < Strobes; s++)

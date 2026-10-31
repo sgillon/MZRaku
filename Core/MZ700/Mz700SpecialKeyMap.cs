@@ -115,7 +115,7 @@ public static class Mz700SpecialKeyMap
     /// <see cref="Mz700MatrixReference.SpecialLabels"/> living
     /// alongside the reference itself — see v1.2 audit F-024.
     /// </summary>
-    public static IReadOnlyList<string> Validate()
+    internal static IReadOnlyList<string> Validate()
     {
         var complaints = new List<string>();
         foreach (var kv in Map)

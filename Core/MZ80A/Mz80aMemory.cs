@@ -29,9 +29,9 @@ namespace MZRaku.Core;
 /// </summary>
 public sealed class Mz80aMemory : IMemory
 {
-    public byte[] Rom = new byte[0x1000];    // 4 KiB monitor ROM (SA-1510)
-    public byte[] Ram = new byte[0x10000];   // full 64 KiB RAM backing
-    public byte[] Vram = new byte[0x1000];   // 4 KiB VRAM window ($D000-$DFFF)
+    internal byte[] Rom = new byte[0x1000];    // 4 KiB monitor ROM (SA-1510)
+    internal byte[] Ram = new byte[0x10000];   // full 64 KiB RAM backing
+    internal byte[] Vram = new byte[0x1000];   // 4 KiB VRAM window ($D000-$DFFF)
 
     /// <summary>
     /// When true, the monitor ROM is visible at $C000-$CFFF and RAM
@@ -40,15 +40,15 @@ public sealed class Mz80aMemory : IMemory
     /// </summary>
     public bool RomSwapped;
 
-    public Mz80aIoBus? IoBus;
-    public Z80Cpu? Cpu;
+    internal Mz80aIoBus? IoBus;
+    internal Z80Cpu? Cpu;
 
     /// <summary>
     /// Does a read of <paramref name="addr"/> hit the MMIO window? The
     /// whole of $E000-$EFFF: besides the PPI/PIT mirrors, reads there
     /// toggle the memory swap, reverse video and hardware scroll.
     /// </summary>
-    public bool IsIoRead(ushort addr) => addr >= 0xE000 && addr <= 0xEFFF;
+    internal bool IsIoRead(ushort addr) => addr >= 0xE000 && addr <= 0xEFFF;
 
     public byte Read(ushort addr)
     {
@@ -119,7 +119,7 @@ public sealed class Mz80aMemory : IMemory
         Ram[addr] = value;
     }
 
-    public void LoadRom(byte[] rom)
+    internal void LoadRom(byte[] rom)
     {
         int n = Math.Min(rom.Length, Rom.Length);
         Array.Copy(rom, Rom, n);

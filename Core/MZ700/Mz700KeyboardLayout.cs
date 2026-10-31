@@ -240,7 +240,7 @@ public static class Mz700KeyboardLayout
     /// empty means each MzKey's (Row, Col) lands on a matrix slot of
     /// the matching kind.
     /// </summary>
-    public static IReadOnlyList<string> Validate()
+    internal static IReadOnlyList<string> Validate()
     {
         var complaints = new List<string>();
         foreach (var k in Keys)

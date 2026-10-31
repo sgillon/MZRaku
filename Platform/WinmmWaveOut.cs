@@ -21,8 +21,9 @@ namespace MZRaku;
 /// <c>DiscardOnBufferOverflow</c>).
 ///
 /// This is the Windows front end's <see cref="IAudioOut"/>: MainForm
-/// opens one in <see cref="Sound.OutputFormat"/> and passes it to
-/// <see cref="Sound.Start"/>.
+/// hands <see cref="EmulatorSession.Start"/> a factory that opens one
+/// in <see cref="Sound.OutputFormat"/>, and the session starts the
+/// machine's sound with it.
 /// </summary>
 internal sealed class WinmmWaveOut : IAudioOut
 {

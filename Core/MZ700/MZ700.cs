@@ -40,9 +40,9 @@ public sealed class MZ700 : MzMachineBase, IMachine
     FrameBuffer? IMachine.VideoFrame => Video.Frame;
     IKeyboardInput IMachine.KeyboardInput => Keyboard;
 
-    public const double CpuClockHz = 3546900.0;             // MZ-700 master clock ~3.5MHz
+    internal const double CpuClockHz = 3546900.0;             // MZ-700 master clock ~3.5MHz
     public const int FramesPerSecond = 60;
-    public const int CyclesPerFrame = (int)(CpuClockHz / FramesPerSecond);
+    internal const int CyclesPerFrame = (int)(CpuClockHz / FramesPerSecond);
 
     private int _pitC0Accum;
     private int _pitC1Accum;
@@ -56,13 +56,13 @@ public sealed class MZ700 : MzMachineBase, IMachine
     // absorbed a 1.5× slowdown. Rescaled ×1.5 → 53204 (≈33.3 Hz) to
     // keep the same real-world duration at true speed; pending a
     // stopwatch re-check against the 13 s reference.
-    public const int CyclesPerTempoToggle = 53204;
+    internal const int CyclesPerTempoToggle = 53204;
 
     // Debugger control (Paused, _stepFrameRequested, Pause/Resume/
     // StepInstruction/StepFrame) is inherited from MzMachineBase
     // (v1.2 audit F-060).
 
-    public MZ700()
+    internal MZ700()
     {
         Cpu.Mem = Mem;
         Cpu.Io = Io;

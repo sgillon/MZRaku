@@ -28,16 +28,16 @@ namespace MZRaku.Core;
 /// </summary>
 public sealed class Mz800Video
 {
-    public const int CharCols = 40;
-    public const int CharRows = 25;
-    public const int CharWidth = 8;
-    public const int CharHeight = 8;
-    public const int PixelWidth = CharCols * CharWidth;      // 320
-    public const int PixelHeight = CharRows * CharHeight;    // 200
+    internal const int CharCols = 40;
+    internal const int CharRows = 25;
+    internal const int CharWidth = 8;
+    internal const int CharHeight = 8;
+    internal const int PixelWidth = CharCols * CharWidth;      // 320
+    internal const int PixelHeight = CharRows * CharHeight;    // 200
 
     // 4 KB CG-ROM (2 character sets × 256 glyphs × 8 rows), copied
     // from MZ800.ROM $1000-$1FFF by LoadFontFromRom.
-    public byte[] FontRom = new byte[4096];
+    internal byte[] FontRom = new byte[4096];
 
     // MZ-700-mode attribute colours (B R G bit order, as MZ-700).
     private static readonly int[] Palette = new int[]
@@ -52,13 +52,13 @@ public sealed class Mz800Video
         unchecked((int)0xFFFFFFFF), // white
     };
 
-    public FrameBuffer Frame = new(PixelWidth, PixelHeight);
+    internal FrameBuffer Frame = new(PixelWidth, PixelHeight);
 
     // 640×200 output. A second buffer rather than a resized Frame;
     // MZ800.VideoFrame returns whichever matches the DMD resolution.
-    public const int HiPixelWidth = 640;
-    public const int HiPixelHeight = 200;
-    public FrameBuffer FrameHi = new(HiPixelWidth, HiPixelHeight);
+    internal const int HiPixelWidth = 640;
+    internal const int HiPixelHeight = 200;
+    internal FrameBuffer FrameHi = new(HiPixelWidth, HiPixelHeight);
 
     /// <summary>
     /// Copy the 4 KB CG-ROM out of the combined MZ800.ROM into
@@ -67,7 +67,7 @@ public sealed class Mz800Video
     /// in memory. Offset $1000-$1FFF per tech-ref p. 24 ROM
     /// configuration diagram.
     /// </summary>
-    public void LoadFontFromRom(byte[] rom)
+    internal void LoadFontFromRom(byte[] rom)
     {
         const int cgOffset = 0x1000;
         int n = Math.Min(rom.Length - cgOffset, FontRom.Length);
@@ -117,7 +117,7 @@ public sealed class Mz800Video
     /// black. The ramp is an approximation — the tech-ref gives no
     /// analogue levels.
     /// </summary>
-    public static int IrgbToArgb(byte irgb)
+    internal static int IrgbToArgb(byte irgb)
     {
         bool i = (irgb & 0x08) != 0;
         bool g = (irgb & 0x04) != 0;
@@ -136,7 +136,7 @@ public sealed class Mz800Video
     /// in <paramref name="vram"/> and attributes in <paramref name="aram"/>,
     /// glyphs from <see cref="FontRom"/> (LSB = leftmost pixel).
     /// </summary>
-    public unsafe void Render(byte[] vram, byte[] aram)
+    internal unsafe void Render(byte[] vram, byte[] aram)
     {
         fixed (int* pix = Frame.Pixels)
         {
@@ -186,7 +186,7 @@ public sealed class Mz800Video
     /// "output select" A/B (320 4-colour: A = plane I / III, B = plane
     /// II / IV; 640 4-colour: A = I, B = III; 640 1-colour: A only).
     /// </summary>
-    public static int[] PaletteLut(byte[] palette)
+    internal static int[] PaletteLut(byte[] palette)
     {
         var lut = new int[16];
         for (int c = 0; c < 16; c++) lut[c] = IrgbToArgb(palette[c & 3]);
@@ -201,7 +201,7 @@ public sealed class Mz800Video
     /// SW0/SW1 (<paramref name="paletteGroup"/>, set by OUT $F0 with
     /// register select 4) go through PLT0-3 instead.
     /// </summary>
-    public static int[] SixteenColourLut(byte[] palette, int paletteGroup)
+    internal static int[] SixteenColourLut(byte[] palette, int paletteGroup)
     {
         var lut = new int[16];
         for (int c = 0; c < 16; c++)
@@ -210,7 +210,7 @@ public sealed class Mz800Video
     }
 
     /// <summary>The same colour lookup for every display row (no raster changes).</summary>
-    public static int[][] UniformRows(int[] lut)
+    internal static int[][] UniformRows(int[] lut)
     {
         var rows = new int[PixelHeight][];
         Array.Fill(rows, lut);
@@ -270,7 +270,7 @@ public sealed class Mz800Video
     /// (<see cref="AddressMap"/>). Border not painted — the 320×200
     /// active area fills <see cref="Frame"/>.
     /// </summary>
-    public unsafe void RenderPlanes320(byte[]? p0, byte[]? p1, byte[]? p2, byte[]? p3, int[][] rowLuts, ScrollRegs scroll)
+    internal unsafe void RenderPlanes320(byte[]? p0, byte[]? p1, byte[]? p2, byte[]? p3, int[][] rowLuts, ScrollRegs scroll)
     {
         p0 ??= NoPlane; p1 ??= NoPlane; p2 ??= NoPlane; p3 ??= NoPlane;
         int[] map = AddressMap(scroll);
@@ -313,7 +313,7 @@ public sealed class Mz800Video
     /// $2000 + DA. DA goes through the same scroll map as 320 mode
     /// (<see cref="AddressMap"/>). LSB-first pixels.
     /// </summary>
-    public unsafe void RenderPlanes640(byte[]? planeA, byte[]? planeB, int[][] rowLuts, ScrollRegs scroll)
+    internal unsafe void RenderPlanes640(byte[]? planeA, byte[]? planeB, int[][] rowLuts, ScrollRegs scroll)
     {
         planeA ??= NoPlane;
         planeB ??= NoPlane;

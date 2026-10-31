@@ -13,7 +13,7 @@ namespace MZRaku.Core;
 /// by entry name) — covers the common case of an .mzf bundled with a
 /// readme without forcing the user to unzip.
 /// </summary>
-public static class CassetteFile
+internal static class CassetteFile
 {
     private static readonly string[] Extensions = { ".mzf", ".m12", ".mzt" };
 

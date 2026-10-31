@@ -31,9 +31,9 @@ namespace MZRaku.Core;
 /// </summary>
 public sealed class Mz700Cassette : CassetteTrapBase
 {
-    public const ushort TrapReadHeader = 0x0436;
-    public const ushort TrapReadData = 0x04D8;
-    public const ushort TrapBreakWait = 0x02C8;
+    internal const ushort TrapReadHeader = 0x0436;
+    internal const ushort TrapReadData = 0x04D8;
+    internal const ushort TrapBreakWait = 0x02C8;
 
     // S-BASIC's outgoing tape header lives at $0FFC — cleverly tucked
     // into the $0000-$0FFF region that's RAM when BASIC has the monitor
@@ -41,7 +41,7 @@ public sealed class Mz700Cassette : CassetteTrapBase
     // at +1 (terminated by $0D), size LE at +$12, load LE at +$14.
     // Discovered empirically by dumping RAM during a SAVE attempt and
     // spotting the filename "VARTEST" at $0FFD-$1003.
-    public const ushort BasicSaveHeaderAddr = 0x0FFC;
+    internal const ushort BasicSaveHeaderAddr = 0x0FFC;
 
     // SAVE-tape trap address: the "press RECORD and PLAY" wait loop
     // inside the monitor's tape-write routine. This is the SAVE
@@ -51,9 +51,9 @@ public sealed class Mz700Cassette : CassetteTrapBase
     // Trapping here lets us short-circuit the wait, snapshot the header
     // BASIC has prepared at $10F0, snapshot the data from
     // [load..load+size], and write a .mzf file in one go.
-    public const ushort TrapWriteTape = 0x0D47;
+    internal const ushort TrapWriteTape = 0x0D47;
 
-    public int BreakWaitTrapHits;
+    internal int BreakWaitTrapHits;
     public int WriteTapeTrapHits;
 
     // Once a SAVE has been committed within an attempt, ignore further
@@ -66,18 +66,18 @@ public sealed class Mz700Cassette : CassetteTrapBase
     // Z80Core.IMemory (Mem) for the shared read/write path, but
     // RomEnabled + the SAVE trap's raw RAM peek need the concrete type.
     private Mz700Memory _mem = null!;
-    public Mz700Memory Memory
+    internal Mz700Memory Memory
     {
         get => _mem;
         set { _mem = value; Mem = value; }
     }
 
-    public Mz700Keyboard Keyboard = null!;
+    internal Mz700Keyboard Keyboard = null!;
 
-    public event Action<string>? OnSaved;
+    internal event Action<string>? OnSaved;
 
     // Where SAVE'd cassettes land: saves/ next to the exe.
-    public string SaveDirectory { get; set; } =
+    internal string SaveDirectory { get; set; } =
         Path.Combine(AppContext.BaseDirectory, "saves");
 
     /// <summary>
@@ -131,7 +131,7 @@ public sealed class Mz700Cassette : CassetteTrapBase
     /// $6BCF default value (one occurrence at post-relocation RAM $6ABF)
     /// and other pointers near it.
     /// </summary>
-    public void FixupBasicProgramPointers(ushort startAddr, int dataLen)
+    internal void FixupBasicProgramPointers(ushort startAddr, int dataLen)
     {
         // TXTTAB: program text start.
         Memory.Write(0x6ABF, (byte)(startAddr & 0xFF));
@@ -264,7 +264,7 @@ public sealed class Mz700Cassette : CassetteTrapBase
     /// Re-arm the SAVE-tape trap so the next SAVE attempt fires. Called
     /// by the machine reset path.
     /// </summary>
-    public void ResetSaveState()
+    internal void ResetSaveState()
     {
         _saveCommittedThisAttempt = false;
     }

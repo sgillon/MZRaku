@@ -57,7 +57,7 @@ public static class Mz80aSpecialKeyMap
     /// Cross-checks <see cref="Map"/> against <see cref="Mz80aMatrixReference"/>.
     /// Complains if any entry points at an out-of-range or Unused/Unknown slot.
     /// </summary>
-    public static IReadOnlyList<string> Validate()
+    internal static IReadOnlyList<string> Validate()
     {
         var complaints = new List<string>();
         foreach (var kv in Map)

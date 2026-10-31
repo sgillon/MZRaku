@@ -55,7 +55,7 @@ public sealed class Pit8253
     /// must actually stop counter 0 or the boot beep drones on after a
     /// switch to MZ-800 mode (Phase 6.1, observed with Jetpac).
     /// </summary>
-    public bool HaltOnControlWord;
+    internal bool HaltOnControlWord;
 
     /// <summary>
     /// Intel 8253 datasheet behaviour: a newly written count is
@@ -69,10 +69,10 @@ public sealed class Pit8253
     /// read and the loop never exits (Phase 6.1, `--mz800 --basic`
     /// black screen).
     /// </summary>
-    public bool LoadOnNextClock;
-    public System.Text.StringBuilder? WriteLog;
+    internal bool LoadOnNextClock;
+    internal System.Text.StringBuilder? WriteLog;
 
-    public event Action<bool>? Counter2Out;  // cursor blink / interrupt source
+    internal event Action<bool>? Counter2Out;  // cursor blink / interrupt source
 
     /// <summary>
     /// Fires on every CPU-side write to the PIT, after the write has
@@ -84,7 +84,7 @@ public sealed class Pit8253
     /// </summary>
     public event Action<int, byte>? OnWrite;
 
-    public Pit8253()
+    internal Pit8253()
     {
         for (int i = 0; i < 3; i++) Counters[i] = new Counter();
         // On real hardware the 8253 counters begin receiving their clock
@@ -100,7 +100,7 @@ public sealed class Pit8253
         Counters[1].Running = true;
     }
 
-    public byte Read(int reg)
+    internal byte Read(int reg)
     {
         int idx = reg & 3;
         if (idx > 2) return 0xFF;
@@ -144,7 +144,7 @@ public sealed class Pit8253
         return result;
     }
 
-    public void Write(int reg, byte val)
+    internal void Write(int reg, byte val)
     {
         OnWrite?.Invoke(reg & 3, val);
         int idx = reg & 3;
@@ -249,7 +249,7 @@ public sealed class Pit8253
     //   C2 input = OUT1    (cascade from C1; mode 0 → 12-hour RTC interrupt)
     // The TEMPO signal (C1.OUT) is what's exposed as $E008 bit 0; S-BASIC's
     // MUSIC polls it to count tempo cycles for note duration.
-    public void Tick(int c0Ticks, int c1Ticks)
+    internal void Tick(int c0Ticks, int c1Ticks)
     {
         TickCounter(0, c0Ticks);
         TickCounter(1, c1Ticks);

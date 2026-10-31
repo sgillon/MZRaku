@@ -9,11 +9,11 @@ namespace MZRaku.Core;
 /// </summary>
 public sealed class Mz700IoBus : IIoBus
 {
-    public Ppi8255 Ppi = null!;
-    public Pit8253 Pit = null!;
-    public Mz700Memory Memory = null!;
-    public Joystick Joystick = null!;
-    public Sound Sound = null!;
+    internal Ppi8255 Ppi = null!;
+    internal Pit8253 Pit = null!;
+    internal Mz700Memory Memory = null!;
+    internal Joystick Joystick = null!;
+    internal Sound Sound = null!;
 
     /// <summary>
     /// Fires on every CPU write to $E008. Value is the data byte
@@ -22,7 +22,7 @@ public sealed class Mz700IoBus : IIoBus
     /// </summary>
     public event Action<byte>? OnE008Write;
 
-    public byte MemIn(ushort addr)
+    internal byte MemIn(ushort addr)
     {
         int off = addr & 0x000F;
         if (off <= 3) return Ppi.Read(off);
@@ -46,7 +46,7 @@ public sealed class Mz700IoBus : IIoBus
         return 0xFF;
     }
 
-    public void MemOut(ushort addr, byte value)
+    internal void MemOut(ushort addr, byte value)
     {
         int off = addr & 0x000F;
         if (off <= 3) { Ppi.Write(off, value); return; }

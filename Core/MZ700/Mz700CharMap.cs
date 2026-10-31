@@ -105,7 +105,7 @@ public static class Mz700CharMap
     /// <c>Settings.Mz700CharMapOverrides</c>. When
     /// non-null, its entries take precedence over <see cref="Defaults"/>.
     /// </summary>
-    public static Mz700CharMapOverrides? Overrides;
+    internal static Mz700CharMapOverrides? Overrides;
 
     public static bool TryLookup(char c, out Press press)
     {
@@ -130,7 +130,7 @@ public static class Mz700CharMap
     /// pointing at the MZ '#' slot) are intentional and would
     /// false-positive a strict glyph match.
     /// </summary>
-    public static IReadOnlyList<string> Validate()
+    internal static IReadOnlyList<string> Validate()
     {
         var complaints = new List<string>();
         foreach (var kv in Defaults)

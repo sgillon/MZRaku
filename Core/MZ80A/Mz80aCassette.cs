@@ -32,7 +32,7 @@ namespace MZRaku.Core;
 /// class provides the SA-1510-specific trap addresses. Write
 /// traps (SAVE) can layer on later if needed.
 /// </summary>
-public sealed class Mz80aCassette : CassetteTrapBase
+internal sealed class Mz80aCassette : CassetteTrapBase
 {
     public const ushort TrapRdInf = 0x0027;
     public const ushort TrapRdDat = 0x002A;

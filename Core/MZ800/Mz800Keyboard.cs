@@ -36,7 +36,7 @@ public sealed class Mz800Keyboard : KeyboardMatrixBase
     /// checks in GETKY to choose between unshifted / shifted keyboard
     /// tables. Wired by <see cref="MZ800"/> at construction.
     /// </summary>
-    public Mz800Memory? Memory;
+    internal Mz800Memory? Memory;
 
     /// <summary>
     /// User-editable physical-key overrides (<c>[KeyOverrides.MZ800]</c>),
@@ -44,15 +44,15 @@ public sealed class Mz800Keyboard : KeyboardMatrixBase
     /// <see cref="OnKeyDown"/>. Same <see cref="KeyOverride"/> shape as
     /// MZ-700 / MZ-80A. Null = no overrides layer wired.
     /// </summary>
-    public KeyOverride? Overrides;
+    internal KeyOverride? Overrides;
 
     /// <summary>
     /// Auto-typer (Load BASIC source), the same scan-driven typer as
     /// the MZ-700's, over <see cref="Mz800CharMap"/>.
     /// </summary>
-    public readonly KeyboardAutoTyper AutoType;
+    internal readonly KeyboardAutoTyper AutoType;
 
-    public Mz800Keyboard()
+    internal Mz800Keyboard()
     {
         AutoType = new KeyboardAutoTyper(this,
             ch => Mz800CharMap.TryLookup(ch, out var p) ? (p.Strobe, p.Bit, p.MzShift) : null,

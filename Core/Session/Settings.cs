@@ -93,7 +93,7 @@ public sealed class Settings
     public RomPathSet Mz800Roms { get; } = new();
 
     /// <summary>The ROM paths for the currently-selected <see cref="CurrentMachine"/>.</summary>
-    public RomPathSet ActiveRoms => CurrentMachine switch
+    internal RomPathSet ActiveRoms => CurrentMachine switch
     {
         MachineType.MZ700 => Mz700Roms,
         MachineType.MZ80A => Mz80aRoms,
@@ -106,17 +106,17 @@ public sealed class Settings
     // startup ROM-missing check, the Settings UI's ROMs tab, etc.)
     // just see one set. Write-through so EnsureRomPaths' auto-detect
     // updates the right sub-section.
-    public string MonitorRomPath
+    internal string MonitorRomPath
     {
         get => ActiveRoms.MonitorRomPath;
         set => ActiveRoms.MonitorRomPath = value;
     }
-    public string FontPath
+    internal string FontPath
     {
         get => ActiveRoms.FontPath;
         set => ActiveRoms.FontPath = value;
     }
-    public string BasicPath
+    internal string BasicPath
     {
         get => ActiveRoms.BasicPath;
         set => ActiveRoms.BasicPath = value;
@@ -211,9 +211,9 @@ public sealed class Settings
         public bool HasGeometry => Width > 0 && Height > 0;
     }
 
-    public string MonitorRomFullPath => Resolve(MonitorRomPath);
-    public string FontFullPath => Resolve(FontPath);
-    public string BasicFullPath => Resolve(BasicPath);
+    internal string MonitorRomFullPath => Resolve(MonitorRomPath);
+    internal string FontFullPath => Resolve(FontPath);
+    internal string BasicFullPath => Resolve(BasicPath);
 
     private static string FilePath =>
         Path.Combine(AppContext.BaseDirectory, "settings.ini");
@@ -651,7 +651,7 @@ public sealed class Settings
     /// first. Called from Load() and again by EmulatorSession, after
     /// the front end has applied the CLI machine override.
     /// </summary>
-    public bool EnsureRomPaths()
+    internal bool EnsureRomPaths()
     {
         bool dirty = false;
 

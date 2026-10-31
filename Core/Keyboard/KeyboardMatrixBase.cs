@@ -116,7 +116,7 @@ public abstract class KeyboardMatrixBase : IKeyboardMatrix, IKeyboardInput
     public byte PeekMatrixRow(int row) =>
         (row < 0 || row > 9) ? (byte)0xFF : _rows[row];
 
-    public void SetMatrix(int row, int col, bool pressed)
+    internal void SetMatrix(int row, int col, bool pressed)
     {
         if (row < 0 || row > 9 || col < 0 || col > 7) return;
         byte mask = (byte)(1 << col);
@@ -207,7 +207,7 @@ public abstract class KeyboardMatrixBase : IKeyboardMatrix, IKeyboardInput
     /// and releases inside the stage window simply doesn't
     /// register, which is preferable to mis-translating it.
     /// </summary>
-    public void TickStagedKeyBits()
+    internal void TickStagedKeyBits()
     {
         if (_stagedKeyBits.Count == 0) return;
         for (int i = _stagedKeyBits.Count - 1; i >= 0; i--)

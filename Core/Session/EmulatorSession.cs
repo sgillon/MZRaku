@@ -395,7 +395,7 @@ public sealed class EmulatorSession
     /// load would surface the failure only as a status line many frames
     /// later and the rest of the pending operation would go ahead.
     /// </summary>
-    public bool BasicAvailable
+    internal bool BasicAvailable
     {
         get
         {
@@ -649,7 +649,7 @@ public sealed class EmulatorSession
 
     /// <summary>The Sharp firmware file names each machine expects —
     /// the names <see cref="Settings.EnsureRomPaths"/> auto-detects.</summary>
-    public static (string Monitor, string Basic) ExpectedFirmware(MachineType machine) => machine switch
+    internal static (string Monitor, string Basic) ExpectedFirmware(MachineType machine) => machine switch
     {
         MachineType.MZ80A => ("SA-1510.rom", "SA-5510.mzf"),
         MachineType.MZ800 => ("MZ800.ROM",   "1Z-016.mzf"),
@@ -662,7 +662,7 @@ public sealed class EmulatorSession
     /// followed by CR. Lines starting with <c>;</c> or <c>'</c> are
     /// comments, stripped here so they don't waste cycles inside BASIC.
     /// </summary>
-    public void TypeBasicSource(string path)
+    internal void TypeBasicSource(string path)
     {
         foreach (var raw in File.ReadAllLines(path))
         {

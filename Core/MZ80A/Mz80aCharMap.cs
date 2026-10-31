@@ -107,7 +107,7 @@ public static class Mz80aCharMap
     /// When non-null, its entries take precedence over
     /// <see cref="Defaults"/>.
     /// </summary>
-    public static Mz80aCharMapOverrides? Overrides;
+    internal static Mz80aCharMapOverrides? Overrides;
 
     public static bool TryLookup(char c, out Press press)
     {
@@ -138,7 +138,7 @@ public static class Mz80aCharMap
     /// can see a glyph on the keycap that PC typing cannot reach
     /// without a manual [CharMap.MZ80A] override.
     /// </summary>
-    public static IReadOnlyList<string> Validate()
+    internal static IReadOnlyList<string> Validate()
     {
         var complaints = new List<string>();
 

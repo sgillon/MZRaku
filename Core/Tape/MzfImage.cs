@@ -19,13 +19,13 @@ namespace MZRaku.Core;
 /// </summary>
 public sealed class MzfImage
 {
-    public byte[] Header = new byte[128];
-    public byte[] Data = Array.Empty<byte>();
-    public string Filename = "";
-    public ushort Size;
-    public ushort LoadAddr;
-    public ushort ExecAddr;
-    public byte Type;
+    internal byte[] Header = new byte[128];
+    internal byte[] Data = Array.Empty<byte>();
+    internal string Filename = "";
+    internal ushort Size;
+    internal ushort LoadAddr;
+    internal ushort ExecAddr;
+    internal byte Type;
 
     /// <summary>
     /// Parse a raw .mzf byte stream into an <see cref="MzfImage"/>.
@@ -41,7 +41,7 @@ public sealed class MzfImage
     /// language software — show as '?' from the ASCII encoding's
     /// default fallback.
     /// </summary>
-    public static MzfImage Parse(byte[] bytes)
+    internal static MzfImage Parse(byte[] bytes)
     {
         if (bytes.Length < 128) throw new InvalidDataException("MZF too short (<128 bytes)");
         var img = new MzfImage();

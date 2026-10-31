@@ -25,7 +25,7 @@ namespace MZRaku.Core;
 /// </summary>
 public sealed class Mz700RomKeyTables
 {
-    public const int AlphaBank = 0;
+    internal const int AlphaBank = 0;
     public const int GraphBank = 1;
 
     private const int AlphaUnshiftedOffset = 0x0BEA;
@@ -47,7 +47,7 @@ public sealed class Mz700RomKeyTables
     /// Without this filter the inverse map happily reports e.g. "$C9 is
     /// at slot (0,4)" — but pressing (0,4) just toggles ALPHA mode.
     /// </summary>
-    public void Build(byte[] monitorRom)
+    internal void Build(byte[] monitorRom)
     {
         _byCode.Clear();
         LoadTable(monitorRom, AlphaUnshiftedOffset, AlphaBank, mzShift: false);

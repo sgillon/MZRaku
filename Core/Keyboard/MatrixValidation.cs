@@ -30,7 +30,7 @@ public static class MatrixValidation
     /// MZ-80A reference → Mz80aSpecialKeyMap → Mz80aCharMap). Each line
     /// is prefixed with the source so the origin is obvious.
     /// </summary>
-    public static IReadOnlyList<string> RunAll()
+    internal static IReadOnlyList<string> RunAll()
     {
         var all = new List<string>();
         AddPrefixed(all, "Mz700MatrixReference", Mz700MatrixReference.Validate());

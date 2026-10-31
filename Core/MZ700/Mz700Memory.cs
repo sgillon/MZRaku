@@ -19,20 +19,20 @@ namespace MZRaku.Core;
 /// </summary>
 public sealed class Mz700Memory : IMemory
 {
-    public byte[] Rom = new byte[0x1000];        // 4KB monitor ROM
-    public byte[] Ram = new byte[0x10000];       // full 64K RAM backing
-    public byte[] Vram = new byte[0x800];        // 2KB character VRAM
-    public byte[] Aram = new byte[0x800];        // 2KB attribute RAM
+    internal byte[] Rom = new byte[0x1000];        // 4KB monitor ROM
+    internal byte[] Ram = new byte[0x10000];       // full 64K RAM backing
+    internal byte[] Vram = new byte[0x800];        // 2KB character VRAM
+    internal byte[] Aram = new byte[0x800];        // 2KB attribute RAM
 
     public bool RomEnabled = true;
     public bool VramIoEnabled = true;
 
-    public Mz700IoBus? IoBus;
-    public Z80Cpu? Cpu;
-    public System.Text.StringBuilder? BankSwitchLog;
+    internal Mz700IoBus? IoBus;
+    internal Z80Cpu? Cpu;
+    internal System.Text.StringBuilder? BankSwitchLog;
 
     /// <summary>Does a read of <paramref name="addr"/> hit the PPI/PIT window?</summary>
-    public bool IsIoRead(ushort addr) => VramIoEnabled && addr >= 0xE000 && addr <= 0xE00F;
+    internal bool IsIoRead(ushort addr) => VramIoEnabled && addr >= 0xE000 && addr <= 0xE00F;
 
     public byte Read(ushort addr)
     {
@@ -85,7 +85,7 @@ public sealed class Mz700Memory : IMemory
         Ram[addr] = value;
     }
 
-    public void HandleBankSwitch(byte cmd)
+    internal void HandleBankSwitch(byte cmd)
     {
         bool prevRom = RomEnabled, prevVio = VramIoEnabled;
         switch (cmd)
@@ -104,7 +104,7 @@ public sealed class Mz700Memory : IMemory
         }
     }
 
-    public void LoadRom(byte[] rom)
+    internal void LoadRom(byte[] rom)
     {
         int n = Math.Min(rom.Length, Rom.Length);
         Array.Copy(rom, Rom, n);

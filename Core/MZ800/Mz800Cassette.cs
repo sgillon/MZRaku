@@ -24,7 +24,7 @@ namespace MZRaku.Core;
 /// Trap addresses for the monitor path pinned 2026-08-30 by walking the
 /// L flow back from ret=$EB57 and disassembling 1Z-016B's L subroutine.
 /// </summary>
-public sealed class Mz800Cassette : CassetteTrapBase
+internal sealed class Mz800Cassette : CassetteTrapBase
 {
     public const ushort TrapReadHeader = 0x04D8;
     public const ushort TrapReadData   = 0x04F8;

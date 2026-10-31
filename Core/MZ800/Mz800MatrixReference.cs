@@ -78,8 +78,8 @@ public static class Mz800MatrixReference
         string? UnshiftedGlyph = null,
         string? ShiftedGlyph = null);
 
-    public const int Strobes = 10;
-    public const int Bits = 8;
+    internal const int Strobes = 10;
+    internal const int Bits = 8;
 
     public static readonly IReadOnlyDictionary<(int strobe, int bit), Slot> All = BuildAll();
 
@@ -314,7 +314,7 @@ public static class Mz800MatrixReference
     }
 
     /// <summary>Look up a slot by coordinates. Returns null only if out of range.</summary>
-    public static Slot? Get(int strobe, int bit)
+    internal static Slot? Get(int strobe, int bit)
         => All.TryGetValue((strobe, bit), out var s) ? s : null;
 
     /// <summary>
@@ -328,7 +328,7 @@ public static class Mz800MatrixReference
     /// - (0, 5, false) — the ↓ display glyph on the £ key.
     /// - (0, 5, true) — the £ glyph; PC £ (UK Shift+3) goes to MZ '#'.
     /// </summary>
-    public static bool IsKnownUnreachableFromPc(int strobe, int bit, bool mzShift)
+    internal static bool IsKnownUnreachableFromPc(int strobe, int bit, bool mzShift)
         => (strobe == 1 && bit == 5 && mzShift)
         || (strobe == 0 && bit == 5);
 
@@ -381,7 +381,7 @@ public static class Mz800MatrixReference
     /// <see cref="Mz700MatrixReference.Validate"/> and
     /// <see cref="Mz80aMatrixReference.Validate"/>.
     /// </summary>
-    public static IReadOnlyList<string> Validate()
+    internal static IReadOnlyList<string> Validate()
     {
         var complaints = new List<string>();
         for (int s = 0; s < Strobes; s++)

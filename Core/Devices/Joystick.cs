@@ -44,7 +44,7 @@ public sealed class Joystick
 
     public StickState[] Sticks { get; } = new[] { new StickState(), new StickState() };
 
-    public Z80Cpu? Cpu;
+    internal Z80Cpu? Cpu;
 
     // Pulse-low duration per axis-value unit. Calibrated against the
     // joystick-read routine in panic.mzf ($2220), which is the most
@@ -79,7 +79,7 @@ public sealed class Joystick
     /// matching the trigger event of the real 555 monostables.
     /// Snapshots each stick's axis values into pulse-end deadlines.
     /// </summary>
-    public void OnVBlankFall(long currentCycle)
+    internal void OnVBlankFall(long currentCycle)
     {
         var s0 = Sticks[0];
         var s1 = Sticks[1];
@@ -93,7 +93,7 @@ public sealed class Joystick
     /// Returns the current state of $E008 bits 1-6 (mask 0x7E). Bits 0
     /// and 7 are caller's responsibility (TEMPO, VBLANK).
     /// </summary>
-    public byte GetPortBits(bool vblkHigh)
+    internal byte GetPortBits(bool vblkHigh)
     {
         // All bits start at 1 (idle / pulled high / no joystick).
         byte v = 0x7E;

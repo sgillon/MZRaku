@@ -40,7 +40,7 @@ namespace MZRaku.Core;
 /// sound gate ($E008 W D0) drives <see cref="Sound"/>. The memory-swap side effects
 /// ($E00C/$E010 R) are handled inside <see cref="Mz80aMemory"/>.
 /// </summary>
-public sealed class Mz80aIoBus : IIoBus
+internal sealed class Mz80aIoBus : IIoBus
 {
     // $E008 D0 "H-Blank" half-period — see MemIn.
     private const long HBlankHalfPeriodCycles = 30000;
