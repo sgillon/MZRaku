@@ -23,7 +23,7 @@ public sealed class MZ700 : MzMachineBase, IMachine
     public Mz700Cassette Cassette { get; } = new();
     public Sound Sound { get; } = new();
     public Joystick Joystick = new();
-    public Mz700RomKeyTables KeyTables = new();
+    public Mz700KeyTables KeyTables = new();
 
     public MachineType Kind => MachineType.MZ700;
     double IMachine.FramesPerSecond => FramesPerSecond;
@@ -75,6 +75,7 @@ public sealed class MZ700 : MzMachineBase, IMachine
         Ppi.Keyboard = Keyboard;
         Keyboard.Memory = Mem;
         Cassette.Memory = Mem;
+        KeyTables.Memory = Mem;
         Cassette.Cpu = Cpu;
         Io.Joystick = Joystick;
         Joystick.Cpu = Cpu;

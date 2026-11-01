@@ -67,7 +67,7 @@ internal static class Program
         Disasm(mem, 0x0A50, 100);
 
         Console.WriteLine();
-        Console.WriteLine("--- Simulated Mz700RomKeyTables.Build (what FontSheet sees) ---");
+        Console.WriteLine("--- Simulated Mz700KeyTables.Build (the monitor map; under S-BASIC the Font Sheet uses BASIC's own tables) ---");
         // Mirror the same skip-list logic as Core/MZ700/Mz700SpecialKeyMap.cs:
         var slotLabels = new HashSet<(int row, int col)>
         {

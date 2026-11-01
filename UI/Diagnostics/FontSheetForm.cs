@@ -8,20 +8,21 @@ namespace MZRaku;
 /// Diagnostic view of the loaded character ROM — all glyphs rendered
 /// in display-code order, one bank per section.
 ///
-/// MZ-700: two 16 × 16 sections, one per font bank (bank 0 = ALPHA,
-/// bank 1 = GRAPH). Cells that the keyboard can produce in that bank
-/// per <see cref="Mz700RomKeyTables"/> are outlined green, and clicking one
-/// enqueues the (row, col, shift) into the auto-typer — the point being
-/// to reach MZ-only glyphs (graphics blocks, kana) that have no PC-key
-/// equivalent. Bank 1 clicks are parked pending the attribute-byte fix
-/// tracked in [[graph-clicktotype-parked]].
+/// MZ-700: two 16 × 16 sections, one per font bank (attribute bit 7).
+/// The keyboard only produces bank-0 codes, in both ALPHA and GRAPH
+/// mode (<see cref="Mz700KeyTables"/>), so only bank 0 has outlines:
+/// green for cells ALPHA mode types, blue for cells only GRAPH mode
+/// types. Clicking one enqueues its (row, col, shift) into the
+/// auto-typer — the point being to reach MZ-only glyphs (graphics
+/// blocks) that have no PC-key equivalent. Bank 1 is reached only by a
+/// program setting attribute bit 7, so its clicks just explain that
+/// (v1.5 Phase 2.3, issue #3).
 ///
 /// MZ-80A: two 16 × 8 sections, Text (codes $00–$7F) and Graphics
 /// ($80–$FF). Same 40 × 25 renderer feeds both, single-bank font ROM
 /// (no MZ-700 attribute bit-7 select). View-only for this phase — the
 /// display-code → key-slot table needed for click-to-type doesn't
-/// exist for MZ-80A yet, and lives with the same graphic-glyph work
-/// that will eventually unpark MZ-700 bank 1.
+/// exist for MZ-80A yet.
 ///
 /// MZ-800: the CG-ROM inside MZ800.ROM, in the MZ-700's two-bank
 /// layout (bank 1 = attribute bit 7), used by MZ-700-mode text. View-
@@ -39,8 +40,8 @@ public sealed class FontSheetForm : Form
     private readonly MZ80A? _mz80a;
     private readonly MZ800? _mz800;
 
-    // For MZ-700 the section index doubles as the font-bank index
-    // (0 = ALPHA, 1 = GRAPH). For MZ-80A the font is single-bank; the
+    // For MZ-700 and MZ-800 the section index doubles as the font-bank
+    // index (attribute bit 7). For MZ-80A the font is single-bank; the
     // section merely partitions the display-code range for display.
     private sealed record Section(string Label, byte FirstCode, int RowCount);
     private readonly List<Section> _sections;
@@ -55,6 +56,9 @@ public sealed class FontSheetForm : Form
         Height = 26,
         ForeColor = SystemColors.GrayText,
     };
+    // One line only: the label is fixed-height and word-wraps, so a
+    // message wider than the sheet (~58 characters) vanishes into a
+    // clipped second line.
     private readonly Label _statusLabel = new()
     {
         AutoSize = false,
@@ -88,7 +92,7 @@ public sealed class FontSheetForm : Form
                 new("Bank 0", 0x00, 16),
                 new("Bank 1", 0x00, 16),
             };
-            _headerLabel.Text = "Click a glyph to type it into the emulator. Green-outlined cells are reachable from the keyboard.";
+            _headerLabel.Text = "Click an outlined glyph to type it (green: ALPHA mode, blue: GRAPH).";
         }
         else
         {
@@ -107,6 +111,9 @@ public sealed class FontSheetForm : Form
         ShowInTaskbar = false;
 
         _pic.MouseClick += OnCellClick;
+        // MZ-700 outlines come from S-BASIC's key tables once it is
+        // running and the monitor's before, so refresh on each visit.
+        if (_mz700 != null) Activated += (_, _) => RedrawSheet();
 
         var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
         scroll.Controls.Add(_pic);
@@ -163,7 +170,8 @@ public sealed class FontSheetForm : Form
             g.DrawString($"{c:X}", hdrFont, hdrBrush, MarginPx + c * CellPx + 2, yOffset - 14);
         g.DrawString(section.Label, hdrFont, hdrBrush, 2, yOffset - 14);
 
-        using var reachablePen = new Pen(Color.MediumSeaGreen, 1f);
+        using var alphaPen = new Pen(Color.MediumSeaGreen, 1f);
+        using var graphPen = new Pen(Color.DodgerBlue, 1f);
         for (int r = 0; r < section.RowCount; r++)
         {
             int cellY = yOffset + r * CellPx;
@@ -179,13 +187,19 @@ public sealed class FontSheetForm : Form
                 using (var glyphBmp = FrameBufferBitmap.ToBitmap(glyph))
                     g.DrawImageUnscaled(glyphBmp, cellX, cellY);
 
-                // MZ-700: outline cells the keyboard can produce in this
-                // bank so the user can pick something typeable without
+                // MZ-700: outline the bank-0 cells the keyboard can
+                // produce, green for ALPHA mode and blue for GRAPH-only,
+                // so the user can pick something typeable without
                 // guesswork. MZ-80A has no equivalent reverse map yet, so
                 // no outlines — clicks are view-only for this phase.
-                if (_mz700 != null &&
-                    _mz700.KeyTables.FindByDisplayCode(code, sectionIndex) != null)
-                    g.DrawRectangle(reachablePen, cellX, cellY, CellPx - 1, CellPx - 1);
+                if (_mz700 != null && sectionIndex == 0)
+                {
+                    var pen = _mz700.KeyTables.FindByDisplayCode(code, graphMode: false) != null ? alphaPen
+                            : _mz700.KeyTables.FindByDisplayCode(code, graphMode: true) != null ? graphPen
+                            : null;
+                    if (pen != null)
+                        g.DrawRectangle(pen, cellX, cellY, CellPx - 1, CellPx - 1);
+                }
             }
         }
     }
@@ -205,48 +219,39 @@ public sealed class FontSheetForm : Form
             return;
         }
 
-        int bank = sectionIndex;
-        var slot = _mz700!.KeyTables.FindByDisplayCode(code, bank);
+        // The keyboard only types bank-0 codes; bank 1 needs a program
+        // to set attribute bit 7.
+        if (sectionIndex != 0)
+        {
+            _statusLabel.Text =
+                $"Bank 1 ${code:X2} can't be typed: programs set attribute bit 7.";
+            return;
+        }
+
+        // Mode check: the same slot types a different code in ALPHA and
+        // GRAPH mode, so press only a slot that types this code in the
+        // machine's current mode. Refuse rather than silently mistype.
+        bool inGraphMode = (_mz700!.Mem.Read(0x0060) & 0x10) != 0;
+        var slot = _mz700.KeyTables.FindByDisplayCode(code, inGraphMode);
         if (slot is null)
         {
-            _statusLabel.Text = $"Bank {bank} code ${code:X2} isn't reachable from the keyboard.";
-            return;
-        }
-
-        // Mode check: clicking an ALPHA cell while the machine is in
-        // GRAPH mode (or vice versa) would press a slot whose lookup is
-        // mode-dependent and produce the wrong glyph. Refuse rather than
-        // silently mistype.
-        bool inGraphMode = (_mz700.Mem.Read(0x0060) & 0x10) != 0;
-        bool wantGraphMode = bank == Mz700RomKeyTables.GraphBank;
-        if (inGraphMode != wantGraphMode)
-        {
-            string need = wantGraphMode ? "GRAPH" : "ALPHA";
-            _statusLabel.Text =
-                $"Switch the machine to {need} mode first (press the {need} key) to type this glyph.";
-            return;
-        }
-
-        // GRAPH-bank click-to-type is parked — see docs/usage/keyboard.md.
-        // The matrix press lands the right byte in VRAM but BASIC's input
-        // handler doesn't set the attribute byte to bank 1 via this path,
-        // so the byte renders as the bank-0 glyph at that code instead of
-        // the intended graphic. Investigation 2026-06-07 narrowed it to
-        // the auto-typer-vs-PC-keystroke difference without finding the
-        // missing state. Outline stays so the reachable set is visible,
-        // but clicking is suppressed until the attribute write is solved.
-        if (bank == Mz700RomKeyTables.GraphBank)
-        {
-            _statusLabel.Text =
-                "Bank 1 click-to-type is a known limitation — the glyph lands "
-                + "but with the wrong attribute. See docs/usage/keyboard.md.";
+            if (_mz700.KeyTables.FindByDisplayCode(code, !inGraphMode) != null)
+            {
+                string need = inGraphMode ? "ALPHA" : "GRAPH";
+                _statusLabel.Text = $"Press {need} first to type this glyph.";
+            }
+            else
+            {
+                _statusLabel.Text = $"Code ${code:X2} isn't reachable from the keyboard.";
+            }
             return;
         }
 
         _mz700.Keyboard.AutoType.TypePress(new Mz700CharMap.Press(slot.Value.Row, slot.Value.Col, slot.Value.MzShift));
         string shiftTxt = slot.Value.MzShift ? "shift+" : "";
+        string modeTxt = inGraphMode ? "GRAPH" : "ALPHA";
         _statusLabel.Text =
-            $"Typed bank {bank} code ${code:X2} via {shiftTxt}({slot.Value.Row},{slot.Value.Col}).";
+            $"Typed code ${code:X2} via {modeTxt} {shiftTxt}({slot.Value.Row},{slot.Value.Col}).";
     }
 
     private bool TryHitTest(int x, int y, out byte code, out int sectionIndex)

@@ -720,10 +720,6 @@ public sealed class SettingsForm : Form
         };
 
         stack.Controls.Add(Item(
-            "Font Sheet — bank-1 click-to-type lands the byte but the attribute "
-            + "isn't switched to bank 1, so the glyph renders as its bank-0 "
-            + "equivalent. Browse-mode (reading bank 1) still works."));
-        stack.Controls.Add(Item(
             "Rapid char-driven input can occasionally drop the MZ shift bit, "
             + "so a shifted character registers unshifted (e.g. repeated '@' "
             + "may produce ''')."));

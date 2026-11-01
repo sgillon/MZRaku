@@ -15,8 +15,8 @@ namespace MZRaku.Core;
 /// Limitation: only covers glyphs the host can produce as a Unicode
 /// char (whatever's in Mz700CharMap.Defaults). MZ-only graphics blocks /
 /// kana are reachable from the MZ keyboard but have no Unicode
-/// equivalent — those need the ROM key-translation tables at $0BEA
-/// / $0C2A in 1z-013a.rom to reverse (see <see cref="Mz700RomKeyTables"/>).
+/// equivalent — those need the key-translation tables to reverse
+/// (see <see cref="Mz700KeyTables"/>).
 /// </summary>
 public static class Mz700GlyphCatalog
 {

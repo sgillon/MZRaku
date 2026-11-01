@@ -72,21 +72,21 @@ keys and asks whether to save anyway. Pick **No** to keep editing.
 
 ## Font Sheet — typing GRAPH-mode glyphs
 
-The MZ-700 character ROM contains graphic and kana glyphs that have no
-PC-key equivalent. When the machine enters GRAPH mode (press the GRAPH
-key — defaults to **F11**), the **Font Sheet** window pops up
-automatically. It shows all 512 glyphs (two banks of 256) at 3× scale.
-Reachable cells (the keyboard tables can produce them) are outlined in
-green.
+The MZ-700's graphic glyphs have no PC-key equivalent. When S-BASIC
+enters GRAPH mode (press the GRAPH key — defaults to **F11**), the
+**Font Sheet** window pops up automatically. It shows all 512 glyphs
+(two banks of 256) at 3× scale.
 
-Click a bank-0 (top) glyph in ALPHA mode to type it. Bank-1 (bottom)
-click-to-type is currently a **known limitation** — the byte lands in
-VRAM correctly but the attribute byte is not switched to bank 1, so the
-glyph renders as its bank-0 equivalent rather than the intended graphic.
-Investigation narrowed it to a difference between PC-keystroke and
-auto-typer input paths inside S-BASIC's input handler; the green
-outlines still mark the *reachable* set so the data is preserved for
-when this is fixed. Browse-mode (reading the GRAPH glyphs) still works.
+The keyboard types bank-0 (top) glyphs only. The cells it can type are
+outlined: **green** for ALPHA mode, **blue** for GRAPH mode. Click an
+outlined glyph to type it; if it needs the other mode, the status line
+says which key to press first. While S-BASIC is running the outlines
+follow BASIC's own key tables, including the shifted GRAPH glyphs;
+before BASIC loads they follow the monitor ROM's.
+
+Bank-1 (bottom) glyphs can't be typed on a real MZ-700 either: programs
+show them by setting bit 7 of the character's colour attribute. Clicking
+one says so.
 
 The Font Sheet is also always available from **View → Font Sheet…**
 (**Ctrl+G**) so you can browse glyphs in ALPHA mode too.
@@ -132,16 +132,9 @@ slot work.
 
 ## Known limitations
 
-The Keyboard tab in Settings surfaces the same three items as a small
+The Keyboard tab in Settings surfaces the same two items as a small
 panel; this section is the long-form companion.
 
-- **Font Sheet — bank-1 click-to-type.** Clicking a bank-1 (bottom) glyph
-  types the byte to VRAM correctly, but the attribute byte isn't switched
-  to bank 1, so the cell renders as its bank-0 equivalent rather than
-  the intended graphic. Browse-mode (reading bank 1) still works, and
-  the ROM tables that drive it are wired up — investigation narrowed
-  the gap to a difference between PC-keystroke and auto-typer input
-  paths inside S-BASIC's input handler.
 - **MZ-shift assertion race on rapid char-driven input.** When the same
   key fires repeatedly, the MZ shift bit doesn't always reach the matrix
   before the key bit does, so the press registers as if shift wasn't

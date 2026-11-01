@@ -194,11 +194,14 @@ At the 1Z-016 `Ready` prompt:
 
 ### Font Sheet
 
-- [ ] MZ-700: all 512 glyphs render. Cells the keyboard can produce
-      outlined green in both banks. In ALPHA mode, click a bank-0
-      cell → status bar reports the typed code and the glyph
-      appears at the cursor. Click a bank-1 cell → status bar shows
-      known-limitation message; nothing types.
+- [ ] MZ-700: all 512 glyphs render. In S-BASIC, bank-0 cells the
+      keyboard can type are outlined green (ALPHA) or blue (GRAPH);
+      bank 1 has no outlines. In ALPHA mode, click a green cell →
+      status bar reports the typed code and the glyph appears at the
+      cursor. In GRAPH mode, the same for a blue cell, including a
+      shifted-GRAPH one. Click a blue cell in ALPHA mode → status bar
+      says to press GRAPH; nothing types. Click a bank-1 cell →
+      status bar says it can't be typed; nothing types.
 - [ ] MZ-80A: view-only. Two sections labelled Text ($00-$7F) and
       Graphics ($80-$FF) render. Click any cell → status bar shows
       `{section} code $XX`; nothing types (documented view-only).
@@ -334,9 +337,8 @@ stays honest.
 - **MZ-800 BASIC SAVE** waits for a tape forever (no tape-write
   trap yet). Target v1.5.0.
 - **MZ-800 no floppy / Quick Disk / printer**; border not drawn.
-- **Font Sheet click-to-type** is view-only on MZ-80A and MZ-800;
-  MZ-700 bank-1 still parked. MZ-800 click-to-type targeted at
-  v1.5.0.
+- **Font Sheet click-to-type** is view-only on MZ-80A and MZ-800.
+  MZ-800 click-to-type targeted at v1.5.0.
 - **Upgrading from v1.0.x straight to v1.3+** loses custom
   `[KeyOverrides]` and explicit `[Roms]` paths — run 1.1 (or later)
   once first to migrate.
