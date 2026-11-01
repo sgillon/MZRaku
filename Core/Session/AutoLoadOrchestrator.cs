@@ -304,30 +304,33 @@ internal sealed class AutoLoadOrchestrator
                 try
                 {
                     var img = MzfImage.Parse(CassetteFile.ReadBytes(_pendingCassette));
-                    // BASIC-type images: Queue the image so SA-5510's
-                    // LOAD hits our SA-1510 RDINF/RDDAT traps
-                    // ($0027/$002A) and the ROM's own load path
-                    // maintains BASIC's internal program pointers.
-                    // DirectInject bypasses this and produces Error
-                    // 19 on RUN. Machine-code images still
+                    // SA-5510 programs (type $02) go straight into RAM
+                    // with LOAD's own bookkeeping copied (a plain
+                    // DirectInject leaves the lines unlinked, and RUN
+                    // fails). Other BASIC-type images queue for BASIC's
+                    // LOAD through our SA-1510 RDINF/RDDAT traps
+                    // ($0027/$002A). Machine-code images still
                     // DirectInject + jumpExec — SA-1510's monitor L
                     // command sequence isn't wired for MZ-80A and
                     // the shortcut works cleanly for type 01.
                     bool isBasicType = img.Type == 0x02
                         || img.Type == 0x03
                         || img.Type == 0x05;
-                    if (isBasicType)
+                    if (img.Type == 0x02 && _mz80a!.Cassette.InjectBasicProgram(img))
                     {
-                        // Queue the image so SA-5510's LOAD hits the
-                        // SA-1510 traps, then auto-type LOAD and
-                        // (once the trap has fired + BASIC has
-                        // settled) RUN. Same shape as MZ-700's
-                        // autorun path. Attempted a DirectInject +
-                        // pointer-fixup shortcut 2026-07-12 to make
-                        // LOAD invisible; the $4E4E variable table
-                        // was pinned but other state SA-5510's RUN
-                        // depends on (Error 16 on GOSUB) resisted
-                        // synthesis. Kept as a future item.
+                        // SA-5510 program: put it in RAM the way LOAD
+                        // leaves it (relinked lines, variable table
+                        // moved up), so only RUN is typed — the same
+                        // shape as the MZ-700 path (v1.5 Phase 2.4).
+                        _mz80a.Keyboard.TypeString("RUN\r");
+                        _setStatus($"Loaded: {img.Filename}");
+                    }
+                    else if (isBasicType)
+                    {
+                        // Anything else BASIC-shaped: queue the image so
+                        // BASIC's LOAD hits the SA-1510 traps, then
+                        // auto-type LOAD and (once the trap has fired
+                        // and BASIC has settled) RUN.
                         _mz80a!.Cassette.Queue(img);
                         _mz80a.Keyboard.TypeString("LOAD\r");
                         _mz80aLoadTyped = true;

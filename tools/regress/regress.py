@@ -103,7 +103,8 @@ CASES = [
     ("mz80a_monitor",  ["--mz80a"],                                   200, ["snd"]),
     ("mz80a_basic",    ["--mz80a", "--basic"],                        400, ["snd"]),
     ("mz80a_galactic", ["--mz80a", "--cassette", MZ80A_SW + "GALACTIC-INVADERS-80A.mzf", "--keys=mz80a_galactic.keys"], 1500, ["snd"]),   # Space starts a game
-    ("mz80a_colditz",  ["--mz80a", "--cassette", MZ80A_SW + "COLDITZ-80A.mzf"], 1200, ["snd"]),   # typed LOAD + RUN autorun
+    ("mz80a_colditz",  ["--mz80a", "--cassette", MZ80A_SW + "COLDITZ-80A.mzf"], 1200, ["snd"]),   # BASIC autorun: inject + typed RUN
+    ("mz80a_cricket",  ["--mz80a", "--cassette", MZ80A_SW + "cricket.mzf"], 600, ["snd"]),   # line 1 GOSUB: relinked program lines
     ("mz80a_music",    ["--mz80a", "--basic", "--keys=mz80a_music.keys"], 1400, ["snd"]),
     ("mz80a_typing",   ["--mz80a", "--basic", "--keys=mz80a_typing.keys"], 1520, ["snd"]),
     # --- MZ-800 ---

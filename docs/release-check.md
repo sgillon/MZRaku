@@ -256,11 +256,12 @@ At the 1Z-016 `Ready` prompt:
 
 - [ ] MZ-700: save a short BASIC program to a new `.mzf`, restart,
       load it back, RUN succeeds (round-trip).
-- [ ] `MZRaku.exe --mz80a cricket.mzf` — autoloads via typed LOAD,
-      waits for tape read, types RUN. Reaches title / first
-      playable state without operator intervention.
+- [ ] `MZRaku.exe --mz80a cricket.mzf` — BASIC boots, the program
+      goes in without `LOAD` being typed, `RUN` is typed, and it
+      reaches its first screen without operator intervention.
+      Repeat with `COLDITZ-80A.mzf` (the `R` of `RUN` must arrive).
 - [ ] Drag-drop `cricket.mzf` onto a running `--mz80a` window →
-      same typed-LOAD + auto-RUN flow (drop-handler reset canary).
+      same autorun flow (drop-handler reset canary).
 - [ ] `MZRaku.exe --mz80a NEW-INVADERS-80A.mzf` boots the game
       (DirectInject, machine-code). Title screen with SCORE line
       and invader grid visible.

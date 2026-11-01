@@ -5,7 +5,7 @@ result against an approved "golden" copy. The emulator is
 frame-deterministic, so an unchanged build reproduces every golden
 byte for byte. Any difference means behaviour changed.
 
-There are 30 cases: 9 on the MZ-700, 6 on the MZ-80A and 15 on the
+There are 31 cases: 9 on the MZ-700, 7 on the MZ-80A and 15 on the
 MZ-800. The authoritative list is the `CASES` table in `regress.py`.
 This page explains each case and what it uses, so **keep it in step
 with that table.**
@@ -32,7 +32,7 @@ python tools/regress/regress.py --headless   run through the headless runner ins
   builds the runner rather than the app, and `--no-build` works as
   before. Goldens are approved from the app only, so it refuses
   `--approve`.
-- The last line reads `30/30 cases match golden`. A failing case
+- The last line reads `31/31 cases match golden`. A failing case
   prints `DIFF` with what differed, or `FAIL` if it produced no
   output or timed out.
 
@@ -111,7 +111,8 @@ Software paths are relative to `_mz-information-repository/`.
 | `mz80a_monitor` | 200 | none (monitor only) | SA-1510 monitor boot |
 | `mz80a_basic` | 400 | BASIC SA-5510 | SA-5510 boot to Ready |
 | `mz80a_galactic` | 1500 | `MZ-80A/Software/GALACTIC-INVADERS-80A.mzf`; `keys/mz80a_galactic.keys` | A machine-code game. The script presses Space at frame 600 to leave the title screen, then types 1 at frame 1000 to pick NOVICE. |
-| `mz80a_colditz` | 1200 | `MZ-80A/Software/COLDITZ-80A.mzf` | A BASIC cassette title through the autorun path: the emulator types `LOAD` and `RUN` into SA-5510 |
+| `mz80a_colditz` | 1200 | `MZ-80A/Software/COLDITZ-80A.mzf` | A BASIC cassette title through the autorun path: the program goes into RAM the way SA-5510's `LOAD` leaves it and only `RUN` is typed. COLDITZ's header holds `$00` in the bytes SA-1510's key scan uses ($1164–$116E), so a header write there would drop the R of `RUN`. Changed in v1.5.0 (was typed `LOAD`). |
+| `mz80a_cricket` | 600 | `MZ-80A/Software/cricket.mzf` | The same autorun on a program whose line 1 is `GOSUB 2000`: `GOSUB` follows the relinked line addresses, and without the relink stops with Error 16. Added in v1.5.0. |
 | `mz80a_music` | 1400 | BASIC; `keys/mz80a_music.keys` | As `mz700_music`, on SA-5510. Covers the pitch and note-duration fixes. |
 | `mz80a_typing` | 1520 | BASIC; `keys/mz80a_typing.keys` | As `mz700_typing`, with GRPH. With the authentic inverted shift, keywords are typed in lowercase and arrive as capitals. |
 
