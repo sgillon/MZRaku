@@ -84,7 +84,7 @@ public sealed class MainForm : Form
     private int _statusLastSetFrame = -1;
     private const int StatusIdleFrames = 300;   // ~5 s at 60 Hz
     private readonly PictureBox _display = new();
-    private readonly Settings _settings = Settings.Load();
+    private readonly Settings _settings;
     private readonly ToolStripMenuItem[] _scaleMenuItems = new ToolStripMenuItem[3];
     private readonly string? _initialCassette;
     private readonly string? _insertPath;
@@ -125,12 +125,17 @@ public sealed class MainForm : Form
     // for the Font Sheet auto-surface.
     private KeyboardMatrixForm? _matrixForm;
 
-    public MainForm(string? cassettePath, bool autoLoadBasic, string? dumpPath = null,
+    public MainForm(Settings settings, string? cassettePath, bool autoLoadBasic, string? dumpPath = null,
         int dumpFrame = 120,
         int? displayScaleOverride = null, bool startFullScreen = false,
         bool? scanlinesOverride = null, MachineType? machineOverride = null,
         KeyScript? keyScript = null, string? insertPath = null)
     {
+        _settings = settings;
+        // --settings=<path>: name the INI in the title bar, since nothing
+        // this run changes is saved to it.
+        if (settings.ReadOnlyPath != null)
+            _titleBase = $"MZRaku — {Path.GetFileName(settings.ReadOnlyPath)} (read-only settings)";
         _initialCassette = cassettePath;
         _insertPath = insertPath;
         _autoLoadBasic = autoLoadBasic;
@@ -162,7 +167,7 @@ public sealed class MainForm : Form
         // ones (InjectScriptedKey), hotkeys first.
         if (keyScript != null) _session.UseKeyScript(keyScript, InjectScriptedKey);
 
-        Text = TitleBase;
+        Text = _titleBase;
         Icon = EmbeddedResources.LoadIcon();
         KeyPreview = true;
         AllowDrop = true;
@@ -664,7 +669,7 @@ public sealed class MainForm : Form
     // together, without either dependency having to know about the
     // other. See RefreshPauseIndicator.
     private bool _wasPaused;
-    private const string TitleBase = "MZRaku";
+    private readonly string _titleBase = "MZRaku";
     // Autoload state (BASIC pending, cassette pending, BASIC source
     // pending, _basicLoadedFrame, MZ-80A cassette-autorun tracking,
     // _wasGraphMode) and the ready checks it waits on all live on the
@@ -748,7 +753,7 @@ public sealed class MainForm : Form
         bool paused = _session.Active.Paused;
         if (paused == _wasPaused) return;
         _wasPaused = paused;
-        Text = paused ? TitleBase + " — PAUSED" : TitleBase;
+        Text = paused ? _titleBase + " — PAUSED" : _titleBase;
         if (_pauseMenuItem != null) _pauseMenuItem.Checked = paused;
         // Silence the wave output on pause. IMachine.Sound covers all
         // three machines (F-061).
@@ -1204,6 +1209,8 @@ public sealed class MainForm : Form
         // MZ-800 VRAM expansion, gamepad buttons.
         _session.ApplySettings();
         _display.Invalidate();
+        if (_settings.ReadOnlyPath != null)
+            _statusLabel.Text = $"Applied for this run only: {Path.GetFileName(_settings.ReadOnlyPath)} is read-only.";
     }
 
     private void OpenDebugger()

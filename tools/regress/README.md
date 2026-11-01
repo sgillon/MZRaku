@@ -5,7 +5,7 @@ result against an approved "golden" copy. The emulator is
 frame-deterministic, so an unchanged build reproduces every golden
 byte for byte. Any difference means behaviour changed.
 
-There are 31 cases: 9 on the MZ-700, 7 on the MZ-80A and 15 on the
+There are 32 cases: 9 on the MZ-700, 8 on the MZ-80A and 15 on the
 MZ-800. The authoritative list is the `CASES` table in `regress.py`.
 This page explains each case and what it uses, so **keep it in step
 with that table.**
@@ -32,7 +32,7 @@ python tools/regress/regress.py --headless   run through the headless runner ins
   builds the runner rather than the app, and `--no-build` works as
   before. Goldens are approved from the app only, so it refuses
   `--approve`.
-- The last line reads `31/31 cases match golden`. A failing case
+- The last line reads `32/32 cases match golden`. A failing case
   prints `DIFF` with what differed, or `FAIL` if it produced no
   output or timed out.
 
@@ -86,6 +86,15 @@ handlers as a real keyboard (`--keys=<file>`; the format is
 documented in `KeyScript.cs`). With `--basic`, BASIC is at its Ready
 prompt by frame 420 on all three machines.
 
+### Settings presets
+
+The INIs in `presets/` are for cases that test `--settings=<file>`.
+`regress.py` copies the file into the case's sandbox and passes that
+copy. `--settings` is read-only, so the case fails with `SETTINGS
+WRITTEN` if the run changed the copy or the sandbox's own
+`settings.ini` (which a run without `--settings` rewrites, since it
+lacks window positions).
+
 ## The cases
 
 Software paths are relative to `_mz-information-repository/`.
@@ -115,6 +124,7 @@ Software paths are relative to `_mz-information-repository/`.
 | `mz80a_cricket` | 600 | `MZ-80A/Software/cricket.mzf` | The same autorun on a program whose line 1 is `GOSUB 2000`: `GOSUB` follows the relinked line addresses, and without the relink stops with Error 16. Added in v1.5.0. |
 | `mz80a_music` | 1400 | BASIC; `keys/mz80a_music.keys` | As `mz700_music`, on SA-5510. Covers the pitch and note-duration fixes. |
 | `mz80a_typing` | 1520 | BASIC; `keys/mz80a_typing.keys` | As `mz700_typing`, with GRPH. With the authentic inverted shift, keywords are typed in lowercase and arrive as capitals. |
+| `mz80a_settings` | 200 | `--settings=presets/mz80a_white.ini` | The monitor, run with a minimal settings file that turns the green screen off, so the frame is white on black. Nothing may be written (see Settings presets). Added in v1.5.0. |
 
 ### MZ-800
 
@@ -148,7 +158,7 @@ commit, cases and why).
 - `_regression/out/` holds the latest run.
 
 The v1.4.0 baseline is commit a80994a: all 27 cases approved on
-clean `main`. v1.5.0 adds cases as its fixes land (`mz700_insert`, `mz700_insert_basic`, `mz700_save`).
+clean `main`. v1.5.0 adds cases as its fixes and features land (`mz700_insert`, `mz700_insert_basic`, `mz700_save`, `mz80a_cricket`, `mz80a_settings`).
 
 ## Adding a case
 
@@ -156,7 +166,8 @@ clean `main`. v1.5.0 adds cases as its fixes land (`mz700_insert`, `mz700_insert
    machine's `Software/` folder.
 2. Add a row to `CASES` in `regress.py`: name, command-line
    arguments, dump frame, and extra artefacts (`tests`, `wav`,
-   `snd` or `save`). Add a key script to `keys/` if it needs input.
+   `snd` or `save`). Add a key script to `keys/` if it needs input,
+   or a settings file to `presets/` if it tests `--settings`.
 3. Run it a few times to confirm it is stable. Check the output by
    eye, then approve it and log the approval.
 4. Add it to the tables above.

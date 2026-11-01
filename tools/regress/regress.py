@@ -52,6 +52,7 @@ SANDBOX = os.path.join(REG, "sandbox")
 MEDIA = os.path.join(SANDBOX, "_media")   # test media assembled from the repository
 SETTINGS = os.path.join(HERE, "settings.ini")
 KEYS = os.path.join(HERE, "keys")   # --keys= scripts (tracked)
+PRESETS = os.path.join(HERE, "presets")   # --settings= INIs (tracked)
 WORKERS = 4
 
 # Sandbox path -> (repository path, SHA-1). The hashes pin the exact
@@ -87,7 +88,9 @@ ZIPS = {
 #   A path after --cassette is relative to the repository (or names a
 #   ZIPS entry), as is one after --insert= (File -> Insert cassette);
 #   --keys=<file> names a scripted-input file in keys/
-#   (format: KeyScript.cs).
+#   (format: KeyScript.cs); --settings=<file> names an INI in presets/,
+#   copied into the sandbox and run read-only (the case fails if it or
+#   the sandbox's settings.ini is written).
 CASES = [
     # --- MZ-700 ---
     ("mz700_monitor",  ["--mz700"],                                   200, ["snd"]),
@@ -107,6 +110,7 @@ CASES = [
     ("mz80a_cricket",  ["--mz80a", "--cassette", MZ80A_SW + "cricket.mzf"], 600, ["snd"]),   # line 1 GOSUB: relinked program lines
     ("mz80a_music",    ["--mz80a", "--basic", "--keys=mz80a_music.keys"], 1400, ["snd"]),
     ("mz80a_typing",   ["--mz80a", "--basic", "--keys=mz80a_typing.keys"], 1520, ["snd"]),
+    ("mz80a_settings", ["--mz80a", "--settings=mz80a_white.ini"],    200, []),   # --settings: white screen, nothing written
     # --- MZ-800 ---
     ("mz800_ipl",      ["--mz800"],                                   200, ["tests", "wav"]),
     ("mz800_basic",    ["--mz800", "--basic"],                        300, ["wav"]),
@@ -151,6 +155,8 @@ def check_sources():
                 problems.append(f"missing {os.path.join(INFO, a[len('--insert='):])}")
             elif a.startswith("--keys=") and not os.path.exists(os.path.join(KEYS, a[len("--keys="):])):
                 problems.append(f"missing {os.path.join(KEYS, a[len('--keys='):])}")
+            elif a.startswith("--settings=") and not os.path.exists(os.path.join(PRESETS, a[len("--settings="):])):
+                problems.append(f"missing {os.path.join(PRESETS, a[len('--settings='):])}")
     for parts in ZIPS.values():
         problems += [f"missing {os.path.join(INFO, p)}" for p in parts
                      if not os.path.exists(os.path.join(INFO, p))]
@@ -183,7 +189,7 @@ def make_sandbox(name):
     return box
 
 
-def resolve(args):
+def resolve(args, box):
     out = []
     for i, a in enumerate(args):
         if i > 0 and args[i - 1] == "--cassette":
@@ -192,8 +198,25 @@ def resolve(args):
             a = "--insert=" + os.path.join(INFO, a[len("--insert="):])
         elif a.startswith("--keys="):
             a = "--keys=" + os.path.join(KEYS, a[len("--keys="):])
+        elif a.startswith("--settings="):
+            # A copy in the sandbox, so a write would show (settings_written).
+            preset = a[len("--settings="):]
+            shutil.copyfile(os.path.join(PRESETS, preset), os.path.join(box, preset))
+            a = "--settings=" + os.path.join(box, preset)
         out.append(a)
     return out
+
+
+def settings_written(box, args):
+    """--settings= is read-only: name any INI the run changed, else None."""
+    pairs = [(os.path.join(box, "settings.ini"), SETTINGS)]
+    pairs += [(os.path.join(box, a[len("--settings="):]), os.path.join(PRESETS, a[len("--settings="):]))
+              for a in args if a.startswith("--settings=")]
+    if len(pairs) == 1:
+        return None
+    changed = [os.path.basename(run) for run, src in pairs
+               if open(run, "rb").read() != open(src, "rb").read()]
+    return f"SETTINGS WRITTEN: {', '.join(changed)}" if changed else None
 
 
 def collect_save(box, base):
@@ -212,7 +235,7 @@ def run_case(case):
         if f.startswith(name + "."):
             os.remove(os.path.join(OUT, f))
     box = make_sandbox(name)
-    cmd = [os.path.join(box, EXE)] + resolve(args) + [f"--dump={base}", f"--dumpframe={frame}"]
+    cmd = [os.path.join(box, EXE)] + resolve(args, box) + [f"--dump={base}", f"--dumpframe={frame}"]
     if HEADLESS:
         # Unpaced, so allow the real-time length plus start-up. Its
         # status lines are captured; errors are shown if the case fails.
@@ -223,7 +246,7 @@ def run_case(case):
             return name, "TIMEOUT"
         collect_save(box, base)
         if os.path.exists(base + ".png"):
-            return name, "ok"
+            return name, settings_written(box, args) or "ok"
         err = r.stderr.strip().replace("\n", " ")
         return name, f"NO OUTPUT (exit {r.returncode}{': ' + err[:200] if err else ''})"
     # Open minimised without taking focus, so a run doesn't cover the
@@ -237,7 +260,9 @@ def run_case(case):
     except subprocess.TimeoutExpired:
         return name, "TIMEOUT"
     collect_save(box, base)
-    return name, "ok" if os.path.exists(base + ".png") else "NO OUTPUT"
+    if not os.path.exists(base + ".png"):
+        return name, "NO OUTPUT"
+    return name, settings_written(box, args) or "ok"
 
 
 def png_pixels(path):

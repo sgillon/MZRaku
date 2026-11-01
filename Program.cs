@@ -14,6 +14,7 @@ internal static class Program
         int dumpFrame = 120;
         string? keysPath = null;
         string? insertPath = null;
+        string? settingsPath = null;
         int? displayScaleOverride = null;
         bool startFullScreen = false;
         bool? scanlinesOverride = null;
@@ -55,6 +56,12 @@ internal static class Program
                 // Insert a cassette for the machine's own LOAD, as File →
                 // Insert cassette does (regression suite; not in --help yet).
                 insertPath = a.Substring(9);
+            }
+            else if (a.StartsWith("--settings=", StringComparison.OrdinalIgnoreCase))
+            {
+                // Run with another INI, read-only: nothing this run
+                // changes is written back (Settings.ReadOnlyPath).
+                settingsPath = a.Substring(11);
             }
             else if (a.Equals("--scanlines", StringComparison.OrdinalIgnoreCase))
             {
@@ -179,8 +186,25 @@ internal static class Program
             }
         }
 
+        // --settings=<path>: a file that can't be read stops here, like a
+        // bad --keys script, rather than running on defaults.
+        Settings settings;
+        try
+        {
+            settings = Settings.Load(settingsPath);
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            var msg = $"--settings file {settingsPath}: {ex.Message}";
+            Console.Error.WriteLine(msg);
+            if (dumpPath == null)
+                MessageBox.Show(msg, "MZRaku", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            Environment.Exit(2);
+            return;
+        }
+
         ApplicationConfiguration.Initialize();
-        var form = new MainForm(cassettePath, autoLoadBasic, dumpPath, dumpFrame,
+        var form = new MainForm(settings, cassettePath, autoLoadBasic, dumpPath, dumpFrame,
             displayScaleOverride, startFullScreen, scanlinesOverride, machineOverride, keyScript, insertPath);
         Application.Run(form);
     }

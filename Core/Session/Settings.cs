@@ -14,9 +14,23 @@ namespace MZRaku.Core;
 ///
 /// To add a new setting: declare a property, read it from the parsed
 /// dictionary in <see cref="Load"/>, and write it in <see cref="Save"/>.
+///
+/// <c>--settings=&lt;path&gt;</c> loads another INI instead, read-only:
+/// see <see cref="ReadOnlyPath"/>.
 /// </summary>
 public sealed class Settings
 {
+    /// <summary>
+    /// The INI these settings came from when it was given with
+    /// <c>--settings=&lt;path&gt;</c>; null for the usual settings.ini
+    /// next to the executable. When set, <see cref="Save"/> writes
+    /// nothing, so a preset or a bug-report INI is never changed: the
+    /// Settings dialog, window positions and ROM auto-detect all apply
+    /// to this run only. Relative paths inside it still resolve against
+    /// the executable's folder.
+    /// </summary>
+    public string? ReadOnlyPath { get; private set; }
+
     public int DisplayScale { get; set; } = 2;
 
     // CRT-style scanline overlay on the rendered framebuffer. Off by
@@ -245,16 +259,26 @@ public sealed class Settings
         "DebuggerBreakpoints",
     };
 
-    public static Settings Load()
+    /// <summary>
+    /// Loads settings.ini next to the executable, creating or completing
+    /// it if needed. With <paramref name="readOnlyPath"/>, loads that
+    /// file instead and never writes (see <see cref="ReadOnlyPath"/>);
+    /// a file that can't be read throws, so the front end can report it
+    /// rather than run on defaults the user didn't ask for.
+    /// </summary>
+    /// <exception cref="IOException">The read-only file is missing or can't be read.</exception>
+    /// <exception cref="UnauthorizedAccessException">The read-only file can't be opened.</exception>
+    public static Settings Load(string? readOnlyPath = null)
     {
-        var s = new Settings();
-        bool fileExisted = File.Exists(FilePath);
+        var s = new Settings { ReadOnlyPath = readOnlyPath };
+        string[]? readOnlyLines = readOnlyPath != null ? File.ReadAllLines(readOnlyPath) : null;
+        bool fileExisted = readOnlyLines != null || File.Exists(FilePath);
         bool missingSection = false;
         try
         {
             if (fileExisted)
             {
-                var ini = ParseIni(File.ReadAllLines(FilePath));
+                var ini = ParseIni(readOnlyLines ?? File.ReadAllLines(FilePath));
                 s.DisplayScale = GetInt(ini, "Display", "Scale", s.DisplayScale);
                 s.DisplayScanlines = GetBool(ini, "Display", "Scanlines", s.DisplayScanlines);
 
@@ -360,8 +384,14 @@ public sealed class Settings
         return s;
     }
 
+    /// <summary>
+    /// Writes settings.ini, every section with its explanatory comment.
+    /// Does nothing when the settings came from <c>--settings=</c>
+    /// (<see cref="ReadOnlyPath"/>).
+    /// </summary>
     public void Save()
     {
+        if (ReadOnlyPath != null) return;
         try
         {
             var sb = new StringBuilder();

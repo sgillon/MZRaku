@@ -12,21 +12,21 @@ namespace MZRakuHeadless;
 ///   MainForm.ProcessCmdKey: the ones that change emulation act, and the
 ///   ones that only open windows or dialogs are swallowed;
 /// - errors the app would show in a dialog go to stderr, and the run
-///   ends with an exit code (1 can't start, 2 bad --keys script,
-///   3 fatal error while running).
+///   ends with an exit code (1 can't start, 2 bad --keys script or
+///   --settings file, 3 fatal error while running).
 /// Settings come from settings.ini next to the executable, as the app's
-/// do.
+/// do, or read-only from --settings=&lt;ini&gt;.
 /// </summary>
 internal static class Program
 {
     private const string Usage =
         "Usage: MZRakuHeadless [--mz700|--mz80a|--mz800] [--basic] [--keys=<file>]\n" +
-        "                      [--insert=<cassette>]\n" +
+        "                      [--insert=<cassette>] [--settings=<ini>]\n" +
         "                      --dump=<path> [--dumpframe=N] [cassette.mzf|.zip]\n\n" +
         "Runs unpaced and writes the same --dump files as MZRaku.exe at frame N\n" +
         "(default 120), then exits. Window options (--display, --scanlines) are\n" +
         "accepted and ignored. Settings come from settings.ini next to this\n" +
-        "executable.";
+        "executable, or read-only from --settings=<ini>.";
 
     private static int Main(string[] args)
     {
@@ -36,6 +36,7 @@ internal static class Program
         int dumpFrame = 120;
         string? keysPath = null;
         string? insertPath = null;
+        string? settingsPath = null;
         MachineType? machineOverride = null;
 
         foreach (var a in args)
@@ -59,6 +60,8 @@ internal static class Program
                 keysPath = a.Substring(7);
             else if (a.StartsWith("--insert=", StringComparison.OrdinalIgnoreCase))
                 insertPath = a.Substring(9);
+            else if (a.StartsWith("--settings=", StringComparison.OrdinalIgnoreCase))
+                settingsPath = a.Substring(11);
             else if (a.Equals("--help", StringComparison.OrdinalIgnoreCase) || a == "-h" || a == "/?")
             {
                 Console.WriteLine(Usage);
@@ -90,7 +93,15 @@ internal static class Program
             }
         }
 
-        var settings = Settings.Load();
+        Settings settings;
+        try
+        {
+            settings = Settings.Load(settingsPath);
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            return Fail(2, $"--settings file {settingsPath}: {ex.Message}");
+        }
         if (machineOverride.HasValue) settings.CurrentMachine = machineOverride.Value;
         var session = new EmulatorSession(settings);
         int exitCode = 0;
