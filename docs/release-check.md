@@ -226,6 +226,12 @@ At the 1Z-016 `Ready` prompt:
       log shows interleaved `C0 <- $XX` reload writes,
       `$E008 ← $01`/`$00` hard-gate toggles, PC3 soft-gate
       transitions. State pane's Audible line updates live.
+- [ ] System → Sound on the MZ-700 and MZ-800, with `MUSIC` playing:
+      Mute (Ctrl+U) silences at once and shows the MUTED chip; pause
+      and resume keep it muted; Ctrl+U again restores sound. The
+      volume slider changes the level as it moves (status bar shows
+      it); 0 is silent. Both survive Reset and a restart (`[Sound]`
+      in `settings.ini`). New in v1.5.0.
 
 ### Display
 

@@ -86,6 +86,11 @@ public sealed class Settings
     // unused. Persisted at [Hardware.MZ800] MZ1R25=.
     public bool Mz800VramExpansion { get; set; } = true;
 
+    // Sound output, the same on every machine (System → Sound).
+    // Persisted at [Sound] Volume= (0–100) and Muted=.
+    public int SoundVolume { get; set; } = 100;
+    public bool SoundMuted { get; set; } = false;
+
     // Paths to the system files (monitor ROM, character font, BASIC
     // cassette image), split by machine so all three machines can coexist
     // in one settings.ini. Auto-detected on first run by scanning the
@@ -240,6 +245,7 @@ public sealed class Settings
     private static readonly string[] RequiredSections = new[]
     {
         "Machine",
+        "Sound",
         "Display.MZ80A",
         "Keyboard.MZ80A",
         "Hardware.MZ800",
@@ -301,6 +307,8 @@ public sealed class Settings
                     "GreenScreen", s.Mz80aGreenScreen);
                 s.Mz800VramExpansion = GetBool(ini, "Hardware.MZ800",
                     "MZ1R25", s.Mz800VramExpansion);
+                s.SoundVolume = Math.Clamp(GetInt(ini, "Sound", "Volume", s.SoundVolume), 0, 100);
+                s.SoundMuted = GetBool(ini, "Sound", "Muted", s.SoundMuted);
 
                 s.Mz700Roms.MonitorRomPath = GetString(ini, "Roms.MZ700", "Monitor", "");
                 s.Mz700Roms.FontPath = GetString(ini, "Roms.MZ700", "Font", "");
@@ -422,6 +430,15 @@ public sealed class Settings
             sb.AppendLine("; the chosen machine for one session and does NOT rewrite this value;");
             sb.AppendLine("; change the default here or in Settings → Startup.");
             sb.AppendLine($"DefaultMachine={DefaultMachine}");
+            sb.AppendLine();
+
+            sb.AppendLine("[Sound]");
+            sb.AppendLine("; Sound output, the same on every machine. Also in System → Sound.");
+            sb.AppendLine(";   Volume  0-100 (default 100, the level before v1.5.0).");
+            sb.AppendLine(";   Muted   true / false (default false). Ctrl+U toggles it. Pausing");
+            sb.AppendLine(";           silences sound as well, without changing this.");
+            sb.AppendLine($"Volume={SoundVolume}");
+            sb.AppendLine($"Muted={(SoundMuted ? "true" : "false")}");
             sb.AppendLine();
 
             sb.AppendLine("[Display.MZ80A]");

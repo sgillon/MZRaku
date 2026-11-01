@@ -144,9 +144,9 @@ internal sealed class WinmmWaveOut : IAudioOut
     /// <summary>
     /// Immediately stop playback and flush any queued buffers. The
     /// device stays open so a subsequent <see cref="AddSamples"/>
-    /// resumes without re-init latency. Used by <see cref="Sound.Muted"/>
+    /// resumes without re-init latency. Used by Sound's mutes
     /// to kill the currently-playing tone the instant the emulator
-    /// pauses, rather than letting the ~100 ms of already-queued audio
+    /// pauses or is muted, rather than letting the ~100 ms of already-queued audio
     /// drain naturally.
     /// </summary>
     public void Reset()

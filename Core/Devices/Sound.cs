@@ -46,26 +46,62 @@ public sealed class Sound : IDisposable
     private IAudioOut? _wave;
     private System.Threading.Thread? _thread;
     private volatile bool _running;
-    private volatile bool _muted;
+
+    // Each reason to be silent is its own bit, so lifting one (un-pausing)
+    // leaves the others (the user's mute) in place. Set from the UI
+    // thread only; the feed loop reads the whole mask.
+    private const int PauseMuteBit = 1;
+    private const int UserMuteBit = 2;
+    private volatile int _muteBits;
+
+    private bool Silent => _muteBits != 0;
 
     /// <summary>
-    /// When true, FeedLoop stops submitting new PCM chunks and the
-    /// wave-out queue is flushed immediately on transition. Used by
-    /// the host to silence the currently-playing tone the instant the
-    /// emulator pauses — without it the ~100 ms of already-queued audio
-    /// keeps sounding for a beat after pause and any continuous tone
-    /// (SA-1510 boot beep, MUSIC held note) sustains indefinitely
-    /// because the PIT state doesn't advance to close its gate.
+    /// The pause mute. When any mute is on, FeedLoop stops submitting
+    /// new PCM chunks, and the wave-out queue is flushed the moment the
+    /// first one goes on. The host sets this as the emulator pauses —
+    /// without it the ~100 ms of already-queued audio keeps sounding for
+    /// a beat after pause and any continuous tone (SA-1510 boot beep,
+    /// MUSIC held note) sustains indefinitely because the PIT state
+    /// doesn't advance to close its gate.
     /// </summary>
-    public bool Muted
+    public bool PauseMuted
     {
-        get => _muted;
-        set
-        {
-            if (_muted == value) return;
-            _muted = value;
-            if (value) _wave?.Reset();
-        }
+        get => (_muteBits & PauseMuteBit) != 0;
+        set => SetMute(PauseMuteBit, value);
+    }
+
+    /// <summary>
+    /// The user's mute (System → Sound → Mute), independent of
+    /// <see cref="PauseMuted"/> so un-pausing doesn't un-mute.
+    /// </summary>
+    public bool UserMuted
+    {
+        get => (_muteBits & UserMuteBit) != 0;
+        set => SetMute(UserMuteBit, value);
+    }
+
+    private void SetMute(int bit, bool on)
+    {
+        int was = _muteBits;
+        int now = on ? was | bit : was & ~bit;
+        if (now == was) return;
+        _muteBits = now;
+        if (was == 0) _wave?.Reset();
+    }
+
+    private volatile int _volume = 100;
+
+    /// <summary>
+    /// Output level, 0–100 (default 100, the level before v1.5.0):
+    /// scales every sample on both paths, the square wave and the
+    /// MZ-800's external PCM. Doesn't touch the <c>--dump</c> logs,
+    /// which record what the machine asked for, not what was played.
+    /// </summary>
+    public int Volume
+    {
+        get => _volume;
+        set => _volume = Math.Clamp(value, 0, 100);
     }
 
     // ---- Event log (--dump) ----
@@ -236,6 +272,7 @@ public sealed class Sound : IDisposable
             _fillAverage = target;
         }
 
+        int volume = _volume;
         for (int i = 0; i < SamplesPerChunk; i++)
         {
             _readFrac += ratio;
@@ -248,8 +285,9 @@ public sealed class Sound : IDisposable
                 _lastSample = _ring[r];
                 _ringRead = (r + 1) % _ring.Length;
             }
-            buf[i * 2] = (byte)_lastSample;
-            buf[i * 2 + 1] = (byte)(_lastSample >> 8);
+            short s = (short)(_lastSample * volume / 100);
+            buf[i * 2] = (byte)s;
+            buf[i * 2 + 1] = (byte)(s >> 8);
         }
     }
 
@@ -274,7 +312,7 @@ public sealed class Sound : IDisposable
         {
             try
             {
-                if (_muted)
+                if (Silent)
                 {
                     // Discard whatever the emulator queued so unmuting
                     // doesn't replay stale audio.
@@ -292,7 +330,7 @@ public sealed class Sound : IDisposable
                             System.Threading.Thread.Sleep(2);
                     // A mute during the wait has already flushed the
                     // device; don't queue a chunk behind it.
-                    if (_muted) continue;
+                    if (Silent) continue;
                     FillExternal(buf);
                     _wave?.AddSamples(buf, 0, buf.Length);
                     continue;
@@ -307,6 +345,7 @@ public sealed class Sound : IDisposable
                 if (!gate || freq < 20 || freq > 20000) freq = 0;
 
                 double step = (freq > 0) ? freq / SampleRate : 0;
+                short amplitude = (short)(6000 * _volume / 100);
                 for (int i = 0; i < SamplesPerChunk; i++)
                 {
                     short s = 0;
@@ -314,7 +353,7 @@ public sealed class Sound : IDisposable
                     {
                         phase += step;
                         if (phase >= 1.0) phase -= 1.0;
-                        s = (short)(phase < 0.5 ? 6000 : -6000);
+                        s = phase < 0.5 ? amplitude : (short)-amplitude;
                     }
                     buf[i * 2] = (byte)s;
                     buf[i * 2 + 1] = (byte)(s >> 8);
@@ -325,7 +364,7 @@ public sealed class Sound : IDisposable
                         System.Threading.Thread.Sleep(5);
                     // As above: a mute during the wait means this chunk
                     // would sound after the flush.
-                    if (_muted) continue;
+                    if (Silent) continue;
                     _wave.AddSamples(buf, 0, buf.Length);
                 }
             }

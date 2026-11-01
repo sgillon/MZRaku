@@ -64,6 +64,20 @@ public sealed class MainForm : Form
         BorderSides = ToolStripStatusLabelBorderSides.Left,
         BorderStyle = Border3DStyle.Etched,
     };
+    // Left of the TAPE chip, shown only while the user has muted sound
+    // (System → Sound → Mute, Ctrl+U). Pausing doesn't show it.
+    private readonly ToolStripStatusLabel _mutedLabel = new()
+    {
+        Spring = false,
+        Text = "MUTED",
+        AutoSize = false,
+        Width = 56,
+        TextAlign = ContentAlignment.MiddleCenter,
+        BorderSides = ToolStripStatusLabelBorderSides.Left,
+        BorderStyle = Border3DStyle.Etched,
+        ToolTipText = "Sound muted (Ctrl+U)",
+        Visible = false,
+    };
     // MZ-800 only, left of the mode pane: display mode (MZ-700 /
     // 320×200 / 640×200).
     private readonly ToolStripStatusLabel _displayModeLabel = new()
@@ -113,6 +127,7 @@ public sealed class MainForm : Form
     // display group. EmulatorSession applies it at construction and in
     // ApplySettings (from OnSettingsApplied).
     private ToolStripMenuItem? _pauseMenuItem;
+    private ToolStripMenuItem? _muteMenuItem;
     private readonly bool _startFullScreen;
     // Captures the pre-override scanlines value when --scanlines was
     // passed on the CLI. The natural-close FormClosing handler restores
@@ -206,12 +221,14 @@ public sealed class MainForm : Form
         _machineLabel.Text = _session.MachineLabel;
         _status.Items.Add(_machineLabel);
         _status.Items.Add(_statusLabel);
+        _status.Items.Add(_mutedLabel);
         _status.Items.Add(_tapeLabel);
         if (_session.Mz800 != null) _status.Items.Add(_displayModeLabel);
         _status.Items.Add(_modeLabel);
+        _status.ShowItemToolTips = true;
+        _mutedLabel.Visible = _session.SoundMuted;
         if (_session.Mz800 != null)
         {
-            _status.ShowItemToolTips = true;
             _modeLabel.ToolTipText = "MZ-800 BASIC keyboard mode: ALPHA (normal), " +
                                      "LOCK (shift lock, SHIFT+ALPHA) or GRAPH";
             UpdateMz800ModeLabel();
@@ -402,6 +419,7 @@ public sealed class MainForm : Form
             Checked = _session.Active.Paused,
         };
         system.DropDownItems.Add(_pauseMenuItem);
+        system.DropDownItems.Add(BuildSoundMenu());
 
         system.DropDownItems.Add(new ToolStripSeparator());
 
@@ -495,6 +513,64 @@ public sealed class MainForm : Form
         menu.Items.Add(help);
         MainMenuStrip = menu;
         Controls.Add(menu);
+    }
+
+    /// <summary>
+    /// System → Sound: Mute (Ctrl+U, caught in ProcessCmdKey so it also
+    /// works in full screen) and a volume slider. Both act at once and
+    /// are saved to [Sound] in settings.ini; the slider saves when the
+    /// menu closes rather than on every step.
+    /// </summary>
+    private ToolStripMenuItem BuildSoundMenu()
+    {
+        var sound = new ToolStripMenuItem("S&ound");
+        _muteMenuItem = new ToolStripMenuItem("&Mute", null, (_, _) => ToggleMute())
+        {
+            ShortcutKeyDisplayString = "Ctrl+U",
+            Checked = _session.SoundMuted,
+        };
+        sound.DropDownItems.Add(_muteMenuItem);
+        sound.DropDownItems.Add(new ToolStripSeparator());
+        var volumeLabel = new ToolStripLabel($"Volume: {_session.Volume}%");
+        sound.DropDownItems.Add(volumeLabel);
+        var slider = new TrackBar
+        {
+            Minimum = 0,
+            Maximum = 100,
+            TickFrequency = 10,
+            SmallChange = 5,
+            LargeChange = 10,
+            Value = _session.Volume,
+            AutoSize = false,
+            Width = 160,
+            Height = 32,
+            BackColor = ProfessionalColors.ToolStripDropDownBackground,
+        };
+        int savedVolume = _session.Volume;
+        slider.ValueChanged += (_, _) =>
+        {
+            _session.Volume = slider.Value;
+            volumeLabel.Text = $"Volume: {slider.Value}%";
+            _statusLabel.Text = $"Volume {slider.Value}%";
+        };
+        sound.DropDownItems.Add(new ToolStripControlHost(slider) { AutoSize = false, Width = 164, Height = 34 });
+        sound.DropDown.Closed += (_, _) =>
+        {
+            if (_session.Volume == savedVolume) return;
+            savedVolume = _session.Volume;
+            _settings.Save();
+        };
+        return sound;
+    }
+
+    private void ToggleMute()
+    {
+        bool muted = !_session.SoundMuted;
+        _session.SoundMuted = muted;
+        _settings.Save();
+        if (_muteMenuItem != null) _muteMenuItem.Checked = muted;
+        _mutedLabel.Visible = muted;
+        _statusLabel.Text = muted ? "Sound muted." : "Sound on.";
     }
 
     /// <summary>
@@ -601,11 +677,17 @@ public sealed class MainForm : Form
             TogglePause();
             return true;
         }
-        // Ctrl+P: View → Save screenshot. Here rather than as the menu
-        // item's ShortcutKeys so it also works in full screen.
+        // Ctrl+P: View → Save screenshot; Ctrl+U: System → Sound → Mute.
+        // Here rather than as the menu items' ShortcutKeys so they also
+        // work in full screen.
         if (keyData == (Keys.Control | Keys.P))
         {
             SaveScreenshot();
+            return true;
+        }
+        if (keyData == (Keys.Control | Keys.U))
+        {
+            ToggleMute();
             return true;
         }
         return base.ProcessCmdKey(ref msg, keyData);
@@ -787,8 +869,9 @@ public sealed class MainForm : Form
         Text = paused ? _titleBase + " — PAUSED" : _titleBase;
         if (_pauseMenuItem != null) _pauseMenuItem.Checked = paused;
         // Silence the wave output on pause. IMachine.Sound covers all
-        // three machines (F-061).
-        _session.Active.Sound.Muted = paused;
+        // three machines (F-061). The user's mute is separate, so
+        // resuming leaves it as it was.
+        _session.Active.Sound.PauseMuted = paused;
         _display.Invalidate();
     }
 

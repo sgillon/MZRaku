@@ -338,6 +338,8 @@ public sealed class EmulatorSession
             // Phase 6.1: capture rendered audio for a .wav alongside the dump.
             Mz800.AudioCapture = tracing ? new System.IO.MemoryStream() : null;
         }
+        Active.Sound.Volume = _settings.SoundVolume;
+        Active.Sound.UserMuted = _settings.SoundMuted;
         Active.Sound.Start(openAudio());
 
         // Dump-and-trace recorder (v1.2 audit F-055). Only for --dump;
@@ -596,6 +598,35 @@ public sealed class EmulatorSession
     {
         if (CanInsertCassette) InsertCassette(path);
         else StatusMessage?.Invoke($"--insert ignored: the {MachineLabel} has no Insert cassette.");
+    }
+
+    /// <summary>
+    /// Output level, 0–100, kept in the settings (<c>[Sound] Volume=</c>)
+    /// and applied at once. The front end saves the settings.
+    /// </summary>
+    public int Volume
+    {
+        get => _settings.SoundVolume;
+        set
+        {
+            _settings.SoundVolume = Math.Clamp(value, 0, 100);
+            Active.Sound.Volume = _settings.SoundVolume;
+        }
+    }
+
+    /// <summary>
+    /// The user's mute, kept in the settings (<c>[Sound] Muted=</c>) and
+    /// applied at once; separate from the pause mute. The front end
+    /// saves the settings.
+    /// </summary>
+    public bool SoundMuted
+    {
+        get => _settings.SoundMuted;
+        set
+        {
+            _settings.SoundMuted = value;
+            Active.Sound.UserMuted = value;
+        }
     }
 
     /// <summary>
