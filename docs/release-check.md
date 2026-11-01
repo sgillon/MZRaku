@@ -238,6 +238,11 @@ At the 1Z-016 `Ready` prompt:
       tracks state; persists across restart.
 - [ ] `--scanlines=on`/`off` overrides persisted setting for that
       run only.
+- [ ] View → Save screenshot (Ctrl+P) on each machine: the status
+      bar names `screenshots\<machine>-<date>-<time>.png`, a PNG of
+      the bare frame at native size (no scanlines). Ctrl+P works
+      while paused (no pause wash in the file) and in full screen;
+      MZ-800 640-wide mode saves 640×200. New in v1.5.0.
 - [ ] Main window geometry (size + position) restored on relaunch.
 - [ ] MZ-80A: Settings → Display → MZ-80A → "Green screen (P1
       phosphor)" toggles the monochrome renderer between white and
@@ -325,6 +330,12 @@ At the 1Z-016 `Ready` prompt:
       DefaultMachine=MZ-80A only; stored value survives the disable.
 - [ ] Settings → ROMs shows an MZ-800 group (`MZ800.ROM`,
       `1Z-016.mzf`); browsing a new path persists to `[Roms.MZ800]`.
+- [ ] `--settings=<ini>` with a copy of `settings.ini` (green screen
+      off for `--mz80a` makes it visible): the title bar names the
+      file and says read-only; Settings → OK says the change is for
+      this run only; a machine switch keeps the flag. After closing,
+      neither that file nor `settings.ini` has changed. A missing
+      file stops with a message. New in v1.5.0.
 
 ### Known backlog items
 

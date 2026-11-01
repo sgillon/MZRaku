@@ -208,6 +208,7 @@ internal static class Program
             case Ctrl | HostKey.D2:
             case Ctrl | HostKey.D3:
             case Ctrl | HostKey.L:                               // scanlines
+            case Ctrl | HostKey.P:                               // Save screenshot
             case Ctrl | HostKey.G:                               // Font Sheet
             case Ctrl | HostKey.D:                               // Debugger
             case Ctrl | HostKey.M:                               // Memory Viewer

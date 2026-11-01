@@ -457,6 +457,12 @@ public sealed class MainForm : Form
         };
         view.DropDownItems.Add(_scanlinesMenuItem);
         view.DropDownItems.Add(new ToolStripSeparator());
+        // Ctrl+P is caught in ProcessCmdKey, so it works in full screen
+        // with the menu hidden; the menu shows it as a hint.
+        view.DropDownItems.Add(new ToolStripMenuItem("Save &screenshot", null, (_, _) => SaveScreenshot())
+        {
+            ShortcutKeyDisplayString = "Ctrl+P",
+        });
         // Font Sheet — always available from View for click-to-type
         // glyph access. Also auto-surfaces in the Timer_Tick handler
         // on ALPHA→GRAPH transitions, since graphic glyphs have no
@@ -595,7 +601,32 @@ public sealed class MainForm : Form
             TogglePause();
             return true;
         }
+        // Ctrl+P: View → Save screenshot. Here rather than as the menu
+        // item's ShortcutKeys so it also works in full screen.
+        if (keyData == (Keys.Control | Keys.P))
+        {
+            SaveScreenshot();
+            return true;
+        }
         return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    /// <summary>
+    /// View → Save screenshot (Ctrl+P): see
+    /// <see cref="EmulatorSession.SaveScreenshot"/>. The status bar names
+    /// the file (in full screen it is hidden, but the file is written).
+    /// </summary>
+    private void SaveScreenshot()
+    {
+        try
+        {
+            var path = _session.SaveScreenshot();
+            _statusLabel.Text = $"Screenshot saved: screenshots\\{Path.GetFileName(path)}";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _statusLabel.Text = "Screenshot not saved: " + ex.Message;
+        }
     }
 
     /// <summary>

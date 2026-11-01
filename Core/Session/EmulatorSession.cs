@@ -598,6 +598,29 @@ public sealed class EmulatorSession
         else StatusMessage?.Invoke($"--insert ignored: the {MachineLabel} has no Insert cassette.");
     }
 
+    /// <summary>
+    /// View → Save screenshot: the emulated frame as it stands, at its
+    /// native size (640×200 in the MZ-800's 640-wide mode, 320×200
+    /// otherwise) and without the window's scanlines or pause wash, to
+    /// <c>screenshots\</c> next to the executable as
+    /// <c>mz700-yyyyMMdd-HHmmss.png</c> (with <c>-2</c>, <c>-3</c>…
+    /// if that name is taken). Works while paused. Returns the path
+    /// written; one that can't be written throws.
+    /// </summary>
+    public string SaveScreenshot()
+    {
+        var frame = Active.VideoFrame
+            ?? throw new InvalidOperationException("there is no picture yet.");
+        var dir = Path.Combine(AppContext.BaseDirectory, "screenshots");
+        Directory.CreateDirectory(dir);
+        var stem = $"{MachineLabel.Replace("-", "").ToLowerInvariant()}-{DateTime.Now:yyyyMMdd-HHmmss}";
+        var path = Path.Combine(dir, stem + ".png");
+        for (int n = 2; File.Exists(path); n++)
+            path = Path.Combine(dir, $"{stem}-{n}.png");
+        PngWriter.Save(frame, path);
+        return path;
+    }
+
     /// <summary>Load BASIC into the running machine now.</summary>
     public LoadResult LoadBasic()
     {
