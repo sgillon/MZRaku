@@ -84,8 +84,9 @@ release, update the checklist before fixing the bug.
       without NRE.
 - [ ] `View → Font Sheet…` (Ctrl+G) opens.
 - [ ] `Debug → Sound Diagnostic…` opens on MZ-700 and MZ-800 (MZ-800
-      shows the PSG pane). On MZ-80A it shows the friendly "currently
-      available on the MZ-700 and MZ-800 only" MessageBox — no NRE.
+      shows the PSG pane). On MZ-80A it's greyed out, with a "MZ-700
+      and MZ-800 only" tooltip; so is `File → Insert cassette for
+      LOAD…` until Phase 4 item 13.
 - [ ] MZ-800 Memory Viewer: bank line shows bank state and display
       mode. At the IPL menu, $E000-$E00F reads as memory (not hidden
       as I/O).

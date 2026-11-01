@@ -341,9 +341,11 @@ public sealed class MainForm : Form
         // instead of the direct-inject shortcut Load cassette uses — the
         // authentic MZ LOAD experience. MZ-700: the monitor's L. MZ-800:
         // the IPL's C option, the monitor's L or BASIC's LOAD, with a
-        // whole multi-file tape. MZ-80A skips it (SA-5510 goes through
-        // BASIC's LOAD).
-        file.DropDownItems.Add(new ToolStripMenuItem("Insert cassette for &LOAD...", null, (_, _) => BrowseAndQueue()));
+        // whole multi-file tape. Not yet on the MZ-80A (v1.5 Phase 4
+        // item 13).
+        file.DropDownItems.Add(MachineOnly(
+            new ToolStripMenuItem("Insert cassette for &LOAD...", null, (_, _) => BrowseAndQueue()),
+            _session.CanInsertCassette, "MZ-700 and MZ-800"));
         file.DropDownItems.Add(new ToolStripMenuItem("Load &BASIC", null, (_, _) => LoadBasic()) { ShortcutKeys = Keys.Control | Keys.B });
         file.DropDownItems.Add(new ToolStripMenuItem("Load BASIC &source...", null, (_, _) => BrowseAndLoadBasicSource()) { ShortcutKeys = Keys.Control | Keys.Shift | Keys.B });
         file.DropDownItems.Add(new ToolStripSeparator());
@@ -467,7 +469,9 @@ public sealed class MainForm : Form
         debug.DropDownItems.Add(new ToolStripMenuItem("&Debugger…", null, (_, _) => OpenDebugger()) { ShortcutKeys = Keys.Control | Keys.D });
         debug.DropDownItems.Add(new ToolStripMenuItem("&Memory Viewer…", null, (_, _) => OpenMemoryViewer()) { ShortcutKeys = Keys.Control | Keys.M });
         debug.DropDownItems.Add(new ToolStripMenuItem("&HID Diagnostic…", null, (_, _) => OpenHidDiag()) { ShortcutKeys = Keys.Control | Keys.H });
-        debug.DropDownItems.Add(new ToolStripMenuItem("&Sound Diagnostic…", null, (_, _) => OpenSoundDiag()));
+        debug.DropDownItems.Add(MachineOnly(
+            new ToolStripMenuItem("&Sound Diagnostic…", null, (_, _) => OpenSoundDiag()),
+            SoundDiagnosticForm.Supports(_session.Active.Kind), "MZ-700 and MZ-800"));
         debug.DropDownItems.Add(new ToolStripMenuItem("Keyboard &Matrix…", null, (_, _) => OpenKeyboardMatrix()));
         menu.Items.Add(debug);
 
@@ -480,6 +484,22 @@ public sealed class MainForm : Form
         menu.Items.Add(help);
         MainMenuStrip = menu;
         Controls.Add(menu);
+    }
+
+    /// <summary>
+    /// Greys out a menu item the running machine doesn't have, with a
+    /// tooltip naming the machines that do. Greyed rather than hidden,
+    /// so the menus are the same on every machine. Switching machine
+    /// restarts MZRaku, so this is decided once, when the menu is built.
+    /// </summary>
+    private static ToolStripMenuItem MachineOnly(ToolStripMenuItem item, bool available, string machines)
+    {
+        if (!available)
+        {
+            item.Enabled = false;
+            item.ToolTipText = $"{machines} only";
+        }
+        return item;
     }
 
     // -- Full-screen ----------------------------------------------------
@@ -1009,21 +1029,12 @@ public sealed class MainForm : Form
 
     /// <summary>
     /// File → Insert cassette for LOAD (see
-    /// <see cref="EmulatorSession.InsertCassette"/>). The MZ-80A is
-    /// filtered out with an explanation.
+    /// <see cref="EmulatorSession.InsertCassette"/>). The menu item is
+    /// greyed out on a machine that can't insert.
     /// </summary>
     private void BrowseAndQueue()
     {
-        if (!_session.CanInsertCassette)
-        {
-            MessageBox.Show(this,
-                "Insert cassette is available on MZ-700 and MZ-800 only.\n" +
-                "MZ-80A cassette LOAD runs through BASIC's SA-5510, not " +
-                "the SA-1510 monitor's L command — use Load cassette instead.",
-                "Not supported on this machine",
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return;
-        }
+        if (!_session.CanInsertCassette) return;
         using var dlg = new OpenFileDialog
         {
             Filter = "MZ cassette images (*.mzf;*.m12;*.mzt;*.zip)|*.mzf;*.m12;*.mzt;*.zip|All files|*.*",
@@ -1283,7 +1294,7 @@ public sealed class MainForm : Form
 
     private void OpenSoundDiag()
     {
-        if (!SoundDiagnosticForm.Supports(_session.Active.Kind)) { NotAvailableOnThisMachine("Sound Diagnostic", "MZ-700 and MZ-800"); return; }
+        if (!SoundDiagnosticForm.Supports(_session.Active.Kind)) return;   // menu item greyed out
         if (_soundDiag == null || _soundDiag.IsDisposed)
         {
             _soundDiag = new SoundDiagnosticForm(_session.Active);
@@ -1294,18 +1305,6 @@ public sealed class MainForm : Form
         // Same focus-preserving pattern as the HID Diagnostic — keep
         // typing from the main window unobstructed.
         Activate();
-    }
-
-    /// <summary>
-    /// Shows a friendly "not available on this machine" popup for a
-    /// diagnostic pane that reaches into machine-specific hardware.
-    /// <paramref name="machines"/> names the machines it does support.
-    /// </summary>
-    private void NotAvailableOnThisMachine(string pane, string machines)
-    {
-        MessageBox.Show(this,
-            $"{pane} is currently available on the {machines} only; it isn't available on the {_session.MachineLabel} yet.",
-            "MZRaku", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
