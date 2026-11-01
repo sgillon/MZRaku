@@ -338,7 +338,7 @@ stays honest.
   MZ-80A. Target v1.5.0 (plan Phase 4 item 13).
 - **MZ-800 no floppy / Quick Disk / printer**; border not drawn.
 - **Font Sheet click-to-type** is view-only on MZ-80A and MZ-800.
-  MZ-800 click-to-type targeted at v1.5.0.
+  Both targeted at v1.5.0 (plan step 4.8).
 - **Upgrading from v1.0.x straight to v1.3+** loses custom
   `[KeyOverrides]` and explicit `[Roms]` paths — run 1.1 (or later)
   once first to migrate.

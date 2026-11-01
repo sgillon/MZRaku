@@ -8,7 +8,7 @@ sweeps and any further machines; revised 2026-10-18 to clear the
 parked bugs in v1.5.0 and to make the v2.0.0 GUI depend on how the
 cross-platform CLI build is received; v1.4.0 shipped 2026-10-31
 (tag only); revised 2026-11-01 to bring the docs restructure forward
-into v1.5.0. Every placement is expected to move
+into v1.5.0 and move Quick Disk to v2.x. Every placement is expected to move
 as reality lands — this document is the shape, not the contract.
 
 For what has already shipped, see `history.md`. For the current
@@ -77,10 +77,10 @@ almost unchanged, so they are safe to ship before the port.
   entries ($382E header / $3832 data, common $3834) so SAVE writes a
   .mzf like MZ-700's S-BASIC SAVE. Today SAVE waits for a tape
   forever.
-- **MZ-800 Font Sheet click-to-type** — clicking a glyph types it,
-  as on the MZ-700's bank 0. Deferred from v1.3.0 Phase 8.5 once the
-  auto-typer was machine-neutral; the MZ-800 Font Sheet is view-only
-  until then.
+- **MZ-800 and MZ-80A Font Sheet click-to-type** — clicking a glyph
+  types it, as on the MZ-700's bank 0. Deferred from v1.3.0 Phase 8.5
+  once the auto-typer was machine-neutral; the MZ-80A joined on
+  2026-11-01. Both sheets are view-only until then.
 - **MZ-800 split ROM files** — accept the MZ-800 ROM as the three
   files other emulators use (e.g. EmuZ-800: `MZ700IPL.ROM` 4 KB,
   `FONT.ROM` 4 KB, `MZ800IPL.ROM` 8 KB) as well as the combined
@@ -101,15 +101,14 @@ almost unchanged, so they are safe to ship before the port.
   automation input in v1.6.0.
 - **.mzf machine auto-detect** — sniff MZ-700 vs MZ-80A vs MZ-800
   from the cassette header; corpus study first.
-- **CPU speed multiplier (1× / 2× / 3× …)** — authentic emulation
-  speed: the frame's Z80 cycle budget is scaled, so the guest
-  experiences actual turbo (game action accelerates, sound rises in
-  pitch, like real hardware over-clocked). Design considerations at
-  implementation time: whether display refresh rate scales too,
-  whether audio pitch tracks or resamples, and what the sane
-  multiplier ceiling is.
-- **Screenshot capture** — hot-key, save as PNG next to the exe,
-  timestamped filename (the `--dump` path already writes PNGs).
+- **CPU speed multiplier (1× to 4×)** — the whole machine runs
+  faster (every timer, as if over-clocked) while the display,
+  keyboard and joystick stay real time; sound is muted while the
+  speed isn't 1×. System menu and `--speed=N`; each launch starts at
+  1×.
+- **Screenshot capture** — View → Save screenshot (Ctrl+P), a
+  timestamped PNG in `screenshots\` next to the exe (the `--dump` path
+  already writes PNGs).
   Hotkey and path configuration arrive with the v2.0.0 settings
   redesign.
 - **Font Sheet: glyphs the keyboard can't type** — on the MZ-700,
@@ -131,10 +130,6 @@ almost unchanged, so they are safe to ship before the port.
   to them, and topic pages without code notes. Written at release so
   they describe what ships; v2.0.0 then updates only the pages its
   new dialogs change.
-- **Stretch: Quick Disk on the MZ-800** — mostly a device model (Z80
-  SIO at $F4–$F7 plus a `.mzq` disk image) with one "mount disk" menu
-  item; the MZ-800's own IPL ROM already boots from QD. Can slip to
-  v2.x with the MZ-1500, which shares the same QD hardware.
 
 ### Clearing the decks — the parked bugs (done 2026-11-01)
 
@@ -307,7 +302,9 @@ learning project Steve plans to take on first.
   keyboard. The MZ-1F11 drive, the MZ-1500's built-in drive and the
   interfaces for the MZ-700 (MZ-1E14) and MZ-800 (MZ-1E19) are the same
   hardware at the same ports, so one QD device serves the MZ-700,
-  MZ-800 and MZ-1500. Own feasibility plan first.
+  MZ-800 and MZ-1500. Own feasibility plan first. Quick Disk on the
+  MZ-800 was a v1.5.0 stretch item until 2026-11-01; it waits for
+  this, alongside the plotter and printer work below.
 - **MZ-80K and MZ-80B** — inherit the `IMachine` pattern from the
   existing machines but each has its own memory map, I/O, and
   character ROM.
