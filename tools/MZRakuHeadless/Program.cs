@@ -26,7 +26,12 @@ internal static class Program
         "Runs unpaced and writes the same --dump files as MZRaku.exe at frame N\n" +
         "(default 120), then exits. Window options (--display, --scanlines) are\n" +
         "accepted and ignored. Settings come from settings.ini next to this\n" +
-        "executable, or read-only from --settings=<ini>.";
+        "executable, or read-only from --settings=<ini>.\n\n" +
+        "--insert=<cassette> inserts a cassette for the machine's own LOAD\n" +
+        "(MZ-700 and MZ-800). --keys=<file> plays scripted keystrokes, one\n" +
+        "command per line at a frame count since launch: '420 type \"RUN\"',\n" +
+        "'440 key Return', or down/up <Key> to hold one. Full syntax:\n" +
+        "docs/usage/keys-script.md in the MZRaku repository on GitHub.";
 
     private static int Main(string[] args)
     {

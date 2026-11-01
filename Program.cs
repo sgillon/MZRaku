@@ -54,7 +54,7 @@ internal static class Program
             else if (a.StartsWith("--insert=", StringComparison.OrdinalIgnoreCase))
             {
                 // Insert a cassette for the machine's own LOAD, as File →
-                // Insert cassette does (regression suite; not in --help yet).
+                // Insert cassette does.
                 insertPath = a.Substring(9);
             }
             else if (a.StartsWith("--settings=", StringComparison.OrdinalIgnoreCase))
@@ -116,6 +116,8 @@ internal static class Program
                 MessageBox.Show(
                     "MZRaku — Sharp MZ-700 / MZ-80A / MZ-800 emulator\n\n" +
                     "Usage: MZRaku.exe [--mz700|--mz80a|--mz800] [--basic] [--display=N]\n" +
+                    "                  [--scanlines[=off]] [--settings=<ini>]\n" +
+                    "                  [--insert=<cassette>] [--keys=<file>]\n" +
                     "                  [path\\to\\cassette.mzf|.zip]\n\n" +
                     "  --mz700         Emulate the Sharp MZ-700 for this run.\n" +
                     "  --mz80a         Emulate the Sharp MZ-80A for this run.\n" +
@@ -133,6 +135,18 @@ internal static class Program
                     "  --scanlines     Force the CRT-style scanlines overlay on for this\n" +
                     "                  run. --scanlines=off forces it off. Without the\n" +
                     "                  flag the persisted Settings → Display value wins.\n" +
+                    "  --settings=<ini>  Run with another settings file, read-only:\n" +
+                    "                  nothing this run changes is written back to it\n" +
+                    "                  (or to settings.ini). The title bar names it.\n" +
+                    "  --insert=<cassette>  Insert a cassette for the machine's own\n" +
+                    "                  LOAD, as File → Insert cassette does: type L in\n" +
+                    "                  the monitor or LOAD in BASIC to read it.\n" +
+                    "                  MZ-700 and MZ-800.\n" +
+                    "  --keys=<file>   Play scripted keystrokes, one command per line at\n" +
+                    "                  a frame count since launch: '420 type \"RUN\"',\n" +
+                    "                  '440 key Return', or down/up <Key> to hold one.\n" +
+                    "                  Full syntax: docs/usage/keys-script.md in the\n" +
+                    "                  MZRaku repository on GitHub.\n" +
                     "  <cassette>      Automatically load a cassette image at startup.\n" +
                     "                  Accepts .mzf/.m12/.mzt or a .zip containing one.\n" +
                     "                  BASIC programs trigger BASIC auto-load; machine-\n" +
