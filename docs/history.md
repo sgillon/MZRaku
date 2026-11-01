@@ -1491,6 +1491,65 @@ the way were recorded, not fixed, and go to v1.5.0.
   after the release check on all three machines. Next packaged release
   is v1.5.0, built on this core.
 
+### 2026-10-31 to 2026-11-01 — v1.5.0: clearing the decks
+
+v1.5.0's first job was the bug list: everything parked up to v1.4.0,
+fourteen items (B1–B14 in `docs/v1.5-plan.md`, which records each
+cause and fix). Known causes went first, then investigations of
+about a session each, then the GitHub issues. The regression suite
+grew from 27 to 31 cases and stayed green at every commit.
+
+- **Phase 1 — known causes** (2026-10-31). MZ-700 Insert cassette
+  with the monitor's `L`: the read traps sat one routine off (WRINF
+  and RDINF instead of RDINF and RDDAT); `--insert=<path>` was added
+  so the suite can test it (`d68ad04`). Mute no longer queues one
+  more 20 ms chunk (`cc2c8dd`); the Settings change summary uses each
+  machine's own key labels (`00b3e1f`); the startup check covers the
+  MZ-80A layout (`946db9c`). MZ-80A PIT counter 0 counts at 2 MHz:
+  the service manual's schematic puts a ÷2 flip-flop after counter 0,
+  not before it (`a728283`).
+- **Phase 2 — investigations** (2026-10-31 to 2026-11-01).
+  - *Keyboard dead after Settings Apply* (open since v1.0.0, two
+    bisects in 2026-08): the Ctrl+Shift+K shortcut's Ctrl and Shift
+    reached the MZ keyboard and the modal dialog took the key-ups, so
+    MZ CTRL stayed held. Held keys are now released whenever the
+    window loses focus (`154fcc0`). The fresh-settings runs that
+    "didn't reproduce" it had opened Settings with the mouse.
+  - *MZ-700 S-BASIC tape*: S-BASIC has its own tape routines behind
+    the monitor's vectors ($0A7A/$0A7E read, $0A67 write body), so
+    Insert cassette now works with `LOAD` (`05b324e`) and `SAVE`
+    traps the real write and ends at Ready (`bd8a670`). The old trap
+    at $0D47 was a bit-delay loop that fired on every tape access.
+  - *MZ-700 boot tone*: the trap at $02C8, taken for a tape wait, sat
+    on the monitor melody routine's note timer, so every monitor note
+    was cut to 138 cycles. Removed; the boot tone and
+    machine-code games' monitor tunes now play in full (`0e6e49c`).
+  - *First key after starting from Explorer opens a menu*: the
+    startup focus grab's Alt tap; it now only taps when another
+    window is in front (`7fd46d8`).
+  - *Font Sheet GRAPH click-to-type* (#3): the model was wrong —
+    GRAPH keys type bank-0 codes from their own table, and S-BASIC
+    scans with its own key tables at $121D. `Mz700KeyTables` reads
+    whichever is live; the sheet outlines bank 0 by mode and explains
+    bank 1 (`1b95829`, `dd9ba29`).
+  - *MZ-80A invisible LOAD* (blocked since 2026-07): SA-5510's LOAD
+    relinks each line's length into a next-line address (GOSUB and
+    GOTO need it) and moves the variable table; and the header
+    buffer's tail is the monitor's key-scan state, which had dropped
+    the R of RUN. The program is now injected as LOAD leaves it and
+    only `RUN` is typed (`9e5d116`).
+- **Phase 3 — issues** (2026-11-01). #2, the MZ-80A BASIC start-up
+  pause, closed as authentic: SA-1510's clock-set routine waits a
+  full second for the clock to tick. #4 closed without an MZ-80A
+  Sound Diagnostic; instead, menu items a machine doesn't have are
+  greyed out with a tooltip (`1e1c055`). #3 closed by the fix above.
+  Only #5 (scanlines, v2.0.0) stays open.
+- **Found along the way:** MZ-80A BASIC `SAVE` waits for a tape, and
+  Insert cassette was refused on the MZ-80A for a reason that doesn't
+  hold. Both are scheduled with MZ-800 BASIC SAVE as v1.5.0 feature
+  items, alongside the Font Sheet showing the BASIC for glyphs no key
+  types, and the docs splitting into user and developer sets.
+
 ---
 
 ## Architectural decisions worth knowing
@@ -1793,9 +1852,8 @@ debugger / window-geometry persistence, full-screen + scanlines,
 the speaker-NAND dual-gate audio fix, and v1.1's Settings-parity
 push. One known regression carried through from v1.0.0 —
 apply-keyboard bug requiring Ctrl+R after Settings-Apply — is
-documented as a workaround pending fix-forward investigation;
-it is still open at v1.4.0, though it no longer reproduces from
-fresh settings.
+documented as a workaround until v1.5.0 found and fixed it
+(2026-10-31: the Settings shortcut left MZ CTRL held).
 
 Tagged releases:
 - **v0.0.5-preview** (2026-05-16) — first public release.
@@ -1839,10 +1897,10 @@ Tagged releases:
   27-case regression suite on all three machines, code review pass.
   No packaged release.
 
-**v1.5.0** is next: features that don't depend on the UI (MZ-800
-BASIC SAVE, MZ-800 Font Sheet click-to-type, volume / mute, `--keys`
-documentation and more), and clearing the parked bugs, including those
-v1.4.0 recorded. Then **v1.6.0** adds MZRakuCLI, a cross-platform
+**v1.5.0** is in progress: the parked bugs are cleared (see the
+v1.5.0 section above); next come features that don't depend on the UI
+(MZ-800 BASIC SAVE, MZ-800 Font Sheet click-to-type, volume / mute,
+`--keys` documentation and more) and the user / developer docs. Then **v1.6.0** adds MZRakuCLI, a cross-platform
 SDL build on the new core. See `docs/roadmap.md`.
 
 Stretch goals (not committed): cross-platform port (Avalonia +

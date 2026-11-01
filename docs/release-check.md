@@ -100,14 +100,12 @@ release, update the checklist before fixing the bug.
       `1.5` (Z80 indexed INC/DEC — regression canary from
       2026-05-23).
 
-### Known workaround verification
+### Keyboard after Settings (fixed in v1.5.0)
 
-- [ ] Apply-keyboard regression workaround
-      ([[project-v1-1-apply-keyboard-regression]]): Settings →
-      Keyboard → Advanced settings → click a matrix cell → capture
-      any PC key → Save → close Advanced → OK on Settings. Confirm
-      no keys type on the machine. Press Ctrl+R. Confirm typing
-      resumes and the remap is in effect.
+- [ ] Open Settings with **Ctrl+Shift+K** (not the menu), change
+      nothing, press OK. Type a few letters straight away, with no
+      Ctrl+R: they appear as letters, not control codes. Until v1.5.0
+      the shortcut left MZ CTRL held.
 
 ---
 
@@ -333,11 +331,11 @@ At the 1Z-016 `Ready` prompt:
 Not blockers — surface in the release notes so what's still open
 stays honest.
 
-- **Apply-keyboard regression**
-  ([[project-v1-1-apply-keyboard-regression]]): documented
-  workaround verified in Critical smoke.
 - **MZ-800 BASIC SAVE** waits for a tape forever (no tape-write
-  trap yet). Target v1.5.0.
+  trap yet). Target v1.5.0 (plan Phase 4 item 7).
+- **MZ-80A BASIC SAVE** stops at `RECORD.PLAY` and waits for a tape
+  (no tape-write trap yet), and Insert cassette is greyed out on the
+  MZ-80A. Target v1.5.0 (plan Phase 4 item 13).
 - **MZ-800 no floppy / Quick Disk / printer**; border not drawn.
 - **Font Sheet click-to-type** is view-only on MZ-80A and MZ-800.
   MZ-800 click-to-type targeted at v1.5.0.

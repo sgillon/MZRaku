@@ -7,7 +7,8 @@ of the settings v2 sweep; v1.3.0 shipped 2026-10-10; revised
 sweeps and any further machines; revised 2026-10-18 to clear the
 parked bugs in v1.5.0 and to make the v2.0.0 GUI depend on how the
 cross-platform CLI build is received; v1.4.0 shipped 2026-10-31
-(tag only). Every placement is expected to move
+(tag only); revised 2026-11-01 to bring the docs restructure forward
+into v1.5.0. Every placement is expected to move
 as reality lands — this document is the shape, not the contract.
 
 For what has already shipped, see `history.md`. For the current
@@ -111,63 +112,72 @@ almost unchanged, so they are safe to ship before the port.
   timestamped filename (the `--dump` path already writes PNGs).
   Hotkey and path configuration arrive with the v2.0.0 settings
   redesign.
+- **Font Sheet: glyphs the keyboard can't type** — on the MZ-700,
+  clicking a glyph no key reaches (bank-1 glyphs, and bank-0 codes
+  with no key) shows the BASIC that produces it (`PRINT CHR$(n)`, or
+  `POKE` to character and colour RAM) and can type that command, so
+  the sheet is useful for every glyph.
+- **MZ-80A tape parity** — SA-5510 `SAVE` writes a `.mzf` (trapping
+  SA-1510's tape-write entries) instead of waiting for a tape, and
+  Insert cassette works on the MZ-80A as on the other two machines.
+  Done with MZ-800 BASIC SAVE, which uses the same pattern.
+- **Documentation for two readers** (moved forward from v2.0.0) —
+  user docs and developer docs become separate sets. A new
+  `docs/developer/` covers the architecture (Core, Platform and UI,
+  `EmulatorSession`, the headless runner), the regression suite and
+  adding a machine, ahead of MZRakuCLI joining the same core. The
+  user docs get one guide per machine in the shape of `mz800.md`
+  (the MZ-700 and MZ-80A pages are new), a slimmer README that links
+  to them, and topic pages without code notes. Written at release so
+  they describe what ships; v2.0.0 then updates only the pages its
+  new dialogs change.
 - **Stretch: Quick Disk on the MZ-800** — mostly a device model (Z80
   SIO at $F4–$F7 plus a `.mzq` disk image) with one "mount disk" menu
   item; the MZ-800's own IPL ROM already boots from QD. Can slip to
   v2.x with the MZ-1500, which shares the same QD hardware.
 
-### Clearing the decks — the parked bugs
+### Clearing the decks — the parked bugs (done 2026-11-01)
 
-v1.5.0 also fixes, or deliberately closes, the bugs that have been
-parked since earlier releases, so the cross-platform work in v1.6.0
-starts from a clean list. Where a dump can show the fix, it gains a
-regression case (`--keys=` makes keyboard bugs scriptable).
+v1.5.0 fixes, or deliberately closes, the bugs parked since earlier
+releases, so the cross-platform work in v1.6.0 starts from a clean
+list. All fourteen are dealt with; causes and fixes are recorded in
+`docs/v1.5-plan.md` (Phases 1–3), and the regression suite grew from
+27 to 31 cases along the way.
 
-- **Keyboard dead after Settings Apply (MZ-700)** — after editing a
-  key mapping in Settings and pressing Apply or OK, no keys type until
-  Ctrl+R. Present since v1.0.0; two bisects in 2026-08 found no
-  mechanism. Approach: log the keyboard matrix and the held-key state
-  around the Settings close rather than bisecting again. **Didn't
-  reproduce on 2026-10-24:** the recorded steps (Settings → Keyboard
-  → Advanced settings → click a matrix cell → capture a PC key → Save
-  → close Advanced → Apply/OK) typed normally straight away in v1.1.0,
-  v1.3.0 and the v1.4.0 work in progress, each run from fresh default
-  settings. No commit claims a fix, so the trigger needs something
-  those runs lacked — existing key overrides in `settings.ini` are the
-  first suspect. Find the missing condition and fix it, or close it.
-- **Font Sheet bank-1 (GRAPH) click-to-type on the MZ-700**
-  ([#3](https://github.com/sgillon/MZRaku/issues/3)) — the click lands
-  the character byte but not the attribute, so the wrong glyph
-  appears. Pairs with the MZ-800 Font Sheet click-to-type item above.
-- **Invisible-LOAD path for MZ-80A cassette autorun** — skip the
-  typed LOAD + RUN; blocked on Error 16 from SA-5510's RUN. Find which
-  state RUN needs that the direct load doesn't set, or close it and
-  keep the typed path.
-- **MZ-700 sound loose ends** — the boot tone and other imperfect
-  timings. Phase 0.3 of v1.4.0 recorded one concrete case: the boot
-  tone's 138-cycle hard-gate pulse comes before the counter reload,
-  which only takes effect at frame end.
-- **MZ-80A cursor blink rate**
-  ([#1](https://github.com/sgillon/MZRaku/issues/1)) and **BASIC load
-  pause** ([#2](https://github.com/sgillon/MZRaku/issues/2)) — both
-  rechecked 2026-10-04 and largely cured by the v1.3.0 frame-pacing
-  fix. Confirm and close the issues, or record why they stay open.
-- **What v1.4.0 recorded** — the core extraction recorded bugs
-  rather than fixing them (details in `docs/v1.4-plan.md`):
-  - **MZ-700 Insert cassette for LOAD** — a machine-code tape loaded
-    with the monitor's `L` stops at "PLAY": the read traps sit one
-    routine off (`TrapReadHeader` $0436 is WRINF, `TrapReadData`
-    $04D8 is RDINF; RDDAT is $04F8). Present in v1.3.0.
-  - **One audio chunk after mute** — the sound feed checks `Muted`,
-    waits for queue room, then submits, so a pause during the wait
-    still queues 20 ms.
-  - **Settings change summary** labels MZ-80A and MZ-800 keys with
-    the MZ-700's names (`SettingsDiff.VkLabel`).
-  - **MZ-80A layout never validated** — the startup check doesn't
-    call `Mz80aKeyboardLayout.Validate`.
-  - **MZ-80A PIT counter 0** counts at 895 kHz while the sound path
-    takes it as 1 MHz. Pitch is right; anything timing counter 0's
-    countdown would see it about 10% slow.
+- **Fixed on the MZ-700:**
+  - Insert cassette loads with the monitor's `L` (the read traps sat
+    one routine off) and with S-BASIC's `LOAD` (S-BASIC has its own
+    tape routines, now trapped too).
+  - S-BASIC `SAVE` traps BASIC's real tape-write routine and returns
+    to Ready, instead of being forced out with BREAK.
+  - Keyboard dead after Settings Apply: opening Settings with
+    Ctrl+Shift+K left MZ CTRL held, because the dialog took the
+    key-ups. Held keys are now released whenever the window loses
+    focus, on every machine.
+  - Font Sheet GRAPH click-to-type
+    ([#3](https://github.com/sgillon/MZRaku/issues/3), closed): GRAPH keys
+    type bank-0 codes from their own table (S-BASIC has its own tables
+    too); bank 1 is only reached by programs.
+  - The boot tone, and every note the monitor's melody routine plays,
+    is heard in full (a tape-wait trap had cut each one short).
+- **Fixed on the MZ-80A:** BASIC cassette autorun loads without a
+  typed `LOAD` (the program is relinked as SA-5510's `LOAD` does);
+  PIT counter 0 counts at 2 MHz, per the schematic; the startup check
+  covers the MZ-80A keyboard layout.
+- **Fixed on every machine:** the Settings change summary uses each
+  machine's own key labels; mute no longer queues one more 20 ms of
+  sound; started from Explorer, the first key types instead of opening
+  a menu.
+- **Closed:** the MZ-80A cursor blink
+  ([#1](https://github.com/sgillon/MZRaku/issues/1)); the MZ-80A BASIC
+  start-up pause ([#2](https://github.com/sgillon/MZRaku/issues/2)), which
+  is SA-1510's authentic one-second clock-set wait; an MZ-80A Sound
+  Diagnostic ([#4](https://github.com/sgillon/MZRaku/issues/4)), not
+  planned — menu items a machine doesn't have are now greyed out,
+  with a tooltip naming the machines that have them.
+- **Found along the way:** MZ-80A BASIC `SAVE` waits for a tape, and
+  Insert cassette isn't offered on the MZ-80A. Both are scheduled as
+  MZ-80A tape parity, above.
 
 ## v1.6.0 — MZRakuCLI: the first cross-platform build
 
@@ -281,15 +291,6 @@ learning project Steve plans to take on first.
   ([#5](https://github.com/sgillon/MZRaku/issues/5)) — rendering
   changes in the port anyway; likely a pre-built overlay with
   intensity/thickness knobs in the new settings.
-- **Usage docs restructure for three machines** — `docs/usage/`
-  grew MZ-700-first: the topic files (keyboard, joystick, HID
-  diagnostic, hardware notes) describe the MZ-700, the MZ-80A has
-  almost no usage coverage, and v1.3.0 shipped the MZ-800 as its own
-  page (`mz800.md`) to get it complete in time. Target shape: topic
-  files cover all three machines, plus a short page per machine for
-  what is genuinely machine-specific (files needed, starting it,
-  loading behaviour, display options, limitations). Done once the
-  new UI has settled, so the docs describe the new dialogs once.
 
 ## v2.x — what the new shell makes possible
 
@@ -329,21 +330,8 @@ learning project Steve plans to take on first.
 
 ## Parked (no version yet)
 
-Nothing at present: the items parked at v1.3.0 moved into v1.5.0's
-"Clearing the decks". Background for the two MZ-80A issues, from the
-2026-10-04 recheck:
-
-- **Cursor blink rate** ([#1](https://github.com/sgillon/MZRaku/issues/1))
-  — rechecked against EmuZ-80A and now blinks at about the same rate.
-  The "~2× slower" report predates the v1.3.0 Phase 6.1 frame-pacing
-  fix (every machine ran at ~2/3 speed); the blink is frame-driven
-  (PPI toggle every 20 frames), independent of C1/C2. The real source
-  is a separate cursor timer reset via $E000 D7, not modelled.
-- **BASIC load pause** ([#2](https://github.com/sgillon/MZRaku/issues/2))
-  — the pause is now much shorter (user rechecked); it was inflated
-  by the pre-Phase-6.1 ~2/3-speed frame pacing. SA-5510 still has an
-  authentic up-to-1 s post-tone wait for the RTC to tick; switching
-  MZ-80A `AutoLoadBasic` to the typed-LOAD path would hide it.
+Nothing at present: v1.5.0's "Clearing the decks" fixed or closed
+everything parked up to v1.4.0.
 
 ## Aspirational (no version yet)
 
