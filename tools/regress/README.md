@@ -63,7 +63,7 @@ otherwise, because a different ROM would change the results.
 | `.test.png`, `.test640.png`, `.testscroll.png`, `.testsplit.png` | `mz800_ipl`, `mz800_split_roms` | Synthetic MZ-800 patterns drawn through the real renderers: 320-mode colour bars, 640-mode bit order and banks, hardware scroll, and split-screen scroll (the tech-ref p. 10 example). Pixel-exact. |
 | `.wav` | `mz800_ipl`, `mz800_split_roms`, `mz800_basic`, `uridium`, `manic` | MZ-800 rendered audio (PSG plus PIT), byte-identical (md5) |
 | `.snd.txt` | all MZ-700 and MZ-80A cases | Log of every change at the speaker's inputs (soft gate, hard gate, counter reload, input clock), compared line by line. MZ-700/80A sound is generated in real time, so the log is what can be compared exactly. |
-| `.save.mzf` | `mz700_save` | The `.mzf` a scripted SAVE wrote into the sandbox's `saves/`, byte-identical (md5) |
+| `.save.mzf` | `mz700_save`, `mz800_save` | The `.mzf` a scripted SAVE wrote into the sandbox's `saves/`, byte-identical (md5) |
 
 A case listed in `SAME_GOLDEN` in `regress.py` is compared against
 another case's golden and has none of its own: the same run by a
@@ -158,6 +158,7 @@ Software paths are relative to `_mz-information-repository/`.
 | `flappy` | 900 | `.../Machine code games/flappy.mzf` | Times its game off PIT counters 1 and 2. Guards the RTC cascade fix, which had made it run at double speed. |
 | `egg_basic` | 1500 | `egg.zip`, built by the harness from `MZ-800/Software/BASIC programs/EGG/EGG.BAS.mzf` and `EGG.OBJ.mzf` | A BASIC program on tape: boots BASIC and runs it with `LOAD` + `RUN`, then the program's named `LOAD` of the second file from the same tape |
 | `mz800_typing` | 1520 | BASIC; `keys/mz800_typing.keys` | As `mz700_typing`, on 1Z-016 BASIC, adding ALPHA and an F-key |
+| `mz800_save` | 1100 | BASIC; `keys/mz800_save.keys` | 1Z-016 `SAVE "TEST"` of a one-line program: the RECORD.PLAY wait is skipped and the block taken at BASIC's tape-write body ($3858). The saved file is kept as `.save.mzf` and compared byte for byte; the screen shows `Writing "TEST"` and BASIC back at Ready. Added in v1.5.0. |
 
 ## Approving goldens
 
@@ -171,7 +172,7 @@ commit, cases and why).
 - `_regression/out/` holds the latest run.
 
 The v1.4.0 baseline is commit a80994a: all 27 cases approved on
-clean `main`. v1.5.0 adds cases as its fixes and features land (`mz700_insert`, `mz700_insert_basic`, `mz700_save`, `mz80a_cricket`, `mz80a_settings`, `mz800_split_roms`).
+clean `main`. v1.5.0 adds cases as its fixes and features land (`mz700_insert`, `mz700_insert_basic`, `mz700_save`, `mz80a_cricket`, `mz80a_settings`, `mz800_split_roms`, `mz800_save`).
 
 ## Adding a case
 

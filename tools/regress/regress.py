@@ -142,6 +142,7 @@ CASES = [
     ("flappy",         ["--mz800", "--cassette", MZ800_GAMES + "flappy.mzf"],       900, []),
     ("egg_basic",      ["--mz800", "--cassette", "egg.zip"],          1500, []),   # BASIC LOAD + named LOAD of 2nd file
     ("mz800_typing",   ["--mz800", "--basic", "--keys=mz800_typing.keys"], 1520, []),
+    ("mz800_save",     ["--mz800", "--basic", "--keys=mz800_save.keys"], 1100, ["save"]),   # 1Z-016 SAVE: .mzf written, back at Ready
 ]
 TEST_SUFFIXES = [".test.png", ".test640.png", ".testscroll.png", ".testsplit.png"]
 

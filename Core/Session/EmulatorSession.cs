@@ -80,21 +80,9 @@ public sealed class EmulatorSession
 
         // Cassette trap events surface load / save outcomes as status
         // messages. They fire during RunFrame, on the caller's thread.
-        // OnSaved is MZ-700-only for now — Mz80aCassette doesn't yet
-        // expose SAVE traps. OnLoaded fires on all three machines.
-        if (Mz700 != null)
-        {
-            Mz700.Cassette.OnSaved += msg => StatusMessage?.Invoke(msg);
-            Mz700.Cassette.OnLoaded += msg => StatusMessage?.Invoke(msg);
-        }
-        if (Mz80a != null)
-        {
-            Mz80a.Cassette.OnLoaded += msg => StatusMessage?.Invoke(msg);
-        }
-        if (Mz800 != null)
-        {
-            Mz800.Cassette.OnLoaded += msg => StatusMessage?.Invoke(msg);
-        }
+        // OnSaved fires only on machines whose BASIC SAVE is trapped.
+        Active.Cassette.OnLoaded += msg => StatusMessage?.Invoke(msg);
+        Active.Cassette.OnSaved += msg => StatusMessage?.Invoke(msg);
     }
 
     /// <summary>A short message for the user, such as a load result.</summary>

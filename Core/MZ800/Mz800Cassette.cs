@@ -19,7 +19,8 @@ namespace MZRaku.Core;
 /// not a LOAD entry.</para>
 ///
 /// <para><b>1Z-016 BASIC's own tape code</b> — BASIC bit-bangs the tape
-/// itself with the ROM banked out; see <see cref="BasicTrap"/>.</para>
+/// itself with the ROM banked out; see <see cref="BasicTrap"/>. Its
+/// SAVE is taken as a .mzf the same way (<see cref="BasicWriteTrap"/>).</para>
 ///
 /// Trap addresses for the monitor path pinned 2026-08-30 by walking the
 /// L flow back from ret=$EB57 and disassembling 1Z-016B's L subroutine.
@@ -121,6 +122,34 @@ internal sealed class Mz800Cassette : CassetteTrapBase
     private static readonly byte[] BasicReadSignature =
         { 0x3E, 0xCC, 0x18, 0x02, 0x3E, 0x53, 0xED, 0x73, 0x65, 0x38, 0x31, 0xF0, 0x10 };
 
+    // SAVE. The write entry mirrors the read entry:
+    //   $382E  LD A,$CC / JR $3834   write header (HL=header, BC=128)
+    //   $3832  LD A,$53              write data   (HL=source, BC=size)
+    //   $3834  LD ($3865),SP / LD SP,$10F0 / PUSH DE / LD E,A / LD D,$D7
+    //          ... CALL $3AD9 (checksum) / CALL $38C5 (RECORD.PLAY)
+    //          / header: print "WRITING <name>"
+    //   $3858  DI / CALL $3AFB (gap and tape mark) / CALL NC,$3915 (block)
+    //   then on into the common exit at $385F.
+    // $38C5 is shared with reads (D=$D2 read, $D7 write). It makes
+    // IOCS call $10 (music off, ready for tape; the exit's $11 undoes
+    // it), then polls the deck's sense line, port $D2 bit 4, and
+    // prompts RECORD.PLAY until it comes on. There's no deck to press,
+    // so a write skips the poll to $38DD (XOR A / RET: motor running).
+    // At $3858 the block is taken instead of written, and the routine
+    // carries on at its exit with A=0, CY=0, which restores BASIC's
+    // stack and state. Found 2026-11-05 (v1.5 4.6) by disassembling
+    // 1Z-016 in RAM; the bytes are checked first, so other code at
+    // these addresses is left alone.
+    private const ushort BasicWriteSignatureAddr = 0x382E;
+    private static readonly byte[] BasicWriteSignature =
+        { 0x3E, 0xCC, 0x18, 0x02, 0x3E, 0x53, 0xED, 0x73, 0x65, 0x38, 0x31, 0xF0, 0x10, 0xD5, 0x5F, 0x16, 0xD7 };
+    private const byte BasicWriteDevice = 0xD7;   // D during a write
+    private const ushort BasicSensePoll = 0x38D0;
+    private static readonly byte[] BasicSensePollBytes = { 0xDB, 0xD2, 0xE6, 0x10, 0x28, 0x09 };   // IN A,($D2) / AND $10 / JR Z
+    private const ushort BasicSensePressed = 0x38DD;
+    private const ushort BasicWriteBody = 0x3858;
+    private static readonly byte[] BasicWriteBodyBytes = { 0xF3, 0xCD, 0xFB, 0x3A, 0xD4, 0x15, 0x39 };   // DI / CALL $3AFB / CALL NC,$3915
+
     // A read BASIC started with nothing under the head; served if a tape
     // is inserted while it waits for PLAY.
     private bool _basicReadWaiting;
@@ -128,11 +157,45 @@ internal sealed class Mz800Cassette : CassetteTrapBase
     private ushort _basicWaitDest;
     private ushort _basicWaitSize;
 
-    private bool IsBasicReadEntry()
+    private bool IsBasicReadEntry() => BytesAt(BasicSignatureAddr, BasicReadSignature);
+
+    private bool BytesAt(ushort addr, byte[] expected)
     {
-        for (int i = 0; i < BasicReadSignature.Length; i++)
-            if (_mem.Read((ushort)(BasicSignatureAddr + i)) != BasicReadSignature[i]) return false;
+        for (int i = 0; i < expected.Length; i++)
+            if (_mem.Read((ushort)(addr + i)) != expected[i]) return false;
         return true;
+    }
+
+    /// <summary>
+    /// 1Z-016 SAVE: at the RECORD.PLAY poll, carry on as if the deck
+    /// were running; at the write body, hand the block to
+    /// <see cref="CassetteTrapBase.TakeSaveBlock"/> and go to the
+    /// routine's own exit.
+    /// </summary>
+    private bool BasicWriteTrap(ushort pc)
+    {
+        if (pc == BasicSensePoll && Cpu.D == BasicWriteDevice
+            && BytesAt(BasicSensePoll, BasicSensePollBytes)
+            && BytesAt(BasicWriteSignatureAddr, BasicWriteSignature))
+        {
+            Cpu.PC = BasicSensePressed;
+            return true;
+        }
+        if (pc == BasicWriteBody && Cpu.D == BasicWriteDevice
+            && BytesAt(BasicWriteBody, BasicWriteBodyBytes)
+            && BytesAt(BasicWriteSignatureAddr, BasicWriteSignature))
+        {
+            ushort src = Cpu.HL;
+            var block = new byte[Cpu.BC];
+            for (int i = 0; i < block.Length; i++)
+                block[i] = _mem.Read((ushort)(src + i));
+            TakeSaveBlock(Cpu.E == 0xCC, block);
+            Cpu.A = 0;
+            Cpu.F &= 0xFE;
+            Cpu.PC = BasicReadExit;   // the common exit: reads and writes share it
+            return true;
+        }
+        return false;
     }
 
     /// <summary>Serve one 1Z-016 read. Returns false at end of tape.</summary>
@@ -165,6 +228,7 @@ internal sealed class Mz800Cassette : CassetteTrapBase
     /// </summary>
     private bool BasicTrap(ushort pc)
     {
+        if (BasicWriteTrap(pc)) return true;
         if (pc == BasicReadEntry && IsBasicReadEntry())
         {
             bool header = Cpu.A == 0xCC;

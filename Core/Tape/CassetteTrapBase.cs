@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using Z80Core;
 
 namespace MZRaku.Core;
@@ -23,13 +24,13 @@ namespace MZRaku.Core;
 ///     same image.</item>
 /// </list>
 ///
-/// v1.2 audit F-025 hoisted this shape here. The concrete
-/// <see cref="Mz700Cassette"/> keeps its S-BASIC tape traps (LOAD and
-/// SAVE) + $1170 mirror hooks on top of the base; MZ-80A
-/// only extends the base with its two trap-address checks. MZ-700
-/// SAVE handling stays MZ-700-only — SA-1510 doesn't expose a
-/// wait-loop trap on the WRITE side that would benefit from the
-/// same treatment.
+/// v1.2 audit F-025 hoisted this shape here. The concrete classes
+/// add their own BASIC tape traps on top.
+///
+/// SAVE is shared too (v1.5 4.6): a machine's write trap hands each
+/// block it takes to <see cref="TakeSaveBlock"/>, and a header block
+/// followed by a data block becomes a .mzf in
+/// <see cref="SaveDirectory"/>, reported through <see cref="OnSaved"/>.
 /// </summary>
 public abstract class CassetteTrapBase
 {
@@ -77,6 +78,7 @@ public abstract class CassetteTrapBase
         Pending = null;
         HeaderDelivered = false;
         DataDelivered = false;
+        ResetSaveState();
     }
 
     /// <summary>
@@ -162,4 +164,95 @@ public abstract class CassetteTrapBase
     /// depend on concrete-class-specific state.
     /// </summary>
     protected void RaiseLoaded(string message) => OnLoaded?.Invoke(message);
+
+    // ---- SAVE -------------------------------------------------------------
+
+    /// <summary>Counts .mzf files written by SAVE; the front end's TAPE
+    /// chip flashes when it changes.</summary>
+    public int WriteTapeTrapHits;
+
+    /// <summary>
+    /// Raised when a SAVE writes a .mzf ("Saved via tape trap: …") or
+    /// fails. EmulatorSession passes it on as a status message.
+    /// </summary>
+    internal event Action<string>? OnSaved;
+
+    /// <summary>Where SAVE'd cassettes land: saves/ next to the exe.</summary>
+    internal string SaveDirectory { get; set; } =
+        Path.Combine(AppContext.BaseDirectory, "saves");
+
+    // The header block of the SAVE in progress, until its data block
+    // arrives. Cleared on machine reset.
+    private byte[]? _saveHeader;
+
+    /// <summary>Forget a SAVE's header block that never got its data
+    /// block. Called by the machine reset path.</summary>
+    internal void ResetSaveState()
+    {
+        _saveHeader = null;
+    }
+
+    /// <summary>
+    /// One block of a SAVE, taken from a machine's tape-write routine:
+    /// the header block is kept, and the data block that follows
+    /// completes a .mzf in <see cref="SaveDirectory"/>.
+    /// </summary>
+    protected void TakeSaveBlock(bool header, byte[] block)
+    {
+        if (header)
+            _saveHeader = block;
+        else if (_saveHeader == null)
+            OnSaved?.Invoke("Save skipped: a data block arrived without a header.");
+        else
+        {
+            WriteSavedTape(_saveHeader, block);
+            _saveHeader = null;
+        }
+    }
+
+    /// <summary>
+    /// Write a SAVE's header and data blocks as a .mzf. The header is
+    /// padded or cut to 128 bytes, as on tape. The file is named after
+    /// the header's filename, with -1, -2… added rather than overwrite.
+    /// </summary>
+    private void WriteSavedTape(byte[] headerBlock, byte[] data)
+    {
+        var header = new byte[HeaderSize];
+        Array.Copy(headerBlock, header, Math.Min(headerBlock.Length, HeaderSize));
+        ushort loadAddr = (ushort)(header[0x14] | (header[0x15] << 8));
+
+        // Header filename: ASCII at byte 1, 0x0D terminator.
+        int nameLen = 0;
+        while (nameLen < 16 &&
+               header[1 + nameLen] != 0x0D &&
+               header[1 + nameLen] != 0x00)
+            nameLen++;
+        var name = System.Text.Encoding.ASCII.GetString(header, 1, nameLen).Trim();
+        if (string.IsNullOrWhiteSpace(name)) name = "UNNAMED";
+        foreach (var c in Path.GetInvalidFileNameChars()) name = name.Replace(c, '_');
+
+        string finalPath;
+        try
+        {
+            Directory.CreateDirectory(SaveDirectory);
+            // Don't silently overwrite — pick a numbered suffix if the
+            // base name is already used. Reproducible runs would
+            // otherwise lose the previous capture without trace.
+            finalPath = Path.Combine(SaveDirectory, name + ".mzf");
+            int n = 1;
+            while (File.Exists(finalPath))
+                finalPath = Path.Combine(SaveDirectory, $"{name}-{n++}.mzf");
+
+            using var fs = File.Create(finalPath);
+            fs.Write(header, 0, HeaderSize);
+            fs.Write(data, 0, data.Length);
+        }
+        catch (Exception ex)
+        {
+            OnSaved?.Invoke($"Save failed: {ex.Message}");
+            return;
+        }
+        WriteTapeTrapHits++;
+        OnSaved?.Invoke($"Saved via tape trap: {Path.GetFileName(finalPath)} ({data.Length} bytes from ${loadAddr:X4})");
+    }
 }

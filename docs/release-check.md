@@ -272,6 +272,9 @@ At the 1Z-016 `Ready` prompt:
 
 - [ ] MZ-700: save a short BASIC program to a new `.mzf`, restart,
       load it back, RUN succeeds (round-trip).
+- [ ] MZ-800: the same with 1Z-016 BASIC (`SAVE "TEST"` shows
+      `Writing "TEST"`, no RECORD.PLAY wait, then `Ready`; the file
+      lands in `saves\` and the TAPE chip flashes). New in v1.5.0.
 - [ ] `MZRaku.exe --mz80a cricket.mzf` — BASIC boots, the program
       goes in without `LOAD` being typed, `RUN` is typed, and it
       reaches its first screen without operator intervention.
@@ -354,8 +357,6 @@ At the 1Z-016 `Ready` prompt:
 Not blockers — surface in the release notes so what's still open
 stays honest.
 
-- **MZ-800 BASIC SAVE** waits for a tape forever (no tape-write
-  trap yet). Target v1.5.0 (plan Phase 4 item 7).
 - **MZ-80A BASIC SAVE** stops at `RECORD.PLAY` and waits for a tape
   (no tape-write trap yet), and Insert cassette is greyed out on the
   MZ-80A. Target v1.5.0 (plan Phase 4 item 13).

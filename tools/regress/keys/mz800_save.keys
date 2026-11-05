@@ -1,0 +1,7 @@
+# 1Z-016 BASIC SAVE: type a one-line program and SAVE it. The tape-write
+# trap skips the RECORD.PLAY wait, writes saves/TEST.mzf (compared byte
+# for byte) and BASIC returns to Ready.
+420  type "10 PRINT \"HI\""
+540  key  Return
+580  type "SAVE \"TEST\""
+700  key  Return

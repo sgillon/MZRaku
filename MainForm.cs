@@ -810,18 +810,16 @@ public sealed class MainForm : Form
     private void UpdateTapeLabel()
     {
         // Shared trap-state reads collapse to IMachine.Cassette
-        // (CassetteTrapBase surface). WriteTapeTrapHits is
-        // MZ-700-only (SA-1510 SAVE traps not wired yet); MZ-80A
-        // and MZ-800 score zero.
+        // (CassetteTrapBase surface).
         var cass = _session.Active.Cassette;
         bool pending = cass.Pending != null;
         int headerHits = cass.HeaderTrapHits;
         int dataHits   = cass.DataTrapHits;
-        int writeHits  = _session.Mz700?.Cassette.WriteTapeTrapHits ?? 0;
+        int writeHits  = cass.WriteTapeTrapHits;
 
         // Any fresh trap hit extends the flash window. Also handles the
-        // MZ-700 SAVE path (WriteTapeTrapHits) even though it has no
-        // Pending image.
+        // SAVE path (WriteTapeTrapHits) even though it has no Pending
+        // image.
         if (headerHits != _tapeLastHeaderHits ||
             dataHits   != _tapeLastDataHits   ||
             writeHits  != _tapeLastWriteHits)
