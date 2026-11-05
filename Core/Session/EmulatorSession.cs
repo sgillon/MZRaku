@@ -281,16 +281,24 @@ public sealed class EmulatorSession
         if (string.IsNullOrEmpty(_settings.MonitorRomFullPath) || !File.Exists(_settings.MonitorRomFullPath))
         {
             var expected = ExpectedFirmware(_settings.CurrentMachine).Monitor;
+            // The MZ-800's ROM also comes as EmuZ-800's three files.
+            var place = _settings.CurrentMachine == MachineType.MZ800
+                ? $"{expected}, or the three files {Mz800RomFiles.Ipl700}, {Mz800RomFiles.Font} and {Mz800RomFiles.Ipl800},"
+                : expected;
             var configured = string.IsNullOrEmpty(_settings.MonitorRomPath)
                 ? "(none configured)"
                 : $"{_settings.MonitorRomPath}  →  {_settings.MonitorRomFullPath}";
             throw new FileNotFoundException(
                 $"Monitor ROM ({expected}) not found.\n\n" +
                 $"Configured path: {configured}\n\n" +
-                $"Place {expected} under a 'roms' folder next to the executable, " +
-                $"or set [Roms.{_settings.CurrentMachine}] Monitor= in {Path.Combine(AppContext.BaseDirectory, "settings.ini")}.");
+                $"Place {place} under a 'roms' folder next to the executable, " +
+                $"or set [Roms.{_settings.CurrentMachine}] Monitor= in {_settings.IniPath}.");
         }
-        Active.LoadRoms(_settings.MonitorRomFullPath, _settings.FontFullPath);
+        if (Mz800 != null)
+            Mz800.LoadRoms(_settings.MonitorRomFullPath, _settings.FontFullPath,
+                _settings.Mz800Ipl800FullPath, _settings.IniPath);
+        else
+            Active.LoadRoms(_settings.MonitorRomFullPath, _settings.FontFullPath);
         Active.Reset();
         // PC-trace ring + PIT / bank-switch write logs only exist
         // to feed the --dump=<file> report. Off unless --dump was

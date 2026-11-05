@@ -61,9 +61,9 @@ public sealed class Mz800Video
     internal FrameBuffer FrameHi = new(HiPixelWidth, HiPixelHeight);
 
     /// <summary>
-    /// Copy the 4 KB CG-ROM out of the combined MZ800.ROM into
+    /// Copy the 4 KB CG-ROM out of the 16 KiB ROM image into
     /// <see cref="FontRom"/>. Called from
-    /// <see cref="MZ800.LoadRoms"/> after the ROM file lands
+    /// <see cref="MZ800.LoadRoms(string, string?, string?, string)"/> after the ROM lands
     /// in memory. Offset $1000-$1FFF per tech-ref p. 24 ROM
     /// configuration diagram.
     /// </summary>

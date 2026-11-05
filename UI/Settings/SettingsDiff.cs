@@ -53,9 +53,11 @@ internal sealed class SettingsSnapshot
     public string Mz80aMonitorPath { get; init; } = "";
     public string Mz80aFontPath { get; init; } = "";
     public string Mz80aBasicPath { get; init; } = "";
-    // MZ-800 (Phase 8.1): monitor + BASIC only — its CG font is inside
-    // MZ800.ROM — plus the MZ-1R25 VRAM-expansion option.
+    // MZ-800: the ROM (MZ800.ROM, or MZ700IPL.ROM with the font and
+    // MZ-800 IPL parts) and BASIC, plus the MZ-1R25 VRAM-expansion option.
     public string Mz800MonitorPath { get; init; } = "";
+    public string Mz800FontPath { get; init; } = "";
+    public string Mz800Ipl800Path { get; init; } = "";
     public string Mz800BasicPath { get; init; } = "";
     public bool Mz800VramExpansion { get; init; }
     public int JoyButton1Index { get; init; }
@@ -106,6 +108,8 @@ internal sealed class SettingsSnapshot
         Mz80aFontPath = settings.Mz80aRoms.FontPath ?? "",
         Mz80aBasicPath = settings.Mz80aRoms.BasicPath ?? "",
         Mz800MonitorPath = settings.Mz800Roms.MonitorRomPath ?? "",
+        Mz800FontPath = settings.Mz800Roms.FontPath ?? "",
+        Mz800Ipl800Path = settings.Mz800Roms.Ipl800Path ?? "",
         Mz800BasicPath = settings.Mz800Roms.BasicPath ?? "",
         Mz800VramExpansion = settings.Mz800VramExpansion,
         JoyButton1Index = settings.JoyButton1Index,
@@ -154,6 +158,8 @@ internal sealed class SettingsSnapshot
         settings.Mz80aRoms.FontPath = Mz80aFontPath;
         settings.Mz80aRoms.BasicPath = Mz80aBasicPath;
         settings.Mz800Roms.MonitorRomPath = Mz800MonitorPath;
+        settings.Mz800Roms.FontPath = Mz800FontPath;
+        settings.Mz800Roms.Ipl800Path = Mz800Ipl800Path;
         settings.Mz800Roms.BasicPath = Mz800BasicPath;
         settings.Mz800VramExpansion = Mz800VramExpansion;
         settings.JoyButton1Index = JoyButton1Index;
@@ -223,6 +229,10 @@ internal static class SettingsDiff
             lines.Add($"MZ-80A BASIC image: \"{before.Mz80aBasicPath}\" → \"{after.Mz80aBasicPath}\"");
         if (before.Mz800MonitorPath != after.Mz800MonitorPath)
             lines.Add($"MZ-800 ROM: \"{before.Mz800MonitorPath}\" → \"{after.Mz800MonitorPath}\"");
+        if (before.Mz800FontPath != after.Mz800FontPath)
+            lines.Add($"MZ-800 Font ROM: \"{before.Mz800FontPath}\" → \"{after.Mz800FontPath}\"");
+        if (before.Mz800Ipl800Path != after.Mz800Ipl800Path)
+            lines.Add($"MZ-800 IPL ROM: \"{before.Mz800Ipl800Path}\" → \"{after.Mz800Ipl800Path}\"");
         if (before.Mz800BasicPath != after.Mz800BasicPath)
             lines.Add($"MZ-800 BASIC image: \"{before.Mz800BasicPath}\" → \"{after.Mz800BasicPath}\"");
         if (before.Mz800VramExpansion != after.Mz800VramExpansion)

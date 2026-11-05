@@ -69,6 +69,20 @@ FIRMWARE = {
     r"basic\1Z-016.mzf":  ("MZ-800/BASIC/1Z-016 (tape BASIC)/1Z-016.mzf", "22fe1b6073971c2f51b6373a3ff1e5a032e5652f"),
 }
 
+# The MZ-800 ROM as EmuZ-800's three files. Cases in SPLIT_ROM_CASES get
+# these in place of roms\MZ800.ROM (joined, they are MZ800.ROM).
+SPLIT = "MZ-800/ROM/Split (EmuZ-800 layout)/"
+MZ800_SPLIT = {
+    r"roms\MZ700IPL.ROM": (SPLIT + "MZ700IPL.ROM", "2920cdaf1fda0b54b1e0e53736f936b853716988"),
+    r"roms\FONT.ROM":     (SPLIT + "FONT.ROM",     "4ea887241a0b60948a86c5acab664dcfdf51101c"),
+    r"roms\MZ800IPL.ROM": (SPLIT + "MZ800IPL.ROM", "07a9896c33d48c6f5e72740697874b5e60ec6f77"),
+}
+SPLIT_ROM_CASES = {"mz800_split_roms"}
+
+# Cases compared against another case's golden, never approved on their
+# own: the same run by a different route must give the same output.
+SAME_GOLDEN = {"mz800_split_roms": "mz800_ipl"}
+
 MZ700_SW = "MZ-700/Software/"
 MZ80A_SW = "MZ-80A/Software/"
 MZ800_GAMES = "MZ-800/Software/Machine code games/"
@@ -113,6 +127,7 @@ CASES = [
     ("mz80a_settings", ["--mz80a", "--settings=mz80a_white.ini"],    200, []),   # --settings: white screen, nothing written
     # --- MZ-800 ---
     ("mz800_ipl",      ["--mz800"],                                   200, ["tests", "wav"]),
+    ("mz800_split_roms", ["--mz800"],                                 200, ["tests", "wav"]),   # EmuZ-800's three ROM files; mz800_ipl's golden
     ("mz800_basic",    ["--mz800", "--basic"],                        300, ["wav"]),
     ("james",          ["--mz800", "--cassette", MZ800_GAMES + "James.mzf"],        600, []),
     ("fist",           ["--mz800", "--cassette", MZ800_GAMES + "EXPLODING FIST.mzf"], 900, []),   # over highway: whole scroll block + palette 4+
@@ -140,7 +155,7 @@ def check_sources():
     problems = []
     if not os.path.exists(os.path.join(BUILD, EXE)):
         problems.append(f"no build at {BUILD}")
-    for dst, (src, want) in FIRMWARE.items():
+    for dst, (src, want) in list(FIRMWARE.items()) + list(MZ800_SPLIT.items()):
         p = os.path.join(INFO, src)
         if not os.path.exists(p):
             problems.append(f"missing {p}")
@@ -181,7 +196,11 @@ def make_sandbox(name):
     for f in os.listdir(BUILD):
         if os.path.splitext(f)[1].lower() in (".exe", ".dll", ".json", ".pdb"):
             shutil.copy2(os.path.join(BUILD, f), box)
-    for dst, (src, _) in FIRMWARE.items():
+    firmware = dict(FIRMWARE)
+    if name in SPLIT_ROM_CASES:
+        del firmware[r"roms\MZ800.ROM"]
+        firmware.update(MZ800_SPLIT)
+    for dst, (src, _) in firmware.items():
         target = os.path.join(box, dst)
         os.makedirs(os.path.dirname(target), exist_ok=True)
         shutil.copyfile(os.path.join(INFO, src), target)
@@ -368,12 +387,15 @@ def main():
 
     failed = 0
     for name, _, frame, extras in cases:
-        base_out, base_gold = os.path.join(OUT, name), os.path.join(GOLDEN, name)
+        base_out, base_gold = os.path.join(OUT, name), os.path.join(GOLDEN, SAME_GOLDEN.get(name, name))
         artefacts = ([".png"] + (TEST_SUFFIXES if "tests" in extras else [])
                      + ([".wav"] if "wav" in extras else []) + ([".snd.txt"] if "snd" in extras else [])
                      + ([".save.mzf"] if "save" in extras else []))
         if status[name] != "ok":
             print(f"FAIL  {name:12} {status[name]}"); failed += 1; continue
+        if approve and name in SAME_GOLDEN:
+            print(f"SKIPPED {name} (compared against {SAME_GOLDEN[name]}'s golden)")
+            continue
         if approve:
             for s in artefacts:
                 shutil.copyfile(base_out + s, base_gold + s)

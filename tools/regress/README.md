@@ -42,7 +42,8 @@ Each case gets a fresh `_regression/sandbox/<case>/` containing:
 - the build's binaries;
 - `tools/regress/settings.ini` (the shipped defaults), so your own
   settings never affect a result and are never written;
-- the firmware listed below.
+- the firmware listed below (for `mz800_split_roms`, the MZ-800 ROM
+  as three files instead of `MZ800.ROM`).
 
 The harness launches
 `MZRaku.exe <args> --dump=<out> --dumpframe=<N>` (or
@@ -59,10 +60,15 @@ otherwise, because a different ROM would change the results.
 | Artefact | Cases | Comparison |
 |---|---|---|
 | `<case>.png` | all | The screen at the dump frame, pixel-exact (decoded RGB, so PNG encoder differences don't matter) |
-| `.test.png`, `.test640.png`, `.testscroll.png`, `.testsplit.png` | `mz800_ipl` | Synthetic MZ-800 patterns drawn through the real renderers: 320-mode colour bars, 640-mode bit order and banks, hardware scroll, and split-screen scroll (the tech-ref p. 10 example). Pixel-exact. |
-| `.wav` | `mz800_ipl`, `mz800_basic`, `uridium`, `manic` | MZ-800 rendered audio (PSG plus PIT), byte-identical (md5) |
+| `.test.png`, `.test640.png`, `.testscroll.png`, `.testsplit.png` | `mz800_ipl`, `mz800_split_roms` | Synthetic MZ-800 patterns drawn through the real renderers: 320-mode colour bars, 640-mode bit order and banks, hardware scroll, and split-screen scroll (the tech-ref p. 10 example). Pixel-exact. |
+| `.wav` | `mz800_ipl`, `mz800_split_roms`, `mz800_basic`, `uridium`, `manic` | MZ-800 rendered audio (PSG plus PIT), byte-identical (md5) |
 | `.snd.txt` | all MZ-700 and MZ-80A cases | Log of every change at the speaker's inputs (soft gate, hard gate, counter reload, input clock), compared line by line. MZ-700/80A sound is generated in real time, so the log is what can be compared exactly. |
 | `.save.mzf` | `mz700_save` | The `.mzf` a scripted SAVE wrote into the sandbox's `saves/`, byte-identical (md5) |
+
+A case listed in `SAME_GOLDEN` in `regress.py` is compared against
+another case's golden and has none of its own: the same run by a
+different route must give the same output. `--approve` skips it.
+`mz800_split_roms` uses `mz800_ipl`'s.
 
 ## Inputs
 
@@ -78,6 +84,12 @@ key scripts are tracked.
 | MZ-700 | `MZ-700/ROM/1z-013a.rom` | `MZ-700/ROM/mz700fon.int` | `MZ-700/BASIC/1Z-013B.mzf` |
 | MZ-80A | `MZ-80A/ROM/SA-1510.rom` | `MZ-80A/ROM/SA-CG.rom` | `MZ-80A/BASIC/SA-5510.mzf` |
 | MZ-800 | `MZ-800/ROM/MZ800.ROM` (monitor, CG, IPL and IOCS in one file) | — | `MZ-800/BASIC/1Z-016 (tape BASIC)/1Z-016.mzf` |
+
+`mz800_split_roms` gets EmuZ-800's three files from
+`MZ-800/ROM/Split (EmuZ-800 layout)/` (`MZ700IPL.ROM`, `FONT.ROM`,
+`MZ800IPL.ROM`, also SHA-1 pinned) in place of `MZ800.ROM`. Its
+`settings.ini` still names `MZ800.ROM`, so the run also covers the
+start-up scan finding the three parts.
 
 ### Key scripts
 
@@ -131,6 +143,7 @@ Software paths are relative to `_mz-information-repository/`.
 | Case | Frame | Software / input | What it covers |
 |---|---|---|---|
 | `mz800_ipl` | 200 | none (IPL only) | The IPL menu, the four synthetic test patterns, and the boot beep (`.wav`) |
+| `mz800_split_roms` | 200 | none (IPL only); the ROM as three files | As `mz800_ipl`, compared against its golden: the three files joined must boot identically |
 | `mz800_basic` | 300 | BASIC 1Z-016 | 1Z-016 BASIC boot, with audio |
 | `james` | 600 | `MZ-800/Software/Machine code games/James.mzf` | An MZ-700 title running in the MZ-800's MZ-700 mode |
 | `fist` | 900 | `.../Machine code games/EXPLODING FIST.mzf` | Writes the whole scroll register block and palette slots 4+. Kept over Highway, which covers only the border. |
@@ -158,7 +171,7 @@ commit, cases and why).
 - `_regression/out/` holds the latest run.
 
 The v1.4.0 baseline is commit a80994a: all 27 cases approved on
-clean `main`. v1.5.0 adds cases as its fixes and features land (`mz700_insert`, `mz700_insert_basic`, `mz700_save`, `mz80a_cricket`, `mz80a_settings`).
+clean `main`. v1.5.0 adds cases as its fixes and features land (`mz700_insert`, `mz700_insert_basic`, `mz700_save`, `mz80a_cricket`, `mz80a_settings`, `mz800_split_roms`).
 
 ## Adding a case
 

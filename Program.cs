@@ -155,7 +155,9 @@ internal static class Program
                     "folder next to the executable:\n" +
                     "  MZ-700  1z-013a.rom, mz700fon.int, 1Z-013B.mzf\n" +
                     "  MZ-80A  SA-1510.rom, SA-CG.rom, SA-5510.mzf\n" +
-                    "  MZ-800  MZ800.ROM, 1Z-016.mzf\n\n" +
+                    "  MZ-800  MZ800.ROM, 1Z-016.mzf\n" +
+                    "          (or MZ700IPL.ROM, FONT.ROM and MZ800IPL.ROM\n" +
+                    "          in place of MZ800.ROM)\n\n" +
                     "At runtime you may also drag-and-drop a .mzf or .zip file onto the\n" +
                     "window or use the File menu to load one.",
                     "MZRaku");

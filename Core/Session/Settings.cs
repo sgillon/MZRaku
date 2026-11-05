@@ -103,12 +103,11 @@ public sealed class Settings
     // file.
     public RomPathSet Mz700Roms { get; } = new();
     public RomPathSet Mz80aRoms { get; } = new();
-    // MZ-800 ROM paths. Auto-scanned for MZ800.ROM (16 KB combined
-    // monitor + CG + BASIC-IOCS) and 1Z-016.mzf (BASIC cassette).
-    // MZ-800 has no separate font file — the CG ROM lives inside
-    // MZ800.ROM at offset $1000, and Video will split it at load
-    // time (Phase 2). FontPath stays "" for MZ-800; the field is
-    // kept for symmetry with the two-machine RomPathSet shape.
+    // MZ-800 ROM paths. The ROM is one file, MZ800.ROM (16 KiB: monitor
+    // + CG + IPL + BASIC-IOCS), in MonitorRomPath, with FontPath and
+    // Ipl800Path unused; or EmuZ-800's three parts: MZ700IPL.ROM in
+    // MonitorRomPath, FONT.ROM in FontPath, MZ800IPL.ROM in Ipl800Path
+    // (Mz800RomFiles). BasicPath is 1Z-016.mzf (BASIC cassette).
     public RomPathSet Mz800Roms { get; } = new();
 
     /// <summary>The ROM paths for the currently-selected <see cref="CurrentMachine"/>.</summary>
@@ -147,6 +146,9 @@ public sealed class Settings
         public string MonitorRomPath { get; set; } = "";
         public string FontPath { get; set; } = "";
         public string BasicPath { get; set; } = "";
+        /// <summary>MZ-800 only: <c>MZ800IPL.ROM</c>, the third of the
+        /// ROM's three parts. Empty when the ROM is one file.</summary>
+        public string Ipl800Path { get; set; } = "";
     }
 
     // PC gamepad button index (0..31, matching the WinMM dwButtons
@@ -233,6 +235,12 @@ public sealed class Settings
     internal string MonitorRomFullPath => Resolve(MonitorRomPath);
     internal string FontFullPath => Resolve(FontPath);
     internal string BasicFullPath => Resolve(BasicPath);
+    internal string Mz800Ipl800FullPath => Resolve(Mz800Roms.Ipl800Path);
+
+    /// <summary>The INI this run reads: the <c>--settings=</c> file, or
+    /// <c>settings.ini</c> next to the executable. Named in messages
+    /// that tell the user which key to set.</summary>
+    internal string IniPath => ReadOnlyPath ?? FilePath;
 
     private static string FilePath =>
         Path.Combine(AppContext.BaseDirectory, "settings.ini");
@@ -316,12 +324,11 @@ public sealed class Settings
                 s.Mz80aRoms.MonitorRomPath = GetString(ini, "Roms.MZ80A", "Monitor", "");
                 s.Mz80aRoms.FontPath = GetString(ini, "Roms.MZ80A", "Font", "");
                 s.Mz80aRoms.BasicPath = GetString(ini, "Roms.MZ80A", "Basic", "");
-                // MZ-800: single combined ROM file at Monitor (holds
-                // MZ-700 monitor + CG + MZ-800 IPL + BASIC-IOCS per
-                // tech ref pp. 24 ROM configuration). Font stays empty
-                // — no separate CG-ROM file on MZ-800.
+                // MZ-800: MZ800.ROM at Monitor, or the three parts at
+                // Monitor, Font and Ipl800 (see Mz800Roms).
                 s.Mz800Roms.MonitorRomPath = GetString(ini, "Roms.MZ800", "Monitor", "");
                 s.Mz800Roms.FontPath = GetString(ini, "Roms.MZ800", "Font", "");
+                s.Mz800Roms.Ipl800Path = GetString(ini, "Roms.MZ800", "Ipl800", "");
                 s.Mz800Roms.BasicPath = GetString(ini, "Roms.MZ800", "Basic", "");
                 s.JoyButton1Index = GetInt(ini, "Joystick", "Button1", s.JoyButton1Index);
                 s.JoyButton2Index = GetInt(ini, "Joystick", "Button2", s.JoyButton2Index);
@@ -380,6 +387,10 @@ public sealed class Settings
                 {
                     if (!ini.ContainsKey(section)) { missingSection = true; break; }
                 }
+                // Likewise a [Roms.MZ800] from before v1.5.0, which has
+                // no Ipl800 key and the old one-file-only comment.
+                if (ini.TryGetValue("Roms.MZ800", out var mz800Roms) && !mz800Roms.ContainsKey("Ipl800"))
+                    missingSection = true;
             }
         }
         catch { /* fall through to defaults */ }
@@ -503,15 +514,19 @@ public sealed class Settings
             sb.AppendLine("; Paths to the MZ-800's Sharp firmware files. Same format as");
             sb.AppendLine("; [Roms.MZ700] above. Auto-populated when the launcher finds the");
             sb.AppendLine("; files, whether or not MZ-800 is the active machine.");
-            sb.AppendLine(";   Monitor   MZ800.ROM    16 KiB combined ROM (holds MZ-700 monitor,");
-            sb.AppendLine(";                          CG, MZ-800 IPL + monitor, and BASIC-IOCS —");
-            sb.AppendLine(";                          split at load time by the MZ-800 side).");
-            sb.AppendLine(";   Font      (unused)     MZ-800 has no separate CG-ROM file; the");
-            sb.AppendLine(";                          character generator lives inside Monitor.");
-            sb.AppendLine(";                          Left blank in normal use.");
-            sb.AppendLine(";   Basic     1Z-016.mzf   MZ-800 S-BASIC cassette image");
+            sb.AppendLine("; The 16 KiB ROM comes as one file or as three; the size of the");
+            sb.AppendLine("; Monitor file says which.");
+            sb.AppendLine(";   One file:    Monitor  MZ800.ROM     16 KiB: MZ-700 monitor, character");
+            sb.AppendLine(";                                       generator, MZ-800 IPL and monitor.");
+            sb.AppendLine(";                Font and Ipl800 are not used and can stay blank.");
+            sb.AppendLine(";   Three files: (EmuZ-800's layout, joined in this order on loading)");
+            sb.AppendLine(";                Monitor  MZ700IPL.ROM   4 KiB MZ-700 monitor");
+            sb.AppendLine(";                Font     FONT.ROM       4 KiB character generator");
+            sb.AppendLine(";                Ipl800   MZ800IPL.ROM   8 KiB MZ-800 IPL and monitor");
+            sb.AppendLine(";   With either: Basic    1Z-016.mzf     MZ-800 S-BASIC cassette image");
             sb.AppendLine($"Monitor={Mz800Roms.MonitorRomPath}");
             sb.AppendLine($"Font={Mz800Roms.FontPath}");
+            sb.AppendLine($"Ipl800={Mz800Roms.Ipl800Path}");
             sb.AppendLine($"Basic={Mz800Roms.BasicPath}");
             sb.AppendLine();
 
@@ -733,11 +748,32 @@ public sealed class Settings
             v => Mz80aRoms.BasicPath = v,
             () => FindFile("SA-5510.mzf", "roms", "basic", ""));
 
-        // MZ-800 side. No font entry — MZ800.ROM carries its own CG.
+        // MZ-800 side: MZ800.ROM, or failing that the first of
+        // EmuZ-800's three parts. Only in the three-file form are the
+        // other two parts looked for, first next to the first part.
         dirty |= EnsureOne(
             Resolve(Mz800Roms.MonitorRomPath), Mz800Roms.MonitorRomPath,
             v => Mz800Roms.MonitorRomPath = v,
-            () => FindFile("MZ800.ROM", "roms", ""));
+            () => FindFile(Mz800RomFiles.Combined, "roms", "")
+               ?? FindFile(Mz800RomFiles.Ipl700, "roms", ""));
+        var mz800Monitor = Resolve(Mz800Roms.MonitorRomPath);
+        if (Mz800RomFiles.IsSplit(mz800Monitor))
+        {
+            var partsDir = Path.GetDirectoryName(mz800Monitor)!;
+            string? NextToFirst(string name)
+            {
+                var p = Path.Combine(partsDir, name);
+                return File.Exists(p) ? p : FindFile(name, "roms", "");
+            }
+            dirty |= EnsureOne(
+                Resolve(Mz800Roms.FontPath), Mz800Roms.FontPath,
+                v => Mz800Roms.FontPath = v,
+                () => NextToFirst(Mz800RomFiles.Font));
+            dirty |= EnsureOne(
+                Resolve(Mz800Roms.Ipl800Path), Mz800Roms.Ipl800Path,
+                v => Mz800Roms.Ipl800Path = v,
+                () => NextToFirst(Mz800RomFiles.Ipl800));
+        }
         dirty |= EnsureOne(
             Resolve(Mz800Roms.BasicPath), Mz800Roms.BasicPath,
             v => Mz800Roms.BasicPath = v,

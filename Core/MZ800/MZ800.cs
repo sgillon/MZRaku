@@ -166,13 +166,23 @@ public sealed class MZ800 : MzMachineBase, IMachine
     }
 
     public void LoadRoms(string monitorRomPath, string? fontPath)
+        => LoadRoms(monitorRomPath, fontPath, null, "settings.ini");
+
+    /// <summary>
+    /// Load the 16 KiB ROM (MZ-700 monitor 1Z-013B, CG-ROM, MZ-800
+    /// IPL/monitor 1Z-016B and BASIC-IOCS) from <c>MZ800.ROM</c>, or
+    /// from EmuZ-800's three parts: <paramref name="monitorRomPath"/>
+    /// = <c>MZ700IPL.ROM</c>, <paramref name="fontPath"/> =
+    /// <c>FONT.ROM</c>, <paramref name="ipl800Path"/> =
+    /// <c>MZ800IPL.ROM</c> (see <see cref="Mz800RomFiles"/>). The font
+    /// and IPL paths are ignored for <c>MZ800.ROM</c>. The CG at
+    /// $1000-$1FFF is copied out for the renderer by Mz800Video.
+    /// Throws, with a message naming <paramref name="iniPath"/>, if a
+    /// part is missing or a file is the wrong size.
+    /// </summary>
+    public void LoadRoms(string monitorRomPath, string? fontPath, string? ipl800Path, string iniPath)
     {
-        // MZ800.ROM is a single 16 KB file combining MZ-700 monitor
-        // (1Z-013B) + CG-ROM + MZ-800 IPL/monitor (1Z-016B) +
-        // BASIC-IOCS. Font parameter is ignored — the CG lives inside
-        // the combined ROM at offset $1000-$1FFF, extracted for the
-        // renderer by Mz800Video.
-        Mem.LoadRom(File.ReadAllBytes(monitorRomPath));
+        Mem.LoadRom(Mz800RomFiles.Read(monitorRomPath, fontPath, ipl800Path, iniPath));
         Video.LoadFontFromRom(Mem.Rom);
     }
 

@@ -98,10 +98,16 @@ public sealed class SettingsForm : Form
     private readonly Label _lblMz80aMonitorStatus = new() { AutoSize = true };
     private readonly Label _lblMz80aFontStatus = new() { AutoSize = true };
     private readonly Label _lblMz80aBasicStatus = new() { AutoSize = true };
-    // MZ-800: one combined ROM (monitor + IPL + character ROM) and BASIC.
+    // MZ-800: the ROM as one file (MZ800.ROM) or EmuZ-800's three
+    // (MZ700IPL.ROM in the ROM row, then FONT.ROM and MZ800IPL.ROM),
+    // and BASIC.
     private readonly TextBox _txtMz800Rom = new() { Width = 280 };
+    private readonly TextBox _txtMz800Font = new() { Width = 280 };
+    private readonly TextBox _txtMz800Ipl800 = new() { Width = 280 };
     private readonly TextBox _txtMz800Basic = new() { Width = 280 };
     private readonly Label _lblMz800RomStatus = new() { AutoSize = true };
+    private readonly Label _lblMz800FontStatus = new() { AutoSize = true };
+    private readonly Label _lblMz800Ipl800Status = new() { AutoSize = true };
     private readonly Label _lblMz800BasicStatus = new() { AutoSize = true };
 
     // Joystick
@@ -154,7 +160,7 @@ public sealed class SettingsForm : Form
         // known-limitations panel); the matrix grid + overrides list
         // live in AdvancedKeyboardForm now, so the main dialog no
         // longer has to budget room for them.
-        ClientSize = new Size(740, 600);
+        ClientSize = new Size(740, 665);
         MinimizeBox = false;
         MaximizeBox = false;
         ShowInTaskbar = false;
@@ -420,7 +426,8 @@ public sealed class SettingsForm : Form
         // Three per-machine groups stacked vertically + a hint at the
         // bottom. Each group hosts a 4-column grid: label / textbox /
         // status / browse button per ROM file (Monitor, Font, BASIC; the
-        // MZ-800 has one combined ROM, so no Font row).
+        // MZ-800 has ROM, Font, MZ-800 IPL and BASIC, the middle two
+        // used only when its ROM is in three files).
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -437,7 +444,7 @@ public sealed class SettingsForm : Form
         // top and clip the BASIC row.
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 150f));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 150f));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 116f));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 184f));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
 
         root.Controls.Add(BuildRomGroup(
@@ -463,11 +470,15 @@ public sealed class SettingsForm : Form
         root.Controls.Add(BuildRomGroup(
             MachineScope.Mz800Only, "MZ-800 ROMs",
             _txtMz800Rom, _lblMz800RomStatus,
-            "MZ800.ROM — monitor, IPL and character ROM in one file",
-            null, null, "", "",
+            "MZ800.ROM, or MZ700IPL.ROM with FONT.ROM and MZ800IPL.ROM",
+            _txtMz800Font, _lblMz800FontStatus,
+            "FONT.ROM — only with MZ700IPL.ROM",
+            "ROM files (*.rom;*.bin)|*.rom;*.bin|All files|*.*",
             _txtMz800Basic, _lblMz800BasicStatus,
             "1Z-016.mzf",
-            monitorLabel: "ROM:"), 0, 2);
+            monitorLabel: "ROM:",
+            extra: (_txtMz800Ipl800, _lblMz800Ipl800Status, "MZ-800 IPL:",
+                    "MZ800IPL.ROM — only with MZ700IPL.ROM")), 0, 2);
 
         var hint = new Label
         {
@@ -486,10 +497,11 @@ public sealed class SettingsForm : Form
         TextBox? font, Label? fontStatus, string fontHint,
         string fontFilter,
         TextBox basic, Label basicStatus, string basicHint,
-        string monitorLabel = "Monitor ROM:")
+        string monitorLabel = "Monitor ROM:",
+        (TextBox Box, Label Status, string Label, string Hint)? extra = null)
     {
         var group = MakeMachineGroup(title, scope);
-        int rows = font != null ? 3 : 2;
+        int rows = 2 + (font != null ? 1 : 0) + (extra != null ? 1 : 0);
         var grid = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -507,6 +519,9 @@ public sealed class SettingsForm : Form
         if (font != null)
             AddRomRow(grid, 1, "Font ROM:", font, fontStatus!,
                 $"Select character ROM ({fontHint})", fontFilter);
+        if (extra is { } x)
+            AddRomRow(grid, rows - 2, x.Label, x.Box, x.Status,
+                $"Select ROM ({x.Hint})", "ROM files (*.rom;*.bin)|*.rom;*.bin|All files|*.*");
         AddRomRow(grid, rows - 1, "BASIC:", basic, basicStatus,
             $"Select BASIC cassette ({basicHint})", "Cassette files (*.mzf;*.m12;*.mzt)|*.mzf;*.m12;*.mzt|All files|*.*");
 
@@ -1002,6 +1017,8 @@ public sealed class SettingsForm : Form
         _txtMz80aFont.Text = _settings.Mz80aRoms.FontPath;
         _txtMz80aBasic.Text = _settings.Mz80aRoms.BasicPath;
         _txtMz800Rom.Text = _settings.Mz800Roms.MonitorRomPath;
+        _txtMz800Font.Text = _settings.Mz800Roms.FontPath;
+        _txtMz800Ipl800.Text = _settings.Mz800Roms.Ipl800Path;
         _txtMz800Basic.Text = _settings.Mz800Roms.BasicPath;
         _chkMz800VramExpansion.Checked = _settings.Mz800VramExpansion;
         _numButton1.Value = Math.Clamp(_settings.JoyButton1Index, 0, 31);
@@ -1057,6 +1074,8 @@ public sealed class SettingsForm : Form
             Mz80aFontPath = _txtMz80aFont.Text.Trim(),
             Mz80aBasicPath = _txtMz80aBasic.Text.Trim(),
             Mz800MonitorPath = _txtMz800Rom.Text.Trim(),
+            Mz800FontPath = _txtMz800Font.Text.Trim(),
+            Mz800Ipl800Path = _txtMz800Ipl800.Text.Trim(),
             Mz800BasicPath = _txtMz800Basic.Text.Trim(),
             Mz800VramExpansion = _chkMz800VramExpansion.Checked,
             JoyButton1Index = (int)_numButton1.Value,
@@ -1156,19 +1175,59 @@ public sealed class SettingsForm : Form
         (_txtMz80aFont,    _lblMz80aFontStatus),
         (_txtMz80aBasic,   _lblMz80aBasicStatus),
         (_txtMz800Rom,     _lblMz800RomStatus),
+        (_txtMz800Font,    _lblMz800FontStatus),
+        (_txtMz800Ipl800,  _lblMz800Ipl800Status),
         (_txtMz800Basic,   _lblMz800BasicStatus),
     };
 
     private void WireValidation()
     {
         foreach (var (box, status) in RomRows())
-            box.TextChanged += (_, _) => UpdateRomStatus(box, status);
+            box.TextChanged += (_, _) => { UpdateRomStatus(box, status); RefreshMz800RomForm(); };
     }
 
     private void RefreshAllRomStatus()
     {
         foreach (var (box, status) in RomRows())
             UpdateRomStatus(box, status);
+        RefreshMz800RomForm();
+    }
+
+    // The MZ-800's ROM row takes MZ800.ROM or MZ700IPL.ROM, and the
+    // file's size says which (Mz800RomFiles). The Font and MZ-800 IPL
+    // rows matter only with MZ700IPL.ROM, so otherwise they read "not
+    // used"; a file of the wrong size for its row is flagged.
+    private void RefreshMz800RomForm()
+    {
+        var rom = Settings.Resolve(_txtMz800Rom.Text.Trim());
+        bool found = !string.IsNullOrEmpty(rom) && File.Exists(rom);
+        bool split = Mz800RomFiles.IsSplit(rom);
+        if (found && !split && Mz800RomFiles.SizeProblem(rom, Mz800RomFiles.CombinedSize) != null)
+            ShowWrongSize(_lblMz800RomStatus);
+        foreach (var (box, status, size) in new[]
+        {
+            (_txtMz800Font, _lblMz800FontStatus, Mz800RomFiles.FontSize),
+            (_txtMz800Ipl800, _lblMz800Ipl800Status, Mz800RomFiles.Ipl800Size),
+        })
+        {
+            if (!split)
+            {
+                status.Text = "(not used)";
+                status.ForeColor = SystemColors.GrayText;
+                continue;
+            }
+            UpdateRomStatus(box, status);
+            var part = Settings.Resolve(box.Text.Trim());
+            if (!string.IsNullOrEmpty(part) && File.Exists(part)
+                && Mz800RomFiles.SizeProblem(part, size) != null)
+                ShowWrongSize(status);
+        }
+
+        static void ShowWrongSize(Label status)
+        {
+            status.Text = "✗ wrong size";
+            status.ForeColor = Color.FromArgb(192, 0, 0);
+        }
     }
 
     private static void UpdateRomStatus(TextBox textBox, Label statusLabel)

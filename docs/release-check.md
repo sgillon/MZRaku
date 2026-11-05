@@ -43,7 +43,13 @@ release, update the checklist before fixing the bug.
 - [ ] `MZRaku.exe --mz800 --basic` → 1Z-016 banner and `Ready`; no
       `Dev. name error`.
 - [ ] Remove `MZ800.ROM` and run `--mz800` → missing-ROM message
-      names `MZ800.ROM` and `[Roms.MZ800]`. Put it back.
+      names `MZ800.ROM`, the three-file form and `[Roms.MZ800]`.
+- [ ] With `MZ700IPL.ROM`, `FONT.ROM` and `MZ800IPL.ROM` (EmuZ-800's
+      layout) in `roms\` instead, `--mz800` boots to the same IPL menu;
+      `[Roms.MZ800]` gets `Monitor=`, `Font=` and `Ipl800=` and
+      Settings → ROMs shows all three found. Remove `FONT.ROM` → the
+      message names it and `Font=`. Put `MZ800.ROM` back → the Font
+      and MZ-800 IPL rows read "(not used)". New in v1.5.0.
 
 ### Core keyboard (all three machines)
 
