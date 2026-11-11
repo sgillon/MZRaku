@@ -275,6 +275,9 @@ At the 1Z-016 `Ready` prompt:
 - [ ] MZ-800: the same with 1Z-016 BASIC (`SAVE "TEST"` shows
       `Writing "TEST"`, no RECORD.PLAY wait, then `Ready`; the file
       lands in `saves\` and the TAPE chip flashes). New in v1.5.0.
+- [ ] MZ-80A: the same with SA-5510 BASIC (`SAVE "TEST"` shows
+      `Writing TEST`, no RECORD.PLAY wait, then `Ready`; the file
+      lands in `saves\` and the TAPE chip flashes). New in v1.5.0.
 - [ ] `MZRaku.exe --mz80a cricket.mzf` — BASIC boots, the program
       goes in without `LOAD` being typed, `RUN` is typed, and it
       reaches its first screen without operator intervention.
@@ -357,9 +360,8 @@ At the 1Z-016 `Ready` prompt:
 Not blockers — surface in the release notes so what's still open
 stays honest.
 
-- **MZ-80A BASIC SAVE** stops at `RECORD.PLAY` and waits for a tape
-  (no tape-write trap yet), and Insert cassette is greyed out on the
-  MZ-80A. Target v1.5.0 (plan Phase 4 item 13).
+- **Insert cassette** is greyed out on the MZ-80A. Target v1.5.0
+  (plan step 4.7).
 - **MZ-800 no floppy / Quick Disk / printer**; border not drawn.
 - **Font Sheet click-to-type** is view-only on MZ-80A and MZ-800.
   Both targeted at v1.5.0 (plan step 4.8).

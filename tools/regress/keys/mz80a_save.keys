@@ -1,0 +1,9 @@
+# SA-5510 SAVE: type a one-line program and SAVE it. The tape-write
+# trap skips SA-1510's RECORD.PLAY wait (the ROM still prints
+# WRITING "TEST"), writes saves/TEST.mzf (compared byte for byte) and
+# BASIC returns to Ready. Lowercase letters arrive as capitals
+# (authentic inverted shift).
+420  type "10 print \"hi\""
+540  key  Return
+580  type "save \"test\""
+700  key  Return

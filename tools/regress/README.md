@@ -63,7 +63,7 @@ otherwise, because a different ROM would change the results.
 | `.test.png`, `.test640.png`, `.testscroll.png`, `.testsplit.png` | `mz800_ipl`, `mz800_split_roms` | Synthetic MZ-800 patterns drawn through the real renderers: 320-mode colour bars, 640-mode bit order and banks, hardware scroll, and split-screen scroll (the tech-ref p. 10 example). Pixel-exact. |
 | `.wav` | `mz800_ipl`, `mz800_split_roms`, `mz800_basic`, `uridium`, `manic` | MZ-800 rendered audio (PSG plus PIT), byte-identical (md5) |
 | `.snd.txt` | all MZ-700 and MZ-80A cases | Log of every change at the speaker's inputs (soft gate, hard gate, counter reload, input clock), compared line by line. MZ-700/80A sound is generated in real time, so the log is what can be compared exactly. |
-| `.save.mzf` | `mz700_save`, `mz800_save` | The `.mzf` a scripted SAVE wrote into the sandbox's `saves/`, byte-identical (md5) |
+| `.save.mzf` | `mz700_save`, `mz80a_save`, `mz800_save` | The `.mzf` a scripted SAVE wrote into the sandbox's `saves/`, byte-identical (md5) |
 
 A case listed in `SAME_GOLDEN` in `regress.py` is compared against
 another case's golden and has none of its own: the same run by a
@@ -137,6 +137,7 @@ Software paths are relative to `_mz-information-repository/`.
 | `mz80a_music` | 1400 | BASIC; `keys/mz80a_music.keys` | As `mz700_music`, on SA-5510. Covers the pitch and note-duration fixes. |
 | `mz80a_typing` | 1520 | BASIC; `keys/mz80a_typing.keys` | As `mz700_typing`, with GRPH. With the authentic inverted shift, keywords are typed in lowercase and arrive as capitals. |
 | `mz80a_settings` | 200 | `--settings=presets/mz80a_white.ini` | The monitor, run with a minimal settings file that turns the green screen off, so the frame is white on black. Nothing may be written (see Settings presets). Added in v1.5.0. |
+| `mz80a_save` | 1100 | BASIC; `keys/mz80a_save.keys` | SA-5510 `SAVE "TEST"` of a one-line program, through the traps in SA-1510's tape write: the RECORD.PLAY wait ($0447) is skipped and the block taken at the leader ($045E). The saved file is kept as `.save.mzf` and compared byte for byte; the screen shows `Writing TEST` and BASIC back at Ready. Added in v1.5.0. |
 
 ### MZ-800
 
@@ -172,7 +173,7 @@ commit, cases and why).
 - `_regression/out/` holds the latest run.
 
 The v1.4.0 baseline is commit a80994a: all 27 cases approved on
-clean `main`. v1.5.0 adds cases as its fixes and features land (`mz700_insert`, `mz700_insert_basic`, `mz700_save`, `mz80a_cricket`, `mz80a_settings`, `mz800_split_roms`, `mz800_save`).
+clean `main`. v1.5.0 adds cases as its fixes and features land (`mz700_insert`, `mz700_insert_basic`, `mz700_save`, `mz80a_cricket`, `mz80a_settings`, `mz80a_save`, `mz800_split_roms`, `mz800_save`).
 
 ## Adding a case
 

@@ -124,7 +124,8 @@ CASES = [
     ("mz80a_cricket",  ["--mz80a", "--cassette", MZ80A_SW + "cricket.mzf"], 600, ["snd"]),   # line 1 GOSUB: relinked program lines
     ("mz80a_music",    ["--mz80a", "--basic", "--keys=mz80a_music.keys"], 1400, ["snd"]),
     ("mz80a_typing",   ["--mz80a", "--basic", "--keys=mz80a_typing.keys"], 1520, ["snd"]),
-    ("mz80a_settings", ["--mz80a", "--settings=mz80a_white.ini"],    200, []),   # --settings: white screen, nothing written
+    ("mz80a_save",     ["--mz80a", "--basic", "--keys=mz80a_save.keys"], 1100, ["snd", "save"]),   # SA-5510 SAVE: .mzf written, back at Ready
+    ("mz80a_settings",["--mz80a", "--settings=mz80a_white.ini"],    200, []),   # --settings: white screen, nothing written
     # --- MZ-800 ---
     ("mz800_ipl",      ["--mz800"],                                   200, ["tests", "wav"]),
     ("mz800_split_roms", ["--mz800"],                                 200, ["tests", "wav"]),   # EmuZ-800's three ROM files; mz800_ipl's golden

@@ -29,13 +29,35 @@ namespace MZRaku.Core;
 ///
 /// The LOAD-header + LOAD-data trap pattern is shared with MZ-700
 /// via <see cref="CassetteTrapBase"/> (v1.2 audit F-025). This
-/// class provides the SA-1510-specific trap addresses. Write
-/// traps (SAVE) can layer on later if needed.
+/// class provides the SA-1510-specific trap addresses. SAVE goes
+/// through the shared writer too (v1.5 4.7, <see cref="WriteTrap"/>).
 /// </summary>
 internal sealed class Mz80aCassette : CassetteTrapBase
 {
     public const ushort TrapRdInf = 0x0027;
     public const ushort TrapRdDat = 0x002A;
+
+    // SA-1510's tape write (v1.5 4.7, found by disassembly). WRINF
+    // ($0021 → $0436: header, E=$CC) and WRDAT ($0024 → $0470: data,
+    // E=$53, address and size from $1104 / $1102) set D=$D7 and share
+    // the code from $0444:
+    //   $0444 CALL $071A   checksum
+    //   $0447 CALL $06A3   wait for RECORD.PLAY, motor on
+    //   $044A JR C,$0464
+    //   $044C..$045D       header only: print WRITING "name"
+    //   $045E CALL $077A   leader
+    //   $0461 CALL $0485   the bytes
+    //   $0464 JP $0552     pop, motor off ($0700 keeps AF), RET
+    private const ushort WriteSenseWait = 0x0447;
+    private static readonly byte[] WriteSenseWaitBytes = { 0xCD, 0xA3, 0x06, 0x38, 0x18 };
+    private const ushort WriteSenseDone = 0x044A;
+    private const ushort WriteBody = 0x045E;
+    private static readonly byte[] WriteBodyBytes = { 0xCD, 0x7A, 0x07, 0xCD, 0x85, 0x04 };
+    private const ushort WriteExit = 0x0464;
+    private const byte WriteDevice = 0xD7;
+    private const byte WriteHeaderMark = 0xCC;
+    private const ushort HeaderSizeAddr = 0x1102;
+    private const ushort HeaderLoadAddr = 0x1104;
 
     // Typed field so callers wire Memory as Mz80aMemory; base holds
     // it as IMemory (Mem) for its read/write path.
@@ -54,8 +76,9 @@ internal sealed class Mz80aCassette : CassetteTrapBase
     /// </summary>
     public override bool OnPreStep()
     {
-        if (Pending == null) return false;
         ushort pc = Cpu.PC;
+        if ((pc == WriteSenseWait || pc == WriteBody) && WriteTrap(pc)) return true;
+        if (Pending == null) return false;
         if (pc == TrapRdInf && !HeaderDelivered)
         {
             HeaderTrapHits++;
@@ -77,6 +100,48 @@ internal sealed class Mz80aCassette : CassetteTrapBase
         }
         return false;
     }
+
+    /// <summary>
+    /// Takes a SAVE from SA-1510's tape write. At the RECORD.PLAY wait
+    /// it carries on as if the keys were down, so the ROM still prints
+    /// WRITING "name"; at the leader it takes the block, hands it to
+    /// <see cref="CassetteTrapBase.TakeSaveBlock"/> and leaves through
+    /// the ROM's own exit with CY=0. Only while SA-1510 is at $0000
+    /// (not swapped out by $E00C).
+    /// </summary>
+    private bool WriteTrap(ushort pc)
+    {
+        if (_mem.RomSwapped || Cpu.D != WriteDevice) return false;
+        if (pc == WriteSenseWait)
+        {
+            if (!RomBytesAt(WriteSenseWait, WriteSenseWaitBytes)) return false;
+            Cpu.F &= 0xFE;
+            Cpu.PC = WriteSenseDone;
+            return true;
+        }
+        if (!RomBytesAt(WriteBody, WriteBodyBytes)) return false;
+        bool header = Cpu.E == WriteHeaderMark;
+        ushort src = header ? HeaderBufferAddr : ReadWord(HeaderLoadAddr);
+        int size = header ? HeaderSize : ReadWord(HeaderSizeAddr);
+        var block = new byte[size];
+        for (int i = 0; i < size; i++)
+            block[i] = _mem.Read((ushort)(src + i));
+        TakeSaveBlock(header, block);
+        Cpu.A = 0;
+        Cpu.F &= 0xFE;
+        Cpu.PC = WriteExit;
+        return true;
+    }
+
+    private bool RomBytesAt(ushort addr, byte[] expected)
+    {
+        for (int i = 0; i < expected.Length; i++)
+            if (_mem.Rom[addr + i] != expected[i]) return false;
+        return true;
+    }
+
+    private ushort ReadWord(ushort addr) =>
+        (ushort)(_mem.Read(addr) | _mem.Read((ushort)(addr + 1)) << 8);
 
     // SA-5510 BASIC program state (v1.5 Phase 2.4, found by diffing RAM
     // after a typed LOAD against a direct inject, then reading LOAD's
