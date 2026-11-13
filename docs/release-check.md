@@ -378,7 +378,9 @@ stays honest.
   machines (by design: graphics are typed at BASIC's prompt).
 - **MZ-700 monitor prompt**: SHIFT+key types the GRAPH-shifted glyph,
   and GRAPH mode drops on the next key (plan bug B15, found in v1.5
-  step 4.8a; postponed indefinitely). Also on the MZ-800 in MZ-700 mode.
+  step 4.8a; postponed indefinitely;
+  [#6](https://github.com/sgillon/MZRaku/issues/6)). Also on the MZ-800 in
+  MZ-700 mode.
 - **MZ-800 auto-typer** types nothing at the IPL menu or in the
   9Z-504M monitor (real keys and `--keys` scripts work there), so
   Load BASIC source and Font Sheet clicks don't reach them. Found in

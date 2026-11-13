@@ -173,6 +173,11 @@ list. All fourteen are dealt with; causes and fixes are recorded in
 - **Found along the way:** MZ-80A BASIC `SAVE` waits for a tape, and
   Insert cassette isn't offered on the MZ-80A. Both are scheduled as
   MZ-80A tape parity, above.
+- **Known limitation, postponed indefinitely:** at the MZ-700 monitor
+  prompt (and the MZ-800's MZ-700-mode one), shifted keys type
+  graphics and GRAPH mode doesn't hold
+  ([#6](https://github.com/sgillon/MZRaku/issues/6)). BASIC isn't
+  affected, and graphics are typed at BASIC's prompt in practice.
 
 ## v1.6.0 — MZRakuCLI: the first cross-platform build
 
