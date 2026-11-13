@@ -4,94 +4,46 @@ namespace MZRaku.Core;
 
 /// <summary>
 /// Reverse lookup from MZ-700 display code to the (row, col, MzShift)
-/// slot that types it, per keyboard mode (ALPHA or GRAPH). Feeds the
-/// Font Sheet's click-to-type.
+/// slot that types it in S-BASIC 1Z-013B, per keyboard mode. Feeds the
+/// Font Sheet's click-to-type, which works in BASIC only (v1.5 4.8a).
 ///
-/// Two sources, because S-BASIC runs with the monitor ROM banked out
-/// and scans the keyboard with its own tables:
+/// S-BASIC runs with the monitor ROM banked out and scans the keyboard
+/// with its own tables (found by disassembly, v1.5 Phase 2.3 and 4.8a):
 /// <list type="bullet">
-///   <item>S-BASIC 1Z-013B, while it is running: four 64-byte tables
-///   at $121D (ALPHA, ALPHA shifted, GRAPH, GRAPH shifted) in Sharp
-///   ASCII, turned into display codes through BASIC's ASCII → display
+///   <item>Four 64-byte tables at $121D, in Sharp ASCII: ALPHA, ALPHA
+///   shifted, GRAPH, GRAPH shifted. Index <c>row*8 + (7 - col)</c>,
+///   rows 0–7 (rows 8 and 9 hold modifier and function keys).</item>
+///   <item>Characters reach the screen through BASIC's ASCII → display
 ///   table at $0F1C (ASCII $20–$FF).</item>
-///   <item>Otherwise the monitor ROM's four tables, already in display
-///   codes: $0BEA ALPHA, $0C2A ALPHA shifted, $0C6A GRAPH (found
-///   2026-06-07), $0CAA GRAPH shifted (mostly empty; S-BASIC's GRAPH
-///   shifted table is full).</item>
+///   <item>The mode is $0060, which is also the cursor glyph: $EF ALPHA,
+///   $43 shift lock (SHIFT counts inverted for the ALPHA tables), $FF
+///   GRAPH. GRAPH selects GRAPH from any mode; ALPHA selects ALPHA, or
+///   shift lock when pressed in shift lock; SHIFT+ALPHA selects shift
+///   lock, or ALPHA when pressed in shift lock.</item>
 /// </list>
-/// Both use the layout of the ROM's scan routine at $0A50:
-/// <c>index = row*8 + (7 - col)</c>, rows 0–7 (rows 8 and 9 hold
-/// modifier and function keys). For the codes both give, they agree.
 ///
-/// Every code either source gives is a font bank-0 code: GRAPH mode
-/// picks a different table, not a different bank, and S-BASIC types a
-/// GRAPH key with the attribute's bank bit clear. Bank 1 is reached
-/// only by a program setting attribute bit 7. The earlier model put the
-/// GRAPH tables in bank 1, which is why issue #3 looked like a missing
-/// attribute write (v1.5 Phase 2.3).
+/// Every code these tables give is a font bank-0 code: GRAPH mode picks
+/// a different table, not a different bank. Bank 1 is reached only by a
+/// program setting attribute bit 7 (issue #3).
 ///
-/// Unshifted entries win on duplicates so the simpler keystroke is the
+/// Unshifted presses win on duplicates, so the simpler keystroke is the
 /// canonical way to reach a given glyph. Modes are independent.
 /// </summary>
 public sealed class Mz700KeyTables
 {
-    private const int AlphaUnshiftedOffset = 0x0BEA;
-    private const int AlphaShiftedOffset   = 0x0C2A;
-    private const int GraphUnshiftedOffset = 0x0C6A;
-    private const int GraphShiftedOffset   = 0x0CAA;
     private const int TableLength = 64;
-
-    // S-BASIC 1Z-013B: key tables (ALPHA, ALPHA shifted, GRAPH, GRAPH
-    // shifted, back to back) and its ASCII → display-code table.
     private const ushort SBasicKeyTables = 0x121D;
     private const ushort SBasicAsciiToDisplay = 0x0F1C;   // entry for ASCII $20
+    private const ushort SBasicModeFlag = 0x0060;
+    private const byte AlphaCursor = 0xEF, ShiftLockCursor = 0x43, GraphCursor = 0xFF;
     // First row of S-BASIC's ALPHA table, to tell 1Z-013B from any other
     // program in RAM.
     private static readonly byte[] SBasicAlphaRow0 = { 0x90, 0x17, 0xFC, 0x19, 0x00, 0x3B, 0x3A, 0x0D };
 
-    private readonly Dictionary<(byte Code, bool Graph), (int Row, int Col, bool MzShift)> _rom = new();
-    private readonly Dictionary<(byte Code, bool Graph), (int Row, int Col, bool MzShift)> _sbasic = new();
+    private readonly Dictionary<(byte Code, int Mode), (int Row, int Col, bool MzShift)> _map = new();
 
     /// <summary>RAM / banking state, to see whether S-BASIC is running.</summary>
     internal Mz700Memory? Memory;
-
-    /// <summary>
-    /// (Re)populate the monitor map from a freshly-loaded monitor ROM.
-    /// Safe to call repeatedly; clears any prior state first.
-    /// </summary>
-    internal void Build(byte[] monitorRom)
-    {
-        _rom.Clear();
-        LoadRomTable(monitorRom, AlphaUnshiftedOffset, graph: false, mzShift: false);
-        LoadRomTable(monitorRom, AlphaShiftedOffset,   graph: false, mzShift: true);
-        LoadRomTable(monitorRom, GraphUnshiftedOffset, graph: true,  mzShift: false);
-        LoadRomTable(monitorRom, GraphShiftedOffset,   graph: true,  mzShift: true);
-    }
-
-    private void LoadRomTable(byte[] rom, int offset, bool graph, bool mzShift)
-    {
-        for (int i = 0; i < TableLength && offset + i < rom.Length; i++)
-            Add(_rom, i, rom[offset + i], graph, mzShift);
-    }
-
-    /// <summary>
-    /// Records table entry <paramref name="index"/> as typing
-    /// <paramref name="code"/>. Skips slots that are mode / control keys
-    /// (ALPHA, GRAPH, Enter, cursors, etc. — see
-    /// <see cref="Mz700MatrixReference.SpecialLabels"/>): their bytes are
-    /// scan-side markers the keyboard handler intercepts, not display
-    /// codes that reach VRAM. Without this filter the map would report
-    /// e.g. "$C9 is at slot (0,4)", but pressing (0,4) just selects ALPHA.
-    /// </summary>
-    private static void Add(Dictionary<(byte, bool), (int, int, bool)> map,
-        int index, byte code, bool graph, bool mzShift)
-    {
-        int row = index / 8;
-        int col = 7 - (index % 8);
-        if (Mz700MatrixReference.SpecialLabels.ContainsKey((row, col))) return;
-        var key = (code, graph);
-        if (!map.ContainsKey(key)) map[key] = (row, col, mzShift);
-    }
 
     /// <summary>
     /// True when S-BASIC 1Z-013B owns the machine: monitor ROM banked
@@ -105,43 +57,64 @@ public sealed class Mz700KeyTables
         return true;
     }
 
-    private void BuildSBasic(Mz700Memory mem)
+    /// <summary>
+    /// S-BASIC's keyboard mode: 0 ALPHA, 1 shift lock, 2 GRAPH. Null
+    /// while S-BASIC isn't running, or if the flag holds anything else.
+    /// </summary>
+    public int? BasicKeyboardMode
     {
-        _sbasic.Clear();
-        for (int t = 0; t < 4; t++)
+        get
         {
-            bool graph = t >= 2, mzShift = (t & 1) != 0;
+            if (!SBasicRunning()) return null;
+            return Memory!.Ram[SBasicModeFlag] switch
+            {
+                AlphaCursor => 0,
+                ShiftLockCursor => 1,
+                GraphCursor => 2,
+                _ => null,
+            };
+        }
+    }
+
+    private void Build(Mz700Memory mem)
+    {
+        _map.Clear();
+        for (int mode = 0; mode <= 2; mode++)
+        foreach (bool pressed in new[] { false, true })
+        {
+            // Shift lock inverts SHIFT for the ALPHA tables.
+            bool shift = mode == 1 ? !pressed : pressed;
+            int table = (mode == 2 ? 2 : 0) + (shift ? 1 : 0);
             for (int i = 0; i < TableLength; i++)
             {
+                int row = i / 8, col = 7 - i % 8;
+                // Mode / control keys (ALPHA, GRAPH, Enter, cursors...)
+                // give control codes, not characters.
+                if (Mz700MatrixReference.SpecialLabels.ContainsKey((row, col))) continue;
                 // Below $20 are control codes (cursor moves, CR, nothing
                 // at all for $00), not characters.
-                byte ascii = mem.Ram[SBasicKeyTables + t * TableLength + i];
+                byte ascii = mem.Ram[SBasicKeyTables + table * TableLength + i];
                 if (ascii < 0x20) continue;
-                Add(_sbasic, i, mem.Ram[SBasicAsciiToDisplay + ascii - 0x20], graph, mzShift);
+                var key = (mem.Ram[SBasicAsciiToDisplay + ascii - 0x20], mode);
+                if (!_map.ContainsKey(key)) _map[key] = (row, col, pressed);
             }
         }
     }
 
     /// <summary>
-    /// Returns the slot that types the given bank-0 display code in the
-    /// given keyboard mode (false = ALPHA, true = GRAPH), or null if no
-    /// slot does. Uses S-BASIC's own tables while it is running, else
-    /// the monitor ROM's. Mode matters because the same matrix slot
-    /// produces different display codes in ALPHA and GRAPH mode.
+    /// Returns the slot that types the given bank-0 display code in
+    /// S-BASIC keyboard mode <paramref name="mode"/> (0 ALPHA, 1 shift
+    /// lock, 2 GRAPH), or null if no slot does or S-BASIC isn't running.
     /// </summary>
-    public (int Row, int Col, bool MzShift)? FindByDisplayCode(byte code, bool graphMode)
+    public (int Row, int Col, bool MzShift)? FindByDisplayCode(byte code, int mode)
     {
-        var map = _rom;
-        if (SBasicRunning())
+        if (!SBasicRunning())
         {
-            // BASIC's tables never change while it runs; build once.
-            if (_sbasic.Count == 0) BuildSBasic(Memory!);
-            map = _sbasic;
+            _map.Clear();
+            return null;
         }
-        else
-        {
-            _sbasic.Clear();
-        }
-        return map.TryGetValue((code, graphMode), out var slot) ? slot : null;
+        // BASIC's tables never change while it runs; build once.
+        if (_map.Count == 0) Build(Memory!);
+        return _map.TryGetValue((code, mode), out var slot) ? slot : null;
     }
 }

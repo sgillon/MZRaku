@@ -80,7 +80,7 @@ public sealed class KeyboardAutoTyper
     }
 
     /// <summary>True when nothing is queued or in progress.</summary>
-    internal bool Idle => _phase == AutoPhase.Idle && _typeQueue.Count == 0;
+    public bool Idle => _phase == AutoPhase.Idle && _typeQueue.Count == 0;
 
     internal void TypeString(string s)
     {

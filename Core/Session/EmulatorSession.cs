@@ -102,9 +102,10 @@ public sealed class EmulatorSession
     public event Action? GraphModeEntered;
 
     /// <summary>
-    /// The MZ-700 / MZ-80A GRAPH-mode state, sampled every 10 frames:
-    /// null when it can't be known yet (BASIC not loaded), false for
-    /// ALPHA, true for GRAPH.
+    /// The MZ-80A GRAPH-mode state, sampled every 10 frames: false for
+    /// normal, true for GRAPH. (The MZ-700 and MZ-800 mode panes read
+    /// <see cref="Mz700KeyTables.BasicKeyboardMode"/> and
+    /// <see cref="MZ800.BasicKeyboardMode"/> instead.)
     /// </summary>
     public event Action<bool?>? GraphModeSampled;
 

@@ -20,9 +20,10 @@ namespace MZRaku.Core;
 /// holds a local copy.
 ///
 /// MATRIX SHAPE: 10 rows × 8 cols. Scanned by the keyboard ROM routine
-/// at $0A50 with the ROM key-translation tables at $0BEA (ALPHA
-/// unshifted), $0C2A (ALPHA shifted), $0C6A (GRAPH unshifted) and $0CAA
-/// (GRAPH shifted). Table index formula: row*8 + (7 - col).
+/// at $0A50; the monitor's GETKY ($08CA) translates with the ROM tables
+/// at $0BEA (ALPHA unshifted), $0C2A (ALPHA shifted), $0C6A (GRAPH
+/// unshifted), $0CE9 (GRAPH shifted) and $0CAA (with CTRL), per v1.5
+/// 4.8a's disassembly. Table index formula: row*8 + (7 - col).
 ///
 /// CONFIDENCE: cells marked <see cref="SlotKind.Unknown"/> have not yet
 /// been confirmed against the manual. <see cref="Validate"/> reports

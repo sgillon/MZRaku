@@ -109,7 +109,7 @@ public sealed class Mz700Keyboard : KeyboardMatrixBase
             var b = ov.Value;
             _holds[bareVk] = new ActiveHold(b.Row, b.Col, b.MzShift);
             ApplyShiftState();
-            SetMatrix(b.Row, b.Col, true);
+            PressKeyBit(bareVk, b.Row, b.Col);
             Diag.Record(InputLayer.Override, b.Row, b.Col, b.MzShift);
             return true;
         }
@@ -121,7 +121,7 @@ public sealed class Mz700Keyboard : KeyboardMatrixBase
             // through (no explicit shift requirement on this hold).
             _holds[bareVk] = new ActiveHold(rc.row, rc.col, ExplicitMzShift: null);
             ApplyShiftState();
-            SetMatrix(rc.row, rc.col, true);
+            PressKeyBit(bareVk, rc.row, rc.col);
             Diag.Record(InputLayer.SpecialKey, rc.row, rc.col, null);
             return true;
         }
@@ -142,6 +142,24 @@ public sealed class Mz700Keyboard : KeyboardMatrixBase
         // the shift-race note in the XML doc above.
         _pendingDownVk = bareVk;
         return false;
+    }
+
+    /// <summary>
+    /// Asserts a special or override key's matrix bit, after
+    /// <see cref="KeyboardMatrixBase.ApplyShiftState"/> has set SHIFT.
+    /// When SHIFT is on, the bit is staged a couple of frames behind it,
+    /// as shifted character presses are in <see cref="OnKeyPress"/>:
+    /// S-BASIC can read SHIFT just before both bits land in the same
+    /// instant, and then takes the key as unshifted. Live Shift+F12
+    /// (SHIFT+ALPHA) missed about one press in three that way, so shift
+    /// lock often wouldn't turn on or off (v1.5 4.8a live check).
+    /// </summary>
+    private void PressKeyBit(HostKey vk, int row, int col)
+    {
+        if (EffectiveMzShift())
+            _stagedKeyBits.Add(new StagedPress(vk, row, col, LiveShiftStageFrames));
+        else
+            SetMatrix(row, col, true);
     }
 
     /// <summary>

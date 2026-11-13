@@ -279,6 +279,9 @@ public sealed class Mz80aKeyboard : KeyboardMatrixBase
     /// </summary>
     public void TypePress(Mz80aCharMap.Press press) => _typeQueue.Enqueue(press);
 
+    /// <summary>True when the auto-typer has nothing queued or in progress.</summary>
+    public bool AutoTypeIdle => _typeQueue.Count == 0 && _autoPhase == AutoPhase.Idle;
+
     /// <summary>
     /// Enqueue a string for auto-typing. Non-CharMap chars are
     /// silently skipped. '\r' / '\n' become the SA-5510 Enter key

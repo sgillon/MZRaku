@@ -33,7 +33,7 @@ namespace MZRaku.Core;
 /// - Status message + fatal error (raised as session events).
 /// - Font Sheet opener (MZ-700 / MZ-800 ALPHA→GRAPH transitions).
 /// - BASIC source typer.
-/// - GRAPH-mode indicator updates.
+/// - MZ-80A GRAPH-mode indicator updates.
 /// </summary>
 internal sealed class AutoLoadOrchestrator
 {
@@ -49,7 +49,7 @@ internal sealed class AutoLoadOrchestrator
     private readonly Action<string> _showFatal;   // BASIC-load failure (front end shows a dialog)
     private readonly Action _openFontSheet;       // MZ-700 / MZ-800 GRAPH auto-surface
     private readonly Action<string> _typeBasicSource;
-    private readonly Action<bool?> _updateModeLabel;   // null / false / true
+    private readonly Action<bool?> _updateModeLabel;   // MZ-80A: false normal / true GRAPH
 
     private bool _pendingLoadBasic;
     private string? _pendingCassette;
@@ -133,30 +133,21 @@ internal sealed class AutoLoadOrchestrator
 
     private void OnMz700Frame(int bootFrames)
     {
-        // MZ-700 mode-label update. S-BASIC's keyboard mode flag
-        // lives at $0060 bit 4 (set = GRAPH, clear = ALPHA),
-        // discovered empirically via the memory-viewer snapshot/diff
-        // tool 2026-05-31. Only meaningful while S-BASIC owns the
-        // machine (ROM banked out so $0060 is RAM); before BASIC is
-        // loaded, $0060 reads from ROM and the indicator would be
-        // misleading, so we grey it out. Also surfaces the Font
-        // Sheet on ALPHA→GRAPH — GRAPH mode is unusable without the
-        // palette since graphic glyphs aren't reachable from any PC
-        // key.
-        if (bootFrames % 10 == 0)
+        // Surfaces the Font Sheet on ALPHA→GRAPH: GRAPH mode is
+        // unusable without the palette since graphic glyphs aren't
+        // reachable from any PC key. S-BASIC's keyboard mode flag
+        // lives at $0060 bit 4 (set = GRAPH, clear = ALPHA or shift
+        // lock), discovered empirically via the memory-viewer
+        // snapshot/diff tool 2026-05-31. Only meaningful once BASIC
+        // owns the machine (ROM banked out so $0060 is RAM). The mode
+        // pane reads the whole flag through Mz700KeyTables, polled by
+        // the front end as on the MZ-800 (v1.5 4.8a: it shows LOCK).
+        if (bootFrames % 10 == 0 && _basicLoadedFrame >= 0)
         {
-            if (_basicLoadedFrame < 0)
-            {
-                _updateModeLabel(null);
-            }
-            else
-            {
-                bool graph = (_mz700!.Mem.Read(0x0060) & 0x10) != 0;
-                _updateModeLabel(graph);
-                if (graph && !_wasGraphMode)
-                    _openFontSheet();
-                _wasGraphMode = graph;
-            }
+            bool graph = (_mz700!.Mem.Read(0x0060) & 0x10) != 0;
+            if (graph && !_wasGraphMode)
+                _openFontSheet();
+            _wasGraphMode = graph;
         }
 
         // Inject pending BASIC as soon as the monitor's input prompt

@@ -97,7 +97,6 @@ public sealed class MZ700 : MzMachineBase, IMachine
     public void LoadRoms(string monitorRomPath, string? fontPath)
     {
         Mem.LoadRom(File.ReadAllBytes(monitorRomPath));
-        KeyTables.Build(Mem.Rom);
         if (!string.IsNullOrEmpty(fontPath) && File.Exists(fontPath))
         {
             // Dispatch on extension: .int = binary, .txt = hex dump.

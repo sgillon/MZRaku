@@ -8,31 +8,34 @@ namespace MZRaku;
 /// Diagnostic view of the loaded character ROM — all glyphs rendered
 /// in display-code order, one bank per section.
 ///
+/// Click-to-type works in BASIC only, on all three machines (v1.5
+/// 4.8a): graphics glyphs are typed at BASIC's prompt; a program run
+/// from the monitor would set them through memory instead. While BASIC
+/// runs, the cells its keyboard can type are outlined, green for normal
+/// (ALPHA) mode and blue for GRAPH-only, from BASIC's own key tables.
+/// Clicking one queues its key into the auto-typer. If only the other
+/// mode types it, the click switches mode, types it and switches back
+/// to the mode BASIC was in, so each click stands alone. Outside BASIC
+/// a click only names the code.
+///
 /// MZ-700: two 16 × 16 sections, one per font bank (attribute bit 7).
-/// The keyboard only produces bank-0 codes, in both ALPHA and GRAPH
-/// mode (<see cref="Mz700KeyTables"/>), so only bank 0 has outlines:
-/// green for cells ALPHA mode types, blue for cells only GRAPH mode
-/// types. Clicking one enqueues its (row, col, shift) into the
-/// auto-typer — the point being to reach MZ-only glyphs (graphics
-/// blocks) that have no PC-key equivalent. Bank 1 is reached only by a
-/// program setting attribute bit 7, so its clicks just explain that
-/// (v1.5 Phase 2.3, issue #3).
+/// S-BASIC's keyboard only produces bank-0 codes, in every mode
+/// (<see cref="Mz700KeyTables"/>), so only bank 0 has outlines. Bank 1
+/// is reached only by a program setting attribute bit 7, so its clicks
+/// just explain that (v1.5 Phase 2.3, issue #3).
 ///
 /// MZ-80A: two 16 × 8 sections, Text (codes $00–$7F) and Graphics
 /// ($80–$FF), from a single-bank font ROM (no attribute bit-7 select).
-/// SA-1510's GETKY types for the monitor and SA-5510 alike, so while
-/// SA-1510 is mapped in, cells are outlined and clickable from its key
-/// tables (<see cref="Mz80aKeyTables"/>): green for normal mode, blue
-/// for GRAPH-only (v1.5 4.8).
+/// SA-5510 reads keys through SA-1510's GETKY, whose tables
+/// (<see cref="Mz80aKeyTables"/>) cover both sections (v1.5 4.8).
 ///
-/// MZ-800: the CG-ROM, in the MZ-700's two-bank layout (bank 1 =
-/// attribute bit 7). 1Z-016 BASIC draws its text with the bank-0
-/// glyphs, so while it runs bank 0 is outlined and clickable as on the
-/// MZ-700, from BASIC's own key tables (<see cref="Mz800KeyTables"/>)
-/// and its keyboard mode (green ALPHA or shift lock, blue GRAPH).
-/// Elsewhere (IPL menu, 9Z-504M monitor, MZ-700 mode, games) a click
-/// only names the code: the auto-typer can't type at the IPL menu or in
-/// 9Z-504M, and MZ-700 mode has no prompt to type at (v1.5 4.8).
+/// MZ-800: the CG-ROM, in the MZ-700's two-bank layout. 1Z-016 BASIC
+/// draws its text with the bank-0 glyphs, typed from its own key tables
+/// (<see cref="Mz800KeyTables"/>), as on the MZ-700 (v1.5 4.8).
+///
+/// S-BASIC and 1Z-016 share their mode keys: GRAPH selects GRAPH, ALPHA
+/// selects ALPHA (from GRAPH), SHIFT+ALPHA selects shift lock (from
+/// GRAPH). The MZ-80A's GRPH toggles.
 /// </summary>
 public sealed class FontSheetForm : Form
 {
@@ -98,7 +101,7 @@ public sealed class FontSheetForm : Form
                 new("Bank 0", 0x00, 16),
                 new("Bank 1", 0x00, 16),
             };
-            _headerLabel.Text = "Click an outlined glyph to type it (green: ALPHA mode, blue: GRAPH).";
+            _headerLabel.Text = "In BASIC, click an outlined glyph to type it (green: ALPHA, blue: GRAPH).";
         }
         else
         {
@@ -107,7 +110,7 @@ public sealed class FontSheetForm : Form
                 new("Text", 0x00, 8),
                 new("Graphics", 0x80, 8),
             };
-            _headerLabel.Text = "Click an outlined glyph to type it (green: normal mode, blue: GRAPH).";
+            _headerLabel.Text = "In BASIC, click an outlined glyph to type it (green: normal, blue: GRAPH).";
         }
 
         Text = "Font Sheet";
@@ -117,10 +120,7 @@ public sealed class FontSheetForm : Form
         ShowInTaskbar = false;
 
         _pic.MouseClick += OnCellClick;
-        // MZ-700 outlines come from S-BASIC's key tables once it is
-        // running and the monitor's before; MZ-800 outlines follow
-        // BASIC's keyboard mode; MZ-80A outlines need SA-1510 mapped in.
-        // So refresh on each visit.
+        // Outlines show only while BASIC runs, so refresh on each visit.
         Activated += (_, _) => RedrawSheet();
 
         var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
@@ -178,6 +178,7 @@ public sealed class FontSheetForm : Form
             g.DrawString($"{c:X}", hdrFont, hdrBrush, MarginPx + c * CellPx + 2, yOffset - 14);
         g.DrawString(section.Label, hdrFont, hdrBrush, 2, yOffset - 14);
 
+        int? basicMode = BasicMode();
         using var alphaPen = new Pen(Color.MediumSeaGreen, 1f);
         using var graphPen = new Pen(Color.DodgerBlue, 1f);
         for (int r = 0; r < section.RowCount; r++)
@@ -195,35 +196,13 @@ public sealed class FontSheetForm : Form
                 using (var glyphBmp = FrameBufferBitmap.ToBitmap(glyph))
                     g.DrawImageUnscaled(glyphBmp, cellX, cellY);
 
-                // MZ-700: outline the bank-0 cells the keyboard can
-                // produce, green for ALPHA mode and blue for GRAPH-only,
-                // so the user can pick something typeable without
-                // guesswork.
-                if (_mz700 != null && sectionIndex == 0)
+                // Outline the cells BASIC's keyboard can type: green for
+                // normal (ALPHA) mode, blue for GRAPH-only. Shift lock
+                // types the same codes as ALPHA (SHIFT only swaps).
+                if (basicMode != null && (sectionIndex == 0 || _mz80a != null))
                 {
-                    var pen = _mz700.KeyTables.FindByDisplayCode(code, graphMode: false) != null ? alphaPen
-                            : _mz700.KeyTables.FindByDisplayCode(code, graphMode: true) != null ? graphPen
-                            : null;
-                    if (pen != null)
-                        g.DrawRectangle(pen, cellX, cellY, CellPx - 1, CellPx - 1);
-                }
-                // MZ-800: the same, from 1Z-016's tables while it runs.
-                // ALPHA and shift lock type the same codes (SHIFT only
-                // swaps), so mode 0 stands for both.
-                else if (_mz800 != null && sectionIndex == 0 && _mz800.BasicKeyboardMode != null)
-                {
-                    var pen = _mz800.KeyTables.FindByDisplayCode(code, 0) != null ? alphaPen
-                            : _mz800.KeyTables.FindByDisplayCode(code, 2) != null ? graphPen
-                            : null;
-                    if (pen != null)
-                        g.DrawRectangle(pen, cellX, cellY, CellPx - 1, CellPx - 1);
-                }
-                // MZ-80A: one bank, both sections, from SA-1510's tables
-                // while it is mapped in.
-                else if (_mz80a != null && _mz80a.KeyTables.Available)
-                {
-                    var pen = _mz80a.KeyTables.FindByDisplayCode(code, graphMode: false) != null ? alphaPen
-                            : _mz80a.KeyTables.FindByDisplayCode(code, graphMode: true) != null ? graphPen
+                    var pen = FindKey(code, 0) != null ? alphaPen
+                            : FindKey(code, 2) != null ? graphPen
                             : null;
                     if (pen != null)
                         g.DrawRectangle(pen, cellX, cellY, CellPx - 1, CellPx - 1);
@@ -240,111 +219,109 @@ public sealed class FontSheetForm : Form
             return;
         }
 
-        if (_mz80a != null)
+        int? liveMode = BasicMode();
+        if (liveMode == null)
         {
-            TypeOnMz80a(code, _sections[sectionIndex].Label);
-            return;
-        }
-
-        int? basicMode = _mz800?.BasicKeyboardMode;
-        if (_mz800 != null && basicMode == null)
-        {
-            _statusLabel.Text = $"{_sections[sectionIndex].Label} ${code:X2}: types only in MZ-800 BASIC.";
+            _statusLabel.Text = $"{_sections[sectionIndex].Label} ${code:X2}: types only in {BasicName}.";
             return;
         }
 
         // The keyboard only types bank-0 codes; bank 1 needs a program
-        // to set attribute bit 7.
-        if (sectionIndex != 0)
+        // to set attribute bit 7. (The MZ-80A's sections aren't banks.)
+        if (sectionIndex != 0 && _mz80a == null)
         {
             _statusLabel.Text =
                 $"Bank 1 ${code:X2} can't be typed: programs set attribute bit 7.";
             return;
         }
 
-        if (_mz800 != null)
+        // Each click ends by restoring the mode it started from, so while
+        // earlier clicks are still being typed, BASIC will end up in the
+        // mode the first of them saw.
+        if (TyperIdle) _queuedFromMode = liveMode;
+        int mode = _queuedFromMode ?? liveMode.Value;
+
+        if (FindKey(code, mode) is { } key)
         {
-            TypeOnMz800(code, basicMode!.Value);
+            Press(key);
+            _statusLabel.Text = $"Typed code ${code:X2} via {ModeName(mode)} {Describe(key)}.";
             return;
         }
 
-        // Mode check: the same slot types a different code in ALPHA and
-        // GRAPH mode, so press only a slot that types this code in the
-        // machine's current mode. Refuse rather than silently mistype.
-        bool inGraphMode = (_mz700!.Mem.Read(0x0060) & 0x10) != 0;
-        var slot = _mz700.KeyTables.FindByDisplayCode(code, inGraphMode);
-        if (slot is null)
+        // Only the other mode types it: switch, type, switch back.
+        int other = mode == 2 ? 0 : 2;
+        if (FindKey(code, other) is not { } otherKey)
         {
-            if (_mz700.KeyTables.FindByDisplayCode(code, !inGraphMode) != null)
-            {
-                string need = inGraphMode ? "ALPHA" : "GRAPH";
-                _statusLabel.Text = $"Press {need} first to type this glyph.";
-            }
-            else
-            {
-                _statusLabel.Text = $"Code ${code:X2} isn't reachable from the keyboard.";
-            }
+            _statusLabel.Text = $"Code ${code:X2} isn't reachable from the keyboard.";
             return;
         }
-
-        _mz700.Keyboard.AutoType.TypePress(new Mz700CharMap.Press(slot.Value.Row, slot.Value.Col, slot.Value.MzShift));
-        string shiftTxt = slot.Value.MzShift ? "shift+" : "";
-        string modeTxt = inGraphMode ? "GRAPH" : "ALPHA";
+        Press(ModeKey(other));
+        Press(otherKey);
+        Press(ModeKey(mode));
         _statusLabel.Text =
-            $"Typed code ${code:X2} via {modeTxt} {shiftTxt}({slot.Value.Row},{slot.Value.Col}).";
+            $"Typed ${code:X2} via {ModeName(other)} {Describe(otherKey)}, back to {ModeName(mode)}.";
     }
 
-    // 1Z-016: press the slot that types this code in BASIC's current
-    // keyboard mode (0 ALPHA, 1 shift lock, 2 GRAPH), as on the MZ-700.
-    private void TypeOnMz800(byte code, int basicMode)
-    {
-        bool inGraphMode = basicMode == 2;
-        var slot = _mz800!.KeyTables.FindByDisplayCode(code, basicMode);
-        if (slot is null)
-        {
-            if (_mz800.KeyTables.FindByDisplayCode(code, inGraphMode ? 0 : 2) != null)
-                _statusLabel.Text = $"Press {(inGraphMode ? "ALPHA" : "GRAPH")} first to type this glyph.";
-            else
-                _statusLabel.Text = $"Code ${code:X2} isn't reachable from the keyboard.";
-            return;
-        }
+    // The mode the auto-typer's queue will leave BASIC in (see OnCellClick).
+    private int? _queuedFromMode;
 
-        _mz800.Keyboard.AutoType.TypePress(new Mz700CharMap.Press(slot.Value.Row, slot.Value.Col, slot.Value.MzShift));
-        string shiftTxt = slot.Value.MzShift ? "shift+" : "";
-        string modeTxt = basicMode switch { 2 => "GRAPH", 1 => "LOCK", _ => "ALPHA" };
-        _statusLabel.Text =
-            $"Typed code ${code:X2} via {modeTxt} {shiftTxt}({slot.Value.Row},{slot.Value.Col}).";
-    }
+    private readonly record struct Key(int A, int B, bool Shift);
 
-    // SA-1510 (monitor or SA-5510): press the key that types this code
-    // in the current mode ($1170), as on the MZ-700. A program that has
-    // swapped SA-1510 out reads the keyboard itself.
-    private void TypeOnMz80a(byte code, string half)
+    // Mode keys. S-BASIC and 1Z-016: GRAPH (0,6) selects GRAPH from any
+    // mode; from GRAPH, ALPHA (0,4) selects ALPHA and SHIFT+ALPHA shift
+    // lock. The MZ-80A's GRPH (strobe 0, bit 1) toggles.
+    private static readonly Key Mz80aGrph = new(0, 1, false);
+    private static readonly Key GraphKey = new(0, 6, false);
+    private static readonly Key AlphaKey = new(0, 4, false);
+    private static readonly Key ShiftLockKey = new(0, 4, true);
+
+    // BASIC's keyboard mode: 0 normal (ALPHA), 1 shift lock, 2 GRAPH;
+    // null while BASIC isn't running. SA-1510's own shift inversion
+    // ($118F) is handled inside Mz80aKeyTables, so the MZ-80A has no 1.
+    private int? BasicMode()
     {
+        if (_mz700 != null) return _mz700.KeyTables.BasicKeyboardMode;
+        if (_mz800 != null) return _mz800.BasicKeyboardMode;
         var tables = _mz80a!.KeyTables;
-        if (!tables.Available)
-        {
-            _statusLabel.Text = $"{half} ${code:X2}: types only while SA-1510 is in.";
-            return;
-        }
-
-        bool inGraphMode = tables.InGraphMode;
-        var key = tables.FindByDisplayCode(code, inGraphMode);
-        if (key is null)
-        {
-            if (tables.FindByDisplayCode(code, !inGraphMode) != null)
-                _statusLabel.Text = $"Press GRAPH (F11) for {(inGraphMode ? "normal" : "GRAPH")} mode first.";
-            else
-                _statusLabel.Text = $"Code ${code:X2} isn't reachable from the keyboard.";
-            return;
-        }
-
-        _mz80a.Keyboard.TypePress(new Mz80aCharMap.Press(key.Value.Strobe, key.Value.Bit, key.Value.MzShift));
-        string shiftTxt = key.Value.MzShift ? "shift+" : "";
-        string modeTxt = inGraphMode ? "GRAPH" : "normal";
-        _statusLabel.Text =
-            $"Typed code ${code:X2} via {modeTxt} {shiftTxt}({key.Value.Strobe},{key.Value.Bit}).";
+        return tables.BasicRunning ? (tables.InGraphMode ? 2 : 0) : null;
     }
+
+    private Key? FindKey(byte code, int mode)
+    {
+        if (_mz700 != null) return ToKey(_mz700.KeyTables.FindByDisplayCode(code, mode));
+        if (_mz800 != null) return ToKey(_mz800.KeyTables.FindByDisplayCode(code, mode));
+        return _mz80a!.KeyTables.FindByDisplayCode(code, mode == 2) is { } k
+            ? new Key(k.Strobe, k.Bit, k.MzShift) : null;
+    }
+
+    private static Key? ToKey((int Row, int Col, bool MzShift)? slot) =>
+        slot is { } s ? new Key(s.Row, s.Col, s.MzShift) : null;
+
+    private bool TyperIdle =>
+        _mz700 != null ? _mz700.Keyboard.AutoType.Idle
+        : _mz800 != null ? _mz800.Keyboard.AutoType.Idle
+        : _mz80a!.Keyboard.AutoTypeIdle;
+
+    private void Press(Key k)
+    {
+        if (_mz80a != null)
+            _mz80a.Keyboard.TypePress(new Mz80aCharMap.Press(k.A, k.B, k.Shift));
+        else
+            (_mz700?.Keyboard.AutoType ?? _mz800!.Keyboard.AutoType).TypePress(new Mz700CharMap.Press(k.A, k.B, k.Shift));
+    }
+
+    // The key that puts BASIC in `mode`: pressed from GRAPH for normal or
+    // shift lock, and from either of those for GRAPH.
+    private Key ModeKey(int mode) =>
+        _mz80a != null ? Mz80aGrph : mode switch { 2 => GraphKey, 1 => ShiftLockKey, _ => AlphaKey };
+
+    private string ModeName(int mode) =>
+        mode switch { 2 => "GRAPH", 1 => "LOCK", _ => _mz80a != null ? "normal" : "ALPHA" };
+
+    private string BasicName =>
+        _mz700 != null ? "S-BASIC" : _mz800 != null ? "MZ-800 BASIC" : "SA-5510";
+
+    private static string Describe(Key k) => $"{(k.Shift ? "shift+" : "")}({k.A},{k.B})";
 
     private bool TryHitTest(int x, int y, out byte code, out int sectionIndex)
     {

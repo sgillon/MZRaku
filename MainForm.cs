@@ -233,6 +233,12 @@ public sealed class MainForm : Form
                                      "LOCK (shift lock, SHIFT+ALPHA) or GRAPH";
             UpdateMz800ModeLabel();
         }
+        else if (_session.Mz700 != null)
+        {
+            _modeLabel.ToolTipText = "S-BASIC keyboard mode: ALPHA (normal), " +
+                                     "LOCK (shift lock, SHIFT+ALPHA) or GRAPH";
+            UpdateMz700ModeLabel();
+        }
 
         // Session events. All fire on the UI thread (frames run from
         // Timer_Tick), so the handlers can touch controls directly.
@@ -248,6 +254,8 @@ public sealed class MainForm : Form
         _session.DumpComplete += Close;
         if (_session.Mz800 != null)
             _session.FrameRan += frame => { if (frame % 10 == 0) UpdateMz800ModeLabel(); };
+        else if (_session.Mz700 != null)
+            _session.FrameRan += frame => { if (frame % 10 == 0) UpdateMz700ModeLabel(); };
 
         // Every direct assignment to _statusLabel.Text starts the
         // idle-clear timer, so every call site sitewide participates
@@ -875,14 +883,31 @@ public sealed class MainForm : Form
     /// Updates the right-hand mode indicator. <paramref name="graph"/>
     /// null → grey "—" (mode unknowable / not-yet-meaningful), false
     /// → normal "ALPHA", true → highlighted "GRAPH". Handles the
-    /// session's GraphModeSampled, raised every 10 frames on the MZ-700
-    /// and MZ-80A.
+    /// session's GraphModeSampled, raised every 10 frames on the MZ-80A.
     /// </summary>
     private void UpdateModeLabel(bool? graph) =>
         SetModeLabel(graph is null ? "—" : graph.Value ? "GRAPH" : "ALPHA");
 
-    // "—" greyed (mode unknowable), "GRAPH" highlighted, "LOCK" (MZ-800
-    // shift lock) highlighted, anything else plain.
+    // BASIC keyboard mode (0 ALPHA, 1 shift lock, 2 GRAPH) as pane text;
+    // null (BASIC not running) is "—".
+    private static string BasicModeText(int? mode) => mode switch
+    {
+        0 => "ALPHA",
+        1 => "LOCK",
+        2 => "GRAPH",
+        _ => "—",
+    };
+
+    /// <summary>
+    /// MZ-700 mode pane, called every 10 frames: S-BASIC's keyboard
+    /// mode (ALPHA / LOCK for shift lock / GRAPH, "—" when 1Z-013B
+    /// isn't running). It showed only ALPHA or GRAPH before v1.5 4.8a.
+    /// </summary>
+    private void UpdateMz700ModeLabel() =>
+        SetModeLabel(BasicModeText(_session.Mz700!.KeyTables.BasicKeyboardMode));
+
+    // "—" greyed (mode unknowable), "GRAPH" highlighted, "LOCK" (shift
+    // lock) highlighted, anything else plain.
     private void SetModeLabel(string text)
     {
         if (_modeLabel.Text == text) return;
@@ -906,13 +931,7 @@ public sealed class MainForm : Form
     /// </summary>
     private void UpdateMz800ModeLabel()
     {
-        SetModeLabel(_session.Mz800!.BasicKeyboardMode switch
-        {
-            0 => "ALPHA",
-            1 => "LOCK",
-            2 => "GRAPH",
-            _ => "—",
-        });
+        SetModeLabel(BasicModeText(_session.Mz800!.BasicKeyboardMode));
 
         var m = _session.Mz800.Mem;
         string text = m.Mz700Mode ? "MZ-700" : m.Is640BitmapMode ? "640×200" : "320×200";

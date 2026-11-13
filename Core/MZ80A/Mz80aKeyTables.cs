@@ -5,7 +5,9 @@ namespace MZRaku.Core;
 /// <summary>
 /// Reverse lookup from MZ-80A display code to the (strobe, bit, MzShift)
 /// key that types it, in normal (ALPHA) or GRAPH mode. Feeds the Font
-/// Sheet's click-to-type (v1.5 4.8).
+/// Sheet's click-to-type (v1.5 4.8), which works in SA-5510 only
+/// (<see cref="BasicRunning"/>, v1.5 4.8a). GRPH toggles the mode both
+/// ways.
 ///
 /// SA-5510 has no key scan of its own, so SA-1510's GETKY ($08CA) types
 /// for the monitor and BASIC alike. Found by disassembly:
@@ -55,11 +57,27 @@ public sealed class Mz80aKeyTables
         _built = false;
     }
 
+    // SA-5510 loads byte for byte at $11FD; its line relinker at $1AC7
+    // (v1.5 2.4) marks BASIC in RAM.
+    private const ushort Sa5510Signature = 0x1AC7;
+    private static readonly byte[] Sa5510SignatureBytes = { 0x21, 0x5C, 0x50, 0x5E, 0x23, 0x56, 0x2B, 0x7B };
+
     /// <summary>
-    /// True while SA-1510 is at $0000, so its GETKY is what reads the
-    /// keyboard. A program that swaps it out ($E00C) scans for itself.
+    /// True while SA-5510 BASIC is in RAM with SA-1510 mapped in, so
+    /// GETKY reads the keyboard for BASIC. The Font Sheet types in BASIC
+    /// only (v1.5 4.8a); a program that swaps SA-1510 out ($E00C) scans
+    /// for itself.
     /// </summary>
-    public bool Available => !_mem.RomSwapped;
+    public bool BasicRunning
+    {
+        get
+        {
+            if (_mem.RomSwapped) return false;
+            for (int i = 0; i < Sa5510SignatureBytes.Length; i++)
+                if (_mem.Ram[Sa5510Signature + i] != Sa5510SignatureBytes[i]) return false;
+            return true;
+        }
+    }
 
     /// <summary>SA-1510's GRAPH mode flag ($1170), as GETKY reads it.</summary>
     public bool InGraphMode => _mem.Ram[GraphModeFlag] != 0;

@@ -125,6 +125,10 @@ release, update the checklist before fixing the bug.
       the CTRL slot correction 2026-06-12.)
 - [ ] PC F5 at BASIC prompt types `CHR$(` (default S-BASIC F5 macro).
 - [ ] Esc + Shift breaks a running monitor loop.
+- [ ] In S-BASIC, Shift+F12 ten times → shift lock turns on and off
+      every time (letters type in capitals, then lower case), and the
+      mode pane follows (`LOCK` / `ALPHA`). New in v1.5.0: one press
+      in three was missed before, and the pane didn't show `LOCK`.
 
 ### MZ-80A keyboard tier audit
 
@@ -199,31 +203,22 @@ At the 1Z-016 `Ready` prompt:
 
 ### Font Sheet
 
-- [ ] MZ-700: all 512 glyphs render. In S-BASIC, bank-0 cells the
-      keyboard can type are outlined green (ALPHA) or blue (GRAPH);
-      bank 1 has no outlines. In ALPHA mode, click a green cell →
-      status bar reports the typed code and the glyph appears at the
-      cursor. In GRAPH mode, the same for a blue cell, including a
-      shifted-GRAPH one. Click a blue cell in ALPHA mode → status bar
-      says to press GRAPH; nothing types. Click a bank-1 cell →
-      status bar says it can't be typed; nothing types.
+- [ ] All three machines, in BASIC (S-BASIC, SA-5510, 1Z-016): cells
+      the keyboard can type are outlined green (normal/ALPHA) or blue
+      (GRAPH). In each mode (ALPHA, GRAPH, and shift lock on the MZ-700
+      and MZ-800), click a mix of green and blue cells, quickly → each
+      glyph appears at the cursor in order, the status line says when
+      a click switched mode ("…, back to ALPHA"), and the mode pane
+      ends where it started; typing on the PC keyboard afterwards is
+      in that mode. Outside BASIC (monitor prompt, IPL menu, a game):
+      no outlines, and a click says where it types. Switching and the
+      MZ-80A are new in v1.5.0; outside BASIC the MZ-700 and MZ-80A
+      no longer type.
+- [ ] MZ-700 and MZ-800: all 512 glyphs render; bank 1 has no
+      outlines, and a click there says it can't be typed. Pressing
+      GRAPH (F11) opens the sheet.
 - [ ] MZ-80A: two sections labelled Text ($00-$7F) and Graphics
-      ($80-$FF) render, with cells outlined green (normal mode) or
-      blue (GRAPH) in both. At the SA-1510 prompt and in SA-5510:
-      click a green cell in normal mode → status bar reports the typed
-      code and the glyph appears at the cursor; the same for a blue
-      cell after F11 (GRAPH). Click a blue cell in normal mode →
-      status bar says to press GRAPH (F11); nothing types. New in
-      v1.5.0.
-- [ ] MZ-800: all 512 glyphs render; pressing GRAPH (F11) in 1Z-016
-      opens it. In 1Z-016 BASIC, bank-0 cells are outlined green
-      (ALPHA) or blue (GRAPH); bank 1 has none. Click a green cell in
-      ALPHA mode → status bar reports the typed code and the character
-      appears at the cursor; the same for a blue cell in GRAPH mode,
-      and in shift lock. Click a blue cell in ALPHA mode → status bar
-      says to press GRAPH; nothing types. At the IPL menu or in a
-      game: no outlines, and a click says it types only in MZ-800
-      BASIC. New in v1.5.0.
+      ($80-$FF) render, outlined in both.
 
 ### Sound
 
@@ -350,6 +345,8 @@ At the 1Z-016 `Ready` prompt:
       `ALPHA` at boot.
 - [ ] F11 toggles right pane `ALPHA ↔ GRAPH`. MZ-700 also toggles
       via F12; MZ-80A is F11-only.
+- [ ] MZ-700: keyboard-mode pane shows `—` until S-BASIC runs, then
+      `ALPHA` / `LOCK` (Shift+F12) / `GRAPH`. `LOCK` is new in v1.5.0.
 - [ ] MZ-800: display-mode pane shows `320×200` in 1Z-016 BASIC and
       `MZ-700` in an MZ-700 title (e.g. James), with a tooltip. Keyboard-mode pane shows `—` at the IPL menu and in
       games, `ALPHA` / `LOCK` / `GRAPH` in 1Z-016. After a game
@@ -377,9 +374,11 @@ Not blockers — surface in the release notes so what's still open
 stays honest.
 
 - **MZ-800 no floppy / Quick Disk / printer**; border not drawn.
-- **Font Sheet click-to-type** types on the MZ-800 in 1Z-016 BASIC
-  only, and on the MZ-80A only while SA-1510 is mapped in (a program
-  that swaps it out reads the keyboard itself).
+- **Font Sheet click-to-type** types in BASIC only, on all three
+  machines (by design: graphics are typed at BASIC's prompt).
+- **MZ-700 monitor prompt**: SHIFT+key types the GRAPH-shifted glyph,
+  and GRAPH mode drops on the next key (plan bug B15, found in v1.5
+  step 4.8a; postponed indefinitely). Also on the MZ-800 in MZ-700 mode.
 - **MZ-800 auto-typer** types nothing at the IPL menu or in the
   9Z-504M monitor (real keys and `--keys` scripts work there), so
   Load BASIC source and Font Sheet clicks don't reach them. Found in
