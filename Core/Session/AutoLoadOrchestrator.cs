@@ -308,8 +308,8 @@ internal sealed class AutoLoadOrchestrator
                     // with LOAD's own bookkeeping copied (a plain
                     // DirectInject leaves the lines unlinked, and RUN
                     // fails). Other BASIC-type images queue for BASIC's
-                    // LOAD through our SA-1510 RDINF/RDDAT traps
-                    // ($0027/$002A). Machine-code images still
+                    // LOAD through our SA-1510 read traps
+                    // ($04CF/$04EF). Machine-code images still
                     // DirectInject + jumpExec — SA-1510's monitor L
                     // command sequence isn't wired for MZ-80A and
                     // the shortcut works cleanly for type 01.

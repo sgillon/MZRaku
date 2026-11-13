@@ -551,50 +551,31 @@ public sealed class EmulatorSession
     }
 
     /// <summary>
-    /// Whether <see cref="InsertCassette"/> works on this machine: the
-    /// MZ-700 and MZ-800. The MZ-80A's SA-5510 loads through BASIC's
-    /// LOAD, not the SA-1510 monitor's L command.
-    /// </summary>
-    public bool CanInsertCassette => Mz700 != null || Mz800 != null;
-
-    /// <summary>
     /// Insert a cassette for the emulated machine's own LOAD to read
     /// through the tape traps — no direct-inject, no jump; the user
-    /// drives the load. MZ-700: one image for the monitor's L command or
-    /// S-BASIC's LOAD.
+    /// drives the load. MZ-700 and MZ-80A (v1.5 4.7): one image for the
+    /// monitor's L command or BASIC's LOAD.
     /// MZ-800: the whole tape (every file of a zip / .mzt), read by the
-    /// IPL's C option, the monitor's L, or 1Z-016 BASIC's LOAD. Only
-    /// where <see cref="CanInsertCassette"/>.
+    /// IPL's C option, the monitor's L, or 1Z-016 BASIC's LOAD.
     /// </summary>
     public void InsertCassette(string path)
     {
-        if (Mz700 != null)
+        if (Mz800 == null)
         {
             var img = MzfImage.Parse(CassetteFile.ReadBytes(path));
-            Mz700.Cassette.Queue(img);
+            Active.Cassette.Queue(img);
             StatusMessage?.Invoke($"Queued: {img.Filename}. Type L in the monitor, or LOAD in BASIC, to fetch.");
         }
         else
         {
             var tape = CassetteFile.ReadTape(path);
-            Mz800!.Cassette.Mount(tape);
+            Mz800.Cassette.Mount(tape);
             StatusMessage?.Invoke(tape.Count == 1
                 ? $"Tape inserted: {tape[0].Filename}."
                 : $"Tape inserted: {tape.Count} files, first {tape[0].Filename}.");
         }
     }
 
-    /// <summary>
-    /// <c>--insert=&lt;path&gt;</c>: <see cref="InsertCassette"/> from the
-    /// command line, after <see cref="Start"/>. On a machine that can't
-    /// insert it reports so through <see cref="StatusMessage"/>; a file
-    /// that can't be read throws, as at Insert cassette.
-    /// </summary>
-    public void InsertCassetteAtStartup(string path)
-    {
-        if (CanInsertCassette) InsertCassette(path);
-        else StatusMessage?.Invoke($"--insert ignored: the {MachineLabel} has no Insert cassette.");
-    }
 
     /// <summary>
     /// Output level, 0–100, kept in the settings (<c>[Sound] Volume=</c>)

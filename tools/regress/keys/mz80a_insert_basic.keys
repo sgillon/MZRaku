@@ -1,0 +1,8 @@
+# Insert cassette (--insert) + SA-5510's own LOAD: the read traps
+# deliver header and data (to $505C, where LOAD points $1104), BASIC
+# relinks the lines itself; then RUN. Lowercase letters arrive as
+# capitals (authentic inverted shift).
+420  type "load"
+460  key  Return
+560  type "run"
+600  key  Return

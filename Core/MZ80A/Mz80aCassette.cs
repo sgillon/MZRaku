@@ -34,8 +34,15 @@ namespace MZRaku.Core;
 /// </summary>
 internal sealed class Mz80aCassette : CassetteTrapBase
 {
-    public const ushort TrapRdInf = 0x0027;
-    public const ushort TrapRdDat = 0x002A;
+    // SA-1510's tape read code, not its jump-table entries: RDINF
+    // ($0027) jumps to $04CF and RDDAT ($002A) to $04EF, and the
+    // monitor's L command calls $04CF / $04EF directly (v1.5 4.7), so
+    // trapping here serves BASIC's LOAD and L alike. Both start with
+    // DI; PUSH DE; PUSH BC; PUSH HL, so at the trap the caller's return
+    // address is on top of the stack, as at the jump-table entry.
+    public const ushort TrapRdInf = 0x04CF;
+    public const ushort TrapRdDat = 0x04EF;
+    private static readonly byte[] ReadEntryBytes = { 0xF3, 0xD5, 0xC5, 0xE5 };
 
     // SA-1510's tape write (v1.5 4.7, found by disassembly). WRINF
     // ($0021 → $0436: header, E=$CC) and WRDAT ($0024 → $0470: data,
@@ -79,6 +86,8 @@ internal sealed class Mz80aCassette : CassetteTrapBase
         ushort pc = Cpu.PC;
         if ((pc == WriteSenseWait || pc == WriteBody) && WriteTrap(pc)) return true;
         if (Pending == null) return false;
+        if ((pc == TrapRdInf || pc == TrapRdDat)
+            && (_mem.RomSwapped || !RomBytesAt(pc, ReadEntryBytes))) return false;
         if (pc == TrapRdInf && !HeaderDelivered)
         {
             HeaderTrapHits++;
@@ -90,7 +99,12 @@ internal sealed class Mz80aCassette : CassetteTrapBase
         if (pc == TrapRdDat && HeaderDelivered && !DataDelivered)
         {
             DataTrapHits++;
-            WriteDataToRam(Pending.LoadAddr, Pending.Data.Length);
+            // Where the caller asked, as RDDAT does: address and size
+            // from $1104 / $1102. The header put the file's own there,
+            // but SA-5510's LOAD sets $1104 to $505C first ($2F2C).
+            ushort loadAddr = ReadWord(HeaderLoadAddr);
+            int n = WriteDataToRam(loadAddr, ReadWord(HeaderSizeAddr));
+            RaiseLoaded($"Loaded via tape trap: {Pending.Filename} ({n} bytes at ${loadAddr:X4})");
             DataDelivered = true;
             SynthesiseSuccess();
             // One-shot — clear pending so a second L command won't

@@ -65,8 +65,9 @@ public sealed class MZ80A : MzMachineBase, IMachine
         Ppi.Keyboard = Keyboard;
 
         // Cassette needs memory + CPU for trap injection; PreStep
-        // watches SA-1510's RDINF ($0027) and RDDAT ($002A) entry
-        // points and delivers the queued .mzf image directly.
+        // watches SA-1510's tape read code ($04CF header, $04EF data)
+        // and delivers the queued .mzf image directly, and takes SAVEs
+        // from its tape write code.
         Cassette.Memory = Mem;
         Cassette.Cpu = Cpu;
         Cpu.PreStep = Cassette.OnPreStep;

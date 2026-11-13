@@ -137,6 +137,8 @@ Software paths are relative to `_mz-information-repository/`.
 | `mz80a_music` | 1400 | BASIC; `keys/mz80a_music.keys` | As `mz700_music`, on SA-5510. Covers the pitch and note-duration fixes. |
 | `mz80a_typing` | 1520 | BASIC; `keys/mz80a_typing.keys` | As `mz700_typing`, with GRPH. With the authentic inverted shift, keywords are typed in lowercase and arrive as capitals. |
 | `mz80a_settings` | 200 | `--settings=presets/mz80a_white.ini` | The monitor, run with a minimal settings file that turns the green screen off, so the frame is white on black. Nothing may be written (see Settings presets). Added in v1.5.0. |
+| `mz80a_insert` | 600 | `--insert=MZ-80A/Software/NEW-INVADERS-80A.mzf`; `keys/mz80a_insert.keys` | Insert cassette + SA-1510's `L` (typed lowercase: the inverted shift makes it a capital), which calls the tape read code directly; the traps at $04CF (header) and $04EF (data) serve it and the monitor runs the game to its title screen. Added in v1.5.0. |
+| `mz80a_insert_basic` | 1200 | BASIC; `--insert=MZ-80A/Software/WORLD-CUP-80A.mzf`; `keys/mz80a_insert_basic.keys` | Insert cassette + SA-5510's own `LOAD` through the same traps (data to $505C, where LOAD points $1104; BASIC relinks the lines itself), then `RUN` to the team list. Added in v1.5.0. |
 | `mz80a_save` | 1100 | BASIC; `keys/mz80a_save.keys` | SA-5510 `SAVE "TEST"` of a one-line program, through the traps in SA-1510's tape write: the RECORD.PLAY wait ($0447) is skipped and the block taken at the leader ($045E). The saved file is kept as `.save.mzf` and compared byte for byte; the screen shows `Writing TEST` and BASIC back at Ready. Added in v1.5.0. |
 
 ### MZ-800
@@ -173,7 +175,7 @@ commit, cases and why).
 - `_regression/out/` holds the latest run.
 
 The v1.4.0 baseline is commit a80994a: all 27 cases approved on
-clean `main`. v1.5.0 adds cases as its fixes and features land (`mz700_insert`, `mz700_insert_basic`, `mz700_save`, `mz80a_cricket`, `mz80a_settings`, `mz80a_save`, `mz800_split_roms`, `mz800_save`).
+clean `main`. v1.5.0 adds cases as its fixes and features land (`mz700_insert`, `mz700_insert_basic`, `mz700_save`, `mz80a_cricket`, `mz80a_settings`, `mz80a_insert`, `mz80a_insert_basic`, `mz80a_save`, `mz800_split_roms`, `mz800_save`).
 
 ## Adding a case
 

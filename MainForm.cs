@@ -363,11 +363,9 @@ public sealed class MainForm : Form
         // instead of the direct-inject shortcut Load cassette uses — the
         // authentic MZ LOAD experience. MZ-700: the monitor's L. MZ-800:
         // the IPL's C option, the monitor's L or BASIC's LOAD, with a
-        // whole multi-file tape. Not yet on the MZ-80A (v1.5 Phase 4
-        // item 13).
-        file.DropDownItems.Add(MachineOnly(
-            new ToolStripMenuItem("Insert cassette for &LOAD...", null, (_, _) => BrowseAndQueue()),
-            _session.CanInsertCassette, "MZ-700 and MZ-800"));
+        // whole multi-file tape. MZ-80A since v1.5 4.7: the monitor's L
+        // or SA-5510's LOAD.
+        file.DropDownItems.Add(new ToolStripMenuItem("Insert cassette for &LOAD...", null, (_, _) => BrowseAndQueue()));
         file.DropDownItems.Add(new ToolStripMenuItem("Load &BASIC", null, (_, _) => LoadBasic()) { ShortcutKeys = Keys.Control | Keys.B });
         file.DropDownItems.Add(new ToolStripMenuItem("Load BASIC &source...", null, (_, _) => BrowseAndLoadBasicSource()) { ShortcutKeys = Keys.Control | Keys.Shift | Keys.B });
         file.DropDownItems.Add(new ToolStripSeparator());
@@ -764,7 +762,7 @@ public sealed class MainForm : Form
                 == EmulatorSession.LoadResult.BasicMissing)
                 ShowBasicMissing();
             // --insert=<path>: File → Insert cassette, at startup.
-            if (_insertPath != null) _session.InsertCassetteAtStartup(_insertPath);
+            if (_insertPath != null) _session.InsertCassette(_insertPath);
             _pace.Restart();
             _pacedFrames = 0;
             _timer.Start();
@@ -1146,12 +1144,10 @@ public sealed class MainForm : Form
 
     /// <summary>
     /// File → Insert cassette for LOAD (see
-    /// <see cref="EmulatorSession.InsertCassette"/>). The menu item is
-    /// greyed out on a machine that can't insert.
+    /// <see cref="EmulatorSession.InsertCassette"/>).
     /// </summary>
     private void BrowseAndQueue()
     {
-        if (!_session.CanInsertCassette) return;
         using var dlg = new OpenFileDialog
         {
             Filter = "MZ cassette images (*.mzf;*.m12;*.mzt;*.zip)|*.mzf;*.m12;*.mzt;*.zip|All files|*.*",

@@ -124,7 +124,9 @@ CASES = [
     ("mz80a_cricket",  ["--mz80a", "--cassette", MZ80A_SW + "cricket.mzf"], 600, ["snd"]),   # line 1 GOSUB: relinked program lines
     ("mz80a_music",    ["--mz80a", "--basic", "--keys=mz80a_music.keys"], 1400, ["snd"]),
     ("mz80a_typing",   ["--mz80a", "--basic", "--keys=mz80a_typing.keys"], 1520, ["snd"]),
-    ("mz80a_save",     ["--mz80a", "--basic", "--keys=mz80a_save.keys"], 1100, ["snd", "save"]),   # SA-5510 SAVE: .mzf written, back at Ready
+    ("mz80a_insert",   ["--mz80a", "--insert=" + MZ80A_SW + "NEW-INVADERS-80A.mzf", "--keys=mz80a_insert.keys"], 600, ["snd"]),   # Insert cassette + monitor L
+    ("mz80a_insert_basic", ["--mz80a", "--basic", "--insert=" + MZ80A_SW + "WORLD-CUP-80A.mzf", "--keys=mz80a_insert_basic.keys"], 1200, ["snd"]),   # Insert cassette + SA-5510 LOAD / RUN
+    ("mz80a_save",    ["--mz80a", "--basic", "--keys=mz80a_save.keys"], 1100, ["snd", "save"]),   # SA-5510 SAVE: .mzf written, back at Ready
     ("mz80a_settings",["--mz80a", "--settings=mz80a_white.ini"],    200, []),   # --settings: white screen, nothing written
     # --- MZ-800 ---
     ("mz800_ipl",      ["--mz800"],                                   200, ["tests", "wav"]),

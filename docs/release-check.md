@@ -91,8 +91,8 @@ release, update the checklist before fixing the bug.
 - [ ] `View → Font Sheet…` (Ctrl+G) opens.
 - [ ] `Debug → Sound Diagnostic…` opens on MZ-700 and MZ-800 (MZ-800
       shows the PSG pane). On MZ-80A it's greyed out, with a "MZ-700
-      and MZ-800 only" tooltip; so is `File → Insert cassette for
-      LOAD…` until Phase 4 item 13.
+      and MZ-800 only" tooltip. `File → Insert cassette for LOAD…`
+      is enabled on all three machines (MZ-80A new in v1.5.0).
 - [ ] MZ-800 Memory Viewer: bank line shows bank state and display
       mode. At the IPL menu, $E000-$E00F reads as memory (not hidden
       as I/O).
@@ -299,6 +299,11 @@ At the 1Z-016 `Ready` prompt:
       starts cleanly (no carried-over palette or display mode).
 - [ ] MZ-800: File → Insert cassette for LOAD… at the 1Z-016
       prompt, then `LOAD` → program loads from the inserted tape.
+- [ ] MZ-80A: File → Insert cassette for LOAD… at the SA-1510
+      prompt, then `L` → a machine-code game loads and runs; at
+      SA-5510's `Ready`, `LOAD` → `Found` / `Loading`, then `RUN`
+      works. The status bar says "Loaded via tape trap". New in
+      v1.5.0.
 - [ ] Load BASIC source… (Ctrl+Shift+B) on each machine, both from
       BASIC `Ready` and from a cold monitor / IPL menu → listing typed
       with no dropped characters; `RUN` works.
@@ -360,8 +365,6 @@ At the 1Z-016 `Ready` prompt:
 Not blockers — surface in the release notes so what's still open
 stays honest.
 
-- **Insert cassette** is greyed out on the MZ-80A. Target v1.5.0
-  (plan step 4.7).
 - **MZ-800 no floppy / Quick Disk / printer**; border not drawn.
 - **Font Sheet click-to-type** is view-only on MZ-80A and MZ-800.
   Both targeted at v1.5.0 (plan step 4.8).

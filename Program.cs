@@ -141,7 +141,6 @@ internal static class Program
                     "  --insert=<cassette>  Insert a cassette for the machine's own\n" +
                     "                  LOAD, as File → Insert cassette does: type L in\n" +
                     "                  the monitor or LOAD in BASIC to read it.\n" +
-                    "                  MZ-700 and MZ-800.\n" +
                     "  --keys=<file>   Play scripted keystrokes, one command per line at\n" +
                     "                  a frame count since launch: '420 type \"RUN\"',\n" +
                     "                  '440 key Return', or down/up <Key> to hold one.\n" +

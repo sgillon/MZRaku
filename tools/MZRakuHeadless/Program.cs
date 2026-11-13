@@ -27,8 +27,8 @@ internal static class Program
         "(default 120), then exits. Window options (--display, --scanlines) are\n" +
         "accepted and ignored. Settings come from settings.ini next to this\n" +
         "executable, or read-only from --settings=<ini>.\n\n" +
-        "--insert=<cassette> inserts a cassette for the machine's own LOAD\n" +
-        "(MZ-700 and MZ-800). --keys=<file> plays scripted keystrokes, one\n" +
+        "--insert=<cassette> inserts a cassette for the machine's own LOAD.\n" +
+        "--keys=<file> plays scripted keystrokes, one\n" +
         "command per line at a frame count since launch: '420 type \"RUN\"',\n" +
         "'440 key Return', or down/up <Key> to hold one. Full syntax:\n" +
         "docs/usage/keys-script.md in the MZRaku repository on GitHub.";
@@ -127,7 +127,7 @@ internal static class Program
             session.Start(() => new NullAudioOut(), dumpPath, dumpFrame);
             if (session.QueueStartupLoad(cassettePath, autoLoadBasic) == EmulatorSession.LoadResult.BasicMissing)
                 Console.Error.WriteLine(session.BasicMissingMessage);
-            if (insertPath != null) session.InsertCassetteAtStartup(insertPath);
+            if (insertPath != null) session.InsertCassette(insertPath);
         }
         catch (Exception ex)
         {

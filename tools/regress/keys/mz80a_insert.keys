@@ -1,0 +1,5 @@
+# Insert cassette (--insert) + SA-1510's L command, which calls the
+# tape read code ($04CF header, $04EF data) directly rather than
+# through RDINF / RDDAT; then the monitor runs the program.
+150  type "l"
+160  key  Return
