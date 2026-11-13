@@ -189,6 +189,15 @@ the Windows WinForms build, which stays the full-featured version
 until v2.0.0. Two thin front ends over one core is the accepted price
 for a much better foundation for the cross-platform GUI.
 
+- **First phase: the keyboard layer** — reworked before the SDL front
+  end is built on it (agreed 2026-11-13). v1.5.0 step 4.11a leaves the
+  layer covered by suite cases through the real key path and mapped
+  in `docs/developer/keyboard.md`, with its inconsistencies and
+  WinForms-shaped parts listed. This phase then builds a
+  front-end-neutral input layer that both WinForms and SDL feed (key
+  events and typed text, instead of WinForms' KeyDown/KeyPress
+  pairing), one layering of overrides, special keys and characters
+  shared by all three machines, and one auto-typer.
 - **Front end** — SDL2 (via Silk.NET or equivalent) for the window,
   input, audio and joystick. The frame's pixel buffer goes to the
   screen with integer or aspect-correct scaling. MZ key mapping uses
