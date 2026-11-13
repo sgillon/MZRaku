@@ -19,10 +19,11 @@ namespace MZRaku;
 /// (v1.5 Phase 2.3, issue #3).
 ///
 /// MZ-80A: two 16 × 8 sections, Text (codes $00–$7F) and Graphics
-/// ($80–$FF). Same 40 × 25 renderer feeds both, single-bank font ROM
-/// (no MZ-700 attribute bit-7 select). View-only for this phase — the
-/// display-code → key-slot table needed for click-to-type doesn't
-/// exist for MZ-80A yet.
+/// ($80–$FF), from a single-bank font ROM (no attribute bit-7 select).
+/// SA-1510's GETKY types for the monitor and SA-5510 alike, so while
+/// SA-1510 is mapped in, cells are outlined and clickable from its key
+/// tables (<see cref="Mz80aKeyTables"/>): green for normal mode, blue
+/// for GRAPH-only (v1.5 4.8).
 ///
 /// MZ-800: the CG-ROM, in the MZ-700's two-bank layout (bank 1 =
 /// attribute bit 7). 1Z-016 BASIC draws its text with the bank-0
@@ -106,7 +107,7 @@ public sealed class FontSheetForm : Form
                 new("Text", 0x00, 8),
                 new("Graphics", 0x80, 8),
             };
-            _headerLabel.Text = "View-only for MZ-80A this phase — click-to-type coming with the graphics work.";
+            _headerLabel.Text = "Click an outlined glyph to type it (green: normal mode, blue: GRAPH).";
         }
 
         Text = "Font Sheet";
@@ -118,8 +119,9 @@ public sealed class FontSheetForm : Form
         _pic.MouseClick += OnCellClick;
         // MZ-700 outlines come from S-BASIC's key tables once it is
         // running and the monitor's before; MZ-800 outlines follow
-        // BASIC's keyboard mode. So refresh on each visit.
-        if (_mz700 != null || _mz800 != null) Activated += (_, _) => RedrawSheet();
+        // BASIC's keyboard mode; MZ-80A outlines need SA-1510 mapped in.
+        // So refresh on each visit.
+        Activated += (_, _) => RedrawSheet();
 
         var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
         scroll.Controls.Add(_pic);
@@ -196,8 +198,7 @@ public sealed class FontSheetForm : Form
                 // MZ-700: outline the bank-0 cells the keyboard can
                 // produce, green for ALPHA mode and blue for GRAPH-only,
                 // so the user can pick something typeable without
-                // guesswork. MZ-80A has no equivalent reverse map yet, so
-                // no outlines — clicks are view-only for this phase.
+                // guesswork.
                 if (_mz700 != null && sectionIndex == 0)
                 {
                     var pen = _mz700.KeyTables.FindByDisplayCode(code, graphMode: false) != null ? alphaPen
@@ -217,6 +218,16 @@ public sealed class FontSheetForm : Form
                     if (pen != null)
                         g.DrawRectangle(pen, cellX, cellY, CellPx - 1, CellPx - 1);
                 }
+                // MZ-80A: one bank, both sections, from SA-1510's tables
+                // while it is mapped in.
+                else if (_mz80a != null && _mz80a.KeyTables.Available)
+                {
+                    var pen = _mz80a.KeyTables.FindByDisplayCode(code, graphMode: false) != null ? alphaPen
+                            : _mz80a.KeyTables.FindByDisplayCode(code, graphMode: true) != null ? graphPen
+                            : null;
+                    if (pen != null)
+                        g.DrawRectangle(pen, cellX, cellY, CellPx - 1, CellPx - 1);
+                }
             }
         }
     }
@@ -231,8 +242,7 @@ public sealed class FontSheetForm : Form
 
         if (_mz80a != null)
         {
-            string half = _sections[sectionIndex].Label;
-            _statusLabel.Text = $"{half} code ${code:X2}";
+            TypeOnMz80a(code, _sections[sectionIndex].Label);
             return;
         }
 
@@ -304,6 +314,36 @@ public sealed class FontSheetForm : Form
         string modeTxt = basicMode switch { 2 => "GRAPH", 1 => "LOCK", _ => "ALPHA" };
         _statusLabel.Text =
             $"Typed code ${code:X2} via {modeTxt} {shiftTxt}({slot.Value.Row},{slot.Value.Col}).";
+    }
+
+    // SA-1510 (monitor or SA-5510): press the key that types this code
+    // in the current mode ($1170), as on the MZ-700. A program that has
+    // swapped SA-1510 out reads the keyboard itself.
+    private void TypeOnMz80a(byte code, string half)
+    {
+        var tables = _mz80a!.KeyTables;
+        if (!tables.Available)
+        {
+            _statusLabel.Text = $"{half} ${code:X2}: types only while SA-1510 is in.";
+            return;
+        }
+
+        bool inGraphMode = tables.InGraphMode;
+        var key = tables.FindByDisplayCode(code, inGraphMode);
+        if (key is null)
+        {
+            if (tables.FindByDisplayCode(code, !inGraphMode) != null)
+                _statusLabel.Text = $"Press GRAPH (F11) for {(inGraphMode ? "normal" : "GRAPH")} mode first.";
+            else
+                _statusLabel.Text = $"Code ${code:X2} isn't reachable from the keyboard.";
+            return;
+        }
+
+        _mz80a.Keyboard.TypePress(new Mz80aCharMap.Press(key.Value.Strobe, key.Value.Bit, key.Value.MzShift));
+        string shiftTxt = key.Value.MzShift ? "shift+" : "";
+        string modeTxt = inGraphMode ? "GRAPH" : "normal";
+        _statusLabel.Text =
+            $"Typed code ${code:X2} via {modeTxt} {shiftTxt}({key.Value.Strobe},{key.Value.Bit}).";
     }
 
     private bool TryHitTest(int x, int y, out byte code, out int sectionIndex)

@@ -20,6 +20,9 @@ public sealed class MZ80A : MzMachineBase, IMachine
     internal Mz80aIoBus Io = new();
     public Mz80aVideo Video { get; } = new();
     public Mz80aKeyboard Keyboard = new();
+    /// <summary>Display code → key in SA-1510's GETKY, for the Font
+    /// Sheet's click-to-type (v1.5 4.8).</summary>
+    public Mz80aKeyTables KeyTables { get; }
     internal Mz80aCassette Cassette { get; } = new();
     // MZ-80A sound path is simpler than MZ-700's dual-gate NAND — a
     // single hard gate at $E008 D0 in front of the audio amplifier,
@@ -51,6 +54,7 @@ public sealed class MZ80A : MzMachineBase, IMachine
 
     internal MZ80A()
     {
+        KeyTables = new Mz80aKeyTables(Mem);
         Cpu.Mem = Mem;
         Cpu.Io = Io;
         Io.Ppi = Ppi;
@@ -103,6 +107,7 @@ public sealed class MZ80A : MzMachineBase, IMachine
     public void LoadRoms(string monitorRomPath, string? fontPath)
     {
         Mem.LoadRom(File.ReadAllBytes(monitorRomPath));
+        KeyTables.Invalidate();
         if (!string.IsNullOrEmpty(fontPath) && File.Exists(fontPath))
         {
             Video.LoadFont(File.ReadAllBytes(fontPath));

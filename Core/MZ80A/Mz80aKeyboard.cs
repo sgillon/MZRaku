@@ -274,6 +274,12 @@ public sealed class Mz80aKeyboard : KeyboardMatrixBase
     private int _autoEnterFrames;
 
     /// <summary>
+    /// Enqueue one key press for auto-typing: the Font Sheet's
+    /// click-to-type (v1.5 4.8), from <see cref="Mz80aKeyTables"/>.
+    /// </summary>
+    public void TypePress(Mz80aCharMap.Press press) => _typeQueue.Enqueue(press);
+
+    /// <summary>
     /// Enqueue a string for auto-typing. Non-CharMap chars are
     /// silently skipped. '\r' / '\n' become the SA-5510 Enter key
     /// (Mz80aSpecialKeyMap[Enter] → strobe 7, bit 3).
