@@ -47,10 +47,11 @@ public sealed class Mz800Keyboard : KeyboardMatrixBase
     internal KeyOverride? Overrides;
 
     /// <summary>
-    /// Auto-typer (Load BASIC source), the same scan-driven typer as
-    /// the MZ-700's, over <see cref="Mz800CharMap"/>.
+    /// Auto-typer (Load BASIC source, and the Font Sheet's click-to-type
+    /// since v1.5 4.8), the same scan-driven typer as the MZ-700's, over
+    /// <see cref="Mz800CharMap"/>.
     /// </summary>
-    internal readonly KeyboardAutoTyper AutoType;
+    public readonly KeyboardAutoTyper AutoType;
 
     internal Mz800Keyboard()
     {

@@ -32,6 +32,9 @@ public sealed class MZ800 : MzMachineBase, IMachine
     public Mz800IoBus Io = new();
     public Mz800Video Video { get; } = new();
     public Mz800Keyboard Keyboard = new();
+    /// <summary>Display code → key slot in 1Z-016 BASIC, for the Font
+    /// Sheet's click-to-type (v1.5 4.8).</summary>
+    public Mz800KeyTables KeyTables { get; }
     internal Mz800Cassette Cassette { get; } = new();
     // Audio output. Runs in external-PCM mode: RenderAudio mixes the
     // PSG + gated PIT counter-0 audio-in in emulated time and queues
@@ -99,6 +102,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
 
     internal MZ800()
     {
+        KeyTables = new Mz800KeyTables(Mem);
         Cpu.Mem = Mem;
         Cpu.Io = Io;
         Io.Ppi = Ppi;
@@ -184,11 +188,13 @@ public sealed class MZ800 : MzMachineBase, IMachine
     {
         Mem.LoadRom(Mz800RomFiles.Read(monitorRomPath, fontPath, ipl800Path, iniPath));
         Video.LoadFontFromRom(Mem.Rom);
+        KeyTables.Invalidate();
     }
 
     public void Reset()
     {
         _basicStarted = false;
+        KeyTables.Invalidate();
         Cpu.Reset();
         Cpu.IM = 1;
         // Restore power-on bank state — MZ-800 mode, config (a). ROM

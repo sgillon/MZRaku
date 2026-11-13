@@ -210,9 +210,15 @@ At the 1Z-016 `Ready` prompt:
 - [ ] MZ-80A: view-only. Two sections labelled Text ($00-$7F) and
       Graphics ($80-$FF) render. Click any cell → status bar shows
       `{section} code $XX`; nothing types (documented view-only).
-- [ ] MZ-800: header reads "MZ-800 character ROM … View-only for
-      now"; all glyphs render; clicks don't type. Pressing GRAPH (F11)
-      in 1Z-016 opens it.
+- [ ] MZ-800: all 512 glyphs render; pressing GRAPH (F11) in 1Z-016
+      opens it. In 1Z-016 BASIC, bank-0 cells are outlined green
+      (ALPHA) or blue (GRAPH); bank 1 has none. Click a green cell in
+      ALPHA mode → status bar reports the typed code and the character
+      appears at the cursor; the same for a blue cell in GRAPH mode,
+      and in shift lock. Click a blue cell in ALPHA mode → status bar
+      says to press GRAPH; nothing types. At the IPL menu or in a
+      game: no outlines, and a click says it types only in MZ-800
+      BASIC. New in v1.5.0.
 
 ### Sound
 
@@ -366,8 +372,13 @@ Not blockers — surface in the release notes so what's still open
 stays honest.
 
 - **MZ-800 no floppy / Quick Disk / printer**; border not drawn.
-- **Font Sheet click-to-type** is view-only on MZ-80A and MZ-800.
-  Both targeted at v1.5.0 (plan step 4.8).
+- **Font Sheet click-to-type** is view-only on the MZ-80A. Targeted
+  at v1.5.0 (plan step 4.8). On the MZ-800 it types in 1Z-016 BASIC
+  only.
+- **MZ-800 auto-typer** types nothing at the IPL menu or in the
+  9Z-504M monitor (real keys and `--keys` scripts work there), so
+  Load BASIC source and Font Sheet clicks don't reach them. Found in
+  v1.5 step 4.8; not yet looked into.
 - **Upgrading from v1.0.x straight to v1.3+** loses custom
   `[KeyOverrides]` and explicit `[Roms]` paths — run 1.1 (or later)
   once first to migrate.
