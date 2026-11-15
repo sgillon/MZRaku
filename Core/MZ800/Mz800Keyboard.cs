@@ -102,30 +102,19 @@ public sealed class Mz800Keyboard : KeyboardMatrixBase
             var b = ov.Value;
             _holds[bareVk] = new ActiveHold(b.Row, b.Col, b.MzShift);
             ApplyShiftState();
-            SetMatrix(b.Row, b.Col, true);
+            PressKeyBit(bareVk, b.Row, b.Col);
             Diag.Record(InputLayer.Override, b.Row, b.Col, b.MzShift);
             return true;
         }
 
-        // Layer 2: built-in non-printables.
+        // Layer 2: built-in non-printables. Staged behind SHIFT whenever
+        // SHIFT is on, explicit or from PC Shift (Shift+F12 is shift
+        // lock), as on the MZ-700.
         if (Mz800SpecialKeyMap.Map.TryGetValue(bareVk, out var sp))
         {
             _holds[bareVk] = new ActiveHold(sp.Strobe, sp.Bit, sp.ExplicitMzShift);
             ApplyShiftState();
-            if (sp.ExplicitMzShift == true)
-            {
-                // Stage the key bit the same way CharMap shifted
-                // presses do — assert SHIFT now via ApplyShiftState,
-                // let the ROM scan pick it up, THEN drop the key
-                // bit. No Mz800SpecialKeyMap entries currently need this
-                // for MZ-800 but the branch keeps parity with
-                // Mz80aKeyboard so future overrides work uniformly.
-                _stagedKeyBits.Add(new StagedPress(bareVk, sp.Strobe, sp.Bit, LiveShiftStageFrames));
-            }
-            else
-            {
-                SetMatrix(sp.Strobe, sp.Bit, true);
-            }
+            PressKeyBit(bareVk, sp.Strobe, sp.Bit);
             Diag.Record(InputLayer.SpecialKey, sp.Strobe, sp.Bit, sp.ExplicitMzShift);
             return true;
         }

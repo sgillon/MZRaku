@@ -171,7 +171,7 @@ Software paths are relative to `_mz-information-repository/`.
 | `egg_basic` | 1500 | `egg.zip`, built by the harness from `MZ-800/Software/BASIC programs/EGG/EGG.BAS.mzf` and `EGG.OBJ.mzf` | A BASIC program on tape: boots BASIC and runs it with `LOAD` + `RUN`, then the program's named `LOAD` of the second file from the same tape |
 | `mz800_typing` | 1520 | BASIC; `keys/mz800_typing.keys` | As `mz700_typing`, on 1Z-016 BASIC, adding ALPHA and an F-key |
 | `mz800_save` | 1100 | BASIC; `keys/mz800_save.keys` | 1Z-016 `SAVE "TEST"` of a one-line program: the RECORD.PLAY wait is skipped and the block taken at BASIC's tape-write body ($3858). The saved file is kept as `.save.mzf` and compared byte for byte; the screen shows `Writing "TEST"` and BASIC back at Ready. Added in v1.5.0. |
-| `mz800_keys` | 2000 | BASIC; `--settings=presets/keys_overrides.ini`; `keys/mz800_keys.keys` | As `mz700_keys`, in 1Z-016. The golden as first approved shows the shift lock race: two of the ten Shift+F12 presses are missed, so the REM doesn't alternate. Added in v1.5.0 (step 4.11a). |
+| `mz800_keys` | 2000 | BASIC; `--settings=presets/keys_overrides.ini`; `keys/mz800_keys.keys` | As `mz700_keys`, in 1Z-016. Added in v1.5.0 (step 4.11a), when it missed two of the ten Shift+F12 presses; special and override keys are now staged behind SHIFT, as on the MZ-700, and the REM alternates. |
 
 ## Approving goldens
 

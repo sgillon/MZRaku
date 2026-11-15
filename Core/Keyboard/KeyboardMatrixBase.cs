@@ -201,6 +201,25 @@ public abstract class KeyboardMatrixBase : IKeyboardMatrix, IKeyboardInput
         return anyHold && _pcShift;
     }
 
+    /// <summary>
+    /// Asserts a special or override key's matrix bit, after
+    /// <see cref="ApplyShiftState"/> has set SHIFT. When SHIFT is on, the
+    /// bit is staged a couple of frames behind it, as shifted character
+    /// presses are: BASIC can read SHIFT just before both bits land in
+    /// the same instant, and then takes the key as unshifted. Live
+    /// Shift+F12 (SHIFT+ALPHA) missed about one press in three that way
+    /// on the MZ-700 (v1.5 4.8a), and the <c>mz800_keys</c> case missed
+    /// two in ten on the MZ-800 (4.11a). The MZ-80A doesn't use it: its
+    /// cases show no miss.
+    /// </summary>
+    protected void PressKeyBit(HostKey vk, int row, int col)
+    {
+        if (EffectiveMzShift())
+            _stagedKeyBits.Add(new StagedPress(vk, row, col, LiveShiftStageFrames));
+        else
+            SetMatrix(row, col, true);
+    }
+
     protected static bool IsShiftKey(HostKey k) =>
         k == HostKey.ShiftKey || k == HostKey.LShiftKey || k == HostKey.RShiftKey;
 
