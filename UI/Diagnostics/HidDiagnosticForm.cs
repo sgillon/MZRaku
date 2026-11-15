@@ -236,17 +236,14 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
         // kept short enough not to wrap at the default width.
         if (_machine is MZ700 mz7m)
         {
-            byte shiftMirror = mz7m.Mem.Read(0x1170);
-            sb.AppendLine($"MZ shift bit: {Bit((shiftMirror & 1) != 0)}  (source: $1170 = ${shiftMirror:X2})");
+            byte row8 = _kb.PeekMatrixRow(8);
+            sb.AppendLine($"MZ shift bit: {Bit((row8 & 0x01) == 0)}  (source: row 8 bit 0)");
             sb.AppendLine($"Mode: {ModeText(mz7m.KeyTables.BasicKeyboardMode)}  (source: S-BASIC flag $0060)");
         }
         else if (_machine is MZ800 mz8)
         {
-            // Shift is strobe 8 bit 0 (as MZ-700); the keyboard also
-            // mirrors it into $1170 for the MZ-700-mode monitor's GETKY.
             byte strobe8 = _kb.PeekMatrixRow(8);
             sb.AppendLine($"MZ shift bit: {Bit((strobe8 & 0x01) == 0)}  (source: strobe 8 bit 0)");
-            sb.AppendLine($"$1170 mirror: ${mz8.Mem.Ram[0x1170]:X2}");
             sb.AppendLine($"Mode: {ModeText(mz8.BasicKeyboardMode)}  (source: 1Z-016 flag $108D)");
             var m = mz8.Mem;
             string video = m.Mz700Mode ? "MZ-700 text" : m.Is640BitmapMode ? "640x200" : "320x200";

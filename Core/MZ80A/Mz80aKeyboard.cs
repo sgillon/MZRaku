@@ -58,13 +58,6 @@ public sealed class Mz80aKeyboard : KeyboardMatrixBase
 
     protected override (int Row, int Col) ShiftSlot => (0, 0);
 
-    protected override void OnShiftStateChanged(bool effective)
-    {
-        // MZ-80A has no equivalent of MZ-700's $1170 RAM shift
-        // mirror — SA-1510's GETKY reads matrix(0, 0) directly.
-        // Nothing to do here.
-    }
-
     /// <summary>
     /// Host key-down (<see cref="IKeyboardInput"/>). Returns true if the
     /// key was consumed (the front end treats it as handled). Non-printables

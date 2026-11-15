@@ -3,8 +3,9 @@ using System.Collections.Generic;
 namespace MZRaku.Core;
 
 /// <summary>
-/// Shared plumbing for the two Sharp keyboards
-/// (<see cref="Mz700Keyboard"/> and <see cref="Mz80aKeyboard"/>): the
+/// Shared plumbing for the three Sharp keyboards
+/// (<see cref="Mz700Keyboard"/>, <see cref="Mz800Keyboard"/> and
+/// <see cref="Mz80aKeyboard"/>): the
 /// 10 × 8 active-low matrix backing, the KeyDown→KeyPress→KeyUp
 /// hold bookkeeping, the shift-race stage buffer, the "any-hold
 /// gates PC shift" effective-shift rule. All three machines' 8255 PPI
@@ -13,19 +14,21 @@ namespace MZRaku.Core;
 /// verbatim.
 ///
 /// v1.2 audit F-015 / F-021 extracted this. Concrete keyboards keep
-/// only the per-machine behaviour: MZ-700 writes $1170 as its shift
-/// mirror and drives a scan-detection auto-typer; MZ-80A holds
+/// only the per-machine behaviour: the MZ-700 and MZ-800 drive a
+/// scan-detection auto-typer; MZ-80A holds
 /// InvertLetterShift / different special-key map shape /
 /// time-based auto-typer / Ctrl-key routing. Each machine's
 /// OnKeyDown / OnKeyPress / OnKeyUp handlers stay per-machine
-/// because the divergences there (Ctrl handling, RAM mirror,
+/// because the divergences there (Ctrl handling,
 /// case-inversion) resist a clean shared skeleton
 /// without risk to the shift-race timing behaviour.
 ///
 /// The shift-slot coordinate is exposed via <see cref="ShiftSlot"/>
-/// — MZ-700 SHIFT sits at (8, 0), MZ-80A at (0, 0). Subclasses
-/// hook <see cref="OnShiftStateChanged"/> to plug in machine-specific
-/// side effects (MZ-700 mirrors to Memory.Ram[$1170]; MZ-80A no-op).
+/// — MZ-700 and MZ-800 SHIFT sit at (8, 0), MZ-80A at (0, 0). The
+/// matrix bit is the only place SHIFT goes: every ROM reads it from
+/// there. (The MZ-700 and MZ-800 also copied it into $1170 until
+/// v1.5 4.11a; that byte is the 1Z-013A monitor's GRAPH flag, so
+/// SHIFT typed GRAPH glyphs at the monitor prompt: B15.)
 /// </summary>
 public abstract class KeyboardMatrixBase : IKeyboardMatrix, IKeyboardInput
 {
@@ -91,15 +94,6 @@ public abstract class KeyboardMatrixBase : IKeyboardMatrix, IKeyboardInput
     /// </summary>
     protected abstract (int Row, int Col) ShiftSlot { get; }
 
-    /// <summary>
-    /// Called after <see cref="SetMatrix"/> has written the effective
-    /// shift bit to <see cref="ShiftSlot"/>. Concrete keyboards
-    /// override to plug in machine-specific side effects — MZ-700
-    /// mirrors to <c>Memory.Ram[$1170]</c>; MZ-80A is a no-op
-    /// (SA-1510 has no equivalent RAM mirror).
-    /// </summary>
-    protected abstract void OnShiftStateChanged(bool effective);
-
     public virtual byte ReadRow(int strobe)
     {
         if (strobe < 0 || strobe > 9) return 0xFF;
@@ -162,16 +156,12 @@ public abstract class KeyboardMatrixBase : IKeyboardMatrix, IKeyboardInput
 
     /// <summary>
     /// Write the current <see cref="EffectiveMzShift"/> value to
-    /// the shift matrix bit and fire the
-    /// <see cref="OnShiftStateChanged"/> hook so per-machine
-    /// mirrors stay in sync.
+    /// the shift matrix bit.
     /// </summary>
     protected void ApplyShiftState()
     {
-        bool effective = EffectiveMzShift();
         var slot = ShiftSlot;
-        SetMatrix(slot.Row, slot.Col, effective);
-        OnShiftStateChanged(effective);
+        SetMatrix(slot.Row, slot.Col, EffectiveMzShift());
     }
 
     /// <summary>

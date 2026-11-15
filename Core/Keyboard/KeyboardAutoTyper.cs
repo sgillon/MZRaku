@@ -12,7 +12,7 @@ namespace MZRaku.Core;
 /// v1.2 audit F-016 — the live-key handling and the auto-typer are
 /// separate subsystems that happen to share the same matrix. v1.3.0
 /// Phase 8.5 made it machine-neutral: the owning keyboard supplies its
-/// char lookup and shift-mirror side effect. Both owners (the MZ-700
+/// char lookup. Both owners (the MZ-700
 /// and MZ-800 keyboards; the MZ-80A has its own typer) keep SHIFT
 /// at (8, 0) and CR at (0, 0).
 ///
@@ -38,7 +38,6 @@ public sealed class KeyboardAutoTyper
 
     private readonly KeyboardMatrixBase _kb;
     private readonly Func<char, (int Row, int Col, bool MzShift)?> _lookup;
-    private readonly Action<bool> _shiftMirror;
     private readonly Queue<Press> _typeQueue = new();
     private Press? _current;
 
@@ -67,16 +66,12 @@ public sealed class KeyboardAutoTyper
 
     /// <param name="kb">The keyboard whose matrix is driven.</param>
     /// <param name="lookup">The machine's char map (null = not typeable).</param>
-    /// <param name="shiftMirror">Machine side effect of a typed SHIFT
-    /// change, e.g. the 1Z-013B monitor's $1170 mirror.</param>
     internal KeyboardAutoTyper(
         KeyboardMatrixBase kb,
-        Func<char, (int Row, int Col, bool MzShift)?> lookup,
-        Action<bool> shiftMirror)
+        Func<char, (int Row, int Col, bool MzShift)?> lookup)
     {
         _kb = kb;
         _lookup = lookup;
-        _shiftMirror = shiftMirror;
     }
 
     /// <summary>True when nothing is queued or in progress.</summary>
@@ -120,11 +115,10 @@ public sealed class KeyboardAutoTyper
                 if (_typeQueue.Count == 0) return;
                 var p = _typeQueue.Dequeue();
                 _current = p;
-                // Set shift (and its mirror) to the press's required
-                // state in both cases — false explicitly clears any
-                // stale state left by a prior shifted press.
+                // Set shift to the press's required state in both
+                // cases — false explicitly clears any stale state left
+                // by a prior shifted press.
                 _kb.SetMatrix(8, 0, p.MzShift);
-                _shiftMirror(p.MzShift);
                 _kb.ClearScanObservation();
                 if (p.MzShift)
                 {
@@ -163,10 +157,7 @@ public sealed class KeyboardAutoTyper
                     // Release both key and (any) shift together.
                     _kb.SetMatrix(pa.Row, pa.Col, false);
                     if (pa.MzShift)
-                    {
                         _kb.SetMatrix(8, 0, false);
-                        _shiftMirror(false);
-                    }
                     _kb.ClearScanObservation();
                     _phase = AutoPhase.AwaitRelease;
                     _phaseFramesLeft = ScanTimeoutFrames;

@@ -16,5 +16,5 @@
 394 key Escape
 402 up ShiftKey
 # A line with lowercase and shifted symbols, left unentered.
-# Today SHIFT types GRAPH glyphs here: B15 (issue #6), postponed.
+# SHIFT typed GRAPH glyphs here until v1.5 4.11a (B15, issue #6).
 422 type "QABC abc 123 !\"#$%&'()=@[]"

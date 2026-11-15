@@ -14,7 +14,8 @@
 //   $0C2A  key-translation table — ALPHA shifted
 //   $0C6A  key-translation table — GRAPH unshifted   (discovered 2026-06-07)
 //   $0CAA  key-translation table — GRAPH shifted     (discovered 2026-06-07)
-//   $1170  RAM byte — mirrors PC/MZ shift state (mode flag for table dispatch)
+//   $1170  RAM byte — the monitor's GRAPH flag (v1.5 4.8a); MZRaku copied
+//          SHIFT here until v1.5 4.11a (bug B15)
 //
 // All four key-translation tables are 64 bytes laid out as
 // row*8 + (7 - col), and dispatched via (mode_flag << 6) offset from

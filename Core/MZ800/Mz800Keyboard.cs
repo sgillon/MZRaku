@@ -8,12 +8,8 @@ namespace MZRaku.Core;
 /// 2026-08-28).
 ///
 /// Input model closely mirrors <see cref="Mz700Keyboard"/> (MZ-700's), not
-/// <see cref="Mz80aKeyboard"/> — MZ-800 in MZ-700 mode runs the 1Z-013B
-/// monitor which is a superset of MZ-700's own 1Z-013B monitor, and it
-/// uses the same $1170 RAM location as a PC-shift mirror the GETKY
-/// routine checks (bit 0) to pick between unshifted and shifted
-/// keyboard tables. Without this shortcut, shifted alphanumerics would
-/// be unreachable.
+/// <see cref="Mz80aKeyboard"/>: SHIFT at strobe 8 bit 0, the same
+/// scan-driven auto-typer, and the same staging of keys behind SHIFT.
 ///
 /// Layered lookup in <see cref="OnKeyDown"/>:
 ///   1. <see cref="Overrides"/> — user physical-key bindings
@@ -30,14 +26,6 @@ namespace MZRaku.Core;
 /// </summary>
 public sealed class Mz800Keyboard : KeyboardMatrixBase
 {
-    /// <summary>
-    /// Direct hook into RAM so we can mirror PC shift-key state at
-    /// $1170, which the MZ-800's MZ-700-mode monitor (1Z-013B family)
-    /// checks in GETKY to choose between unshifted / shifted keyboard
-    /// tables. Wired by <see cref="MZ800"/> at construction.
-    /// </summary>
-    internal Mz800Memory? Memory;
-
     /// <summary>
     /// User-editable physical-key overrides (<c>[KeyOverrides.MZ800]</c>),
     /// consulted before <see cref="Mz800SpecialKeyMap"/> in
@@ -56,20 +44,10 @@ public sealed class Mz800Keyboard : KeyboardMatrixBase
     internal Mz800Keyboard()
     {
         AutoType = new KeyboardAutoTyper(this,
-            ch => Mz800CharMap.TryLookup(ch, out var p) ? (p.Strobe, p.Bit, p.MzShift) : null,
-            OnShiftStateChanged);
+            ch => Mz800CharMap.TryLookup(ch, out var p) ? (p.Strobe, p.Bit, p.MzShift) : null);
     }
 
     protected override (int Row, int Col) ShiftSlot => (8, 0);
-
-    // The $1170 mirror only matters to the 1Z-013B monitor's GETKY, which
-    // can only run with the monitor ROM mapped at $0000. With it banked
-    // out — MZ-800 BASIC, which loads over $0000-$A3FA — $1170 is the
-    // program's own RAM, so leave it alone.
-    protected override void OnShiftStateChanged(bool effective)
-    {
-        if (Memory != null && Memory.RomLow) Memory.Ram[0x1170] = (byte)(effective ? 0x01 : 0x00);
-    }
 
     /// <summary>
     /// PC KeyDown. Returns true if the form should consider the event
@@ -128,7 +106,7 @@ public sealed class Mz800Keyboard : KeyboardMatrixBase
     /// <summary>
     /// PC KeyPress. Pairs the resolved Unicode char with the pending
     /// KeyDown VK and asserts the corresponding matrix bits. Write
-    /// order: SHIFT state (+ $1170 mirror) BEFORE the key bit so any
+    /// order: SHIFT state BEFORE the key bit so any
     /// GETKY scan that picks up the key bit also reads the matching
     /// shift state.
     /// </summary>
@@ -151,7 +129,7 @@ public sealed class Mz800Keyboard : KeyboardMatrixBase
         if (p.MzShift)
         {
             // Stage the key bit so any in-flight GETKY that cached
-            // $1170 at entry has time to complete before our updated
+            // SHIFT at entry has time to complete before our updated
             // shift state combines with the key bit. Same rationale
             // as MZ-700's live-typing race fix.
             _stagedKeyBits.Add(new StagedPress(vk, p.Strobe, p.Bit, LiveShiftStageFrames));

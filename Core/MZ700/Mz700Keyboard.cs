@@ -21,19 +21,11 @@ namespace MZRaku.Core;
 /// v1.2 audit F-015 / F-021 hoisted the matrix backing, hold
 /// bookkeeping, shift-race staging, and effective-shift rule into
 /// <see cref="KeyboardMatrixBase"/>. This class holds only the
-/// MZ-700-specific bits: the $1170 RAM mirror, the CharMap lookup,
-/// and the scan-detection auto-typer.
+/// MZ-700-specific bits: the CharMap lookup and the scan-detection
+/// auto-typer.
 /// </summary>
 public sealed class Mz700Keyboard : KeyboardMatrixBase
 {
-    // Direct hook into RAM so we can mirror PC shift-key state at
-    // $1170, which the monitor's GETKY checks (bit 0) to choose
-    // between the unshifted table at $0BEA and the shifted table
-    // at $0C2A. Neither the monitor ROM nor S-BASIC ever writes to
-    // $1170, so without this shortcut shifted alphanumerics would
-    // be unreachable.
-    internal Mz700Memory? Memory;
-
     // User-editable physical-key overrides, consulted before
     // Mz700SpecialKeyMap and CharMap in OnKeyDown. Null = no overrides
     // loaded; behaviour matches pre-layered code.
@@ -50,16 +42,10 @@ public sealed class Mz700Keyboard : KeyboardMatrixBase
     internal Mz700Keyboard()
     {
         AutoType = new KeyboardAutoTyper(this,
-            ch => Mz700CharMap.TryLookup(ch, out var p) ? (p.Row, p.Col, p.MzShift) : null,
-            OnShiftStateChanged);
+            ch => Mz700CharMap.TryLookup(ch, out var p) ? (p.Row, p.Col, p.MzShift) : null);
     }
 
     protected override (int Row, int Col) ShiftSlot => (8, 0);
-
-    protected override void OnShiftStateChanged(bool effective)
-    {
-        if (Memory != null) Memory.Ram[0x1170] = (byte)(effective ? 0x01 : 0x00);
-    }
 
     /// <summary>
     /// PC KeyDown. Returns true if the form should consider the
@@ -82,7 +68,7 @@ public sealed class Mz700Keyboard : KeyboardMatrixBase
     ///
     /// Shift-race avoidance: the form no longer calls SetShift in
     /// its KeyDown handler. For non-shift, non-modifier character
-    /// keys we don't touch matrix(8,0) or $1170 until OnKeyPress
+    /// keys we don't touch matrix(8,0) until OnKeyPress
     /// resolves the character — otherwise we'd write a
     /// PC-shift-derived value that disagrees with the upcoming
     /// press's MzShift requirement (UK `'` → MZ-shift ON; UK
@@ -126,7 +112,7 @@ public sealed class Mz700Keyboard : KeyboardMatrixBase
             return true;
         }
 
-        // Shift key alone: don't write matrix(8,0) or $1170 yet.
+        // Shift key alone: don't write matrix(8,0) yet.
         // The modifier state is tracked in _pcShift and surfaces
         // on the next press via EffectiveMzShift's "any-hold
         // fall-through". Asserting it here would leave the OS with
@@ -138,7 +124,7 @@ public sealed class Mz700Keyboard : KeyboardMatrixBase
             return false;
 
         // Layer 3: defer to KeyPress for character-driven mapping.
-        // Deliberately do NOT touch matrix(8,0) / $1170 here — see
+        // Deliberately do NOT touch matrix(8,0) here — see
         // the shift-race note in the XML doc above.
         _pendingDownVk = bareVk;
         return false;
@@ -148,15 +134,14 @@ public sealed class Mz700Keyboard : KeyboardMatrixBase
     /// PC KeyPress. Pairs the resolved Unicode char with the
     /// pending KeyDown VK and asserts the corresponding matrix bits.
     ///
-    /// Write order matters here: matrix(8,0) and $1170 are written
-    /// BEFORE the key bit so any GETKY scan that picks up the key
-    /// bit also reads the matching shift state — the auto-typer's
-    /// AwaitShiftScan staging exists for the same reason on its
-    /// side. Combined with <see cref="OnKeyDown"/> no longer
-    /// touching shift state on character keys, this closes the
-    /// cross-frame race where the gap between OnKeyDown and
-    /// OnKeyPress could leave $1170 at a value that didn't match
-    /// the press's MzShift.
+    /// Write order matters here: matrix(8,0) is written BEFORE the
+    /// key bit so any GETKY scan that picks up the key bit also reads
+    /// the matching shift state — the auto-typer's AwaitShiftScan
+    /// staging exists for the same reason on its side. Combined with
+    /// <see cref="OnKeyDown"/> no longer touching shift state on
+    /// character keys, this closes the cross-frame race where the gap
+    /// between OnKeyDown and OnKeyPress could leave SHIFT at a value
+    /// that didn't match the press's MzShift.
     /// </summary>
     public override void OnKeyPress(char ch)
     {
@@ -182,7 +167,7 @@ public sealed class Mz700Keyboard : KeyboardMatrixBase
             // Any press that requires MZ shift goes through the
             // staged path: hold the key bit back for a couple of
             // frames so any in-flight GETKY routine that cached
-            // $1170 at routine entry has time to complete and a
+            // SHIFT at routine entry has time to complete and a
             // fresh one to start with our updated value. The
             // canonical race this closes is unshifted PC ' (UK
             // layout) translating to MZ 7 when GETKY's cached
@@ -230,8 +215,8 @@ public sealed class Mz700Keyboard : KeyboardMatrixBase
 
         // Shift-key release lands here without a matching hold
         // (shift alone doesn't go in _holds). Recompute
-        // unconditionally so matrix(8,0) and $1170 mirror the new
-        // PC modifier state.
+        // unconditionally so matrix(8,0) follows the new PC
+        // modifier state.
         ApplyShiftState();
         return handled;
     }

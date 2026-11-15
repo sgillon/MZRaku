@@ -72,7 +72,6 @@ public sealed class MZ700 : MzMachineBase, IMachine
         Mem.IoBus = Io;
         Mem.Cpu = Cpu;
         Ppi.Keyboard = Keyboard;
-        Keyboard.Memory = Mem;
         Cassette.Memory = Mem;
         KeyTables.Memory = Mem;
         Cassette.Cpu = Cpu;
@@ -170,7 +169,7 @@ public sealed class MZ700 : MzMachineBase, IMachine
         // Type-ahead (auto-typed commands) tick.
         Keyboard.AutoType.Tick();
         // Live-typing staged key bits: presses whose MzShift requirement
-        // forced a $1170 transition land their key bit a couple of frames
+        // forced a SHIFT transition land their key bit a couple of frames
         // after shift was set, so the ROM scan sees a consistent
         // (shift, key) pair rather than the key with stale cached shift.
         Keyboard.TickStagedKeyBits();

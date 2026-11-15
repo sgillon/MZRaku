@@ -123,8 +123,15 @@ release, update the checklist before fixing the bug.
 - [ ] HID Diagnostic (Ctrl+H): press PC Ctrl on its own → resolves
       to layer=SpecialKey at slot (8, 6). (Regression canary for
       the CTRL slot correction 2026-06-12.)
-- [ ] PC F5 at BASIC prompt types `CHR$(` (default S-BASIC F5 macro).
+- [ ] PC F1-F5 at the BASIC prompt type S-BASIC's defaults: `RUN`,
+      `LIST`, `AUTO`, `RENUM`, `COLOR`; with Shift, `CHR$(`,
+      `DEF KEY(`, `CONT`, `SAVE`, `LOAD`.
 - [ ] Esc + Shift breaks a running monitor loop.
+- [ ] At the 1Z-013A monitor prompt (no BASIC), shifted symbols
+      (`!"#$%&'()`) type as themselves, and F11 (GRAPH) stays on for
+      every key until F12. Same at the MZ-800's 9Z-504M (M at the IPL
+      menu). New in v1.5.0: SHIFT typed GRAPH glyphs and GRAPH dropped
+      after one key (B15).
 - [ ] In S-BASIC, Shift+F12 ten times → shift lock turns on and off
       every time (letters type in capitals, then lower case), and the
       mode pane follows (`LOCK` / `ALPHA`). New in v1.5.0: one press
@@ -405,11 +412,6 @@ stays honest.
 - **MZ-800 no floppy / Quick Disk / printer**; border not drawn.
 - **Font Sheet click-to-type** types in BASIC only, on all three
   machines (by design: graphics are typed at BASIC's prompt).
-- **MZ-700 monitor prompt**: SHIFT+key types the GRAPH-shifted glyph,
-  and GRAPH mode drops on the next key (plan bug B15, found in v1.5
-  step 4.8a; postponed indefinitely;
-  [#6](https://github.com/sgillon/MZRaku/issues/6)). Also on the MZ-800 in
-  MZ-700 mode.
 - **MZ-800 auto-typer** types nothing at the IPL menu or in the
   9Z-504M monitor (real keys and `--keys` scripts work there), so
   Load BASIC source and Font Sheet clicks don't reach them. Found in
