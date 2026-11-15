@@ -1550,6 +1550,64 @@ grew from 27 to 31 cases and stayed green at every commit.
   items, alongside the Font Sheet showing the BASIC for glyphs no key
   types, and the docs splitting into user and developer sets.
 
+### 2026-11-01 to 2026-11-15 — v1.5.0: features and docs
+
+With the bugs cleared, Phase 4 added features whose substance is in
+the core, each with a small UI touchpoint, so they carry over to
+MZRakuCLI unchanged. The regression suite grew from 31 to 45 cases.
+Plan and step-by-step record: `docs/v1.5-plan.md`.
+
+- **Command line** (4.1, 4.2). `--settings=<ini>` runs with another
+  settings file, read-only, named in the title bar (`d0a0a22`);
+  `--help` lists `--settings`, `--insert` and `--keys` (`a19cab9`).
+- **Screenshot, sound, speed** (4.3, 4.4, 4.10). View → Save
+  screenshot (Ctrl+P) writes the bare frame at native size to
+  `screenshots\` (`0dc5ddf`). System → Sound has a volume slider and
+  Mute (Ctrl+U), both saved in `[Sound]` (`9fbe310`). System → Speed
+  and `--speed=N` run the machine at 1× to 4×, with sound off above
+  1× (`afb81e1`).
+- **Split MZ-800 ROMs** (4.5). EmuZ-800's three files (`MZ700IPL.ROM`,
+  `FONT.ROM`, `MZ800IPL.ROM`) work as well as the single `MZ800.ROM`,
+  auto-detected in `roms\` (`8cea4b2`).
+- **SAVE and Insert cassette on every machine** (4.6, 4.7). One shared
+  writer behind the tape traps; MZ-800 1Z-016 and MZ-80A SA-5510
+  `SAVE` now write to `saves\` and end at Ready instead of waiting for
+  RECORD.PLAY (`551c827`, `a43e66c`), and Insert cassette works on the
+  MZ-80A, for SA-1510's `L` and BASIC's `LOAD` (`26efa79`).
+- **Font Sheet click-to-type in BASIC on all three machines** (4.8,
+  4.8a, 4.9). The MZ-800 reads 1Z-016's key tables and the MZ-80A
+  SA-1510's (`42a4161`, `9c3d5b4`); a click on a glyph from the other
+  mode switches mode, types it and switches back (`41d6925`). The same
+  commit fixed MZ-700 Shift+F12 shift lock missing about one press in
+  three (special keys now wait two frames behind SHIFT, as shifted
+  character keys already did) and added `LOCK` to the mode pane. On the
+  MZ-700, a glyph no key types shows the `PRINT CHR$` or `POKE` line
+  that puts it on screen, with a Type button (`e9f0f9c`).
+- **.mzf machine auto-detect studied, not built** (4.11): not worth
+  the complexity. Along the way, an MZ-800 type 02 tape was found to
+  be MZ-80A BASIC, not MZ-700, and the status message now says so
+  (`7783413`).
+- **Keyboard groundwork for v1.6.0** (4.11a). Five suite cases type
+  through the real key path; the MZ-800 stages special keys behind
+  SHIFT as the MZ-700 does (`cf17411`); the MZ-80A mode pane reads
+  SA-1510's GRAPH flag and the HID Diagnostic shows the keyboard mode
+  on all machines (`151441d`). Removing the SHIFT copy into $1170
+  fixed B15 (#6): GRAPH dropping after one key and SHIFT typing GRAPH
+  glyphs at the monitors (`4b4c4fc`). The layer map is in
+  `docs/developer/keyboard.md`.
+- **Docs split** (4.12, Phase 5). Code notes moved to
+  `docs/developer/` (architecture, tape traps, regression, adding a
+  machine, hardware notes, keyboard; `8d6a2e5`). `docs/usage/` became
+  user-only: new MZ-700 and MZ-80A guides beside the MZ-800 one, a
+  `--keys` script reference, and `keyboard.md` made machine-neutral
+  (`7a90cf5`). The MZ-800 ROM names were corrected from the ROM's own
+  banners: 1Z-013B at $0000 and 9Z-504M for the high ROM (`60b1b61`).
+  The "MZ-shift assertion race" limitation went from the docs and the
+  Settings panel: staging had cured it in v1.0.0.
+- **v1.5.0 released** on 2026-11-15, after the release check on all
+  three machines (45/45 suite), with framework-dependent and
+  self-contained zips.
+
 ---
 
 ## Architectural decisions worth knowing
@@ -1825,13 +1883,15 @@ automatically; documented here for human reference.
 
 ## Current status
 
-The project tagged **v1.4.0** on 2026-10-31: the emulation core is
-now its own WinForms-free library, `MZRaku.Core`, ready for a second
-front end (see the v1.4.0 section above). Like v1.2.0 it is tag-only;
-the latest download is still **v1.3.0** (2026-10-10), which added the
-Sharp MZ-800 as a third machine. v1.2.0
-(2026-08-25) was a tag-only codebase-audit release; v1.3.0 is the
-first download to include it. Before that, **v1.1.0** shipped on
+The latest release is **v1.5.0** (2026-11-15): the parked bugs
+cleared, then SAVE and Insert cassette on every machine, Font Sheet
+click-to-type in BASIC on all three, screenshots, volume / mute,
+speed, split MZ-800 ROMs, new command-line flags, and the docs split
+into user and developer sets (see the v1.5.0 sections above). It is
+the first download built on v1.4.0's WinForms-free core,
+`MZRaku.Core` (tag-only, 2026-10-31). **v1.3.0** (2026-10-10) added
+the Sharp MZ-800 as a third machine; v1.2.0 (2026-08-25) was a
+tag-only codebase-audit release. Before that, **v1.1.0** shipped on
 2026-08-22, the second stable release. v1.0.0 (2026-06-20) had
 been the moment the project name moved from the working-title `MZ700Emul` to its brand `MZRaku`
 (portmanteau of MZ + Japanese 楽 *raku*, "easy / comfortable /
@@ -1896,12 +1956,15 @@ Tagged releases:
   library with no WinForms, `EmulatorSession`, headless runner,
   27-case regression suite on all three machines, code review pass.
   No packaged release.
+- **v1.5.0** (2026-11-15) — all parked bugs fixed or closed (incl.
+  the keyboard-after-Settings bug from v1.0.0); SAVE and Insert
+  cassette on every machine; Font Sheet click-to-type in BASIC on all
+  three; screenshots, volume / mute, 1×–4× speed; split MZ-800 ROMs;
+  `--settings`, `--insert`, `--keys`, `--speed`; user and developer
+  docs; 45-case regression suite.
 
-**v1.5.0** is in progress: the parked bugs are cleared (see the
-v1.5.0 section above); next come features that don't depend on the UI
-(MZ-800 BASIC SAVE, MZ-800 Font Sheet click-to-type, volume / mute,
-`--keys` documentation and more) and the user / developer docs. Then **v1.6.0** adds MZRakuCLI, a cross-platform
-SDL build on the new core. See `docs/roadmap.md`.
+Next, **v1.6.0** adds MZRakuCLI, a cross-platform SDL build on the
+new core, starting with the keyboard rework. See `docs/roadmap.md`.
 
 Stretch goals (not committed): cross-platform port (Avalonia +
 Silk.NET evaluation), MZ-80K and MZ-80B support on the same

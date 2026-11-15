@@ -8,7 +8,8 @@ sweeps and any further machines; revised 2026-10-18 to clear the
 parked bugs in v1.5.0 and to make the v2.0.0 GUI depend on how the
 cross-platform CLI build is received; v1.4.0 shipped 2026-10-31
 (tag only); revised 2026-11-01 to bring the docs restructure forward
-into v1.5.0 and move Quick Disk to v2.x. Every placement is expected to move
+into v1.5.0 and move Quick Disk to v2.x; v1.5.0 shipped 2026-11-15.
+Every placement is expected to move
 as reality lands — this document is the shape, not the contract.
 
 For what has already shipped, see `history.md`. For the current
@@ -62,6 +63,13 @@ maintained by the AI assistant.
   then a code review pass renamed, trimmed and narrowed the public
   surface. Tag-only close (no user-facing change); next packaged
   release is v1.5.0.
+- **v1.5.0** (2026-11-15) — every parked bug fixed or closed, then
+  features on the new core: SAVE and Insert cassette on all three
+  machines, Font Sheet click-to-type in BASIC on all three,
+  screenshots, volume / mute, 1×–4× speed, split MZ-800 ROMs,
+  `--settings` / `--insert` / `--keys` / `--speed`, and the docs split
+  into user and developer sets. The regression suite grew to 45
+  cases. Detail in the section below and `docs/v1.5-plan.md`.
 
 ## v1.5.0 — features that don't depend on the UI
 
