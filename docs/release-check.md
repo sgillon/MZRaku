@@ -254,6 +254,21 @@ At the 1Z-016 `Ready` prompt:
       it); 0 is silent. Both survive Reset and a restart (`[Sound]`
       in `settings.ini`). New in v1.5.0.
 
+### Speed (new in v1.5.0)
+
+- [ ] Each machine: System → Speed → 2×, 3×, 4× → the machine runs
+      that much faster (a game, or BASIC's `MUSIC` tempo, shows it),
+      the status bar shows `N× NO SOUND`, sound stops at once and the
+      menu ticks the speed. 1× → real speed, the pane goes, sound
+      returns.
+- [ ] Mutes stay separate: Ctrl+U at 2×, then 1× → still muted
+      (MUTED chip); pause and resume at 3× → still silent until 1×.
+- [ ] At 4×, typing at BASIC's prompt (and a Font Sheet click) still
+      lands every character; the display stays smooth.
+- [ ] `--speed=3` starts at 3×; a launch without it starts at 1×;
+      `settings.ini` has no speed entry. `--speed=9` stops with a
+      message.
+
 ### Display
 
 - [ ] View → Full-screen (Alt+Enter) toggles borderless full-screen

@@ -19,6 +19,7 @@ internal static class Program
         bool startFullScreen = false;
         bool? scanlinesOverride = null;
         MachineType? machineOverride = null;
+        int speed = 1;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -111,13 +112,27 @@ internal static class Program
                     return;
                 }
             }
+            else if (a.StartsWith("--speed=", StringComparison.OrdinalIgnoreCase))
+            {
+                // Speed for this run only; there's no setting for it, so
+                // every launch without the flag starts at 1×.
+                var v = a.Substring(8).Trim();
+                if (!int.TryParse(v, out speed)
+                    || speed < EmulatorSession.MinSpeed || speed > EmulatorSession.MaxSpeed)
+                {
+                    MessageBox.Show(
+                        $"--speed value '{v}' isn't recognised. Expected 1, 2, 3 or 4.",
+                        "MZRaku", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+            }
             else if (a.Equals("--help", StringComparison.OrdinalIgnoreCase) || a == "-h" || a == "/?")
             {
                 MessageBox.Show(
                     "MZRaku — Sharp MZ-700 / MZ-80A / MZ-800 emulator\n\n" +
                     "Usage: MZRaku.exe [--mz700|--mz80a|--mz800] [--basic] [--display=N]\n" +
                     "                  [--scanlines[=off]] [--settings=<ini>]\n" +
-                    "                  [--insert=<cassette>] [--keys=<file>]\n" +
+                    "                  [--insert=<cassette>] [--keys=<file>] [--speed=N]\n" +
                     "                  [path\\to\\cassette.mzf|.zip]\n\n" +
                     "  --mz700         Emulate the Sharp MZ-700 for this run.\n" +
                     "  --mz80a         Emulate the Sharp MZ-80A for this run.\n" +
@@ -146,6 +161,9 @@ internal static class Program
                     "                  '440 key Return', or down/up <Key> to hold one.\n" +
                     "                  Full syntax: docs/usage/keys-script.md in the\n" +
                     "                  MZRaku repository on GitHub.\n" +
+                    "  --speed=N       Start at N times real speed: 1, 2, 3 or 4. Sound\n" +
+                    "                  is off while it isn't 1. Without the flag every\n" +
+                    "                  run starts at 1×; System → Speed changes it.\n" +
                     "  <cassette>      Automatically load a cassette image at startup.\n" +
                     "                  Accepts .mzf/.m12/.mzt or a .zip containing one.\n" +
                     "                  BASIC programs trigger BASIC auto-load; machine-\n" +
@@ -220,7 +238,7 @@ internal static class Program
 
         ApplicationConfiguration.Initialize();
         var form = new MainForm(settings, cassettePath, autoLoadBasic, dumpPath, dumpFrame,
-            displayScaleOverride, startFullScreen, scanlinesOverride, machineOverride, keyScript, insertPath);
+            displayScaleOverride, startFullScreen, scanlinesOverride, machineOverride, keyScript, insertPath, speed);
         Application.Run(form);
     }
 }

@@ -52,6 +52,7 @@ public sealed class Sound : IDisposable
     // thread only; the feed loop reads the whole mask.
     private const int PauseMuteBit = 1;
     private const int UserMuteBit = 2;
+    private const int SpeedMuteBit = 4;
     private volatile int _muteBits;
 
     private bool Silent => _muteBits != 0;
@@ -79,6 +80,17 @@ public sealed class Sound : IDisposable
     {
         get => (_muteBits & UserMuteBit) != 0;
         set => SetMute(UserMuteBit, value);
+    }
+
+    /// <summary>
+    /// The speed mute: on while the session runs faster than real time
+    /// (<see cref="EmulatorSession.Speed"/> above 1), so the sped-up
+    /// pitch is never heard. Independent of the other two mutes.
+    /// </summary>
+    public bool SpeedMuted
+    {
+        get => (_muteBits & SpeedMuteBit) != 0;
+        set => SetMute(SpeedMuteBit, value);
     }
 
     private void SetMute(int bit, bool on)

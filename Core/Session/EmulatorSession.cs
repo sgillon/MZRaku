@@ -337,6 +337,7 @@ public sealed class EmulatorSession
         }
         Active.Sound.Volume = _settings.SoundVolume;
         Active.Sound.UserMuted = _settings.SoundMuted;
+        Active.Sound.SpeedMuted = _speed != 1;
         Active.Sound.Start(openAudio());
 
         // Dump-and-trace recorder (v1.2 audit F-055). Only for --dump;
@@ -607,6 +608,30 @@ public sealed class EmulatorSession
         }
     }
 
+    /// <summary>Slowest and fastest <see cref="Speed"/>.</summary>
+    public const int MinSpeed = 1, MaxSpeed = 4;
+    private int _speed = 1;
+
+    /// <summary>
+    /// How many emulated frames each <see cref="RunFrame"/> runs: 1 is
+    /// real speed, up to <see cref="MaxSpeed"/>. The whole machine
+    /// speeds up (CPU and every timer, so its own clock and music too);
+    /// the frame count, scripted keys, the dump frame, gamepad sampling
+    /// and the front end's display refresh stay one per call, in real
+    /// time. Sound is muted while it isn't 1 (<see cref="Sound.SpeedMuted"/>).
+    /// Not a setting: each run starts at 1 unless the front end is told
+    /// otherwise (<c>--speed=N</c>).
+    /// </summary>
+    public int Speed
+    {
+        get => _speed;
+        set
+        {
+            _speed = Math.Clamp(value, MinSpeed, MaxSpeed);
+            Active.Sound.SpeedMuted = _speed != 1;
+        }
+    }
+
     /// <summary>
     /// View → Save screenshot: the emulated frame as it stands, at its
     /// native size (640×200 in the MZ-800's 640-wide mode, 320×200
@@ -663,10 +688,11 @@ public sealed class EmulatorSession
     }
 
     /// <summary>
-    /// Run one emulated frame plus the per-frame work around it:
-    /// gamepad sampling, the autoload pipelines, scripted keys and the
-    /// dump. Stops part-way if a scripted key or the dump calls
-    /// <see cref="Stop"/>. The caller paces frames.
+    /// Run one frame (<see cref="Speed"/> emulated frames) plus the
+    /// per-frame work around it: gamepad sampling, the autoload
+    /// pipelines, scripted keys and the dump. Stops part-way if a
+    /// scripted key or the dump calls <see cref="Stop"/>. The caller
+    /// paces frames.
     /// </summary>
     public void RunFrame()
     {
@@ -677,7 +703,11 @@ public sealed class EmulatorSession
         // --dump runs skip it: a captured frame must not depend on
         // whatever controller happens to be plugged in.
         if ((Mz700 != null || Mz800 != null) && DumpTrace == null) JoystickSource?.Poll();
-        Active.RunFrame();
+        // Above 1× the machine runs several frames per real one; the
+        // keyboard's own typers and staging tick inside each, so they
+        // keep pace with the machine. Paused, a frame only re-renders.
+        int frames = Active.Paused ? 1 : _speed;
+        for (int i = 0; i < frames; i++) Active.RunFrame();
         FrameCount++;
 
         // BASIC + cassette + BASIC-source pipelines each machine runs

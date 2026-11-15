@@ -25,7 +25,8 @@ of them are Sharp / publisher copyright:
 Every case runs in a fresh sandbox, so results don't depend on the
 developer's bin\\Debug settings.ini, and that file is never written.
 
-Emulation is frame-deterministic (--dump counts emulated frames), so an
+Emulation is frame-deterministic (--dump counts frames from launch,
+each --speed=N emulated frames), so an
 unchanged build reproduces the goldens byte-for-byte. App runs are paced
 in real time, hence the parallel worker pool. --headless runs use the
 console runner on the core alone, unpaced; matching the app's goldens
@@ -81,7 +82,7 @@ SPLIT_ROM_CASES = {"mz800_split_roms"}
 
 # Cases compared against another case's golden, never approved on their
 # own: the same run by a different route must give the same output.
-SAME_GOLDEN = {"mz800_split_roms": "mz800_ipl"}
+SAME_GOLDEN = {"mz800_split_roms": "mz800_ipl", "mz700_speed2": "mz700_monitor", "mz800_speed4": "mz800_ipl"}
 
 MZ700_SW = "MZ-700/Software/"
 MZ80A_SW = "MZ-80A/Software/"
@@ -116,6 +117,7 @@ CASES = [
     ("mz700_insert",   ["--mz700", "--insert=" + MZ700_SW + "Space Panic(1983)(Solo Software).zip", "--keys=mz700_insert.keys"], 600, ["snd"]),   # Insert cassette + monitor L
     ("mz700_save",     ["--mz700", "--basic", "--keys=mz700_save.keys"], 1100, ["snd", "save"]),   # S-BASIC SAVE: .mzf written, back at Ready
     ("mz700_insert_basic", ["--mz700", "--basic", "--insert=" + MZ700_SW + "Dragon Caves (1982)(Solo Software).zip", "--keys=mz700_insert_basic.keys"], 900, ["snd"]),   # Insert cassette + S-BASIC LOAD / RUN
+    ("mz700_speed2",   ["--mz700", "--speed=2"],                      100, ["snd"]),   # 2x: mz700_monitor's golden at half the frames
     # --- MZ-80A ---
     ("mz80a_monitor",  ["--mz80a"],                                   200, ["snd"]),
     ("mz80a_basic",    ["--mz80a", "--basic"],                        400, ["snd"]),
@@ -131,6 +133,7 @@ CASES = [
     # --- MZ-800 ---
     ("mz800_ipl",      ["--mz800"],                                   200, ["tests", "wav"]),
     ("mz800_split_roms", ["--mz800"],                                 200, ["tests", "wav"]),   # EmuZ-800's three ROM files; mz800_ipl's golden
+    ("mz800_speed4",   ["--mz800", "--speed=4"],                      50, ["tests", "wav"]),   # 4x: mz800_ipl's golden at a quarter of the frames
     ("mz800_basic",    ["--mz800", "--basic"],                        300, ["wav"]),
     ("james",          ["--mz800", "--cassette", MZ800_GAMES + "James.mzf"],        600, []),
     ("fist",           ["--mz800", "--cassette", MZ800_GAMES + "EXPLODING FIST.mzf"], 900, []),   # over highway: whole scroll block + palette 4+

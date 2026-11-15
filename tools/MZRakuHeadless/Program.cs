@@ -21,13 +21,15 @@ internal static class Program
 {
     private const string Usage =
         "Usage: MZRakuHeadless [--mz700|--mz80a|--mz800] [--basic] [--keys=<file>]\n" +
-        "                      [--insert=<cassette>] [--settings=<ini>]\n" +
+        "                      [--insert=<cassette>] [--settings=<ini>] [--speed=N]\n" +
         "                      --dump=<path> [--dumpframe=N] [cassette.mzf|.zip]\n\n" +
         "Runs unpaced and writes the same --dump files as MZRaku.exe at frame N\n" +
         "(default 120), then exits. Window options (--display, --scanlines) are\n" +
         "accepted and ignored. Settings come from settings.ini next to this\n" +
         "executable, or read-only from --settings=<ini>.\n\n" +
         "--insert=<cassette> inserts a cassette for the machine's own LOAD.\n" +
+        "--speed=N runs the machine at N times real speed (1-4); frame counts\n" +
+        "(--dumpframe, --keys) stay in real-time frames.\n" +
         "--keys=<file> plays scripted keystrokes, one\n" +
         "command per line at a frame count since launch: '420 type \"RUN\"',\n" +
         "'440 key Return', or down/up <Key> to hold one. Full syntax:\n" +
@@ -43,6 +45,7 @@ internal static class Program
         string? insertPath = null;
         string? settingsPath = null;
         MachineType? machineOverride = null;
+        int speed = 1;
 
         foreach (var a in args)
         {
@@ -67,6 +70,12 @@ internal static class Program
                 insertPath = a.Substring(9);
             else if (a.StartsWith("--settings=", StringComparison.OrdinalIgnoreCase))
                 settingsPath = a.Substring(11);
+            else if (a.StartsWith("--speed=", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!int.TryParse(a.Substring(8), out speed)
+                    || speed < EmulatorSession.MinSpeed || speed > EmulatorSession.MaxSpeed)
+                    return Fail(1, $"--speed value '{a.Substring(8)}' isn't recognised. Expected 1, 2, 3 or 4.");
+            }
             else if (a.Equals("--help", StringComparison.OrdinalIgnoreCase) || a == "-h" || a == "/?")
             {
                 Console.WriteLine(Usage);
@@ -108,7 +117,7 @@ internal static class Program
             return Fail(2, $"--settings file {settingsPath}: {ex.Message}");
         }
         if (machineOverride.HasValue) settings.CurrentMachine = machineOverride.Value;
-        var session = new EmulatorSession(settings);
+        var session = new EmulatorSession(settings) { Speed = speed };
         int exitCode = 0;
 
         session.StatusMessage += msg => Console.WriteLine($"[{session.FrameCount,5}] {msg}");

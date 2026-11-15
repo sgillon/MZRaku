@@ -78,6 +78,18 @@ public sealed class MainForm : Form
         ToolTipText = "Sound muted (Ctrl+U)",
         Visible = false,
     };
+    // Left of MUTED, shown only while the speed isn't 1× (System →
+    // Speed, --speed=N); sound is off for as long as it shows.
+    private readonly ToolStripStatusLabel _speedLabel = new()
+    {
+        Spring = false,
+        AutoSize = false,
+        Width = 92,
+        TextAlign = ContentAlignment.MiddleCenter,
+        BorderSides = ToolStripStatusLabelBorderSides.Left,
+        BorderStyle = Border3DStyle.Etched,
+        Visible = false,
+    };
     // MZ-800 only, left of the mode pane: display mode (MZ-700 /
     // 320×200 / 640×200).
     private readonly ToolStripStatusLabel _displayModeLabel = new()
@@ -144,7 +156,7 @@ public sealed class MainForm : Form
         int dumpFrame = 120,
         int? displayScaleOverride = null, bool startFullScreen = false,
         bool? scanlinesOverride = null, MachineType? machineOverride = null,
-        KeyScript? keyScript = null, string? insertPath = null)
+        KeyScript? keyScript = null, string? insertPath = null, int speed = 1)
     {
         _settings = settings;
         // --settings=<path>: name the INI in the title bar, since nothing
@@ -172,6 +184,9 @@ public sealed class MainForm : Form
         // The session resolves ROM paths, creates the machine and
         // applies its settings.
         _session = new EmulatorSession(_settings);
+        // --speed=N: this run only. Speed has no setting, so a launch
+        // without the flag always starts at 1×.
+        _session.Speed = speed;
 
         // The host gamepad drives the session's joystick (the session
         // polls it each frame, only on the MZ-700 and MZ-800).
@@ -221,12 +236,14 @@ public sealed class MainForm : Form
         _machineLabel.Text = _session.MachineLabel;
         _status.Items.Add(_machineLabel);
         _status.Items.Add(_statusLabel);
+        _status.Items.Add(_speedLabel);
         _status.Items.Add(_mutedLabel);
         _status.Items.Add(_tapeLabel);
         if (_session.Mz800 != null) _status.Items.Add(_displayModeLabel);
         _status.Items.Add(_modeLabel);
         _status.ShowItemToolTips = true;
         _mutedLabel.Visible = _session.SoundMuted;
+        UpdateSpeedLabel();
         if (_session.Mz800 != null)
         {
             _modeLabel.ToolTipText = "MZ-800 BASIC keyboard mode: ALPHA (normal), " +
@@ -426,6 +443,7 @@ public sealed class MainForm : Form
         };
         system.DropDownItems.Add(_pauseMenuItem);
         system.DropDownItems.Add(BuildSoundMenu());
+        system.DropDownItems.Add(BuildSpeedMenu());
 
         system.DropDownItems.Add(new ToolStripSeparator());
 
@@ -577,6 +595,51 @@ public sealed class MainForm : Form
         if (_muteMenuItem != null) _muteMenuItem.Checked = muted;
         _mutedLabel.Visible = muted;
         _statusLabel.Text = muted ? "Sound muted." : "Sound on.";
+    }
+
+    /// <summary>
+    /// System → Speed: 1× to 4× real speed, for this run only (no
+    /// setting; <c>--speed=N</c> picks the starting speed). The whole
+    /// machine speeds up; sound is off while it isn't 1×.
+    /// </summary>
+    private ToolStripMenuItem BuildSpeedMenu()
+    {
+        var speedMenu = new ToolStripMenuItem("Sp&eed");
+        var items = new List<ToolStripMenuItem>();
+        for (int n = EmulatorSession.MinSpeed; n <= EmulatorSession.MaxSpeed; n++)
+        {
+            int speed = n;
+            var item = new ToolStripMenuItem($"&{n}×", null, (_, _) => SetSpeed(speed))
+            {
+                Checked = _session.Speed == n,
+            };
+            items.Add(item);
+            speedMenu.DropDownItems.Add(item);
+        }
+        speedMenu.DropDownOpening += (_, _) =>
+        {
+            for (int i = 0; i < items.Count; i++)
+                items[i].Checked = _session.Speed == EmulatorSession.MinSpeed + i;
+        };
+        return speedMenu;
+    }
+
+    private void SetSpeed(int speed)
+    {
+        if (speed == _session.Speed) return;
+        _session.Speed = speed;
+        UpdateSpeedLabel();
+        _statusLabel.Text = speed == 1
+            ? "Speed 1×: real speed, sound back on."
+            : $"Speed {speed}×: sound is off until 1×.";
+    }
+
+    private void UpdateSpeedLabel()
+    {
+        int speed = _session.Speed;
+        _speedLabel.Visible = speed != 1;
+        _speedLabel.Text = $"{speed}× NO SOUND";
+        _speedLabel.ToolTipText = $"Running at {speed}× real speed; sound is off until 1× (System → Speed)";
     }
 
     /// <summary>

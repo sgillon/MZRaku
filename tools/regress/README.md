@@ -5,7 +5,7 @@ result against an approved "golden" copy. The emulator is
 frame-deterministic, so an unchanged build reproduces every golden
 byte for byte. Any difference means behaviour changed.
 
-There are 32 cases: 9 on the MZ-700, 8 on the MZ-80A and 15 on the
+There are 39 cases: 10 on the MZ-700, 11 on the MZ-80A and 18 on the
 MZ-800. The authoritative list is the `CASES` table in `regress.py`.
 This page explains each case and what it uses, so **keep it in step
 with that table.**
@@ -32,7 +32,7 @@ python tools/regress/regress.py --headless   run through the headless runner ins
   builds the runner rather than the app, and `--no-build` works as
   before. Goldens are approved from the app only, so it refuses
   `--approve`.
-- The last line reads `32/32 cases match golden`. A failing case
+- The last line reads `39/39 cases match golden`. A failing case
   prints `DIFF` with what differed, or `FAIL` if it produced no
   output or timed out.
 
@@ -49,7 +49,8 @@ The harness launches
 `MZRaku.exe <args> --dump=<out> --dumpframe=<N>` (or
 `MZRakuHeadless.exe` with the same arguments). The emulator runs
 `N` emulated frames, writes its dump files and exits. Frames count
-from launch.
+from launch. With `--speed=S` each counted frame runs `S` emulated
+frames, so the dump comes after `N × S`.
 
 Before running, the harness checks that every input exists, and that
 each firmware file matches its pinned SHA-1. It refuses to run
@@ -60,15 +61,16 @@ otherwise, because a different ROM would change the results.
 | Artefact | Cases | Comparison |
 |---|---|---|
 | `<case>.png` | all | The screen at the dump frame, pixel-exact (decoded RGB, so PNG encoder differences don't matter) |
-| `.test.png`, `.test640.png`, `.testscroll.png`, `.testsplit.png` | `mz800_ipl`, `mz800_split_roms` | Synthetic MZ-800 patterns drawn through the real renderers: 320-mode colour bars, 640-mode bit order and banks, hardware scroll, and split-screen scroll (the tech-ref p. 10 example). Pixel-exact. |
-| `.wav` | `mz800_ipl`, `mz800_split_roms`, `mz800_basic`, `uridium`, `manic` | MZ-800 rendered audio (PSG plus PIT), byte-identical (md5) |
+| `.test.png`, `.test640.png`, `.testscroll.png`, `.testsplit.png` | `mz800_ipl`, `mz800_split_roms`, `mz800_speed4` | Synthetic MZ-800 patterns drawn through the real renderers: 320-mode colour bars, 640-mode bit order and banks, hardware scroll, and split-screen scroll (the tech-ref p. 10 example). Pixel-exact. |
+| `.wav` | `mz800_ipl`, `mz800_split_roms`, `mz800_speed4`, `mz800_basic`, `uridium`, `manic` | MZ-800 rendered audio (PSG plus PIT), byte-identical (md5) |
 | `.snd.txt` | all MZ-700 and MZ-80A cases | Log of every change at the speaker's inputs (soft gate, hard gate, counter reload, input clock), compared line by line. MZ-700/80A sound is generated in real time, so the log is what can be compared exactly. |
 | `.save.mzf` | `mz700_save`, `mz80a_save`, `mz800_save` | The `.mzf` a scripted SAVE wrote into the sandbox's `saves/`, byte-identical (md5) |
 
 A case listed in `SAME_GOLDEN` in `regress.py` is compared against
 another case's golden and has none of its own: the same run by a
 different route must give the same output. `--approve` skips it.
-`mz800_split_roms` uses `mz800_ipl`'s.
+`mz800_split_roms` and `mz800_speed4` use `mz800_ipl`'s;
+`mz700_speed2` uses `mz700_monitor`'s.
 
 ## Inputs
 
@@ -124,6 +126,7 @@ Software paths are relative to `_mz-information-repository/`.
 | `mz700_insert` | 600 | `--insert=MZ-700/Software/Space Panic(1983)(Solo Software).zip`; `keys/mz700_insert.keys` | Insert cassette (not Load): the script types the monitor's `L`, which reads the tape through the RDINF ($04D8) and RDDAT ($04F8) traps and runs the game to its attract screen. Added in v1.5.0 for the trap-address fix. |
 | `mz700_save` | 1100 | BASIC; `keys/mz700_save.keys` | S-BASIC `SAVE "TEST"` of a one-line program, through the trap on BASIC's tape-write body ($0A67). The saved file is kept as `.save.mzf` and compared byte for byte; the screen shows BASIC back at Ready. Added in v1.5.0. |
 | `mz700_insert_basic` | 900 | BASIC; `--insert=MZ-700/Software/Dragon Caves (1982)(Solo Software).zip`; `keys/mz700_insert_basic.keys` | Insert cassette + S-BASIC's own `LOAD` (ROM banked out), through the traps on BASIC's tape reads ($0A7A header, $0A7E data); then `RUN` to the title screen. A > 25 KB program, so the load crosses $D000. Added in v1.5.0. |
+| `mz700_speed2` | 100 | none (monitor only); `--speed=2` | Two emulated frames per counted frame: at frame 100 the screen and `.snd.txt` must match `mz700_monitor`'s golden at frame 200. Added in v1.5.0. |
 
 ### MZ-80A
 
@@ -147,6 +150,7 @@ Software paths are relative to `_mz-information-repository/`.
 |---|---|---|---|
 | `mz800_ipl` | 200 | none (IPL only) | The IPL menu, the four synthetic test patterns, and the boot beep (`.wav`) |
 | `mz800_split_roms` | 200 | none (IPL only); the ROM as three files | As `mz800_ipl`, compared against its golden: the three files joined must boot identically |
+| `mz800_speed4` | 50 | none (IPL only); `--speed=4` | Four emulated frames per counted frame: at frame 50 the screen, test patterns and `.wav` must match `mz800_ipl`'s golden at frame 200. Added in v1.5.0. |
 | `mz800_basic` | 300 | BASIC 1Z-016 | 1Z-016 BASIC boot, with audio |
 | `james` | 600 | `MZ-800/Software/Machine code games/James.mzf` | An MZ-700 title running in the MZ-800's MZ-700 mode |
 | `fist` | 900 | `.../Machine code games/EXPLODING FIST.mzf` | Writes the whole scroll register block and palette slots 4+. Kept over Highway, which covers only the border. |
@@ -175,7 +179,7 @@ commit, cases and why).
 - `_regression/out/` holds the latest run.
 
 The v1.4.0 baseline is commit a80994a: all 27 cases approved on
-clean `main`. v1.5.0 adds cases as its fixes and features land (`mz700_insert`, `mz700_insert_basic`, `mz700_save`, `mz80a_cricket`, `mz80a_settings`, `mz80a_insert`, `mz80a_insert_basic`, `mz80a_save`, `mz800_split_roms`, `mz800_save`).
+clean `main`. v1.5.0 adds cases as its fixes and features land (`mz700_insert`, `mz700_insert_basic`, `mz700_save`, `mz80a_cricket`, `mz80a_settings`, `mz80a_insert`, `mz80a_insert_basic`, `mz80a_save`, `mz800_split_roms`, `mz800_save`, `mz700_speed2`, `mz800_speed4`).
 
 ## Adding a case
 
