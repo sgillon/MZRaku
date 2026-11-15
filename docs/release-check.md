@@ -371,6 +371,11 @@ At the 1Z-016 `Ready` prompt:
       via F12; MZ-80A is F11-only.
 - [ ] MZ-700: keyboard-mode pane shows `—` until S-BASIC runs, then
       `ALPHA` / `LOCK` (Shift+F12) / `GRAPH`. `LOCK` is new in v1.5.0.
+- [ ] MZ-80A: keyboard-mode pane reads SA-1510's GRAPH flag (new in
+      v1.5.0; it counted F11 presses before). At the monitor and in
+      SA-5510 it follows F11 and stays right after a reset or a BASIC
+      load; while a program has SA-1510 swapped out ($E00C) it shows
+      `—`. The HID Diagnostic's Mode line agrees with it.
 - [ ] MZ-800: display-mode pane shows `320×200` in 1Z-016 BASIC and
       `MZ-700` in an MZ-700 title (e.g. James), with a tooltip. Keyboard-mode pane shows `—` at the IPL menu and in
       games, `ALPHA` / `LOCK` / `GRAPH` in 1Z-016. After a game

@@ -713,7 +713,7 @@ public sealed class EmulatorSession
         // BASIC + cassette + BASIC-source pipelines each machine runs
         // (v1.2 audit F-055 extraction). Also handles the per-frame
         // GRAPH-mode indicator + Font Sheet auto-surface for MZ-700
-        // and the F11-driven mode indicator for MZ-80A.
+        // and the MZ-80A mode indicator (SA-1510's GRAPH flag).
         AutoLoad.OnFrame(FrameCount);
         FrameRan?.Invoke(FrameCount);
 

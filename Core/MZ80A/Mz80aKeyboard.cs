@@ -27,7 +27,7 @@ namespace MZRaku.Core;
 /// v1.2 audit F-015 / F-021 hoisted the matrix backing, hold
 /// bookkeeping, shift-race staging, and effective-shift rule into
 /// <see cref="KeyboardMatrixBase"/>. This class keeps the MZ-80A-
-/// specific bits: Ctrl-key routing to (0, 7), GraphMode toggle,
+/// specific bits: Ctrl-key routing to (0, 7),
 /// InvertLetterShift policy, and a time-based auto-typer
 /// (SA-1510 doesn't scan the matrix from a predictable rhythm,
 /// so the MZ-700's scan-detection auto-typer doesn't apply here).
@@ -47,18 +47,6 @@ public sealed class Mz80aKeyboard : KeyboardMatrixBase
     internal bool InvertLetterShift { get; set; } = false;
 
     /// <summary>
-    /// Tracks whether the MZ-80A is in GRPH mode (true) or ALPHA
-    /// (false, default). Toggled on every F11 key-down, which is
-    /// what SA-1510 / SA-5510 use as the GRPH key. Read by the
-    /// status-bar mode indicator. Note: this is an F11-driven
-    /// local approximation — programs that switch mode via other
-    /// means (BASIC MODE command, direct video-mode writes) won't
-    /// update this flag. Good enough for the user-facing F11
-    /// workflow; improve later if a program-driven case surfaces.
-    /// </summary>
-    public bool GraphMode { get; private set; }
-
-    /// <summary>
     /// User-editable physical-key overrides for MZ-80A, consulted
     /// before <see cref="Mz80aSpecialKeyMap"/> in
     /// <see cref="OnKeyDown"/>. Same <see cref="KeyOverride"/>
@@ -75,17 +63,6 @@ public sealed class Mz80aKeyboard : KeyboardMatrixBase
         // MZ-80A has no equivalent of MZ-700's $1170 RAM shift
         // mirror — SA-1510's GETKY reads matrix(0, 0) directly.
         // Nothing to do here.
-    }
-
-    /// <summary>
-    /// Extend the base's ReleaseAll with MZ-80A-specific state:
-    /// reset the local GraphMode tracker so the status-bar
-    /// indicator reflects a fresh machine post-reset.
-    /// </summary>
-    public override void ReleaseAll()
-    {
-        base.ReleaseAll();
-        GraphMode = false;
     }
 
     /// <summary>
@@ -144,9 +121,6 @@ public sealed class Mz80aKeyboard : KeyboardMatrixBase
                 SetMatrix(sp.Strobe, sp.Bit, true);
             }
             Diag.Record(InputLayer.SpecialKey, sp.Strobe, sp.Bit, sp.ExplicitMzShift);
-            // F11 = GRPH toggle. Track local state so the status
-            // bar can reflect ALPHA vs GRAPH.
-            if (key == HostKey.F11) GraphMode = !GraphMode;
             return true;
         }
 

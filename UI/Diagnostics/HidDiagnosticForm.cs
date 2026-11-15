@@ -30,7 +30,7 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
     // The active machine's keyboard, accessed through the shared
     // IKeyboardMatrix surface (Diag / PeekMatrixRow / ReadRow). The
     // form only casts to a concrete type where the labelling truly
-    // differs — Mz80aKeyboard.GraphMode below is the one such site.
+    // differs: the MZ-80A mode line below, read from MZ80A.KeyTables.
     private readonly IKeyboardMatrix _kb;
 
     private readonly Label _machineBanner = new()
@@ -43,7 +43,10 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
     };
     private readonly SmoothLabel _hostLabel = AutoSizeMonoLabel();
     private readonly SmoothLabel _mappingLabel = AutoSizeMonoLabel();
-    private readonly SmoothLabel _mzLabel = FillMonoLabel();
+    // Sized to its text inside a scrolling panel: the machine state runs
+    // longer than the box at the default size, and a fill label clipped
+    // the mode and joystick lines off the bottom (v1.5 4.11a).
+    private readonly SmoothLabel _mzLabel = AutoSizeMonoLabel();
 
     public HidDiagnosticForm(IMachine machine, IJoystickSource joystick)
     {
@@ -61,7 +64,7 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
         Text = $"HID Diagnostic — {MachineName(machine.Kind)}";
         _machineBanner.Text = $"Monitoring: {MachineName(machine.Kind)}";
         StartPosition = FormStartPosition.Manual;
-        ClientSize = new Size(460, 580);
+        ClientSize = new Size(460, 700);   // the machine state fits unscrolled
         MinimumSize = new Size(380, 480);
 
         var root = new TableLayoutPanel
@@ -81,7 +84,9 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
         root.Controls.Add(_machineBanner, 0, 0);
         root.Controls.Add(AutoGroup("Host input (Windows side)", _hostLabel), 0, 1);
         root.Controls.Add(AutoGroup("Mapping (which layer matched)", _mappingLabel), 0, 2);
-        root.Controls.Add(FillGroup("MZ machine state", _mzLabel), 0, 3);
+        var mzScroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
+        mzScroll.Controls.Add(_mzLabel);
+        root.Controls.Add(FillGroup("MZ machine state", mzScroll), 0, 3);
         root.Controls.Add(BuildButtonRow(), 0, 4);
         Controls.Add(root);
     }
@@ -225,35 +230,35 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
         var lastScan = _kb.Diag.LastScanRow;
         sb.AppendLine($"Last {LabelRow()} scanned by ROM: {(lastScan < 0 ? "-" : lastScan.ToString())}");
 
-        // Shift-bit + mode: source varies per machine, values labelled
-        // by concept with the source in parentheses.
-        if (_machine.Kind == MachineType.MZ700)
+        // Shift bit and keyboard mode: the source varies per machine, so
+        // values are labelled by concept with the source in parentheses.
+        // The mode is what the status bar's mode pane shows; lines are
+        // kept short enough not to wrap at the default width.
+        if (_machine is MZ700 mz7m)
         {
-            byte shiftMirror = _machine.Mem.Read(0x1170);
-            sb.AppendLine($"MZ shift bit: {Bit((shiftMirror & 1) != 0)}  (source: $1170 RAM mirror = ${shiftMirror:X2})");
-            byte modeByte = _machine.Mem.Read(0x0060);
-            string mode = (modeByte & 0x10) != 0 ? "GRAPH" : "ALPHA";
-            sb.AppendLine($"Mode: {mode}  (source: $0060 bit 4 = ${modeByte:X2} — only valid once BASIC is loaded)");
+            byte shiftMirror = mz7m.Mem.Read(0x1170);
+            sb.AppendLine($"MZ shift bit: {Bit((shiftMirror & 1) != 0)}  (source: $1170 = ${shiftMirror:X2})");
+            sb.AppendLine($"Mode: {ModeText(mz7m.KeyTables.BasicKeyboardMode)}  (source: S-BASIC flag $0060)");
         }
         else if (_machine is MZ800 mz8)
         {
             // Shift is strobe 8 bit 0 (as MZ-700); the keyboard also
             // mirrors it into $1170 for the MZ-700-mode monitor's GETKY.
             byte strobe8 = _kb.PeekMatrixRow(8);
-            sb.AppendLine($"MZ shift bit: {Bit((strobe8 & 0x01) == 0)}  (source: matrix strobe 8 bit 0 = ${strobe8:X2}, active-low; mirror $1170 = ${mz8.Mem.Ram[0x1170]:X2})");
+            sb.AppendLine($"MZ shift bit: {Bit((strobe8 & 0x01) == 0)}  (source: strobe 8 bit 0)");
+            sb.AppendLine($"$1170 mirror: ${mz8.Mem.Ram[0x1170]:X2}");
+            sb.AppendLine($"Mode: {ModeText(mz8.BasicKeyboardMode)}  (source: 1Z-016 flag $108D)");
             var m = mz8.Mem;
             string video = m.Mz700Mode ? "MZ-700 text" : m.Is640BitmapMode ? "640x200" : "320x200";
-            sb.AppendLine($"Mode: {(m.Mz700Mode ? "MZ-700" : "MZ-800")}  display {video}  (DMD=${m.DmdRegister:X2}, banks {m.BankState})");
+            sb.AppendLine($"Display: {video}  (DMD=${m.DmdRegister:X2}, banks {m.BankState})");
         }
         else
         {
+            var mz80a = (MZ80A)_machine;
             byte strobe0 = _kb.PeekMatrixRow(0);
-            bool shiftPressed = (strobe0 & 0x01) == 0; // active-low
-            sb.AppendLine($"MZ shift bit: {Bit(shiftPressed)}  (source: matrix strobe 0 bit 0 = ${strobe0:X2}, active-low)");
-            // GraphMode is MZ-80A-specific state; not in IKeyboardMatrix
-            // since MZ-700 has no equivalent local tracker.
-            string mode = ((Mz80aKeyboard)_kb).GraphMode ? "GRAPH" : "ALPHA";
-            sb.AppendLine($"Mode: {mode}  (source: F11-driven local tracker)");
+            sb.AppendLine($"MZ shift bit: {Bit((strobe0 & 0x01) == 0)}  (source: strobe 0 bit 0)");
+            int? mode = mz80a.Mem.RomSwapped ? null : mz80a.KeyTables.InGraphMode ? 2 : 0;
+            sb.AppendLine($"Mode: {ModeText(mode)}  (source: SA-1510 flag $1170)");
         }
 
         sb.AppendLine();
@@ -294,6 +299,16 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
         return sb.ToString();
     }
 
+
+    // Keyboard mode (0 ALPHA, 1 shift lock, 2 GRAPH; null unknown) as the
+    // status bar's mode pane words it.
+    private static string ModeText(int? mode) => mode switch
+    {
+        0 => "ALPHA",
+        1 => "LOCK",
+        2 => "GRAPH",
+        _ => "—",
+    };
 
     private static string FormatKeyData(HostKey k) =>
         k == HostKey.None ? "(none)" : $"{k}  (0x{(int)k:X4})";

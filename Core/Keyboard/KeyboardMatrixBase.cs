@@ -15,11 +15,11 @@ namespace MZRaku.Core;
 /// v1.2 audit F-015 / F-021 extracted this. Concrete keyboards keep
 /// only the per-machine behaviour: MZ-700 writes $1170 as its shift
 /// mirror and drives a scan-detection auto-typer; MZ-80A holds
-/// GraphMode / InvertLetterShift / different special-key map shape /
+/// InvertLetterShift / different special-key map shape /
 /// time-based auto-typer / Ctrl-key routing. Each machine's
 /// OnKeyDown / OnKeyPress / OnKeyUp handlers stay per-machine
 /// because the divergences there (Ctrl handling, RAM mirror,
-/// case-inversion, GraphMode toggle) resist a clean shared skeleton
+/// case-inversion) resist a clean shared skeleton
 /// without risk to the shift-race timing behaviour.
 ///
 /// The shift-slot coordinate is exposed via <see cref="ShiftSlot"/>
@@ -126,8 +126,8 @@ public abstract class KeyboardMatrixBase : IKeyboardMatrix, IKeyboardInput
 
     /// <summary>
     /// Release every held bit, clear holds + staged presses + the
-    /// pending KeyDown. Machine subclasses override to reset any
-    /// additional per-machine state (e.g. MZ-80A GraphMode).
+    /// pending KeyDown. Machine subclasses can override to reset any
+    /// additional per-machine state.
     /// </summary>
     public virtual void ReleaseAll()
     {

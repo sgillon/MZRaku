@@ -375,11 +375,12 @@ internal sealed class AutoLoadOrchestrator
             }
         }
 
-        // MZ-80A mode indicator. Tracked locally via F11 press events
-        // in Mz80aKeyboard.GraphMode — see the note there about
-        // program-driven mode changes not being caught.
+        // MZ-80A mode indicator: SA-1510's own GRAPH flag ($1170), which
+        // its GETKY reads, so the pane can't drift from the machine (it
+        // counted F11 presses before v1.5 4.11a). Unknown ("—") while a
+        // program has SA-1510 swapped out.
         if (bootFrames % 10 == 0)
-            _updateModeLabel(_mz80a!.Keyboard.GraphMode);
+            _updateModeLabel(_mz80a!.Mem.RomSwapped ? null : _mz80a.KeyTables.InGraphMode);
     }
 
     // ---- MZ-800 pipeline ------------------------------------------------
