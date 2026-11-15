@@ -63,7 +63,7 @@ public sealed class Pit8253
     /// decrementing starts on the pulse after, so the new value stays
     /// readable for at least one full input period. Off by default
     /// (MZ-700 / MZ-80A keep their tuned instant-load timing). MZ-800
-    /// turns it on: the 1Z-016B IOCS RTC init at $F92D reloads C2 with
+    /// turns it on: the IOCS RTC init at $F92D (9Z-504M ROM) reloads C2 with
     /// $A8C0 and spins until a latched read returns exactly $A8C0 —
     /// with instant load a C1-cascade tick could land before the first
     /// read and the loop never exits (Phase 6.1, `--mz800 --basic`

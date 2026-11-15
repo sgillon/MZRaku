@@ -1217,7 +1217,7 @@ ahead of the v1.4 settings work at the start of the arc
     monitor's MSTP stops the beep with a counter-0 control word and
     no count; a real 8253 halts there, ours kept counting. New
     opt-in `Pit8253.HaltOnControlWord` (MZ-800 only).
-  - **`--mz800 --basic` black screen (race).** The 1Z-016B IOCS
+  - **`--mz800 --basic` black screen (race).** The IOCS (9Z-504M ROM)
     RTC init reloads counter 2 with $A8C0 and spins until it reads
     exactly that back; instant load let a cascade tick slip in
     first. New opt-in `Pit8253.LoadOnNextClock` (count transfers on

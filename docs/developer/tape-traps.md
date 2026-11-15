@@ -28,7 +28,7 @@ that instruction fetch and counts 4 cycles.
 | `Core/Tape/CassetteFile.cs` | Reads `.mzf`, `.m12` and `.mzt` files and zips of them; `ReadTape` returns every file in order |
 | `Core/MZ700/Mz700Cassette.cs` | 1Z-013A monitor and S-BASIC (1Z-013B) traps |
 | `Core/MZ80A/Mz80aCassette.cs` | SA-1510 traps (used by SA-5510 BASIC too), and SA-5510 program injection |
-| `Core/MZ800/Mz800Cassette.cs` | 1Z-013B monitor (MZ-700 mode) and 1Z-016 BASIC traps, and the mounted tape |
+| `Core/MZ800/Mz800Cassette.cs` | Traps on the 1Z-013B monitor ROM's tape routines (used by the IPL and the 9Z-504M monitor) and on 1Z-016 BASIC's, and the mounted tape |
 
 ### The header
 
@@ -118,14 +118,17 @@ is how a named LOAD skips files it doesn't want on a real tape.
 
 | Code | Address | Checks | Does | Returns |
 |---|---|---|---|---|
-| Monitor ROM header read | `$04D8` | ROM at `$0000` (`RomLow`); a file under the head | Header to `$10F0` | CY=0, pop, EI |
-| Monitor ROM data read | `$04F8` | As above | Data to the load address and size in `$10F0`; head moves to the next file | CY=0, pop, EI |
+| 1Z-013B header read | `$04D8` | ROM at `$0000` (`RomLow`); a file under the head | Header to `$10F0` | CY=0, pop, EI |
+| 1Z-013B data read | `$04F8` | As above | Data to the load address and size in `$10F0`; head moves to the next file | CY=0, pop, EI |
 | 1Z-016 BASIC read entry | `$3872` | RAM at `$0000`; the 13 bytes at `$386C` match 1Z-016's read entry | A=`$CC` header, else data: BC bytes to HL. With no file under the head, the real routine runs on and waits for PLAY | A=0, CY=0, pop |
 | 1Z-016 BASIC, tape inserted while waiting | anywhere in `$3881`–`$3B9F` | A read started with no file and one is now mounted | The read it was waiting for | A=0, CY=0, SP=`$10EE`, jump to BASIC's exit at `$385F` |
 
-The IPL's C option and the monitor's L command (M at the IPL menu;
-the L code is at `$EB54`) call `$04D8` and `$04F8`, the tape routines
-of the MZ-700-mode monitor ROM at `$0000`. 1Z-016 BASIC doesn't call
+The MZ-800's ROM holds two monitors (see
+[`hardware-notes.md`](hardware-notes.md#mz-800) for the names): the
+MZ-700's 1Z-013B at `$0000`, and the MZ-800's own 9Z-504M with the IPL
+at `$E000`. The IPL's C option and 9Z-504M's L command (M at the boot
+menu; the L code is at `$EB54`) call `$04D8` and `$04F8`, 1Z-013B's
+tape routines, with that ROM at `$0000`. 1Z-016 BASIC doesn't call
 them: it reads the tape bit by bit itself, with RAM at `$0000`, from
 one entry shared by header and data reads. Its exit at `$385F` puts
 back BASIC's stack and state, which is why the waiting case jumps
@@ -183,7 +186,7 @@ types the LOAD.
 
 - The MZ-700 monitor's own save (WRINF `$0436`, WRDAT): only S-BASIC's
   SAVE is taken.
-- The MZ-800 monitor's save (M at the IPL menu), and the MZ-700's S-BASIC run on
+- The MZ-800's 9Z-504M monitor save, and the MZ-700's S-BASIC run on
   the MZ-800 in MZ-700 mode (neither its LOAD nor its SAVE).
 - VERIFY on any machine.
 

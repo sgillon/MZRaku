@@ -76,6 +76,25 @@ It describes v1.5.0. Tape handling has its own page,
 
 ## MZ-800
 
+- **The ROM's names,** from the banners in `MZ800.ROM`: the MZ-700
+  monitor at `$0000` (file offset `$0000`) is **1Z-013B**; the high
+  ROM at `$E000` (file offset `$2000`: the IPL from `$E800`, the
+  MZ-800's own monitor, which M at the boot menu starts, and the IOCS)
+  is **9Z-504M**. The character ROM sits between them (file offset
+  `$1000`). 9Z-504M runs with the machine in MZ-700 mode and calls
+  1Z-013B's routines, tape included. The MZ-700's S-BASIC tape is
+  also numbered 1Z-013B; it is unrelated, so say "S-BASIC 1Z-013B"
+  or "the 1Z-013B monitor". Sharp's manuals agree: the Owner's Manual
+  and the Technical Reference call the high ROM's monitor "ROM Monitor
+  (9Z-504M)", and the Technical Reference's listing is headed "MONITOR
+  PROGRAM 1Z-013B". The tape BASIC is 1Z-016: the Owner's Manual
+  (chapters 2 and 3) shows the tape as "BASIC 1Z-016", the IPL's
+  "IPL is loading MZ-1Z016" and BASIC's own "BASIC interpreter 1Z-016
+  VX.XX"; the copy MZRaku is tested with says V1.0A. No manual names a
+  1Z-016B, which the code's comments wrongly used for the high ROM
+  until v1.5.0. EmuZ-800's
+  three files split the ROM as `MZ700IPL.ROM` (1Z-013B), `FONT.ROM`
+  and `MZ800IPL.ROM` (9Z-504M) (`Mz800RomFiles.cs`).
 - **The frame is a PAL raster:** 312 lines of 227 CPU cycles, about
   50.08 frames a second. The CPU runs line by line, and the blanking
   signals and palette latch follow the beam, which some titles rely on

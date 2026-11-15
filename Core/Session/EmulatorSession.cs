@@ -826,7 +826,7 @@ public sealed class EmulatorSession
 
     /// <summary>
     /// MZ-800 monitor/boot-menu ready detector. Phase 4 (v1.3.0) uses
-    /// this only for MC cassette autoload — we wait until the 1Z-016B
+    /// this only for MC cassette autoload — we wait until the 9Z-504M
     /// IPL has finished painting its boot menu ("Make ready CMT /
     /// Please push key / C/Cassette tape / M/Monitor") to VRAM before
     /// injecting, so the memory banks are in a DRAM-friendly state and
@@ -836,7 +836,7 @@ public sealed class EmulatorSession
     /// — M=$0D O=$0F N=$0E I=$09 T=$14 O=$0F R=$12 — which is
     /// unambiguously the boot-menu bottom line. Also accept the
     /// lowercase bank-1 variant (M/onitor prints "onitor" as bank-1
-    /// codes $8F $8E $89 $94 $8F $92) since the 1Z-016B IPL uses
+    /// codes $8F $8E $89 $94 $8F $92) since the 9Z-504M IPL uses
     /// mixed case. Earlier "M/" digraph check turned out to be too
     /// fragile — the menu row's actual layout has spaces or bank
     /// differences we hadn't confirmed against VRAM.

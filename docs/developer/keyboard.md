@@ -113,7 +113,7 @@ the last clear; the auto-typers use that to see the ROM's scan.
 | Mode keys | F11 GRAPH (0, 6), F12 ALPHA (0, 4); Shift+F12 shift lock | the same | F11 GRPH (0, 1), toggles |
 | Special keys with their own SHIFT | none | none | Left and Down (SHIFT + Right / Up), Insert (SHIFT + DEL) |
 | Letters | PC `a` and `A` both type the unshifted key (capital) | the same | PC `a` types the unshifted key (capital), `A` the shifted one (lowercase); `InvertLetterShift` in `[Keyboard.MZ80A]` swaps them |
-| Key scan | 1Z-013A monitor (scan $0A50, tables from $0BEA); S-BASIC 1Z-013B its own (tables $121D) | 9Z-504M monitor in MZ-700 mode; 1Z-016 BASIC its own (scan $0BF6, tables $0D47) | SA-1510's GETKY ($08CA, scan $0A50), for SA-5510 too |
+| Key scan | 1Z-013A monitor (scan $0A50, tables from $0BEA); S-BASIC 1Z-013B its own (tables $121D) | 9Z-504M monitor (in MZ-700 mode, calling 1Z-013B's routines); 1Z-016 BASIC its own (scan $0BF6, tables $0D47) | SA-1510's GETKY ($08CA, scan $0A50), for SA-5510 too |
 | Auto-typer | `KeyboardAutoTyper` | `KeyboardAutoTyper` | its own, in `Mz80aKeyboard` |
 
 ## SHIFT

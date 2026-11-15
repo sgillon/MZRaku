@@ -963,8 +963,8 @@ public sealed class MainForm : Form
 
     /// <summary>
     /// MZ-700 mode pane, called every 10 frames: S-BASIC's keyboard
-    /// mode (ALPHA / LOCK for shift lock / GRAPH, "—" when 1Z-013B
-    /// isn't running). It showed only ALPHA or GRAPH before v1.5 4.8a.
+    /// mode (ALPHA / LOCK for shift lock / GRAPH, "—" when S-BASIC
+    /// 1Z-013B isn't running). It showed only ALPHA or GRAPH before v1.5 4.8a.
     /// </summary>
     private void UpdateMz700ModeLabel() =>
         SetModeLabel(BasicModeText(_session.Mz700!.KeyTables.BasicKeyboardMode));

@@ -156,7 +156,7 @@ implements `IMachine` itself.
 | How a frame runs | 85 % of the frame's cycles, then VBLANK for the rest | as the MZ-700 | line by line, with blanking and the palette latch following the beam |
 | Chips | 8255, 8253, sound | 8255, 8253, sound | 8255, 8253, Z80 PIO, SN76489 PSG, sound |
 | Sound | square wave from PIT counter 0, two gates | square wave from counter 0, one gate | PSG and counter 0 rendered as PCM in emulated time |
-| ROMs | `1z-013a.rom`, `mz700fon.int` | `SA-1510.rom`, `SA-CG.rom` | `MZ800.ROM`, or `MZ700IPL.ROM` + `FONT.ROM` + `MZ800IPL.ROM` |
+| ROMs | `1z-013a.rom` (monitor 1Z-013A), `mz700fon.int` | `SA-1510.rom` (monitor SA-1510), `SA-CG.rom` | `MZ800.ROM` (monitor 1Z-013B, character ROM, IPL and monitor 9Z-504M), or the same as `MZ700IPL.ROM` + `FONT.ROM` + `MZ800IPL.ROM` |
 | BASIC | `1Z-013B.mzf` (S-BASIC) | `SA-5510.mzf` | `1Z-016.mzf` |
 
 Each machine class wires its own parts together in its constructor:

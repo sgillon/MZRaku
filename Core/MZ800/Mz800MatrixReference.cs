@@ -5,7 +5,7 @@ namespace MZRaku.Core;
 /// <summary>
 /// Canonical MZ-800 keyboard matrix reference — the single source of
 /// truth for "which physical key sits at which scan-matrix slot" on the
-/// 1Z-016B monitor's keyboard. Modelled on
+/// MZ-800's keyboard. Modelled on
 /// <see cref="Mz80aMatrixReference"/> and <see cref="Mz700MatrixReference"/>.
 ///
 /// SOURCE: Sharp MZ-800 Technical Reference Manual p. 24-25 (chapter 5,

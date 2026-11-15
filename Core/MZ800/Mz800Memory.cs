@@ -27,7 +27,7 @@ namespace MZRaku.Core;
 /// appears ($8000-$BFFF bitmap planes in MZ-800 mode, $D000-$DFFF
 /// text/attribute VRAM + $E000-$E00F I/O in MZ-700 mode). Power-on
 /// has every latch set: MZ-700 monitor ROM at $0000, CG-ROM at $1000,
-/// VRAM, and the MZ-800 IPL/monitor (1Z-016B) at $E000 — the reset
+/// VRAM, and the MZ-800 IPL/monitor (9Z-504M) at $E000 — the reset
 /// vector `JP $E800` lands in the IPL.
 ///
 /// BASIC, for example, calls its ROM services with `OUT ($E3),A` …
@@ -463,7 +463,7 @@ public sealed class Mz800Memory : IMemory
             return Rom[0x2000 + (addr - 0xE000)];
         }
 
-        if (addr >= 0xE000 && RomHigh) return Rom[0x2000 + (addr - 0xE000)]; // MZ-800 IPL/monitor (1Z-016B)
+        if (addr >= 0xE000 && RomHigh) return Rom[0x2000 + (addr - 0xE000)]; // MZ-800 IPL/monitor (9Z-504M)
         return Ram[addr];
     }
 

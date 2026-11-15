@@ -1,5 +1,5 @@
 # Typing at the 9Z-504M monitor prompt, which only the tape cases touched.
-# M at the IPL menu starts 9Z-504M, the MZ-700-mode monitor.
+# M at the IPL menu starts 9Z-504M, the MZ-800's own monitor (in MZ-700 mode).
 150 type "M"
 # M writes $41 $62 at $1200, BREAK (Shift+Esc) ends it, D shows them
 # and BREAK stops the dump.

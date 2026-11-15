@@ -8,7 +8,8 @@ namespace MZRaku.Core;
 /// two sets of tape routines MZ-800 software reads through.
 ///
 /// <para><b>1Z-013B monitor primitives</b> — the IPL's C option and
-/// the 1Z-016B L command call these with the monitor ROM at $0000:
+/// the 9Z-504M monitor's L command (M at the boot menu) call these
+/// with the 1Z-013B ROM at $0000:
 ///   $EB54: CALL $04D8   — read header (128 bytes into $10F0)
 ///   $EB6D: JP  $04F8    — read data  (size + load addr from header)
 /// then (on success) JP to $E99D, which runs the program from the
@@ -22,7 +23,7 @@ namespace MZRaku.Core;
 /// SAVE is taken as a .mzf the same way (<see cref="BasicWriteTrap"/>).</para>
 ///
 /// Trap addresses for the monitor path pinned 2026-08-30 by walking the
-/// L flow back from ret=$EB57 and disassembling 1Z-016B's L subroutine.
+/// L flow back from ret=$EB57 and disassembling 9Z-504M's L subroutine.
 /// </summary>
 internal sealed class Mz800Cassette : CassetteTrapBase
 {

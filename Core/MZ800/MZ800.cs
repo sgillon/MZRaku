@@ -9,7 +9,12 @@ namespace MZRaku.Core;
 /// PIT + Z80 PIO + SN76489 PSG + 64 KiB DRAM + 16 KiB combined ROM +
 /// bank latches (OUT $E0-$E6, IN $E0/$E1) + dual-mode I/O layout.
 ///
-/// Boot flow: CPU starts at $0000 (JP $E800), the MZ-800 IPL (1Z-016B)
+/// ROM names, from the banners in MZ800.ROM: the MZ-700 monitor at
+/// $0000 is 1Z-013B (not the MZ-700's S-BASIC tape, which shares the
+/// number); the high ROM at $E000 (IPL, the MZ-800 monitor started by
+/// M at the boot menu, and the IOCS) is 9Z-504M.
+///
+/// Boot flow: CPU starts at $0000 (JP $E800), the MZ-800 IPL (9Z-504M)
 /// runs from ROM at CPU $E800 (file offset $2800), switches to MZ-700
 /// mode via OUT ($CE),A, banks the CG-ROM in/out to copy PCG data,
 /// then the MZ-700 monitor at CPU $0000 takes over.
@@ -120,7 +125,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
 
         // Cassette needs Memory + CPU for trap injection. PreStep
         // watches the 1Z-013B tape implementation addresses at $04D8
-        // (READ HEADER) and $04F8 (READ DATA), which 1Z-016B's own L
+        // (READ HEADER) and $04F8 (READ DATA), which 9Z-504M's own L
         // subroutine at $EB54 calls into. See Mz800Cassette's class
         // comment for the flow.
         Cassette.Memory = Mem;
@@ -170,7 +175,7 @@ public sealed class MZ800 : MzMachineBase, IMachine
 
     /// <summary>
     /// Load the 16 KiB ROM (MZ-700 monitor 1Z-013B, CG-ROM, MZ-800
-    /// IPL/monitor 1Z-016B and BASIC-IOCS) from <c>MZ800.ROM</c>, or
+    /// IPL/monitor 9Z-504M and BASIC-IOCS) from <c>MZ800.ROM</c>, or
     /// from EmuZ-800's three parts: <paramref name="monitorRomPath"/>
     /// = <c>MZ700IPL.ROM</c>, <paramref name="fontPath"/> =
     /// <c>FONT.ROM</c>, <paramref name="ipl800Path"/> =
