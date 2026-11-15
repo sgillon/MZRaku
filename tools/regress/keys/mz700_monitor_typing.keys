@@ -1,0 +1,20 @@
+# Typing at the 1Z-013A monitor prompt, which only the tape cases touched.
+# M writes $41 $62 at $1200, BREAK (Shift+Esc) ends it, D shows them
+# and BREAK stops the dump.
+150 type "M1200"
+190 key Return
+228 type "41"
+244 key Return
+262 type "62"
+278 key Return
+296 down ShiftKey
+297 key Escape
+305 up ShiftKey
+325 type "D1200"
+365 key Return
+393 down ShiftKey
+394 key Escape
+402 up ShiftKey
+# A line with lowercase and shifted symbols, left unentered.
+# Today SHIFT types GRAPH glyphs here: B15 (issue #6), postponed.
+422 type "QABC abc 123 !\"#$%&'()=@[]"

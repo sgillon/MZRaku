@@ -118,6 +118,8 @@ CASES = [
     ("mz700_save",     ["--mz700", "--basic", "--keys=mz700_save.keys"], 1100, ["snd", "save"]),   # S-BASIC SAVE: .mzf written, back at Ready
     ("mz700_insert_basic", ["--mz700", "--basic", "--insert=" + MZ700_SW + "Dragon Caves (1982)(Solo Software).zip", "--keys=mz700_insert_basic.keys"], 900, ["snd"]),   # Insert cassette + S-BASIC LOAD / RUN
     ("mz700_speed2",   ["--mz700", "--speed=2"],                      100, ["snd"]),   # 2x: mz700_monitor's golden at half the frames
+    ("mz700_keys",     ["--mz700", "--basic", "--settings=keys_overrides.ini", "--keys=mz700_keys.keys"], 2000, ["snd"]),   # CLR, overrides, shift lock x10, CHR$( key, BREAK
+    ("mz700_monitor_typing", ["--mz700", "--keys=mz700_monitor_typing.keys"], 650, ["snd"]),   # 1Z-013A prompt: M, D, BREAK; B15 shows
     # --- MZ-80A ---
     ("mz80a_monitor",  ["--mz80a"],                                   200, ["snd"]),
     ("mz80a_basic",    ["--mz80a", "--basic"],                        400, ["snd"]),
@@ -130,6 +132,8 @@ CASES = [
     ("mz80a_insert_basic", ["--mz80a", "--basic", "--insert=" + MZ80A_SW + "WORLD-CUP-80A.mzf", "--keys=mz80a_insert_basic.keys"], 1200, ["snd"]),   # Insert cassette + SA-5510 LOAD / RUN
     ("mz80a_save",    ["--mz80a", "--basic", "--keys=mz80a_save.keys"], 1100, ["snd", "save"]),   # SA-5510 SAVE: .mzf written, back at Ready
     ("mz80a_settings",["--mz80a", "--settings=mz80a_white.ini"],    200, []),   # --settings: white screen, nothing written
+    ("mz80a_keys",     ["--mz80a", "--basic", "--settings=keys_overrides.ini", "--keys=mz80a_keys.keys"], 2020, ["snd"]),   # CLR, overrides, shifted cursors, GRPH x10, BREAK
+    ("mz80a_monitor_typing", ["--mz80a", "--keys=mz80a_monitor_typing.keys"], 660, ["snd"]),   # SA-1510 prompt: letters and symbols
     # --- MZ-800 ---
     ("mz800_ipl",      ["--mz800"],                                   200, ["tests", "wav"]),
     ("mz800_split_roms", ["--mz800"],                                 200, ["tests", "wav"]),   # EmuZ-800's three ROM files; mz800_ipl's golden
@@ -149,6 +153,7 @@ CASES = [
     ("egg_basic",      ["--mz800", "--cassette", "egg.zip"],          1500, []),   # BASIC LOAD + named LOAD of 2nd file
     ("mz800_typing",   ["--mz800", "--basic", "--keys=mz800_typing.keys"], 1520, []),
     ("mz800_save",     ["--mz800", "--basic", "--keys=mz800_save.keys"], 1100, ["save"]),   # 1Z-016 SAVE: .mzf written, back at Ready
+    ("mz800_keys",     ["--mz800", "--basic", "--settings=keys_overrides.ini", "--keys=mz800_keys.keys"], 2000, []),   # CLR, overrides, shift lock x10, CHR$( key, BREAK
 ]
 TEST_SUFFIXES = [".test.png", ".test640.png", ".testscroll.png", ".testsplit.png"]
 

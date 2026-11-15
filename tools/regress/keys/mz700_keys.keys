@@ -1,0 +1,112 @@
+# MZ-700 S-BASIC (1Z-013B): the keyboard paths the typing case doesn't touch.
+# Runs with presets/keys_overrides.ini: F6 is CLR with an explicit
+# SHIFT (t), F7 is INST with SHIFT forced off (f).
+#
+# CLR ten times, alternating Shift+Insert and the F6 override, at uneven
+# spacing. Each clears a line of digits one shorter than the last; a
+# CLR taken as HOME would leave digits on screen.
+420 type "0123456789"
+500 down ShiftKey
+501 key Insert
+509 up ShiftKey
+513 type "012345678"
+588 key F6
+600 type "01234567"
+671 down ShiftKey
+672 key Insert
+680 up ShiftKey
+684 type "0123456"
+741 key F6
+753 type "012345"
+806 down ShiftKey
+807 key Insert
+815 up ShiftKey
+819 type "01234"
+861 key F6
+873 type "0123"
+911 down ShiftKey
+912 key Insert
+920 up ShiftKey
+924 type "012"
+952 key F6
+964 type "01"
+989 down ShiftKey
+990 key Insert
+998 up ShiftKey
+1002 type "0"
+1021 key F6
+# Cursor left, then Shift+Left (the same key), then F7 under Shift:
+# INST, not CLR. The line reads XQAZ, then BASIC's error for it.
+1033 type "XYZ"
+1057 key Left
+1065 down ShiftKey
+1066 key Left
+1074 up ShiftKey
+1074 type "Q"
+1086 down ShiftKey
+1087 key F7
+1095 up ShiftKey
+1095 type "A"
+1103 key Return
+# Shift lock (Shift+F12) on and off ten times at uneven spacing, "a1"
+# typed after each, in a REM: the line alternates a! (lock) and A1.
+# v1.5 4.8a found this missed about one press in three.
+1141 type "10 REM "
+1197 down ShiftKey
+1198 key F12
+1206 up ShiftKey
+1206 type "a1"
+1225 down ShiftKey
+1226 key F12
+1234 up ShiftKey
+1234 type "a1"
+1257 down ShiftKey
+1258 key F12
+1266 up ShiftKey
+1266 type "a1"
+1283 down ShiftKey
+1284 key F12
+1292 up ShiftKey
+1292 type "a1"
+1313 down ShiftKey
+1314 key F12
+1322 up ShiftKey
+1322 type "a1"
+1340 down ShiftKey
+1341 key F12
+1349 up ShiftKey
+1349 type "a1"
+1371 down ShiftKey
+1372 key F12
+1380 up ShiftKey
+1380 type "a1"
+1400 down ShiftKey
+1401 key F12
+1409 up ShiftKey
+1409 type "a1"
+1434 down ShiftKey
+1435 key F12
+1443 up ShiftKey
+1443 type "a1"
+1470 down ShiftKey
+1471 key F12
+1479 up ShiftKey
+1479 type "a1"
+1495 key Return
+# Shift+F1 is BASIC's CHR$( key.
+1533 type "20 PRINT "
+1605 down ShiftKey
+1606 key F1
+1614 up ShiftKey
+1618 type "65)"
+1642 key Return
+# BREAK (Shift+Esc) stops a running program.
+1680 type "30 GOTO 30"
+1760 key Return
+1798 type "RUN"
+1822 key Return
+1860 down ShiftKey
+1861 key Escape
+1869 up ShiftKey
+1899 type "LIST"
+1931 key Return

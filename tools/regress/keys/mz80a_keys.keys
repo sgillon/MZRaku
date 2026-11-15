@@ -1,0 +1,89 @@
+# MZ-80A SA-5510: the keyboard paths the typing case doesn't touch.
+# Runs with presets/keys_overrides.ini: F6 is CLR with an explicit
+# SHIFT (t), F7 is HOME with SHIFT forced off (f).
+# SA-5510 letters: unshifted PC keys give capitals, so keywords are
+# typed in lowercase (see mz80a_typing.keys).
+#
+# CLR ten times, alternating Shift+Home and the F6 override, at uneven
+# spacing. Each clears a line of digits one shorter than the last; a
+# CLR taken as HOME would leave digits on screen.
+420 type "0123456789"
+500 down ShiftKey
+501 key Home
+509 up ShiftKey
+513 type "012345678"
+588 key F6
+600 type "01234567"
+671 down ShiftKey
+672 key Home
+680 up ShiftKey
+684 type "0123456"
+741 key F6
+753 type "012345"
+806 down ShiftKey
+807 key Home
+815 up ShiftKey
+819 type "01234"
+861 key F6
+873 type "0123"
+911 down ShiftKey
+912 key Home
+920 up ShiftKey
+924 type "012"
+952 key F6
+964 type "01"
+989 down ShiftKey
+990 key Home
+998 up ShiftKey
+1002 type "0"
+1021 key F6
+# Cursor left, then Shift+Left (SA-1510's left is SHIFT+right, so
+# both arrive shifted), then F7 under Shift: HOME, not CLR. The line
+# reads AQZ, then BASIC's error for it.
+1033 type "xyz"
+1057 key Left
+1065 down ShiftKey
+1066 key Left
+1074 up ShiftKey
+1074 type "q"
+1086 down ShiftKey
+1087 key F7
+1095 up ShiftKey
+1095 type "a"
+1103 key Return
+# GRPH (F11) ten times at uneven spacing, "a1" typed after each, in
+# a REM: the line alternates graphics and A1 if every press landed.
+1141 type "10 rem "
+1197 key F11
+1205 type "a1"
+1224 key F11
+1232 type "a1"
+1255 key F11
+1263 type "a1"
+1280 key F11
+1288 type "a1"
+1309 key F11
+1317 type "a1"
+1335 key F11
+1343 type "a1"
+1365 key F11
+1373 type "a1"
+1393 key F11
+1401 type "a1"
+1426 key F11
+1434 type "a1"
+1461 key F11
+1469 type "a1"
+1485 key Return
+1523 type "20 print chr$(65)"
+1659 key Return
+# BREAK (Shift+Esc) stops a running program.
+1697 type "30 goto 30"
+1777 key Return
+1815 type "run"
+1839 key Return
+1877 down ShiftKey
+1878 key Escape
+1886 up ShiftKey
+1916 type "list"
+1948 key Return

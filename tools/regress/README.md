@@ -5,7 +5,7 @@ result against an approved "golden" copy. The emulator is
 frame-deterministic, so an unchanged build reproduces every golden
 byte for byte. Any difference means behaviour changed.
 
-There are 39 cases: 10 on the MZ-700, 11 on the MZ-80A and 18 on the
+There are 44 cases: 12 on the MZ-700, 13 on the MZ-80A and 19 on the
 MZ-800. The authoritative list is the `CASES` table in `regress.py`.
 This page explains each case and what it uses, so **keep it in step
 with that table.**
@@ -32,7 +32,7 @@ python tools/regress/regress.py --headless   run through the headless runner ins
   builds the runner rather than the app, and `--no-build` works as
   before. Goldens are approved from the app only, so it refuses
   `--approve`.
-- The last line reads `39/39 cases match golden`. A failing case
+- The last line reads `44/44 cases match golden`. A failing case
   prints `DIFF` with what differed, or `FAIL` if it produced no
   output or timed out.
 
@@ -102,8 +102,9 @@ prompt by frame 420 on all three machines.
 
 ### Settings presets
 
-The INIs in `presets/` are for cases that test `--settings=<file>`.
-`regress.py` copies the file into the case's sandbox and passes that
+The INIs in `presets/` are for cases that test `--settings=<file>`
+or need a setting changed (`keys_overrides.ini`, key overrides for
+the `*_keys` cases). `regress.py` copies the file into the case's sandbox and passes that
 copy. `--settings` is read-only, so the case fails with `SETTINGS
 WRITTEN` if the run changed the copy or the sandbox's own
 `settings.ini` (which a run without `--settings` rewrites, since it
@@ -127,6 +128,8 @@ Software paths are relative to `_mz-information-repository/`.
 | `mz700_save` | 1100 | BASIC; `keys/mz700_save.keys` | S-BASIC `SAVE "TEST"` of a one-line program, through the trap on BASIC's tape-write body ($0A67). The saved file is kept as `.save.mzf` and compared byte for byte; the screen shows BASIC back at Ready. Added in v1.5.0. |
 | `mz700_insert_basic` | 900 | BASIC; `--insert=MZ-700/Software/Dragon Caves (1982)(Solo Software).zip`; `keys/mz700_insert_basic.keys` | Insert cassette + S-BASIC's own `LOAD` (ROM banked out), through the traps on BASIC's tape reads ($0A7A header, $0A7E data); then `RUN` to the title screen. A > 25 KB program, so the load crosses $D000. Added in v1.5.0. |
 | `mz700_speed2` | 100 | none (monitor only); `--speed=2` | Two emulated frames per counted frame: at frame 100 the screen and `.snd.txt` must match `mz700_monitor`'s golden at frame 200. Added in v1.5.0. |
+| `mz700_keys` | 2000 | BASIC; `--settings=presets/keys_overrides.ini`; `keys/mz700_keys.keys` | The key paths `mz700_typing` doesn't touch, each pressed at uneven frame spacing so the presses land at different points in BASIC's scan: CLR ten times (Shift+Insert, and an F6 override with an explicit SHIFT), cursor left with and without Shift, an F7 override with SHIFT forced off under PC Shift (INST, not CLR: the line reads `XQAZ`), shift lock (Shift+F12) on and off ten times with `a1` typed after each (the REM alternates `a!` and `A1`), Shift+F1 (`CHR$(`), BREAK stopping `RUN`, then `LIST`. Added in v1.5.0 (step 4.11a). |
+| `mz700_monitor_typing` | 650 | none (monitor only); `keys/mz700_monitor_typing.keys` | Typing at the 1Z-013A prompt: `M1200` writes two bytes, BREAK ends it, `D1200` shows them and BREAK stops the dump, then a line of lowercase and shifted symbols is left unentered. SHIFT types GRAPH glyphs there today (B15, [#6](https://github.com/sgillon/MZRaku/issues/6)), so a B15 fix changes this golden. Added in v1.5.0 (step 4.11a). |
 
 ### MZ-80A
 
@@ -140,6 +143,8 @@ Software paths are relative to `_mz-information-repository/`.
 | `mz80a_music` | 1400 | BASIC; `keys/mz80a_music.keys` | As `mz700_music`, on SA-5510. Covers the pitch and note-duration fixes. |
 | `mz80a_typing` | 1520 | BASIC; `keys/mz80a_typing.keys` | As `mz700_typing`, with GRPH. With the authentic inverted shift, keywords are typed in lowercase and arrive as capitals. |
 | `mz80a_settings` | 200 | `--settings=presets/mz80a_white.ini` | The monitor, run with a minimal settings file that turns the green screen off, so the frame is white on black. Nothing may be written (see Settings presets). Added in v1.5.0. |
+| `mz80a_keys` | 2020 | BASIC; `--settings=presets/keys_overrides.ini`; `keys/mz80a_keys.keys` | As `mz700_keys`, in SA-5510 (keywords typed lowercase): CLR ten times (Shift+Home and the F6 override), cursor left with and without Shift (SA-1510's left is SHIFT+right, so both arrive shifted), the F7 override as HOME under PC Shift (the line reads `AQZ`), GRPH (F11) on and off ten times with `a1` after each, BREAK stopping `RUN`, then `LIST`. Added in v1.5.0 (step 4.11a). |
+| `mz80a_monitor_typing` | 660 | none (monitor only); `keys/mz80a_monitor_typing.keys` | Typing at the SA-1510 prompt: an entered line that isn't a command (SA-1510 has only J, L, F and B), then a line of lowercase and shifted symbols left unentered. Added in v1.5.0 (step 4.11a). |
 | `mz80a_insert` | 600 | `--insert=MZ-80A/Software/NEW-INVADERS-80A.mzf`; `keys/mz80a_insert.keys` | Insert cassette + SA-1510's `L` (typed lowercase: the inverted shift makes it a capital), which calls the tape read code directly; the traps at $04CF (header) and $04EF (data) serve it and the monitor runs the game to its title screen. Added in v1.5.0. |
 | `mz80a_insert_basic` | 1200 | BASIC; `--insert=MZ-80A/Software/WORLD-CUP-80A.mzf`; `keys/mz80a_insert_basic.keys` | Insert cassette + SA-5510's own `LOAD` through the same traps (data to $505C, where LOAD points $1104; BASIC relinks the lines itself), then `RUN` to the team list. Added in v1.5.0. |
 | `mz80a_save` | 1100 | BASIC; `keys/mz80a_save.keys` | SA-5510 `SAVE "TEST"` of a one-line program, through the traps in SA-1510's tape write: the RECORD.PLAY wait ($0447) is skipped and the block taken at the leader ($045E). The saved file is kept as `.save.mzf` and compared byte for byte; the screen shows `Writing TEST` and BASIC back at Ready. Added in v1.5.0. |
@@ -166,6 +171,7 @@ Software paths are relative to `_mz-information-repository/`.
 | `egg_basic` | 1500 | `egg.zip`, built by the harness from `MZ-800/Software/BASIC programs/EGG/EGG.BAS.mzf` and `EGG.OBJ.mzf` | A BASIC program on tape: boots BASIC and runs it with `LOAD` + `RUN`, then the program's named `LOAD` of the second file from the same tape |
 | `mz800_typing` | 1520 | BASIC; `keys/mz800_typing.keys` | As `mz700_typing`, on 1Z-016 BASIC, adding ALPHA and an F-key |
 | `mz800_save` | 1100 | BASIC; `keys/mz800_save.keys` | 1Z-016 `SAVE "TEST"` of a one-line program: the RECORD.PLAY wait is skipped and the block taken at BASIC's tape-write body ($3858). The saved file is kept as `.save.mzf` and compared byte for byte; the screen shows `Writing "TEST"` and BASIC back at Ready. Added in v1.5.0. |
+| `mz800_keys` | 2000 | BASIC; `--settings=presets/keys_overrides.ini`; `keys/mz800_keys.keys` | As `mz700_keys`, in 1Z-016. The golden as first approved shows the shift lock race: two of the ten Shift+F12 presses are missed, so the REM doesn't alternate. Added in v1.5.0 (step 4.11a). |
 
 ## Approving goldens
 
@@ -179,7 +185,9 @@ commit, cases and why).
 - `_regression/out/` holds the latest run.
 
 The v1.4.0 baseline is commit a80994a: all 27 cases approved on
-clean `main`. v1.5.0 adds cases as its fixes and features land (`mz700_insert`, `mz700_insert_basic`, `mz700_save`, `mz80a_cricket`, `mz80a_settings`, `mz80a_insert`, `mz80a_insert_basic`, `mz80a_save`, `mz800_split_roms`, `mz800_save`, `mz700_speed2`, `mz800_speed4`).
+clean `main`. v1.5.0 adds cases as its fixes and features land (`mz700_insert`, `mz700_insert_basic`, `mz700_save`, `mz80a_cricket`, `mz80a_settings`, `mz80a_insert`, `mz80a_insert_basic`, `mz80a_save`, `mz800_split_roms`, `mz800_save`, `mz700_speed2`, `mz800_speed4`,
+`mz700_keys`, `mz700_monitor_typing`, `mz80a_keys`,
+`mz80a_monitor_typing`, `mz800_keys`).
 
 ## Adding a case
 

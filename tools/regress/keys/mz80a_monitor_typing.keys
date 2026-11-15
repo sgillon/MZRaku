@@ -1,0 +1,9 @@
+# Typing at the SA-1510 monitor prompt, which only the tape cases touched.
+# SA-1510 letters: unshifted PC keys give capitals and Shift gives
+# lowercase (see mz80a_insert.keys).
+# SA-1510's commands are only J, L, F and B, so a line that isn't one
+# just gets a fresh prompt.
+150 type "qwertyuiop QWERTYUIOP 1234567890"
+406 key Return
+# A line with lowercase and shifted symbols, left unentered.
+434 type "QABC abc 123 !\"#$%&'()=@[]"
