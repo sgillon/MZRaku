@@ -5,7 +5,7 @@ result against an approved "golden" copy. The emulator is
 frame-deterministic, so an unchanged build reproduces every golden
 byte for byte. Any difference means behaviour changed.
 
-There are 44 cases: 12 on the MZ-700, 13 on the MZ-80A and 19 on the
+There are 45 cases: 12 on the MZ-700, 13 on the MZ-80A and 20 on the
 MZ-800. The authoritative list is the `CASES` table in `regress.py`.
 This page explains each case and what it uses, so **keep it in step
 with that table.**
@@ -32,7 +32,7 @@ python tools/regress/regress.py --headless   run through the headless runner ins
   builds the runner rather than the app, and `--no-build` works as
   before. Goldens are approved from the app only, so it refuses
   `--approve`.
-- The last line reads `44/44 cases match golden`. A failing case
+- The last line reads `45/45 cases match golden`. A failing case
   prints `DIFF` with what differed, or `FAIL` if it produced no
   output or timed out.
 
@@ -172,6 +172,7 @@ Software paths are relative to `_mz-information-repository/`.
 | `mz800_typing` | 1520 | BASIC; `keys/mz800_typing.keys` | As `mz700_typing`, on 1Z-016 BASIC, adding ALPHA and an F-key |
 | `mz800_save` | 1100 | BASIC; `keys/mz800_save.keys` | 1Z-016 `SAVE "TEST"` of a one-line program: the RECORD.PLAY wait is skipped and the block taken at BASIC's tape-write body ($3858). The saved file is kept as `.save.mzf` and compared byte for byte; the screen shows `Writing "TEST"` and BASIC back at Ready. Added in v1.5.0. |
 | `mz800_keys` | 2000 | BASIC; `--settings=presets/keys_overrides.ini`; `keys/mz800_keys.keys` | As `mz700_keys`, in 1Z-016. Added in v1.5.0 (step 4.11a), when it missed two of the ten Shift+F12 presses; special and override keys are now staged behind SHIFT, as on the MZ-700, and the REM alternates. |
+| `mz800_monitor_typing` | 680 | none (IPL, then monitor); `keys/mz800_monitor_typing.keys` | As `mz700_monitor_typing`, at 9Z-504M, the MZ-700-mode monitor that M at the IPL menu starts. SHIFT types GRAPH glyphs there today (B15, [#6](https://github.com/sgillon/MZRaku/issues/6)). Added in v1.5.0 (step 4.11a). |
 
 ## Approving goldens
 
@@ -187,7 +188,7 @@ commit, cases and why).
 The v1.4.0 baseline is commit a80994a: all 27 cases approved on
 clean `main`. v1.5.0 adds cases as its fixes and features land (`mz700_insert`, `mz700_insert_basic`, `mz700_save`, `mz80a_cricket`, `mz80a_settings`, `mz80a_insert`, `mz80a_insert_basic`, `mz80a_save`, `mz800_split_roms`, `mz800_save`, `mz700_speed2`, `mz800_speed4`,
 `mz700_keys`, `mz700_monitor_typing`, `mz80a_keys`,
-`mz80a_monitor_typing`, `mz800_keys`).
+`mz80a_monitor_typing`, `mz800_keys`, `mz800_monitor_typing`).
 
 ## Adding a case
 

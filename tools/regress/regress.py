@@ -154,6 +154,7 @@ CASES = [
     ("mz800_typing",   ["--mz800", "--basic", "--keys=mz800_typing.keys"], 1520, []),
     ("mz800_save",     ["--mz800", "--basic", "--keys=mz800_save.keys"], 1100, ["save"]),   # 1Z-016 SAVE: .mzf written, back at Ready
     ("mz800_keys",     ["--mz800", "--basic", "--settings=keys_overrides.ini", "--keys=mz800_keys.keys"], 2000, []),   # CLR, overrides, shift lock x10, CHR$( key, BREAK
+    ("mz800_monitor_typing", ["--mz800", "--keys=mz800_monitor_typing.keys"], 680, []),   # 9Z-504M prompt (M at the IPL): M, D, BREAK; B15 shows
 ]
 TEST_SUFFIXES = [".test.png", ".test640.png", ".testscroll.png", ".testsplit.png"]
 

@@ -1,0 +1,22 @@
+# Typing at the 9Z-504M monitor prompt, which only the tape cases touched.
+# M at the IPL menu starts 9Z-504M, the MZ-700-mode monitor.
+150 type "M"
+# M writes $41 $62 at $1200, BREAK (Shift+Esc) ends it, D shows them
+# and BREAK stops the dump.
+188 type "M1200"
+228 key Return
+266 type "41"
+282 key Return
+300 type "62"
+316 key Return
+334 down ShiftKey
+335 key Escape
+343 up ShiftKey
+363 type "D1200"
+403 key Return
+431 down ShiftKey
+432 key Escape
+440 up ShiftKey
+# A line with lowercase and shifted symbols, left unentered.
+# Today SHIFT types GRAPH glyphs here: B15 (issue #6), postponed.
+460 type "QABC abc 123 !\"#$%&'()=@[]"
