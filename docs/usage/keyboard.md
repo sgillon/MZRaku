@@ -1,41 +1,27 @@
 # Keyboard
 
-This page describes the MZ-700. The MZ-80A and MZ-800 work the same
-way, with their own keyboard diagrams in Settings. For the MZ-800's key
-table, status-bar keyboard mode and Font Sheet behaviour, see
-[MZ-800](mz800.md).
+This page covers all three machines. Each machine's guide lists its
+non-character keys (Enter, cursors, BREAK, GRAPH and so on):
+[MZ-700](mz700.md#keyboard), [MZ-80A](mz80a.md#keyboard),
+[MZ-800](mz800.md#keyboard).
 
-By default, the emulator drives the MZ-700 matrix from the **character**
+By default, the emulator drives the MZ keyboard from the **character**
 your PC keystroke produces (after Windows has applied your keyboard
 layout). Type `;` and the MZ sees `;`; type `+` and it sees `+`. Out of
-the box there is nothing to configure — the host OS handles layout,
-AltGr, and dead keys for you, and the emulator translates the resulting
-Unicode character to the corresponding MZ-700 matrix position and shift
-state.
-
-Printable coverage includes the alphanumeric keys, common punctuation,
-and the row-1 brackets/braces `[` `]` `{` `}`. `*` lives on the
-MZ-700's shift-colon key, so typing `*` on the PC keyboard produces `*`
+the box there is nothing to configure — Windows handles layout, AltGr
+and dead keys for you, and the emulator presses the MZ key (with or
+without SHIFT) that types that character. `*`, for example, is SHIFT
+plus the colon key on the MZ-700, so typing `*` on the PC produces `*`
 on the MZ.
 
-Non-character keys are mapped directly:
-
-| PC key | MZ-700 |
-|---|---|
-| Enter | CR |
-| Backspace / Delete | DEL |
-| Insert | INS |
-| Esc | BREAK (use **Shift+Esc** to break a running BASIC program — the manual requires BREAK to be shifted) |
-| Cursor keys | Cursor |
-| Left Ctrl | MZ Ctrl |
-| F1–F4 | F1–F4 |
-| F11 | GRAPH (mode-toggle) |
-| F12 | ALPHA (mode-toggle) |
+The MZ-80A's letters work the other way round from a PC: a letter on
+its own is a capital, and Shift gives a small letter. See
+[MZ-80A](mz80a.md#keyboard) to change that.
 
 ## Editing the mapping
 
-Open **Settings → Keyboard** (or **Ctrl+S → Keyboard tab**). The primary
-view is a clickable diagram of the real MZ-700 keyboard. Each cap shows
+Open **System → Settings → Keyboard** (Ctrl+Shift+K). The primary
+view is a clickable diagram of the current machine's keyboard. Each cap shows
 the PC key(s) currently bound to it as a small blue badge in the top-
 right corner.
 
@@ -70,26 +56,34 @@ shifted glyphs covered to count as reachable.
 When you click **Apply** or **OK**, the dialog lists the unreachable
 keys and asks whether to save anyway. Pick **No** to keep editing.
 
-## Font Sheet — typing GRAPH-mode glyphs
+## Font Sheet
 
-The MZ-700's graphic glyphs have no PC-key equivalent. When S-BASIC
-enters GRAPH mode (press the GRAPH key — defaults to **F11**), the
-**Font Sheet** window pops up automatically. It shows all 512 glyphs
-(two banks of 256) at 3× scale.
+The MZ machines' graphic characters have no PC key. The **Font Sheet**
+(**View → Font Sheet…**, Ctrl+G) shows every character in the
+character ROM, and in BASIC you can click one to type it. On the
+MZ-700 and MZ-800 it also opens by itself when BASIC enters GRAPH mode
+(the GRAPH key, F11).
 
-The keyboard types bank-0 (top) glyphs only. The cells it can type are
-outlined: **green** for ALPHA mode, **blue** for GRAPH mode. Click an
-outlined glyph to type it; if it needs the other mode, the status line
-says which key to press first. While S-BASIC is running the outlines
-follow BASIC's own key tables, including the shifted GRAPH glyphs;
-before BASIC loads they follow the monitor ROM's.
+- **MZ-700 and MZ-800:** two banks of 256 characters. The keyboard
+  types only the top bank; programs show the bottom one by setting
+  bit 7 of the character's colour.
+- **MZ-80A:** 256 characters, in a Text half and a Graphics half. The
+  keyboard reaches both.
 
-Bank-1 (bottom) glyphs can't be typed on a real MZ-700 either: programs
-show them by setting bit 7 of the character's colour attribute. Clicking
-one says so.
+**Click-to-type works in BASIC** (S-BASIC on the MZ-700, 1Z-016 on the
+MZ-800, SA-5510 on the MZ-80A). While BASIC is running, the characters
+its keyboard can type are outlined: **green** for normal (ALPHA) mode,
+**blue** for GRAPH mode only. Click one to type it. If it needs the
+other mode, the click switches mode, types it and switches back, so
+BASIC stays in the mode it was in. Outside BASIC, a click just names
+the character's code.
 
-The Font Sheet is also always available from **View → Font Sheet…**
-(**Ctrl+G**) so you can browse glyphs in ALPHA mode too.
+**Characters no key types (MZ-700).** Click one and the line below the
+sheet shows the BASIC that puts it on screen: `PRINT CHR$(n)` where
+S-BASIC has a code for it, otherwise two `POKE`s that write it and its
+colour straight into screen memory (for example
+`POKE 53248,n:POKE 55296,113`). **Type** types that line for you,
+without CR, so you can check it or add to it before pressing Enter.
 
 ## Import / Export
 
@@ -122,9 +116,9 @@ immediately; Apply / OK still gates persistence.
 
 ## Advanced — matrix grid
 
-The Settings → Keyboard tab has an **Advanced — matrix grid** expander
-underneath the diagram. It exposes the raw 10×8 MZ-700 keyboard matrix
-with live highlight of which bits are currently asserted. Click a
+The **Advanced settings…** button under the diagram opens the machine's
+raw keyboard matrix (10 rows of 8 keys), with the keys currently
+pressed highlighted live. Click a
 matrix cell to edit the character binding for that specific
 `(row, col, shift)` slot. It's the same character editor the diagram
 uses; the matrix view is just an alternative entry point for slot-by-
@@ -132,41 +126,28 @@ slot work.
 
 ## Known limitations
 
-The Keyboard tab in Settings surfaces the same two items as a small
-panel; this section is the long-form companion.
+The Keyboard tab in Settings lists the first of these.
 
-- **MZ-shift assertion race on rapid char-driven input.** When the same
-  key fires repeatedly, the MZ shift bit doesn't always reach the matrix
-  before the key bit does, so the press registers as if shift wasn't
-  held. The clearest case today: repeatedly hitting the PC `'` key
-  produces an intermittent `7` instead of `'`, and shifted produces an
-  intermittent `'` instead of `@`. Pre-existing for shifted alphabetics
-  too, but the MZ-700's uppercase default font hides it (`P` and `p`
-  look the same on screen). Cosmetic in practice — it's never produced
-  a wrong-keyword error in BASIC for us.
-- **Left and Right PC Ctrl not distinguished.** Both PC Ctrl keys fire
-  MZ Ctrl. Telling them apart on Windows needs a `WndProc` read of the
-  lParam bit-24 (the "extended key" flag), which we haven't plumbed
-  yet — the keyboard editor therefore can't bind them to separate MZ
-  slots. Niche; will revisit if a user needs the distinction.
+- **Left and Right PC Ctrl aren't told apart.** Both press MZ CTRL,
+  so the keyboard editor can't bind them to different MZ keys.
+- **MZ CTRL plus a letter can't be typed.** PC Ctrl+letter combinations
+  are MZRaku's own shortcuts (Ctrl+R resets, Ctrl+B loads BASIC, and
+  so on).
 
-## Where bindings live
+## Where your changes are kept
 
-| Layer | File location | What it stores |
+Your changes are saved in `settings.ini`, separately from the built-in
+mapping, and always win over it. **Reset** on a key removes your
+change and brings the built-in one back.
+
+| Machine | Character keys | Other keys |
 |---|---|---|
-| Built-in char defaults | `Core/MZ700/Mz700CharMap.cs` | PC character → MZ slot for printables |
-| Built-in VK defaults | `Core/MZ700/Mz700SpecialKeyMap.cs` | PC virtual key → MZ slot for non-printables |
-| User char overrides | `[CharMap]` in `settings.ini` | Your changes to the char defaults |
-| User VK overrides | `[KeyOverrides.MZ700]` in `settings.ini` | Your changes to the VK defaults |
-| Portable export | `*.mzkbd` (anywhere) | Snapshot of just your overrides |
+| MZ-700 | `[CharMap]` | `[KeyOverrides.MZ700]` |
+| MZ-80A | `[CharMap.MZ80A]` | `[KeyOverrides.MZ80A]` |
+| MZ-800 | `[CharMap.MZ800]` | `[KeyOverrides.MZ800]` |
 
-The user override layers are consulted ahead of the built-in defaults,
-so any edit you make in the dialog wins at runtime.
-
-The table shows the MZ-700. The MZ-80A and MZ-800 follow the same
-pattern: `Mz80aCharMap.cs` / `Mz80aSpecialKeyMap.cs` in `Core/MZ80A/`
-with `[CharMap.MZ80A]` / `[KeyOverrides.MZ80A]`, and likewise
-`Core/MZ800/` with `[CharMap.MZ800]` / `[KeyOverrides.MZ800]`.
+An exported `.mzkbd` file holds just your changes (see
+[Import / Export](#import--export)).
 
 ## Loading BASIC source
 

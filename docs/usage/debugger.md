@@ -22,7 +22,7 @@ execution control and inspection alongside the live emulator.
   Execution stops with `PC` parked on the breakpointed instruction.
 
 BASIC-aware panes (program listing, current line, variable table) are
-planned next — see [Planned future work](../../README.md#planned-future-work).
+planned for later — see [Planned future work](../../README.md#planned-future-work).
 
 See also: [Memory viewer](memory-viewer.md) — the natural companion to
 the debugger.

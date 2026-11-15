@@ -27,9 +27,16 @@ The emulator runs most MZ-700, MZ-80A and MZ-800 software and games, in both BAS
 - The default keyboard layout maps appropriate PC keys to the target machine's character set - e.g. typing a '+' on the PC keyboard will generate a '+' in the emulator, even though those keys are in relatively-different positions on actual hardware. An editor for the keyboard mappings is available under `System → Settings → Keyboard` for all three machines.
 - MZRaku emulates the MZ-700's MZ-1X03 joystick and the MZ-800's two joystick ports via any Windows-recognised game controller. Button mappings can be changed via `System → Settings → Joystick`. The MZ-80A did not ship with a joystick.
 - Text files containing BASIC listings can be loaded on all three machines. These are auto-typed into the emulator at about 6-8 chars per second. (Speeding this up will be a future focus)
-- **New in v1.3.0: the Sharp MZ-800.** All of its display modes (320×200 and 640×200, up to 16 colours, with hardware scrolling), the SN76489 sound chip, the joystick ports, its tape-based MZ-800 BASIC (1Z-016), and MZ-700 machine-code titles running in its MZ-700 mode. See the [MZ-800 guide](docs/usage/mz800.md).
+- Each machine has its own guide: [MZ-700](docs/usage/mz700.md), [MZ-80A](docs/usage/mz80a.md) and [MZ-800](docs/usage/mz800.md).
 
+**New in v1.5.0:**
 
+- BASIC `SAVE` works on all three machines, writing an `.mzf` to a `saves\` folder, and **Insert cassette for LOAD…** now works on the MZ-80A too.
+- The **Font Sheet** types graphic characters on all three machines: click one in BASIC and it's typed, switching mode for you if it needs to. On the MZ-700, characters no key can type come with the BASIC that puts them on screen.
+- **Screenshots** (Ctrl+P), a **volume** control and **mute** (Ctrl+U), and **1× to 4× speed** (System → Speed, or `--speed=N`).
+- New command-line options: `--settings=<ini>` runs with another settings file, `--insert=<cassette>` inserts a tape for the machine's own `LOAD`, and `--keys=<file>` plays a [script of keystrokes](docs/usage/keys-script.md).
+- The MZ-800 ROM can be used as EmuZ-800's three separate files.
+- The keyboard-mode pane on the status bar now works on all three machines, and the bugs parked in earlier releases are fixed, including the one where no keys typed after a keyboard remap until Ctrl+R.
 
 
 ## Quickstart
@@ -59,7 +66,7 @@ You'll need to source the required files yourself (they are widely archived onli
 | `MZ800.ROM` | `roms\` | The MZ-800's 16 KiB combined ROM (MZ-700 monitor, character generator, MZ-800 IPL and monitor). |
 | `1Z-016.mzf` | `basic\` (or `roms\`) | Sharp's MZ-800 BASIC interpreter, supplied on cassette. |
 
-If you have the MZ-800 ROM as three separate files (as EmuZ-800 uses), the [MZ-800 guide](docs/usage/mz800.md#getting-started) shows how to join them into `MZ800.ROM`.
+If you have the MZ-800 ROM as three separate files, as EmuZ-800 uses (`MZ700IPL.ROM`, `FONT.ROM` and `MZ800IPL.ROM`), put those in `roms\` instead: see the [MZ-800 guide](docs/usage/mz800.md#getting-started).
 
 Layout next to `MZRaku.exe`:
 
@@ -122,6 +129,10 @@ Release publishes a single self-extracting `MZRaku.exe` which assumes the .NET 8
 | `<path>.mzf` | Auto-load a cassette image. BASIC programs will auto-load BASIC, then `RUN` will be typed automatically; machine-code images load and start directly. A `.zip` containing an `.mzf`/`.m12`/`.mzt` entry is also accepted (the first cassette entry within the archive is used). |
 | `--display=N` | Override the window scale for this run: `1`, `2`, `3`, or `full`/`fs` for borderless full-screen. settings.ini is not modified — Alt+Enter or the View menu still toggle out of full-screen. |
 | `--scanlines[=on\|off]` | Force the CRT-style scanlines overlay on or off for this run. Without the flag the persisted Settings → Display value wins. Doesn't write back to settings.ini unless you also touch the View → Scanlines toggle or open Settings. |
+| `--settings=<ini>` | Run with another settings file, read-only: nothing this run changes is written back to it (or to `settings.ini`). The title bar names it. |
+| `--insert=<cassette>` | Insert a cassette for the machine's own `LOAD`, as File → Insert cassette for LOAD… does, without loading it for you. |
+| `--keys=<file>` | Play a script of keystrokes, each at a set frame. See [Scripted keys](docs/usage/keys-script.md). |
+| `--speed=N` | Start at `N` times real speed: `1`, `2`, `3` or `4`. Sound is off while it isn't 1×. Without the flag every run starts at 1×; System → Speed changes it. |
 | `--dump=<file>` | At frame 120 (configurable using `--dumpframe` below), dump CPU/PIT/PPI/VRAM state to a text file and exit — useful for offline diagnostics. |
 | `--dumpframe=N` | Override the dump frame number used for `--dump` above. |
 | `--help` (`-h`) | Show usage. |
@@ -138,6 +149,8 @@ MZRaku.exe --mz80a NEW-INVADERS-80A.mzf    # MZ-80A machine-code game
 MZRaku.exe --mz800                         # boot into the MZ-800 IPL boot menu
 MZRaku.exe --mz800 --basic                 # MZ-800 + 1Z-016 BASIC
 MZRaku.exe --mz800 game.mzf                # MZ-800 game (BASIC or machine code)
+MZRaku.exe --speed=4 cricket.mzf           # the same game at 4× speed (no sound)
+MZRaku.exe --basic --insert=game.mzf       # S-BASIC at Ready, tape ready for LOAD
 ```
 
 ## Menu and shortcuts
@@ -153,6 +166,9 @@ Menu bar is `File / System / View / Debug / Help`.
 | System | Machine → MZ-700 / MZ-80A / MZ-800 | — |
 | System | Reset | Ctrl+R |
 | System | Pause emulator | Pause / ScrLk |
+| System | Sound → Mute | Ctrl+U |
+| System | Sound → Volume | — |
+| System | Speed → 1× / 2× / 3× / 4× | — |
 | System | Settings → Startup… | Ctrl+S |
 | System | Settings → ROMs… | Ctrl+Shift+R |
 | System | Settings → Display… | Ctrl+Shift+D |
@@ -161,6 +177,7 @@ Menu bar is `File / System / View / Debug / Help`.
 | View | Display 1× / 2× / 3× | Ctrl+1 / Ctrl+2 / Ctrl+3 |
 | View | Full-screen toggle | Alt+Enter |
 | View | Scanlines toggle | Ctrl+L |
+| View | Save screenshot | Ctrl+P |
 | View | Font Sheet… | Ctrl+G |
 | Debug | Debugger… | Ctrl+D |
 | Debug | Memory Viewer… | Ctrl+M |
@@ -170,7 +187,11 @@ Menu bar is `File / System / View / Debug / Help`.
 
 **Switching machines** — `System → Machine → MZ-700 / MZ-80A / MZ-800` is a one-off switch for the current session: it prompts to restart so the new machine boots cleanly but does **not** rewrite the persisted default. To change the default machine that starts on next launch, use `System → Settings → Startup → Default machine`. On the command line, `--mz700` / `--mz80a` / `--mz800` overrides the default for that run.
 
-**Insert cassette for LOAD…** (MZ-700 and MZ-800) puts a tape in the machine's cassette deck without resetting, so you can load it with the machine's own command (the monitor's `L`, or `LOAD` in MZ-800 BASIC). Load cassette, by contrast, resets and loads the program for you.
+**Insert cassette for LOAD…** puts a tape in the machine's cassette deck without resetting, so you can load it with the machine's own command (the monitor's `L`, or BASIC's `LOAD`). Load cassette, by contrast, resets and loads the program for you.
+
+**BASIC `SAVE`** writes the program as an `.mzf` in a `saves\` folder next to `MZRaku.exe`. **Save screenshot** (Ctrl+P) writes a PNG to a `screenshots\` folder, at the machine's own resolution.
+
+**Speed** runs the whole machine 2, 3 or 4 times faster, for skipping through slow loading screens or long BASIC runs. Sound is off while it isn't 1×, and the status bar shows the speed. It isn't saved: every run starts at 1× unless `--speed=N` says otherwise.
 
 You can also drag and drop an `.mzf`/`.m12`/`.mzt` (or a `.zip` containing one) onto the window. Loading a cassette resets the emulator first, so opening a different program mid-execution will work regardless of whether the old or new program is BASIC or machine code.
 
@@ -182,92 +203,43 @@ ROM and BASIC paths are written relative to the executable when possible (so the
 
 ## Documentation
 
-More detailed topic-by-topic guides can be found under [`docs/usage/`](docs/usage/):
+Guides for using MZRaku are under [`docs/usage/`](docs/usage/):
 
-- [MZ-800](docs/usage/mz800.md) — what's specific to the MZ-800: loading, keyboard and status bar, display modes and the MZ-1R25 VRAM expansion, sound, joystick, limitations.
+- [MZ-700](docs/usage/mz700.md), [MZ-80A](docs/usage/mz80a.md) and [MZ-800](docs/usage/mz800.md) — one guide per machine: the files it needs, loading and saving, its keys, status bar, display, sound, joystick and limitations.
+- [Keyboard](docs/usage/keyboard.md) — how PC keystrokes reach the MZ; the per-key editor in Settings; the Font Sheet for graphic characters; Import / Export `.mzkbd`; loading `.bas` source files.
+- [Joystick](docs/usage/joystick.md) — the MZ-700's MZ-1X03 and the MZ-800's joystick ports, driven from any Windows-recognised game controller.
+- [Scripted keys](docs/usage/keys-script.md) — the `--keys=<file>` script format.
+- [Launcher setup](docs/usage/launcher-setup.md) — wiring MZRaku into Launchbox (and other launchers to come).
 - [Debugger](docs/usage/debugger.md) — execution control, register view, disassembly pane, breakpoints.
 - [Memory viewer](docs/usage/memory-viewer.md) — live hex / ASCII view of the 64K address space with PC and SP highlighting.
 - [HID Diagnostic](docs/usage/hid-diagnostic.md) — live view of host keyboard / joystick input and the resolved keyboard matrix state of the active machine.
-- [Keyboard](docs/usage/keyboard.md) — how host keystrokes are mapped to the MZ-700 matrix; per-key editor in Settings; Font Sheet for
-  GRAPH glyphs; Import / Export `.mzkbd`; loading `.bas` source files.
-- [Joystick](docs/usage/joystick.md) — MZ-1X03 (MZ-700) and MZ-800 joystick emulation driven from any Windows-recognised game controller.
-- [Hardware notes](docs/usage/hardware-notes.md) — MZ-700 hardware quirks the code learned the hard way (PIT topology, $E008, etc.).
-- [Launcher setup](docs/usage/launcher-setup.md) — wiring MZRaku into Launchbox (and other launchers to come).
-- [Project history](docs/history.md) — chronological record of major changes and architectural decisions, for the curious or for
-  future-maintainer orientation.
 
-## Project layout
+For anyone working on the code, [`docs/developer/`](docs/developer/) explains how it fits together:
 
-```
-Z80Core/         Separate class-library project (Z80Core.dll) — Z80 CPU
-                 core (main, ED, CB, IX/IY prefixes) and a standalone
-                 disassembler. Pure net8.0, no WinForms, no MZ-700-
-                 specific code; reusable for other Z80 machines.
-Core/            The emulation core (MZRaku.Core.dll). Pure net8.0, no
-                 WinForms, so any front end can use it:
-  Machines/        IMachine, the shared machine base, MachineType.
-  MZ700/           One folder per machine: the machine class plus its
-  MZ80A/           memory map, I/O bus, video, keyboard (char map,
-  MZ800/           special-key map, matrix reference, layout) and
-                   cassette traps. MZ800/ also has the joystick ports.
-  Devices/         Chips shared by the machines: 8255 PPI, 8253 PIT,
-                   Z80 PIO, SN76489 PSG, sound, the MZ-1X03 joystick.
-  Keyboard/        Machine-independent keyboard pieces: overrides,
-                   .mzkbd files, auto-typer, matrix checks.
-  Tape/            .mzf images, cassette + zip loading, tape traps.
-  Host/            What a front end supplies: frames, audio output,
-                   host keys, joystick input.
-  Session/         EmulatorSession (creates and runs the machine),
-                   boot-time auto-load, settings.ini, scripted keys,
-                   --dump output.
-UI/              All WinForms surfaces, grouped by feature area:
-  Keyboard/        Diagram, per-key + per-VK editor, matrix grid,
-                   capture controls — the diagram-first editing flow
-                   in Settings → Keyboard plus the advanced child.
-  Debugger/        DebuggerForm, MemoryViewer.
-  Diagnostics/     HID Diagnostic + Font Sheet + Sound Diagnostic —
-                   live observation windows (Debug menu, plus Font
-                   Sheet under View).
-  Settings/        SettingsForm tabs + Joystick button capture
-                   dialog.
-  AboutForm.cs     Help → About dialog (icon, version, build date).
-  SmoothControls.cs  Double-buffered Label / ListBox / TableLayout
-                   subclasses shared by the debugger windows.
-Platform/        Windows audio (WinMM wave out) and joystick input.
-MainForm.cs      Window, menu, display and the frame timer; drives the
-                 session.
-Program.cs       Main entry point + CLI argument parsing.
-tools/           Developer tools: MZRakuHeadless (runs the core with
-                 no window), the regression suite (regress/), and
-                 small .mzf / ROM helpers.
-docs/usage/      Topic-by-topic usage docs.
-roms/            (You supply) Monitor ROM + character generator.
-basic/           (You supply) S-BASIC cassette image.
-games/           Joystick test program (joytest.bas / .mzf).
-```
+- [Architecture](docs/developer/architecture.md) — the projects and folders, the core and its front ends, what happens in a frame.
+- [Keyboard](docs/developer/keyboard.md), [Tape traps](docs/developer/tape-traps.md) and [Hardware notes](docs/developer/hardware-notes.md) — how input, cassettes and each machine's quirks are handled.
+- [Regression suite](docs/developer/regression.md) and [Adding a machine](docs/developer/adding-a-machine.md).
+- [Project history](docs/history.md) — chronological record of major changes and architectural decisions.
 
 ## Known limitations
 
-- **Apply-keyboard regression** — after using Settings → Keyboard to remap a key and clicking Apply/OK, no keys type on the MZ-700 until the machine is reset via Ctrl+R. Present since v1.0.0; workaround is to press Ctrl+R after any keyboard remap. Root cause parked pending a fix-forward investigation.
-- **MZ-only glyphs on MZ-700** — graphics blocks and kana in the MZ-700's bank-1 font aren't reachable from a PC keystroke in the char-driven model — by design. The **Font Sheet** window (View → Font Sheet…, Ctrl+G) will ultimately bridge most of this gap with a click-to-type feature. Bank-0 (ALPHA) click-to-type already works; bank-1 (GRAPH) is parked pending attribute-byte handling.
-- **MZ-80A and MZ-800 Font Sheet is view-only** — the pane renders every glyph but clicks don't type. Click-to-type on these machines will land alongside the MZ-700 bank-1 fix, since all need the same class of display-code → key-slot reverse-map work.
-- **MZ-800 BASIC `SAVE` doesn't work yet** — it waits for a tape that never starts. Planned for v1.4.0.
-- **MZ-800: no floppy disk, Quick Disk or printer** — `LPRINT` / `LLIST` wait forever for a printer. The screen border isn't drawn either.
+- **Tape saves from the monitors aren't supported** — BASIC's `SAVE` works on all three machines, but the MZ-700 and MZ-800 monitors' own save commands don't. On the MZ-800, nor do loading and saving from the MZ-700's S-BASIC run in MZ-700 mode.
+- **Click-to-type works in BASIC only** — the Font Sheet types characters at BASIC's prompt; outside BASIC a click just names the character.
+- **No floppy disk, Quick Disk, printer or plotter** — on the MZ-800, `LPRINT` / `LLIST` wait forever for a printer. The MZ-800's screen border isn't drawn either.
 - **MUSIC tempo rate** is CPU-cycle-derived rather than driven from an emulated oscillator. Ear-correct on both machines; not measurement-precise.
 - **Auto-typed input** (BASIC source paste / command auto-load) runs at around 6–8 chars/sec — fine for short snippets, slow for long listings.
 - **CRT-style scanlines** (Settings → Display) look right in windowed mode but degrade at full-screen scale. A proper filter (with intensity / line-size controls) is planned.
-- **MZ-80A Sound Diagnostic** isn't available yet; opening it on the MZ-80A shows a message saying so. Every other Debug window works on all three machines.
+- **MZ-80A Sound Diagnostic** isn't available; the menu item is greyed out on the MZ-80A. Every other Debug window works on all three machines.
 
 ## Planned future work
 
 Items I'd like to come back to (rough priority order — see [`docs/roadmap.md`](docs/roadmap.md) for the full plan):
 
-- **v1.4.0 settings sweep** — a top-to-tail review of the Settings dialog now that all three machines are in, plus MZ-800 BASIC `SAVE`, a `--settings=<path>` flag for alternative settings files, CPU speed multiplier, screenshots and `.mzf` machine auto-detection.
-- **Apply-keyboard regression fix** — the known bug above.
-- **GRAPH click-to-type on all three machines** — MZ-700 bank-1 attribute-byte handling, plus Font Sheet click-to-type on the MZ-80A and MZ-800.
+- **v1.6.0 MZRakuCLI** — a second, cross-platform build for Windows, macOS and Linux: one window showing the machine, with keyboard, sound and joystick, driven by the command line and `settings.ini`. It starts with a rework of the keyboard layer that both builds will share.
+- **v2.0.0 cross-platform GUI** — the full emulator on macOS and Linux, with the Settings dialog redesigned once there. Whether to build it is decided after MZRakuCLI has been out for a while.
+- **New machines and devices** — the MZ-1500 and Quick Disk, the MZ-80K and MZ-80B, and printers and plotters (the MZ-700's MZ-1P01 plotter and the MZ-800's printer port).
+- **BASIC source editor** — read the live BASIC program out of RAM, render it in an editable text pane, and write edits back.
 - **BASIC-aware debugger panes** — program lister with de-tokenised output, current-line indicator, variable-table reader.
-- **BASIC source editor pane** — read the live BASIC program out of RAM, render it in an editable text pane, and write edits back.
-- **Printers and plotters** — the MZ-700's MZ-1P01 plotter and the MZ-800's printer port.
 
 
 ## License

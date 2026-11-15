@@ -6,9 +6,10 @@ are supported (slot 0 → MZ stick 1, slot 1 → MZ stick 2).
 
 The input bridge uses the WinMM `joyGetPosEx` API rather than XInput,
 so non-XInput pads (older PC gamepads, USB SNES adapters, bare PS3/PS4
-pads, etc.) are picked up too. When a controller is connected the
-status bar shows e.g. `Joy: 1[X128 Y128]`; without a controller, $E008
-returns "idle / not pressed" so games like Space Panic boot normally.
+pads, etc.) are picked up too. With no controller connected the
+sticks read as "not pressed", so games like Space Panic start
+normally. **Debug → HID Diagnostic** shows what each controller is
+sending (see [HID Diagnostic](hid-diagnostic.md)).
 
 - Stick axes drive the 555-monostable pulses on $E008 bits 1-4 during
   the visible portion of the frame. Pulse-low duration is calibrated
@@ -43,7 +44,3 @@ joystick ports (the MZ-1X16) instead. A direction counts once the
 stick is a quarter of the way from centre, and `Button1` / `Button2`
 are the two triggers. See [MZ-800](mz800.md#joystick). The MZ-80A has
 no joystick.
-
-The relevant code: `Core/MZ800/Mz800Joystick.cs` (MZ-800 ports),
-`Core/Devices/Joystick.cs` (MZ-side multiplexing on
-$E008), `Platform/JoystickInput.cs` (WinMM bridge).

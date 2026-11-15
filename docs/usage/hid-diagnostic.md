@@ -1,8 +1,8 @@
 # HID Diagnostic
 
 `Debug > HID Diagnostic…` (Ctrl+H) opens a live view of host input and
-how it lands on the MZ-700 keyboard matrix. Useful for "why isn't this
-key working", verifying joystick button mappings, or watching the
+how it lands on the MZ keyboard matrix, on all three machines. Useful
+for "why isn't this key working", verifying joystick button mappings, or watching the
 GRAPH/ALPHA mode bit flip in real time. The window doesn't grab focus
 on open, so you can keep typing into the emulator and watch the
 diagnostic update.
@@ -22,14 +22,14 @@ Three panes, all refreshed each frame:
   through `CharMap`), or `None` if nothing matched. The resolved
   `(row, col, MzShift)` is shown alongside, with shift recorded as
   ON / OFF / pass-through.
-- **MZ-700 side.** The full 10×8 keyboard matrix as bit rows (`0` =
-  pressed, since the matrix is active-low), with each row's hex byte
-  alongside for at-a-glance reading. Below the grid: the last row the
-  ROM scanned, the `$1170` shift-mirror byte the monitor uses to pick
-  between the shifted and unshifted lookup tables, and the `$0060`
-  mode flag decoded to `ALPHA` / `GRAPH` (only meaningful once S-BASIC
-  is loaded — before that, `$0060` is ROM and the decode is just
-  noise).
+- **MZ machine state.** The full keyboard matrix, 10 rows of 8 bits
+  (`0` = pressed, since the matrix is active-low), with each row's
+  hex byte alongside for at-a-glance reading. Below the grid: the last
+  row the ROM scanned, whether the MZ's SHIFT key is pressed, and the
+  keyboard **mode** the status bar shows (`ALPHA`, `LOCK`, `GRAPH`,
+  or `—` when it can't be known), with the memory it's read from. The
+  MZ-800 adds its display mode. Last, the joystick as the MZ sees it:
+  each stick's position and buttons (the MZ-80A has no joystick).
 
 The window doesn't replay history — it just shows the *most recent*
 event of each kind, so press one key at a time when investigating a

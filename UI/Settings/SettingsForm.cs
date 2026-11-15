@@ -735,10 +735,6 @@ public sealed class SettingsForm : Form
         };
 
         stack.Controls.Add(Item(
-            "Rapid char-driven input can occasionally drop the MZ shift bit, "
-            + "so a shifted character registers unshifted (e.g. repeated '@' "
-            + "may produce ''')."));
-        stack.Controls.Add(Item(
             "Left and Right PC Ctrl are not distinguished — both fire MZ Ctrl. "
             + "The keyboard editor can't currently bind them separately."));
 

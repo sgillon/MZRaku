@@ -155,8 +155,8 @@ sends each character with the key and Shift a UK keyboard would use;
 `key` and `down` send a character only for Return, Back, Tab, Escape
 and Space. Frames must not go backwards, and a command can't start
 before the previous `type` or `key` has let go of its last key. The
-full rules are in `Core/Session/KeyScript.cs`; the user reference,
-`docs/usage/keys-script.md`, comes with v1.5.0's user docs.
+full rules are in `Core/Session/KeyScript.cs`, and the user reference
+is [`docs/usage/keys-script.md`](../usage/keys-script.md).
 
 Scripted keys go through the app's hotkeys first, as real keys do, so
 `Ctrl+R` resets and `Alt+F4` ends the run. The headless runner keeps a
