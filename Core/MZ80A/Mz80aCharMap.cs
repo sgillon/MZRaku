@@ -16,10 +16,10 @@ namespace MZRaku.Core;
 /// startup validator flagging it (see <see cref="Validate"/>).
 ///
 /// MZ-80A text-mode convention: unshifted = UPPERCASE, shifted =
-/// lowercase (opposite of PC). Following the MZ-700 CharMap policy,
-/// PC 'a' and PC 'A' both map to the same unshifted slot (uppercase)
-/// so plain PC typing produces authentic uppercase MZ-80A text. Users
-/// wanting PC-style casing can add per-char overrides.
+/// lowercase (opposite of PC). PC 'a' maps to the unshifted slot (MZ
+/// 'A') and PC 'A' to the shifted one (MZ 'a'), unlike the MZ-700 and
+/// MZ-800, where both go to the unshifted slot. Users wanting PC-style
+/// casing can turn on <see cref="Mz80aKeyboard.InvertLetterShift"/>.
 /// </summary>
 public static class Mz80aCharMap
 {
