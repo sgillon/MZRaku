@@ -468,10 +468,11 @@ internal sealed class AutoLoadOrchestrator
                     // Non-MC without BASIC has no target on MZ-800.
                     // Inject at load address without
                     // jumping so the debugger / memory viewer can
-                    // still see the payload.
+                    // still see the payload. Type 02 is SA-5510's
+                    // program type (MZ-700 S-BASIC saves type 05).
                     _mz800!.Cassette.DirectInject(img, jumpExec: false);
                     _setStatus(img.Type == 0x02
-                        ? $"{img.Filename} is an MZ-700 BASIC program; run it on the MZ-700 machine."
+                        ? $"{img.Filename} is an MZ-80A BASIC program; run it on the MZ-80A machine."
                         : $"Loaded (no exec, type {img.Type:X2}): {img.Filename}");
                 }
             }
