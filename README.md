@@ -223,13 +223,19 @@ For anyone working on the code, [`docs/developer/`](docs/developer/) explains ho
 
 ## Known limitations
 
-- **Tape saves from the monitors aren't supported** — BASIC's `SAVE` works on all three machines, but the MZ-700 and MZ-800 monitors' own save commands don't. On the MZ-800, nor do loading and saving from the MZ-700's S-BASIC run in MZ-700 mode.
-- **Click-to-type works in BASIC only** — the Font Sheet types characters at BASIC's prompt; outside BASIC a click just names the character.
-- **No floppy disk, Quick Disk, printer or plotter** — on the MZ-800, `LPRINT` / `LLIST` wait forever for a printer. The MZ-800's screen border isn't drawn either.
-- **MUSIC tempo rate** is CPU-cycle-derived rather than driven from an emulated oscillator. Ear-correct on both machines; not measurement-precise.
-- **Auto-typed input** (BASIC source paste / command auto-load) runs at around 6–8 chars/sec — fine for short snippets, slow for long listings.
-- **CRT-style scanlines** (Settings → Display) look right in windowed mode but degrade at full-screen scale. A proper filter (with intensity / line-size controls) is planned.
-- **MZ-80A Sound Diagnostic** isn't available; the menu item is greyed out on the MZ-80A. Every other Debug window works on all three machines.
+Each machine's guide lists its own: [MZ-700](docs/usage/mz700.md#known-limitations), [MZ-80A](docs/usage/mz80a.md#known-limitations), [MZ-800](docs/usage/mz800.md#known-limitations). Across MZRaku as a whole:
+
+- **Windows only.** MZRaku is a WinForms app. A cross-platform build, MZRakuCLI, is planned for v1.6.0.
+- **Tape saves from the monitors aren't supported.** BASIC's `SAVE` works on all three machines; the MZ-700 and MZ-800 monitors' own save commands don't. On the MZ-800, the MZ-700's S-BASIC can't load or save tapes in MZ-700 mode either.
+- **No floppy disk, Quick Disk, printer or plotter** on any machine. On the MZ-800, `LPRINT` and `LLIST` wait forever for a printer, and the screen border isn't drawn.
+- **Font Sheet click-to-type works in BASIC only.** Outside BASIC a click just names the character.
+- **Typed BASIC source is slow** (Load BASIC source), a few characters a second, because each key waits for the ROM to see it.
+- **`MUSIC` timing** comes from a timing constant rather than an emulated oscillator: right by ear on all three machines, not measured to the millisecond.
+- **Two keyboard gaps:** left and right PC Ctrl both press MZ CTRL, and MZ CTRL plus a letter can't be typed, because PC Ctrl+letter keys are MZRaku's own shortcuts. See [Keyboard](docs/usage/keyboard.md#known-limitations).
+- **Sound is off above 1× speed** (System → Speed).
+- **CRT-style scanlines** (View → Scanlines) look right in a window but degrade at full-screen scale. A proper filter, with intensity and line-size controls, is planned for v2.0.0.
+- **No MZ-80A Sound Diagnostic.** The menu item is greyed out on the MZ-80A; every other Debug window works on all three machines.
+- **Upgrading straight from v1.0.x** loses custom `[KeyOverrides]` and explicit `[Roms]` paths in `settings.ini`. Run v1.1.0 or later once first.
 
 ## Planned future work
 
