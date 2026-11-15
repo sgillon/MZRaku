@@ -20,9 +20,11 @@ namespace MZRaku;
 ///
 /// MZ-700: two 16 × 16 sections, one per font bank (attribute bit 7).
 /// S-BASIC's keyboard only produces bank-0 codes, in every mode
-/// (<see cref="Mz700KeyTables"/>), so only bank 0 has outlines. Bank 1
-/// is reached only by a program setting attribute bit 7, so its clicks
-/// just explain that (v1.5 Phase 2.3, issue #3).
+/// (<see cref="Mz700KeyTables"/>), so only bank 0 has outlines (v1.5
+/// Phase 2.3, issue #3). A click on a glyph no key reaches (58 in bank
+/// 0, and all of bank 1) shows the BASIC that puts it on screen, a
+/// <c>PRINT CHR$</c> or two <c>POKE</c>s, in a line below the sheet,
+/// and its Type button types that statement without Enter (v1.5 4.9).
 ///
 /// MZ-80A: two 16 × 8 sections, Text (codes $00–$7F) and Graphics
 /// ($80–$FF), from a single-bank font ROM (no attribute bit-7 select).
@@ -79,6 +81,30 @@ public sealed class FontSheetForm : Form
         ForeColor = SystemColors.GrayText,
     };
 
+    // MZ-700 only: the BASIC for a glyph no key reaches, and a button to
+    // type it. Read-only but selectable, so it can be copied too.
+    private readonly Panel _statementPanel = new()
+    {
+        Dock = DockStyle.Bottom,
+        Height = 30,
+        Padding = new Padding(8, 3, 8, 3),
+    };
+    private readonly TextBox _statementBox = new()
+    {
+        Dock = DockStyle.Fill,
+        ReadOnly = true,
+        Font = new Font(FontFamily.GenericMonospace, 9f),
+        PlaceholderText = "BASIC for a glyph no key types shows here.",
+    };
+    private readonly Button _typeButton = new()
+    {
+        Dock = DockStyle.Right,
+        Text = "Type",
+        Width = 64,
+        Enabled = false,
+    };
+    private string? _statement;
+
     public FontSheetForm(IMachine machine)
     {
         _mz700 = machine as MZ700;
@@ -127,17 +153,26 @@ public sealed class FontSheetForm : Form
         scroll.Controls.Add(_pic);
 
         // Docking order matters: Fill panel added first, then Top/Bottom
-        // bars — otherwise the Fill claims the whole client area.
+        // bars — otherwise the Fill claims the whole client area. The
+        // statement line, added before the status label, sits above it.
         Controls.Add(scroll);
+        if (_mz700 != null)
+        {
+            _statementPanel.Controls.Add(_statementBox);
+            _statementPanel.Controls.Add(_typeButton);
+            _typeButton.Click += OnTypeStatement;
+            Controls.Add(_statementPanel);
+        }
         Controls.Add(_statusLabel);
         Controls.Add(_headerLabel);
 
         int totalRows = 0;
         foreach (var s in _sections) totalRows += s.RowCount;
         int gapCount = _sections.Count;
+        int bars = _headerLabel.Height + _statusLabel.Height + (_mz700 != null ? _statementPanel.Height : 0);
         ClientSize = new Size(
             MarginPx + CellsPerRow * CellPx + 24,
-            MarginPx * gapCount + totalRows * CellPx + BankGapPx * (gapCount - 1) + _headerLabel.Height + _statusLabel.Height + 16);
+            MarginPx * gapCount + totalRows * CellPx + BankGapPx * (gapCount - 1) + bars + 16);
 
         RedrawSheet();
     }
@@ -219,6 +254,7 @@ public sealed class FontSheetForm : Form
             return;
         }
 
+        ShowStatement(null);
         int? liveMode = BasicMode();
         if (liveMode == null)
         {
@@ -230,8 +266,10 @@ public sealed class FontSheetForm : Form
         // to set attribute bit 7. (The MZ-80A's sections aren't banks.)
         if (sectionIndex != 0 && _mz80a == null)
         {
-            _statusLabel.Text =
-                $"Bank 1 ${code:X2} can't be typed: programs set attribute bit 7.";
+            if (ShowStatement(_mz700?.KeyTables.BasicStatementFor(code, 1)))
+                _statusLabel.Text = $"Bank 1 ${code:X2}: no key types it; BASIC below.";
+            else
+                _statusLabel.Text = $"Bank 1 ${code:X2} can't be typed: programs set attribute bit 7.";
             return;
         }
 
@@ -252,7 +290,9 @@ public sealed class FontSheetForm : Form
         int other = mode == 2 ? 0 : 2;
         if (FindKey(code, other) is not { } otherKey)
         {
-            _statusLabel.Text = $"Code ${code:X2} isn't reachable from the keyboard.";
+            _statusLabel.Text = ShowStatement(_mz700?.KeyTables.BasicStatementFor(code, 0))
+                ? $"Code ${code:X2}: no key types it; BASIC below."
+                : $"Code ${code:X2} isn't reachable from the keyboard.";
             return;
         }
         Press(ModeKey(other));
@@ -264,6 +304,41 @@ public sealed class FontSheetForm : Form
 
     // The mode the auto-typer's queue will leave BASIC in (see OnCellClick).
     private int? _queuedFromMode;
+
+    // Puts a statement in the line below the sheet (null clears it).
+    // True when there was one to show.
+    private bool ShowStatement(string? statement)
+    {
+        _statement = statement;
+        _statementBox.Text = statement ?? "";
+        _typeButton.Enabled = statement != null;
+        return statement != null;
+    }
+
+    // Types the shown statement, without Enter, in ALPHA mode: from GRAPH
+    // ALPHA selects it, from shift lock SHIFT+ALPHA does (letters would
+    // otherwise come out in the other case), and the mode key for where
+    // BASIC was puts it back. Like a click, it works from the mode the
+    // auto-typer's queue will end in.
+    private void OnTypeStatement(object? sender, EventArgs e)
+    {
+        if (_statement == null || _mz700 == null) return;
+        int? liveMode = BasicMode();
+        if (liveMode == null)
+        {
+            _statusLabel.Text = $"The statement types only in {BasicName}.";
+            return;
+        }
+        if (TyperIdle) _queuedFromMode = liveMode;
+        int mode = _queuedFromMode ?? liveMode.Value;
+
+        if (mode != 0) Press(mode == 1 ? ShiftLockKey : AlphaKey);
+        _mz700.Keyboard.AutoType.TypeString(_statement);
+        if (mode != 0) Press(ModeKey(mode));
+        _statusLabel.Text = mode == 0
+            ? "Typed the statement: press CR to run it."
+            : $"Typed it via ALPHA, back to {ModeName(mode)}: CR runs it.";
+    }
 
     private readonly record struct Key(int A, int B, bool Shift);
 

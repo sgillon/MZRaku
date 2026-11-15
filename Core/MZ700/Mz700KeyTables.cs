@@ -5,7 +5,8 @@ namespace MZRaku.Core;
 /// <summary>
 /// Reverse lookup from MZ-700 display code to the (row, col, MzShift)
 /// slot that types it in S-BASIC 1Z-013B, per keyboard mode. Feeds the
-/// Font Sheet's click-to-type, which works in BASIC only (v1.5 4.8a).
+/// Font Sheet's click-to-type, which works in BASIC only (v1.5 4.8a),
+/// and gives the BASIC statement for glyphs no key reaches (4.9).
 ///
 /// S-BASIC runs with the monitor ROM banked out and scans the keyboard
 /// with its own tables (found by disassembly, v1.5 Phase 2.3 and 4.8a):
@@ -116,5 +117,33 @@ public sealed class Mz700KeyTables
         // BASIC's tables never change while it runs; build once.
         if (_map.Count == 0) Build(Memory!);
         return _map.TryGetValue((code, mode), out var slot) ? slot : null;
+    }
+
+    // The screen's top-left cell, and S-BASIC's default white on blue.
+    private const int CharRamTopLeft = 0xD000, ColourRamTopLeft = 0xD800;
+    private const int DefaultAttribute = 0x71;
+
+    /// <summary>
+    /// The S-BASIC statement that puts a glyph no key reaches on screen
+    /// (v1.5 4.9), typed whole without Enter so it can be edited first.
+    /// <c>PRINT CHR$(n)</c> where BASIC's ASCII → display table ($0F1C)
+    /// gives the bank-0 code; otherwise the two <c>POKE</c>s into the
+    /// top-left cell's character and colour RAM (attribute bit 7 picks
+    /// the bank, on white on blue). Null for a glyph the keyboard types,
+    /// or while S-BASIC isn't running. A sweep typed and ran every
+    /// statement this returns, and each put its glyph on screen.
+    /// </summary>
+    public string? BasicStatementFor(byte code, int bank)
+    {
+        if (!SBasicRunning()) return null;
+        if (bank == 0)
+        {
+            if (FindByDisplayCode(code, 0) != null || FindByDisplayCode(code, 2) != null) return null;
+            for (int ascii = 0x20; ascii <= 0xFF; ascii++)
+                if (Memory!.Ram[SBasicAsciiToDisplay + ascii - 0x20] == code)
+                    return $"PRINT CHR$({ascii})";
+        }
+        int attribute = (bank == 0 ? 0 : 0x80) | DefaultAttribute;
+        return $"POKE {CharRamTopLeft},{code}:POKE {ColourRamTopLeft},{attribute}";
     }
 }

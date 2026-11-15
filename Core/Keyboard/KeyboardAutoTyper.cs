@@ -82,7 +82,11 @@ public sealed class KeyboardAutoTyper
     /// <summary>True when nothing is queued or in progress.</summary>
     public bool Idle => _phase == AutoPhase.Idle && _typeQueue.Count == 0;
 
-    internal void TypeString(string s)
+    /// <summary>
+    /// Queue a string, one char-map press per character ('\r' or '\n'
+    /// presses CR). Characters the char map doesn't have are skipped.
+    /// </summary>
+    public void TypeString(string s)
     {
         foreach (char ch in s) TypeChar(ch);
     }

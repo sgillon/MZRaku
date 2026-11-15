@@ -215,8 +215,17 @@ At the 1Z-016 `Ready` prompt:
       MZ-80A are new in v1.5.0; outside BASIC the MZ-700 and MZ-80A
       no longer type.
 - [ ] MZ-700 and MZ-800: all 512 glyphs render; bank 1 has no
-      outlines, and a click there says it can't be typed. Pressing
-      GRAPH (F11) opens the sheet.
+      outlines. Pressing GRAPH (F11) opens the sheet. MZ-800: a bank-1
+      click says it can't be typed.
+- [ ] MZ-700, in S-BASIC: click a bank-0 cell with no outline (e.g.
+      $C7) → the line below the sheet shows `PRINT CHR$(96)`; a
+      bank-0 cell like $C1, or any bank-1 cell → two `POKE`s (53248 /
+      55296, attribute 113, or 241 for bank 1). Type → the statement
+      appears at the cursor, without Enter; CR runs it and the glyph
+      appears (PRINT: on the next line; POKE: top-left, white on blue).
+      Repeat from GRAPH and from shift lock → it still types in
+      capitals and the mode pane ends where it started. A green or
+      blue click clears the line. New in v1.5.0.
 - [ ] MZ-80A: two sections labelled Text ($00-$7F) and Graphics
       ($80-$FF) render, outlined in both.
 
