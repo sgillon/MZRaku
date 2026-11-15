@@ -289,9 +289,9 @@ internal sealed class HidDiagnosticForm : DiagnosticFormBase
         {
             // MZ-80A has no MZ-1X03-equivalent hardware. Placeholder
             // makes the section forward-compatible with the planned
-            // v1.3.0 joystick-to-key mapping.
+            // joystick-to-key mapping (roadmap: v2.0.0 settings work).
             sb.AppendLine("  MZ-80A: no hardware joystick emulation.");
-            sb.AppendLine("  Planned: joystick → key mapping (v1.3.0 roadmap).");
+            sb.AppendLine("  Planned: joystick → key mapping (v2.0.0 roadmap).");
         }
         return sb.ToString();
     }
