@@ -225,8 +225,9 @@ public sealed class MZ700 : MzMachineBase, IMachine
 
         Pit.Tick(c0, c1);
 
-        // 555/556 cursor-osc derived TEMPO signal — toggle TempoBit at
-        // ~100 Hz off the CPU clock so MUSIC duration matches real hardware.
+        // 555/556 cursor-osc derived TEMPO signal — toggle TempoBit every
+        // CyclesPerTempoToggle CPU cycles (≈ 33.3 Hz square wave) so
+        // MUSIC duration matches real hardware.
         _tempoAccum += cpuCycles;
         while (_tempoAccum >= CyclesPerTempoToggle)
         {

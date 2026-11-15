@@ -247,6 +247,11 @@ copied SHIFT into $1170, but that byte is the monitor's GRAPH flag, so
 SHIFT typed GRAPH glyphs at the monitor prompt and GRAPH dropped after
 one key (B15, issue #6). Every ROM reads SHIFT from the matrix.
 
+One loading path outside the keyboard does write keys into RAM: when
+the MZ-800 autoloads a BASIC tape, `MZ800.TypeIntoBasic` puts `LOAD`
+and `RUN` straight into 1Z-016's key buffer, which BASIC reads when it
+first waits for a key (see [`tape-traps.md`](tape-traps.md)).
+
 What the keyboard code reads, for the mode panes and the Font Sheet:
 
 | Address | Machine | What it is |

@@ -12,9 +12,8 @@ namespace MZRaku.Core;
 ///   $EB54: CALL $04D8   — read header (128 bytes into $10F0)
 ///   $EB6D: JP  $04F8    — read data  (size + load addr from header)
 /// then (on success) JP to $E99D, which runs the program from the
-/// header's exec address. MZ-700's L handler reads data from inside
-/// $04D8, so it needs one trap; 1Z-016B does the two reads separately,
-/// so $04F8 is trapped too or the second read spins on real hardware.
+/// header's exec address. Both reads are trapped, as on the MZ-700;
+/// an untrapped data read would spin waiting for a real tape.
 /// $0436 is the SAVE header routine (inline text "WRITING" at $0467),
 /// not a LOAD entry.</para>
 ///

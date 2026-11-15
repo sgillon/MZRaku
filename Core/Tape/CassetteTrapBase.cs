@@ -140,8 +140,9 @@ public abstract class CassetteTrapBase
     /// flag (CY=0 signals success on both SA-1510 and 1Z-013A),
     /// pop the return address off the stack, jump there.
     /// Concrete subclasses call this from their per-trap
-    /// handlers; MZ-700 additionally forces IFF1/IFF2 back on
-    /// because 1Z-013A's tape routines end with EI.
+    /// handlers; the MZ-700 and MZ-800 monitor traps (and the MZ-700
+    /// S-BASIC ones) also force IFF1/IFF2 back on, because those
+    /// routines end with EI.
     /// </summary>
     protected void SynthesiseSuccess()
     {

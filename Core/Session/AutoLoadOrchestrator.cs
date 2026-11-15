@@ -198,12 +198,10 @@ internal sealed class AutoLoadOrchestrator
                 {
                     // BASIC is loaded; direct-inject the program
                     // into RAM at its load address (without jumping)
-                    // and fix up program pointers, mirroring what
-                    // the menu's LoadCassetteFile does. Can't use
-                    // BASIC's LOAD command because S-BASIC bypasses
-                    // the monitor's tape routines (the ones trapped
-                    // at $04D8/$04F8) — its own tape code reads
-                    // PortC bit 5 directly and has no real cassette.
+                    // and fix up program pointers. S-BASIC's own
+                    // LOAD would also work, through its tape traps
+                    // ($0A7A / $0A7E, v1.5 2.6), but would need LOAD
+                    // typed and a wait for it before RUN.
                     var img = MzfImage.Parse(CassetteFile.ReadBytes(_pendingCassette));
                     _mz700!.Cassette.DirectInject(img, jumpExec: false);
                     if (img.Type == 0x02 || img.Type == 0x05)
