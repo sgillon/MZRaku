@@ -431,8 +431,8 @@ stays honest.
 - [ ] README planned-work / known-limitations sections reflect
       what actually shipped.
 - [ ] Framework-dependent zip built:
-      `MZRaku-<version>-dotnet8.zip` (assumes .NET 8 Desktop
-      Runtime on target).
+      `MZRaku-<version>-dotnet10.zip` (assumes .NET 10 Desktop
+      Runtime on target; it was `-dotnet8.zip` up to v1.5.0).
 - [ ] Self-contained zip built:
       `MZRaku-<version>-standalone.zip` (no runtime required).
 - [ ] Both zips extract cleanly to an empty folder and run.

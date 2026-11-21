@@ -22,7 +22,7 @@ SDL), which the core was split out for in v1.4.0.
 ```
                  ┌──────────────────────────┐   ┌───────────────────┐
                  │ MZRaku  (MZRaku.csproj)  │   │ MZRakuHeadless    │
-                 │ net8.0-windows, WinForms │   │ net8.0, console   │
+                 │ net10.0-windows WinForms │   │ net10.0, console  │
                  │  Program, MainForm       │   │ tools/MZRaku-     │
                  │  UI/   Platform/         │   │   Headless/       │
                  └────────────┬─────────────┘   └─────────┬─────────┘
@@ -30,7 +30,7 @@ SDL), which the core was split out for in v1.4.0.
                               ▼                           ▼
                  ┌──────────────────────────────────────────────────┐
                  │ MZRaku.Core  (Core/MZRaku.Core.csproj)           │
-                 │ net8.0, no Windows Forms                         │
+                 │ net10.0, no Windows Forms                        │
                  │  Session/  Machines/  MZ700/ MZ80A/ MZ800/       │
                  │  Devices/  Keyboard/  Tape/  Host/               │
                  └────────────────────────┬─────────────────────────┘
@@ -41,6 +41,10 @@ SDL), which the core was split out for in v1.4.0.
                  │ net8.0: the Z80 CPU and a disassembler           │
                  └──────────────────────────────────────────────────┘
 ```
+
+Z80Core is its own repository and still targets `net8.0`; inside
+MZRaku it runs on the app's .NET 10 runtime. Its own move to .NET 10
+is a later Z80Core release.
 
 | Project | Where | What it is |
 |---|---|---|
