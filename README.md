@@ -2,7 +2,7 @@
 
 # MZRaku
 
-A Sharp MZ-700, MZ-80A and MZ-800 emulator written in C# / .NET 8 (WinForms). The beginning aims of this emulator were:
+A Sharp MZ-700, MZ-80A and MZ-800 emulator written in C# / .NET 10 (WinForms). The beginning aims of this emulator were:
 
 1. Work well enough play the MZ-700 games I remember from my childhood
 2. Be useable from a launcher such as Launchbox or Playnite, taking into account the need for a lot of games to have BASIC present before they can be loaded
@@ -26,8 +26,10 @@ The emulator runs most MZ-700, MZ-80A and MZ-800 software and games, in both BAS
 - If your `.mzf`/`.m12`/`.mzt` files are within .zip archives, these can also be used directly in the same way as above. The emulator will automatically extract the .mzf file from the archive and run it.
 - The default keyboard layout maps appropriate PC keys to the target machine's character set - e.g. typing a '+' on the PC keyboard will generate a '+' in the emulator, even though those keys are in relatively-different positions on actual hardware. An editor for the keyboard mappings is available under `System → Settings → Keyboard` for all three machines.
 - MZRaku emulates the MZ-700's MZ-1X03 joystick and the MZ-800's two joystick ports via any Windows-recognised game controller. Button mappings can be changed via `System → Settings → Joystick`. The MZ-80A did not ship with a joystick.
-- Text files containing BASIC listings can be loaded on all three machines. These are auto-typed into the emulator at about 6-8 chars per second. (Speeding this up will be a future focus)
+- Text files containing BASIC listings can be loaded on all three machines. These are auto-typed into the emulator at a few characters a second. (Speeding this up will be a future focus)
 - Each machine has its own guide: [MZ-700](docs/usage/mz700.md), [MZ-80A](docs/usage/mz80a.md) and [MZ-800](docs/usage/mz800.md).
+
+**New in v1.5.1:** MZRaku now runs on .NET 10, as .NET 8 has reached end of support. The small download (`-dotnet10.zip`) needs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0); the standalone download needs nothing. Your `settings.ini` and `.mzkbd` files carry over unchanged.
 
 **New in v1.5.0:**
 
@@ -94,7 +96,8 @@ One of the primary objectives of MZRaku is to make it much easier to launch MZ-7
 
 The Z80 CPU emulator lives in a separate repo
 ([sgillon/Z80Core](https://github.com/sgillon/Z80Core)) and is
-included here as a git submodule. After cloning:
+included here as a git submodule. Building needs the
+[.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0). After cloning:
 
 ```
 git submodule update --init
@@ -116,7 +119,7 @@ Or once built:
 dotnet publish -c Release -r win-x64 --self-contained false -o publish\MZRaku
 ```
 
-Release publishes a single self-extracting `MZRaku.exe` which assumes the .NET 8 DesktopRuntime is installed on the target machine. Place your ROMs / BASIC alongside the exe as per [Quickstart](#quickstart) above.
+Release publishes a single self-extracting `MZRaku.exe` which assumes the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) is installed on the target machine (add `--self-contained true` for an exe that needs no runtime). Place your ROMs / BASIC alongside the exe as per [Quickstart](#quickstart) above.
 
 ## Command-line options
 

@@ -1608,6 +1608,39 @@ Plan and step-by-step record: `docs/v1.5-plan.md`.
   three machines (45/45 suite), with framework-dependent and
   self-contained zips.
 
+### 2026-11-17 to 2026-11-21 — v1.5.1: .NET 10
+
+.NET 8 reached end of support on 2026-11-10, so the first step of
+v1.6.0 (Phase 0 of `docs/v1.6-plan.md`) moved MZRaku to .NET 10, the
+current LTS release (supported to November 2028), before any
+cross-platform work. It shipped on its own as v1.5.1, with no new
+features, so users of the small zip get a supported runtime without
+waiting for MZRakuCLI.
+
+- **A trial first** (2026-11-17), in a scratch copy: Core and the
+  headless runner moved with no changes; the app hit five WFO1000
+  errors (a new WinForms rule for public properties on custom
+  controls); and the windowed suite stopped at the HostKey startup
+  check's dialog in every instance, filling the screen with them.
+- **Key names** (`67d49ba`). WinForms 10 swapped three alias pairs in
+  `Keys` (`Oem3`/`Oemtilde`, `Oem7`/`OemQuotes`,
+  `OemBackslash`/`Oem102`), so `Keys` formats them differently.
+  Saved key names always came from `HostKey`, which formats the same
+  on both runtimes, so `settings.ini` and `.mzkbd` files don't change.
+  `HostKeyNames` (Core) now pins the saved name of all 16 values that
+  have more than one name; `HostKeyParity` compares names and values
+  only; and in `--dump` runs the startup checks warn on stderr, so the
+  windowed suite can't stop on a dialog again.
+- **Retarget** (`29a092f`): the app, Core, headless runner and tools
+  to `net10.0` / `net10.0-windows`, with the five WFO1000 properties
+  marked as not designer-serialized. Z80Core stays `net8.0` for now
+  (it runs on the app's runtime); its own move is a later Z80Core
+  release. Both suites 45/45 on .NET 10; a scripted load and save of
+  overrides in both spellings kept saved files byte-identical.
+- **v1.5.1 released** on 2026-11-21. The small zip is now
+  `MZRaku-1.5.1-dotnet10.zip` and needs the .NET 10 Desktop Runtime;
+  the standalone zip needs nothing.
+
 ---
 
 ## Architectural decisions worth knowing
@@ -1883,7 +1916,8 @@ automatically; documented here for human reference.
 
 ## Current status
 
-The latest release is **v1.5.0** (2026-11-15): the parked bugs
+The latest release is **v1.5.1** (2026-11-21), which moves MZRaku to
+.NET 10 with no new features. Before it, **v1.5.0** (2026-11-15): the parked bugs
 cleared, then SAVE and Insert cassette on every machine, Font Sheet
 click-to-type in BASIC on all three, screenshots, volume / mute,
 speed, split MZ-800 ROMs, new command-line flags, and the docs split
@@ -1962,6 +1996,8 @@ Tagged releases:
   three; screenshots, volume / mute, 1×–4× speed; split MZ-800 ROMs;
   `--settings`, `--insert`, `--keys`, `--speed`; user and developer
   docs; 45-case regression suite.
+- **v1.5.1** (2026-11-21) — moves to .NET 10 (.NET 8 reached end of
+  support); key names pinned in Core; no new features.
 
 Next, **v1.6.0** adds MZRakuCLI, a cross-platform SDL build on the
 new core, starting with the keyboard rework. See `docs/roadmap.md`.

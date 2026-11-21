@@ -8,7 +8,7 @@ sweeps and any further machines; revised 2026-10-18 to clear the
 parked bugs in v1.5.0 and to make the v2.0.0 GUI depend on how the
 cross-platform CLI build is received; v1.4.0 shipped 2026-10-31
 (tag only); revised 2026-11-01 to bring the docs restructure forward
-into v1.5.0 and move Quick Disk to v2.x; v1.5.0 shipped 2026-11-15.
+into v1.5.0 and move Quick Disk to v2.x; v1.5.0 shipped 2026-11-15; v1.5.1 (.NET 10) shipped 2026-11-21.
 Every placement is expected to move
 as reality lands — this document is the shape, not the contract.
 
@@ -70,6 +70,9 @@ maintained by the AI assistant.
   `--settings` / `--insert` / `--keys` / `--speed`, and the docs split
   into user and developer sets. The regression suite grew to 45
   cases. Detail in the section below and `docs/v1.5-plan.md`.
+- **v1.5.1** (2026-11-21) — moves to .NET 10, the current LTS
+  release, after .NET 8 reached end of support; no new features.
+  Phase 0 of the v1.6.0 plan, shipped on its own.
 
 ## v1.5.0 — features that don't depend on the UI
 
