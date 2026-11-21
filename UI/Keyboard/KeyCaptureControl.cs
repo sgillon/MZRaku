@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -44,6 +45,7 @@ public sealed class KeyCaptureControl : UserControl
     /// captured-key banner. Falls back to the raw enum name when the
     /// source is null or the VK isn't present.
     /// </summary>
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public IReadOnlyDictionary<HostKey, string>? SpecialKeyLabels { get; set; }
 
     private static readonly Dictionary<Keys, string> FriendlyNames = new()
@@ -132,6 +134,7 @@ public sealed class KeyCaptureControl : UserControl
     /// <see cref="Captured"/>. Set false to disable capture without
     /// destroying the control.
     /// </summary>
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public bool Capturing
     {
         get => _capturing;

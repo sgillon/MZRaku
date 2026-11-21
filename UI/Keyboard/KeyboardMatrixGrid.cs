@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
@@ -56,6 +57,7 @@ public sealed class KeyboardMatrixGrid : UserControl
     /// <summary>Show the green corner chyron on slots that have been
     /// pressed since this grid was created (or ResetCoverage was
     /// called). Off by default; tracking happens regardless.</summary>
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public bool ShowCoverage { get; set; }
 
     /// <summary>

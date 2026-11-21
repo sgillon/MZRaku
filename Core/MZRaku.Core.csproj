@@ -1,11 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- The emulation core: machines, devices, keyboard and tape handling,
-       settings and EmulatorSession. Plain net8.0, no Windows Forms, so
+       settings and EmulatorSession. Plain net10.0, no Windows Forms, so
        any front end can use it (the WinForms app today, MZRakuCLI and
        the headless runner next). See docs/v1.4-plan.md, decision D7. -->
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>

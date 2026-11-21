@@ -38,13 +38,13 @@ from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
-BUILD = os.path.join(REPO, "bin", "Debug", "net8.0-windows")
+BUILD = os.path.join(REPO, "bin", "Debug", "net10.0-windows")
 EXE = "MZRaku.exe"
 PROJECT = None   # None = the app (repo root); --headless sets the runner's project
 HEADLESS = False
 # --headless: the console runner (tools/MZRakuHeadless), same arguments.
 HEADLESS_PROJECT = os.path.join(REPO, "tools", "MZRakuHeadless", "MZRakuHeadless.csproj")
-HEADLESS_BUILD = os.path.join(REPO, "tools", "MZRakuHeadless", "bin", "Debug", "net8.0")
+HEADLESS_BUILD = os.path.join(REPO, "tools", "MZRakuHeadless", "bin", "Debug", "net10.0")
 INFO = os.path.join(REPO, "_mz-information-repository")
 REG = os.path.join(REPO, "_regression")
 OUT = os.path.join(REG, "out")

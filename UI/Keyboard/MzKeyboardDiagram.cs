@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
@@ -32,6 +33,7 @@ public sealed class MzKeyboardDiagram : UserControl
     /// Set by the host after building the reverse-lookup index; null /
     /// missing keys render no PC binding label.
     /// </summary>
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public IReadOnlyDictionary<string, string>? PcKeyLabels { get; set; }
 
     /// <summary>
@@ -40,6 +42,7 @@ public sealed class MzKeyboardDiagram : UserControl
     /// keys that have no PC binding (so the user can't press them from
     /// the host keyboard). null or empty = no highlighting.
     /// </summary>
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public ISet<string>? UnreachableKeyIds { get; set; }
 
     /// <summary>
