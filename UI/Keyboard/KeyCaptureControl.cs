@@ -400,7 +400,9 @@ public sealed class KeyCaptureControl : UserControl
 
         if (FriendlyNames.TryGetValue(bare, out var friendly)) return mods + friendly;
         if (SpecialKeyLabels != null && SpecialKeyLabels.TryGetValue((HostKey)bare, out var lbl)) return mods + lbl;
-        return mods + bare.ToString();
+        // Through HostKey, so the banner shows the name saved overrides
+        // use (WinForms Keys formats some aliases differently on .NET 10).
+        return mods + ((HostKey)bare).ToString();
     }
 
     private static string DescribeModifier(Keys bare) => bare switch

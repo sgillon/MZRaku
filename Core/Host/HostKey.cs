@@ -4,21 +4,24 @@ namespace MZRaku.Core;
 /// A host key code plus modifier flags: the core's own copy of
 /// WinForms <c>System.Windows.Forms.Keys</c>, so the emulation doesn't
 /// depend on WinForms (v1.4 design decision D1). Every member has the
-/// same name and value as its <c>Keys</c> twin, declared in the same
-/// order: Windows virtual-key codes in the low 16 bits
-/// (<see cref="KeyCode"/>), and <see cref="Shift"/>,
-/// <see cref="Control"/> and <see cref="Alt"/> above them
-/// (<see cref="Modifiers"/>).
+/// same name and value as its <c>Keys</c> twin: Windows virtual-key
+/// codes in the low 16 bits (<see cref="KeyCode"/>), and
+/// <see cref="Shift"/>, <see cref="Control"/> and <see cref="Alt"/>
+/// above them (<see cref="Modifiers"/>).
 ///
-/// The match matters because key names are saved by name: the
-/// <c>[KeyOverrides.*]</c> sections of <c>settings.ini</c> and
-/// <c>.mzkbd</c> files hold <c>ToString()</c> forms such as <c>F5</c> or
-/// <c>Control, G</c>, and <c>--keys</c> scripts use the names too. The
-/// declaration order matters as well: where two names share a value
-/// (<c>Enter</c> and <c>Return</c>, <c>Prior</c> and <c>PageUp</c>),
-/// it decides which one <c>ToString()</c> picks. A WinForms front end
-/// converts with a cast; other front ends map their own key codes onto
-/// these values. <c>HostKeyParity</c> checks the match at startup.
+/// Key names are saved by name: the <c>[KeyOverrides.*]</c> sections of
+/// <c>settings.ini</c> and <c>.mzkbd</c> files hold this enum's
+/// <c>ToString()</c> forms, such as <c>F5</c> or <c>Control, G</c>, and
+/// <c>--keys</c> scripts use the names too. Where two names share a
+/// value (<c>Enter</c> and <c>Return</c>, <c>Oem3</c> and
+/// <c>Oemtilde</c>), <see cref="HostKeyNames"/> pins the one
+/// <c>ToString()</c> must give. Keep the declaration order as it is:
+/// it is what gives those names today. (WinForms 10 reordered three
+/// aliases in <c>Keys</c>, which is why saved names come from here, not
+/// from <c>Keys</c>.) A WinForms front end converts with a cast; other
+/// front ends map their own key codes onto these values.
+/// <c>HostKeyParity</c> checks names and values against <c>Keys</c> at
+/// startup.
 /// </summary>
 [System.Flags]
 public enum HostKey

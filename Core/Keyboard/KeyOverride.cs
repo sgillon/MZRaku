@@ -62,8 +62,8 @@ public sealed class KeyOverride
     /// Serialise each binding as <c>KeyName=Row,Col,Shift</c> where Shift
     /// is one of <c>t</c> (forced on), <c>f</c> (forced off), <c>-</c>
     /// (pass through PC shift). KeyName is the <see cref="HostKey"/>
-    /// ToString output, the same as WinForms Keys gives (e.g. <c>F5</c>,
-    /// <c>Control, G</c>).
+    /// ToString output (e.g. <c>F5</c>, <c>Control, G</c>); for values
+    /// with more than one name, <see cref="HostKeyNames"/> pins which.
     /// </summary>
     public IEnumerable<string> SerialiseLines() =>
         _map.OrderBy(kv => kv.Key.ToString())

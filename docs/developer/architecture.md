@@ -120,7 +120,7 @@ never committed.
 | `IAudioOut` | front end → core | A sound device the core writes 16-bit mono PCM to. The app's is `Platform/WinmmWaveOut.cs`; the headless runner's is `NullAudioOut`. `Sound` feeds it from its own background thread |
 | `IJoystickSource` | front end → core | The host gamepad, polled once a frame. The app's is `Platform/JoystickInput.cs` |
 | `IKeyboardInput` | front end → core | Where host key events go: key down, key press (the character), key up, focus lost. Each machine's keyboard implements it |
-| `HostKey` | front end → core | The core's key code. A copy of WinForms `Keys` (same names and values), checked at startup by `UI/HostKeyParity.cs` because the app casts between the two and saved key overrides use the names |
+| `HostKey` | front end → core | The core's key code. A copy of WinForms `Keys` (same names and values), checked at startup by `UI/HostKeyParity.cs` because the app casts between the two. Saved key overrides use its names; `HostKeyNames` pins the name of each value that has more than one |
 
 ## Inside the core
 
@@ -238,7 +238,7 @@ part-way through a frame.
 
 **The app** (`Program.cs`, `MainForm.cs`). `Program` parses the
 command line, runs the startup checks (`MatrixValidation`,
-`HostKeyParity`), loads a `--keys` script and the settings, and opens
+`HostKeyParity`, `HostKeyNames`), loads a `--keys` script and the settings, and opens
 `MainForm`. `MainForm` builds the session, opens the WinMM sound
 device and the gamepad, and runs frames off a WinForms timer. The
 timer can't tick 60 times a second on Windows, so each tick runs as

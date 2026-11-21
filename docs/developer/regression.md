@@ -166,9 +166,11 @@ stay in step with `MainForm`.
 ### Other checks
 
 - **At startup**, `MatrixValidation` checks each machine's key maps
-  against its matrix reference (a dialog in the app, stderr in the
-  headless runner), and the app's `HostKeyParity` checks `HostKey`
-  still matches WinForms `Keys`.
+  against its matrix reference, and `HostKeyNames` checks the saved
+  spelling of keys with more than one name (a dialog in the app,
+  stderr in the headless runner and in the app's `--dump` runs, so the
+  windowed suite never stops on one). The app's `HostKeyParity` also
+  checks `HostKey` still has the names and values of WinForms `Keys`.
 - **Doc comments.** To check the XML doc comments for broken
   references and bad markup, build with documentation on into a
   scratch folder (outside the repository), which must show 0

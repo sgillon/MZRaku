@@ -192,11 +192,18 @@ internal static class Program
         // warning dialog otherwise. The reference was introduced to
         // catch the drift that had been letting slot bugs hide for
         // weeks at a time.
-        MatrixValidation.RunAndLog((text, title) => MessageBox.Show(
-            text, title, MessageBoxButtons.OK, MessageBoxIcon.Warning));
-        // HostKey must still mirror WinForms Keys: the front end casts
-        // between them and saved key overrides use the names.
-        HostKeyParity.RunAndLog();
+        //
+        // A --dump run (the regression suite) must never block on a
+        // dialog, so there the warnings go to stderr instead.
+        Action<string, string> warn = dumpPath == null
+            ? (text, title) => MessageBox.Show(text, title, MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            : (text, title) => Console.Error.WriteLine($"{title}: {text}");
+        MatrixValidation.RunAndLog(warn);
+        // HostKey must still mirror WinForms Keys (the front end casts
+        // between them), and still format the key names saved overrides
+        // use.
+        HostKeyParity.RunAndLog(warn);
+        HostKeyNames.RunAndLog(warn);
 
         // --keys=<file>: scripted host input (regression suite). A bad
         // script exits with code 2 before the emulator starts; the

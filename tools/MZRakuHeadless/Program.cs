@@ -93,6 +93,7 @@ internal static class Program
             return Fail(1, "--dump=<path> is required.\n\n" + Usage);
 
         MatrixValidation.RunAndLog((text, title) => Console.Error.WriteLine($"{title}: {text}"));
+        HostKeyNames.RunAndLog((text, title) => Console.Error.WriteLine($"{title}: {text}"));
 
         KeyScript? keyScript = null;
         if (keysPath != null)
