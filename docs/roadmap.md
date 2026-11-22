@@ -209,7 +209,8 @@ for a much better foundation for the cross-platform GUI.
   events and typed text, instead of WinForms' KeyDown/KeyPress
   pairing), one layering of overrides, special keys and characters
   shared by all three machines, and one auto-typer.
-- **Front end** — SDL2 (via Silk.NET or equivalent) for the window,
+- **Front end** — SDL3 (via `ppy.SDL3-CS`, as in the sister project
+  APVSRaku; decided in `v1.6-plan.md`) for the window,
   input, audio and joystick. The frame's pixel buffer goes to the
   screen with integer or aspect-correct scaling. MZ key mapping uses
   SDL scancodes.
@@ -218,13 +219,19 @@ for a much better foundation for the cross-platform GUI.
   `--dump`, plus `--settings=` from v1.5.0) and the self-documenting
   `settings.ini`, including `[KeyOverrides]` and `.mzkbd` import.
 - **Replacing the menus** —
-  - drag-and-drop a file onto the window to load it;
+  - drag-and-drop a file onto the window to load it, or the OS's own
+    file picker (SDL3) on a hotkey;
   - hotkeys for reset, pause, quit, machine switch, insert cassette,
-    Load BASIC source, volume and mute, screenshot, and fullscreen;
-  - brief on-screen messages drawn into the frame (possibly with the
-    machine's own font ROM) in place of the status bar.
+    Load BASIC source, volume and mute, screenshot, and fullscreen,
+    on Ctrl (Cmd on macOS), with an on-screen hotkey list;
+  - brief on-screen messages drawn over the picture in the machine's
+    own font ROM, in place of the status bar.
 - **Errors** — missing ROMs and bad settings give clear console
-  messages and non-zero exit codes instead of dialogs.
+  messages and non-zero exit codes, plus a message box so a launcher
+  user sees them (none in `--dump` runs).
+
+The detail (flags, hotkey table, messages) is in `v1.6-plan.md`,
+decision 4.
 - **Left for the GUI** — debugger, memory viewer, Font Sheet, HID /
   sound diagnostics, keyboard matrix, settings and keyboard-editor
   dialogs. A terminal-based debugger (break, step, dump memory) is a
@@ -233,15 +240,21 @@ for a much better foundation for the cross-platform GUI.
   - case-insensitive ROM and BASIC file matching (Linux file
     systems are case-sensitive);
   - path separators in `[Roms]` paths written on Windows;
-  - where `settings.ini` lives on macOS, where "next to the exe"
-    inside an `.app` bundle may be read-only, against the
-    portable-settings rule;
+  - where `settings.ini` lives on macOS: settled by shipping a plain
+    folder rather than an `.app` bundle for the first release, so
+    "next to the program" still holds;
   - MZ key mapping across host keyboard layouts.
-- **Packaging** — one file per platform with SDL bundled (an `.app`
-  bundle on macOS). Expected to be a few MB.
-- **Testing** — Linux via WSL on Windows 11 (WSLg runs SDL apps with
-  sound); macOS needs access to a Mac. The regression suite's
-  `--dump` path is front-end independent, so the core stays covered.
+- **Packaging** — one self-contained file per platform with SDL
+  bundled, built on each platform's CI runner: Windows x64, Linux
+  x64 and macOS arm64, plus macOS x64 and Linux arm64 if they pass.
+  macOS ships as a plain folder run from Terminal; the `.app` bundle
+  and notarisation wait for demand or v2.0.0. A few tens of MB, or a
+  few MB if the Native AOT trial works out.
+- **Testing** — local Windows and WSL (WSLg runs SDL apps with
+  sound), GitHub Actions on all three platforms (ROMs fetched from the
+  private information repository), firmware-free keyboard tests, and
+  a real Mac for feel through preview testers. Details in
+  `v1.6-plan.md`.
 - **Launchers** — fits LaunchBox (Windows) and command-line front
   ends such as ES-DE on Linux; `launcher-setup.md` gains an MZRakuCLI
   section.
@@ -352,8 +365,26 @@ learning project Steve plans to take on first.
 
 ## Parked (no version yet)
 
-Nothing at present: v1.5.0's "Clearing the decks" fixed or closed
-everything parked up to v1.4.0.
+v1.5.0's "Clearing the decks" fixed or closed everything parked up to
+v1.4.0. Since then:
+
+- **Hardware diagnostic ROM** (raised 2026-11-22, while planning
+  v1.6.0's tests) — a separate project with its own plan when picked
+  up. A small test ROM of MZRaku's own, clean-room Z80 code booted in
+  place of the monitor, driving the hardware directly: VRAM in each
+  display mode, the PIT and sound, the keyboard scan through the PPI,
+  bank switching, and on the MZ-800 the GDG modes, PSG and PIO
+  interrupts. Results on screen or in memory.
+  - **Gives:** goldens with no Sharp firmware in them, so CI needs no
+    secret; coverage of the CPU and hardware working together;
+    hardware features the Sharp ROMs never exercise.
+  - **Doesn't give:** proof of accuracy, since it is written from the
+    same understanding of the hardware as the emulator, unless it is
+    also run on a real machine and compared.
+  - **Costs:** a Z80 assembler in the toolchain and a ROM per machine
+    family.
+  - **Trigger:** moves forward if v1.6.0's CI route (ROMs fetched from
+    the private information repository) proves awkward.
 
 ## Aspirational (no version yet)
 
